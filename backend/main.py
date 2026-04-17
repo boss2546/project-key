@@ -1,4 +1,4 @@
-"""Project KEY — FastAPI Backend (MVP v0.1)"""
+"""Project KEY — FastAPI Backend (MVP v2)"""
 import os
 import json
 import logging
@@ -15,19 +15,21 @@ from sqlalchemy.orm import selectinload
 
 from .database import (
     init_db, get_db, gen_id,
-    User, File, Cluster, FileClusterMap, FileInsight, FileSummary
+    User, File, Cluster, FileClusterMap, FileInsight, FileSummary, ContextPack
 )
 from .extraction import extract_text
 from .organizer import organize_files
 from .retriever import chat_with_retrieval
-from .config import UPLOAD_DIR, BASE_DIR
+from .profile import get_profile, update_profile, is_profile_complete
+from .context_packs import list_packs, get_pack, create_pack, delete_pack, regenerate_pack
+from .config import UPLOAD_DIR, BASE_DIR, MAX_FILE_SIZE_MB
 
 # Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # App
-app = FastAPI(title="Project KEY", version="0.1.0")
+app = FastAPI(title="Project KEY", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -59,8 +61,23 @@ async def startup():
 class ChatRequest(BaseModel):
     question: str
 
+class ProfileRequest(BaseModel):
+    identity_summary: str | None = None
+    goals: str | None = None
+    working_style: str | None = None
+    preferred_output_style: str | None = None
+    background_context: str | None = None
 
-# ─── API ROUTES ───
+class ContextPackRequest(BaseModel):
+    type: str  # profile, study, work, project
+    title: str
+    source_file_ids: list[str] = []
+    source_cluster_ids: list[str] = []
+
+
+# ═══════════════════════════════════════════
+# FILE APIs (v1 — preserved)
+# ═══════════════════════════════════════════
 
 @app.post("/api/upload")
 async def upload_files(
@@ -71,6 +88,7 @@ async def upload_files(
     """Upload one or more files, extract text, save to database."""
     uploaded = []
     allowed_types = {"pdf", "txt", "md", "docx"}
+    max_bytes = MAX_FILE_SIZE_MB * 1024 * 1024
 
     for upload_file in files:
         # Validate type
@@ -84,6 +102,11 @@ async def upload_files(
         raw_path = os.path.join(UPLOAD_DIR, safe_filename)
 
         contents = await upload_file.read()
+
+        # Validate size
+        if len(contents) > max_bytes:
+            continue
+
         with open(raw_path, "wb") as f:
             f.write(contents)
 
@@ -143,13 +166,11 @@ async def list_files(db: AsyncSession = Depends(get_db)):
 @app.get("/api/clusters")
 async def list_clusters(db: AsyncSession = Depends(get_db)):
     """List all clusters with their files."""
-    # Get clusters
     clusters_result = await db.execute(
         select(Cluster).where(Cluster.user_id == DEFAULT_USER_ID)
     )
     clusters = clusters_result.scalars().all()
 
-    # Get all files with relationships
     files_result = await db.execute(
         select(File).where(File.user_id == DEFAULT_USER_ID)
         .options(
@@ -160,10 +181,14 @@ async def list_clusters(db: AsyncSession = Depends(get_db)):
     )
     files = files_result.scalars().all()
 
-    # Build response
+    # Get context packs for each cluster
+    packs_result = await db.execute(
+        select(ContextPack).where(ContextPack.user_id == DEFAULT_USER_ID)
+    )
+    all_packs = packs_result.scalars().all()
+
     cluster_list = []
     for c in clusters:
-        # Find files in this cluster
         cluster_files = []
         for f in files:
             for cm in f.cluster_maps:
@@ -171,12 +196,24 @@ async def list_clusters(db: AsyncSession = Depends(get_db)):
                     cluster_files.append(_serialize_file(f))
                     break
 
+        # Find packs derived from this cluster
+        derived_packs = []
+        for p in all_packs:
+            source_cluster_ids = json.loads(p.source_cluster_ids) if p.source_cluster_ids else []
+            if c.id in source_cluster_ids:
+                derived_packs.append({
+                    "id": p.id,
+                    "type": p.type,
+                    "title": p.title
+                })
+
         cluster_list.append({
             "id": c.id,
             "title": c.title,
             "summary": c.summary,
             "file_count": len(cluster_files),
-            "files": cluster_files
+            "files": cluster_files,
+            "derived_packs": derived_packs
         })
 
     return {
@@ -227,9 +264,31 @@ async def get_summary(file_id: str, db: AsyncSession = Depends(get_db)):
     }
 
 
+@app.delete("/api/files/{file_id}")
+async def delete_file(file_id: str, db: AsyncSession = Depends(get_db)):
+    """Delete a file and its related data."""
+    result = await db.execute(
+        select(File).where(File.id == file_id, File.user_id == DEFAULT_USER_ID)
+    )
+    file = result.scalar_one_or_none()
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    if file.raw_path and os.path.exists(file.raw_path):
+        os.remove(file.raw_path)
+
+    await db.delete(file)
+    await db.commit()
+    return {"status": "ok"}
+
+
+# ═══════════════════════════════════════════
+# CHAT API (v2 — enhanced with injection)
+# ═══════════════════════════════════════════
+
 @app.post("/api/chat")
 async def chat(req: ChatRequest, db: AsyncSession = Depends(get_db)):
-    """AI Chat with retrieval from user's organized data."""
+    """AI Chat with automatic context injection from all layers."""
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty")
 
@@ -241,9 +300,96 @@ async def chat(req: ChatRequest, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ═══════════════════════════════════════════
+# PROFILE APIs (v2 — new)
+# ═══════════════════════════════════════════
+
+@app.get("/api/profile")
+async def api_get_profile(db: AsyncSession = Depends(get_db)):
+    """Get user profile."""
+    return await get_profile(db, DEFAULT_USER_ID)
+
+
+@app.put("/api/profile")
+async def api_update_profile(req: ProfileRequest, db: AsyncSession = Depends(get_db)):
+    """Create or update user profile."""
+    data = req.model_dump(exclude_none=True)
+    return await update_profile(db, DEFAULT_USER_ID, data)
+
+
+# ═══════════════════════════════════════════
+# CONTEXT PACK APIs (v2 — new)
+# ═══════════════════════════════════════════
+
+@app.get("/api/context-packs")
+async def api_list_packs(db: AsyncSession = Depends(get_db)):
+    """List all context packs."""
+    packs = await list_packs(db, DEFAULT_USER_ID)
+    return {"packs": packs, "count": len(packs)}
+
+
+@app.post("/api/context-packs")
+async def api_create_pack(req: ContextPackRequest, db: AsyncSession = Depends(get_db)):
+    """Create a new context pack from source files/clusters."""
+    valid_types = {"profile", "study", "work", "project"}
+    if req.type not in valid_types:
+        raise HTTPException(status_code=400, detail=f"Type must be one of: {valid_types}")
+
+    if not req.source_file_ids and not req.source_cluster_ids:
+        raise HTTPException(status_code=400, detail="Must provide source_file_ids or source_cluster_ids")
+
+    try:
+        pack = await create_pack(
+            db, DEFAULT_USER_ID,
+            req.type, req.title,
+            req.source_file_ids, req.source_cluster_ids
+        )
+        return pack
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Pack creation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/context-packs/{pack_id}")
+async def api_get_pack(pack_id: str, db: AsyncSession = Depends(get_db)):
+    """Get a single context pack."""
+    pack = await get_pack(db, pack_id, DEFAULT_USER_ID)
+    if not pack:
+        raise HTTPException(status_code=404, detail="Context pack not found")
+    return pack
+
+
+@app.delete("/api/context-packs/{pack_id}")
+async def api_delete_pack(pack_id: str, db: AsyncSession = Depends(get_db)):
+    """Delete a context pack."""
+    deleted = await delete_pack(db, pack_id, DEFAULT_USER_ID)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Context pack not found")
+    return {"status": "ok"}
+
+
+@app.post("/api/context-packs/{pack_id}/regenerate")
+async def api_regenerate_pack(pack_id: str, db: AsyncSession = Depends(get_db)):
+    """Regenerate a context pack from its original sources."""
+    try:
+        pack = await regenerate_pack(db, pack_id, DEFAULT_USER_ID)
+        if not pack:
+            raise HTTPException(status_code=404, detail="Context pack not found")
+        return pack
+    except Exception as e:
+        logger.error(f"Pack regeneration failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ═══════════════════════════════════════════
+# STATS API (v2 — enhanced)
+# ═══════════════════════════════════════════
+
 @app.get("/api/stats")
 async def get_stats(db: AsyncSession = Depends(get_db)):
-    """Get storage/processing stats."""
+    """Get storage/processing stats including v2 data."""
     files_result = await db.execute(
         select(File).where(File.user_id == DEFAULT_USER_ID)
     )
@@ -254,38 +400,27 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
     )
     clusters = clusters_result.scalars().all()
 
+    packs_result = await db.execute(
+        select(ContextPack).where(ContextPack.user_id == DEFAULT_USER_ID)
+    )
+    packs = packs_result.scalars().all()
+
+    profile = await get_profile(db, DEFAULT_USER_ID)
+
     return {
         "total_files": len(files),
         "total_clusters": len(clusters),
         "processed": sum(1 for f in files if f.processing_status == "ready"),
         "processing": sum(1 for f in files if f.processing_status == "processing"),
-        "errors": sum(1 for f in files if f.processing_status == "error")
+        "errors": sum(1 for f in files if f.processing_status == "error"),
+        "total_context_packs": len(packs),
+        "profile_set": is_profile_complete(profile)
     }
-
-
-@app.delete("/api/files/{file_id}")
-async def delete_file(file_id: str, db: AsyncSession = Depends(get_db)):
-    """Delete a file and its related data."""
-    result = await db.execute(
-        select(File).where(File.id == file_id, File.user_id == DEFAULT_USER_ID)
-    )
-    file = result.scalar_one_or_none()
-    if not file:
-        raise HTTPException(status_code=404, detail="File not found")
-
-    # Delete raw file
-    if file.raw_path and os.path.exists(file.raw_path):
-        os.remove(file.raw_path)
-
-    await db.delete(file)
-    await db.commit()
-    return {"status": "ok"}
 
 
 @app.delete("/api/reset")
 async def reset_all(db: AsyncSession = Depends(get_db)):
     """Delete all data for the user (for testing)."""
-    # Delete all files, clusters, etc.
     files_result = await db.execute(select(File).where(File.user_id == DEFAULT_USER_ID))
     for f in files_result.scalars().all():
         if f.raw_path and os.path.exists(f.raw_path):
@@ -295,6 +430,12 @@ async def reset_all(db: AsyncSession = Depends(get_db)):
     clusters_result = await db.execute(select(Cluster).where(Cluster.user_id == DEFAULT_USER_ID))
     for c in clusters_result.scalars().all():
         await db.delete(c)
+
+    packs_result = await db.execute(select(ContextPack).where(ContextPack.user_id == DEFAULT_USER_ID))
+    for p in packs_result.scalars().all():
+        if p.md_path and os.path.exists(p.md_path):
+            os.remove(p.md_path)
+        await db.delete(p)
 
     await db.commit()
     return {"status": "ok", "message": "All data cleared"}
@@ -320,7 +461,6 @@ def _serialize_file(f: File) -> dict:
 
 # ─── SERVE FRONTEND ───
 
-# Serve frontend static files
 @app.get("/")
 async def serve_index():
     return FileResponse(os.path.join(BASE_DIR, "index.html"))

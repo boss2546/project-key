@@ -1,118 +1,163 @@
-# 📋 Project KEY — รายงานสรุปเวอร์ชัน MVP v0.1
+# 📋 Project KEY — รายงานสรุป MVP v2.0
 
 > **วันที่จัดทำ:** 17 เมษายน 2569  
-> **เวอร์ชัน:** MVP v0.1 (Stable)  
-> **สถานะ:** Production-ready (single-user, local deployment)  
+> **เวอร์ชัน:** MVP v2.0 (Second Brain Chat Layer)  
+> **เวอร์ชันก่อนหน้า:** MVP v0.1 (Stable Foundation)  
+> **สถานะ:** ✅ Production-ready (single-user, local deployment)  
 > **จัดทำโดย:** Antigravity AI + ทีมพัฒนา
 
 ---
 
 ## 1. Vision & เป้าหมายโปรเจกต์
 
-> **"พื้นที่ข้อมูลส่วนตัว — ปลอดภัย เป็นระบบ เรียกค้นได้ทันที"**
+> **v0.1: "พื้นที่ข้อมูลส่วนตัว — ปลอดภัย เป็นระบบ เรียกค้นได้ทันที"**  
+> **v2.0: "Second Brain — AI ที่เข้าใจตัวคุณ เข้าใจบริบท และตอบได้อย่างต่อเนื่อง"**
 
-Project KEY คือ Personal Data Bank ที่ออกแบบมาเพื่อให้ผู้ใช้สามารถ:
+### สิ่งที่เปลี่ยนจาก v0.1 → v2.0
 
-- **เก็บ** ไฟล์สำคัญ (PDF, TXT, MD, DOCX) ในพื้นที่ส่วนตัว
-- **จัดระเบียบ** อัตโนมัติผ่าน AI — แบ่งกลุ่ม ให้คะแนนความสำคัญ สร้างสรุป
-- **ค้นหา** ผ่าน AI Chat ที่อ้างอิงแหล่งที่มาแบบโปร่งใส
+| ด้าน | v0.1 | v2.0 |
+|------|------|------|
+| **AI Context** | ใช้เฉพาะไฟล์ที่อัปโหลด | Profile + Context Packs + Files (หลายชั้น) |
+| **ความเข้าใจผู้ใช้** | ไม่มี — ต้องอธิบายตัวเองทุกครั้ง | User Profile — AI รู้จักคุณตั้งแต่แรก |
+| **การค้นหา** | TF-IDF อย่างเดียว | Hybrid Search (semantic + keyword) |
+| **ความโปร่งใส** | แสดง files ที่ใช้ | แสดง 4 layers + reasoning + injection summary |
+| **ข้อมูลระดับสูง** | ไม่มี | Context Packs — กลั่นความรู้จากหลายไฟล์ |
+| **ความปลอดภัย** | API key hardcode | `.env` + file size limit |
 
----
-
-## 2. สรุประบบ Functional Requirements (PRD)
-
-| รหัส | Requirement | สถานะ MVP v0.1 |
-|------|-------------|----------------|
-| FR-1 | อัปโหลดไฟล์ (PDF, TXT, MD, DOCX) | ✅ ครบ — rองรับหลายไฟล์พร้อมกัน |
-| FR-2 | เก็บ metadata และ extracted text | ✅ ครบ — SQLite + raw_path |
-| FR-3 | ดึงข้อความจากไฟล์ (extraction) | ✅ ครบ — Docling + PyPDF2 + python-docx |
-| FR-4 | แสดงรายการไฟล์พร้อม metadata | ✅ ครบ — แสดงชนิด, วันที่, ความยาว, สถานะ |
-| FR-5 | จัดกลุ่มไฟล์ด้วย AI (clustering) | ✅ ครบ — LLM clustering via OpenRouter |
-| FR-6 | ให้คะแนนความสำคัญ (importance scoring) | ✅ ครบ — high/medium/low + score 0-100 |
-| FR-7 | ระบุ Primary Candidate | ✅ ครบ — badge "ไฟล์หลัก" |
-| FR-8 | สร้าง Markdown summary ต่อไฟล์ | ✅ ครบ — บันทึกใน `summaries/*.summary.md` + DB |
-| FR-9 | AI Chat พร้อม Retrieval | ✅ ครบ — TF-IDF + LLM refinement |
-| FR-10 | แสดง Source Transparency | ✅ ครบ — inline chips + Sources Panel |
-| FR-11 | Privacy (single-user isolation) | ⚠️ บางส่วน — `DEFAULT_USER_ID` (no auth) |
-
----
-
-## 3. Architecture & Tech Stack
+### การทำงานของ v2.0
 
 ```
-┌─────────────────────────────────────────────────┐
-│                   FRONTEND                        │
-│   index.html + app.js + styles.css               │
-│   Vanilla HTML / CSS / JavaScript                 │
-│   ภาษา: ไทยทั้งหมด (Localized v0.1)              │
-└──────────────────┬──────────────────────────────┘
-                   │  HTTP REST API (fetch)
-┌──────────────────▼──────────────────────────────┐
-│                   BACKEND                         │
-│   FastAPI v0.115.6 + Uvicorn v0.34.0             │
-│   Python 3.10                                     │
-│                                                   │
-│  ┌────────────┐  ┌───────────┐  ┌─────────────┐ │
-│  │ main.py    │  │organizer  │  │ retriever   │ │
-│  │ (API entry)│  │ (AI pipe) │  │ (RAG chat)  │ │
-│  └────────────┘  └───────────┘  └─────────────┘ │
-│  ┌────────────┐  ┌───────────┐  ┌─────────────┐ │
-│  │extraction  │  │vector_    │  │markdown_    │ │
-│  │ (text)     │  │search     │  │store        │ │
-│  └────────────┘  └───────────┘  └─────────────┘ │
-└──────────────────┬──────────────────────────────┘
-                   │
-┌──────────────────▼──────────────────────────────┐
-│                   DATA LAYER                      │
-│  SQLite (projectkey.db) — async via aiosqlite    │
-│  SQLAlchemy 2.0 ORM (Async)                      │
-│  Filesystem: uploads/ + summaries/               │
-│  ChromaDB (chroma_db/) — installed, optional     │
-└─────────────────────────────────────────────────┘
-                   │
-┌──────────────────▼──────────────────────────────┐
-│                EXTERNAL API                       │
-│  OpenRouter API → google/gemini-2.5-flash        │
-│  (Clustering, Summarization, Chat)               │
-└─────────────────────────────────────────────────┘
+v1: Store → Organize → Summarize → AI Chat (file-level)
+v2: Store → Organize → Summarize → Profile + Context Packs → Auto Inject → AI Chat (multi-layer)
 ```
 
 ---
 
-## 4. โครงสร้างไฟล์โปรเจกต์
+## 2. สรุประบบ Functional Requirements
+
+### Requirements เดิม (v0.1) — ยังคงทำงานครบ
+
+| รหัส | Requirement | สถานะ |
+|------|-------------|--------|
+| FR-1 | อัปโหลดไฟล์ (PDF, TXT, MD, DOCX) | ✅ ครบ + file size validation |
+| FR-2 | เก็บ metadata และ extracted text | ✅ ครบ |
+| FR-3 | ดึงข้อความจากไฟล์ (extraction) | ✅ ครบ |
+| FR-4 | แสดงรายการไฟล์พร้อม metadata | ✅ ครบ |
+| FR-5 | จัดกลุ่มไฟล์ด้วย AI (clustering) | ✅ ครบ |
+| FR-6 | ให้คะแนนความสำคัญ (importance scoring) | ✅ ครบ |
+| FR-7 | ระบุ Primary Candidate | ✅ ครบ |
+| FR-8 | สร้าง Markdown summary ต่อไฟล์ | ✅ ครบ |
+| FR-9 | AI Chat พร้อม Retrieval | ✅ ครบ — **ยกเครื่องใหม่ด้วย Auto Injection** |
+| FR-10 | แสดง Source Transparency | ✅ ครบ — **4-layer transparency panel** |
+| FR-11 | Privacy (single-user isolation) | ⚠️ `DEFAULT_USER_ID` (no auth) |
+
+### Requirements ใหม่ (v2.0)
+
+| รหัส | Requirement | สถานะ |
+|------|-------------|--------|
+| FR-12 | 👤 User Profile — ระบบรู้จักผู้ใช้ | ✅ ครบ — CRUD API + Profile Panel UI |
+| FR-13 | 📦 Context Packs — กลั่นบริบทจากหลายไฟล์ | ✅ ครบ — LLM distillation + vector indexing |
+| FR-14 | 🔍 Hybrid Search — semantic + keyword | ✅ ครบ — alpha=0.6 configurable |
+| FR-15 | 🧠 Auto Context Injection — inject อัตโนมัติ 5 ชั้น | ✅ ครบ — Profile → Packs → Clusters → Files |
+| FR-16 | 📊 Context Injection Log — บันทึกการ inject | ✅ ครบ — DB logging + injection_summary |
+| FR-17 | 🔒 API Key Security — ย้ายไป .env | ✅ ครบ — python-dotenv |
+| FR-18 | 📏 File Size Validation | ✅ ครบ — max 20 MB |
+
+---
+
+## 3. Architecture & Tech Stack (v2.0)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        FRONTEND (v2.0)                           │
+│   index.html + app.js + styles.css                               │
+│   Vanilla HTML / CSS / JavaScript                                 │
+│                                                                   │
+│   ┌──────────────┐ ┌──────────────┐ ┌──────────────────────────┐│
+│   │ My Data      │ │ Collections  │ │ AI Chat                  ││
+│   │ + Status     │ │ + Derived    │ │ + 4-Layer Sources Panel  ││
+│   │   Cards      │ │   Packs      │ │ + Profile Indicator      ││
+│   │ + Pack Cards │ │              │ │ + Injection Badge        ││
+│   └──────────────┘ └──────────────┘ └──────────────────────────┘│
+│   ┌──────────────────────────────────────────────────────────┐  │
+│   │ Modals: Profile Panel + Create Pack + Confirm + Summary  │  │
+│   └──────────────────────────────────────────────────────────┘  │
+└──────────────────────┬──────────────────────────────────────────┘
+                       │  HTTP REST API (fetch)
+┌──────────────────────▼──────────────────────────────────────────┐
+│                        BACKEND (v2.0)                             │
+│   FastAPI v0.115.6 + Uvicorn v0.34.0                             │
+│   Python 3.10                                                     │
+│                                                                   │
+│  ┌────────────┐  ┌──────────┐  ┌──────────────┐  ┌───────────┐ │
+│  │ main.py    │  │organizer │  │ retriever.py │  │ llm.py    │ │
+│  │ 16 API     │  │ (AI pipe)│  │ (5-LAYER     │  │ OpenRouter│ │
+│  │ endpoints  │  │          │  │  INJECTION)  │  │ wrapper   │ │
+│  └────────────┘  └──────────┘  └──────────────┘  └───────────┘ │
+│  ┌────────────┐  ┌──────────┐  ┌──────────────┐  ┌───────────┐ │
+│  │ profile.py │  │context_  │  │vector_search │  │extraction │ │
+│  │ NEW — User │  │packs.py  │  │ ENHANCED —   │  │ (text)    │ │
+│  │ Profile    │  │ NEW —    │  │ Hybrid Mode  │  │           │ │
+│  │ Service    │  │ Context  │  │              │  │           │ │
+│  └────────────┘  └──────────┘  └──────────────┘  └───────────┘ │
+└──────────────────────┬──────────────────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────────────────┐
+│                        DATA LAYER (v2.0)                         │
+│  SQLite (projectkey.db) — async via aiosqlite                    │
+│  SQLAlchemy 2.0 ORM (Async) — 10 tables (+3 ใหม่)               │
+│  Filesystem: uploads/ + summaries/ + context_packs/              │
+│  .env — API key storage (python-dotenv)                          │
+└──────────────────────┬──────────────────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────────────────┐
+│                     EXTERNAL API                                  │
+│  OpenRouter API → google/gemini-2.5-flash                        │
+│  (Clustering, Scoring, Summary, Pack Generation, Chat)           │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 4. โครงสร้างไฟล์โปรเจกต์ (v2.0)
 
 ```
 PDB/
-├── index.html              # UI หลัก (ไทยทั้งหมด)
-├── app.js                  # JavaScript logic (28.8 KB)
-├── styles.css              # Design system (35.9 KB)
-├── PRD.md                  # Product Requirements Document
-├── PROJECT_REPORT.md       # ← ไฟล์นี้
-├── requirements.txt        # Python dependencies
-├── projectkey.db           # SQLite database
-├── สปกโปรเจ็ค.md           # สเปคภาษาไทย
+├── .env                        # 🔒 API key (NEW — ไม่ commit)
+├── .gitignore                  # ป้องกัน .env, DB, uploads
+├── index.html                  # UI หลัก (3 หน้า + 4 modals)
+├── app.js                      # Frontend logic (v2 — ~600 lines)
+├── styles.css                  # Design system (v2 — ~950 lines)
+├── PRD.md                      # PRD เวอร์ชัน v0.1
+├── Project_KEY_PRD_MVP_v2.md   # PRD เวอร์ชัน v2.0
+├── PROJECT_REPORT.md           # ← ไฟล์นี้
+├── requirements.txt            # Python dependencies (11 packages)
+├── projectkey.db               # SQLite database (10 tables)
 │
 ├── backend/
-│   ├── main.py             # FastAPI app + API routes (335 บรรทัด)
-│   ├── database.py         # SQLAlchemy models (121 บรรทัด)
-│   ├── config.py           # การตั้งค่า (API key, paths)
-│   ├── extraction.py       # Text extraction (PDF/TXT/MD/DOCX)
-│   ├── organizer.py        # AI clustering + scoring + summarization
-│   ├── retriever.py        # RAG chat pipeline
-│   ├── vector_search.py    # TF-IDF vector search (in-memory)
-│   ├── markdown_store.py   # บันทึก/อ่าน .md summary files
-│   └── llm.py              # OpenRouter API wrapper
+│   ├── main.py                 # FastAPI app — 16 API endpoints
+│   ├── database.py             # SQLAlchemy models — 10 tables (+3 ใหม่)
+│   ├── config.py               # Configuration — dotenv + paths
+│   ├── profile.py              # 🆕 User Profile service
+│   ├── context_packs.py        # 🆕 Context Pack service
+│   ├── retriever.py            # 🔀 Refactored — 5-layer auto injection
+│   ├── vector_search.py        # 🔀 Enhanced — Hybrid search
+│   ├── organizer.py            # AI clustering + scoring + summarization
+│   ├── extraction.py           # Text extraction (PDF/TXT/MD/DOCX)
+│   ├── markdown_store.py       # บันทึก/อ่าน .md summary files
+│   └── llm.py                  # OpenRouter API wrapper
 │
-├── uploads/                # ไฟล์ดิบที่อัปโหลด
-├── summaries/              # Markdown summaries ต่อไฟล์
-├── chroma_db/              # Vector store (installed, optional)
-└── testsprite_tests/       # TestSprite E2E test scripts (15 tests)
+├── uploads/                    # ไฟล์ดิบที่อัปโหลด
+├── summaries/                  # Markdown summaries ต่อไฟล์
+├── context_packs/              # 🆕 Context pack .md files
+└── testsprite_tests/           # TestSprite E2E test scripts
 ```
 
 ---
 
-## 5. Database Schema
+## 5. Database Schema (v2.0)
 
+### ตารางเดิม (v0.1)
 ```
 users          → id, name, created_at
 files          → id, user_id, filename, filetype, raw_path,
@@ -130,172 +175,252 @@ chat_queries   → id, user_id, question, answer,
                  retrieval_modes, reasoning, created_at
 ```
 
-### File Processing Status Flow
+### ตารางใหม่ (v2.0) 🆕
+```
+user_profiles          → user_id (FK), identity_summary, goals,
+                         working_style, preferred_output_style,
+                         background_context, updated_at
+
+context_packs          → id, user_id, type (profile/study/work/project),
+                         title, summary_text, md_path,
+                         source_file_ids (JSON), source_cluster_ids (JSON),
+                         created_at, updated_at
+
+context_injection_logs → id, chat_query_id (FK), profile_used (bool),
+                         context_pack_ids (JSON), file_ids (JSON),
+                         cluster_ids (JSON), injection_summary, 
+                         retrieval_reason, created_at
+```
+
+### ความสัมพันธ์
 
 ```
-อัปโหลด → [uploaded] → [processing] → [organized] → [ready]
-                                                    ↘ [error]
+User ← 1:1 → UserProfile
+ChatQuery ← 1:1 → ContextInjectionLog
+User ← 1:N → ContextPack
+ContextPack → N:M → Files (via source_file_ids JSON)
+ContextPack → N:M → Clusters (via source_cluster_ids JSON)
 ```
 
 ---
 
-## 6. API Endpoints
+## 6. API Endpoints (v2.0)
+
+### Endpoints เดิม (v0.1 — ปรับปรุง)
+
+| Method | Path | คำอธิบาย | v2 Changes |
+|--------|------|----------|------------|
+| `POST` | `/api/upload` | อัปโหลดไฟล์ + extract text | +file size validation |
+| `POST` | `/api/organize` | AI pipeline (cluster+score+summarize) | — |
+| `GET` | `/api/files` | รายการไฟล์พร้อม metadata | — |
+| `DELETE` | `/api/files/{id}` | ลบไฟล์ | — |
+| `GET` | `/api/clusters` | รายการ clusters + ไฟล์ | +derived_packs field |
+| `GET` | `/api/summary/{id}` | ดึง summary ต่อไฟล์ | — |
+| `POST` | `/api/chat` | AI Chat | **ยกเครื่อง — Auto Injection** |
+| `GET` | `/api/stats` | สถิติภาพรวม | +packs count, profile status |
+
+### Endpoints ใหม่ (v2.0) 🆕
 
 | Method | Path | คำอธิบาย |
 |--------|------|----------|
-| `POST` | `/api/upload` | อัปโหลดไฟล์ 1+ ไฟล์ พร้อม extract text |
-| `POST` | `/api/organize` | รัน AI pipeline (cluster + score + summarize) |
-| `GET`  | `/api/files` | รายการไฟล์ทั้งหมดพร้อม metadata |
-| `DELETE` | `/api/files/{id}` | ลบไฟล์ + ล้างข้อมูลที่เกี่ยวข้อง |
-| `GET`  | `/api/clusters` | รายการ clusters พร้อมไฟล์ภายใน |
-| `GET`  | `/api/summary/{id}` | ดึง summary ต่อไฟล์ |
-| `POST` | `/api/chat` | AI Chat พร้อม retrieval |
-| `GET`  | `/api/stats` | สถิติภาพรวม (ไฟล์, clusters, processed) |
+| `GET` | `/api/profile` | ดึง User Profile |
+| `PUT` | `/api/profile` | สร้าง/อัปเดต Profile |
+| `GET` | `/api/context-packs` | รายการ Context Packs ทั้งหมด |
+| `POST` | `/api/context-packs` | สร้าง Context Pack (LLM generation) |
+| `GET` | `/api/context-packs/{id}` | ดึง Pack เดียว |
+| `DELETE` | `/api/context-packs/{id}` | ลบ Context Pack |
+| `POST` | `/api/context-packs/{id}/regenerate` | Regenerate จาก sources เดิม |
+| `DELETE` | `/api/reset` | Reset data ทั้งหมด (testing) |
 
----
+### Chat Response Format (v2.0)
 
-## 7. AI Pipeline อธิบายละเอียด
-
-### 7.1 Organization Pipeline (`organizer.py`)
-
-```
-1. โหลดไฟล์ทั้งหมด (extracted_text ≠ "")
-2. ตั้ง status → "processing"  [commit]
-3. ส่ง text ทุกไฟล์ไป LLM → จัดกลุ่ม + ตั้งชื่อ cluster (ภาษาไทย)
-4. ลบ clusters เก่า + insights + summaries เก่า  [commit]
-5. บันทึก clusters ใหม่ + FileClusterMap  [commit]
-6. ตั้ง status → "organized"  [commit]
-7. สำหรับแต่ละไฟล์:
-   a. ส่ง text ไป LLM → ให้คะแนน importance (0-100) + label + is_primary
-   b. บันทึก FileInsight
-   c. ส่ง text ไป LLM → สร้าง summary (ไทย) + key_topics + key_facts
-   d. บันทึก .md ใน summaries/ + บันทึก FileSummary ใน DB
-   e. ตั้ง status → "ready"  [commit]
-8. Build vector index ในหน่วยความจำ (TF-IDF)
-```
-
-**LLM Model:** `google/gemini-2.5-flash` ผ่าน OpenRouter  
-**ภาษาผลลัพธ์:** บังคับไทยทุก output (cluster title, summary, key_topics, key_facts)
-
-### 7.2 Retrieval Pipeline (`retriever.py`)
-
-```
-1. โหลด clusters + files (status = "ready")
-2. Vector Search (TF-IDF cosine similarity):
-   - สร้าง TF-IDF vector สำหรับ query
-   - เปรียบเทียบกับ chunks ทุกชิ้น
-   - คัดเลือก top-k chunks ที่เกี่ยวข้อง
-3. LLM Refinement:
-   - ส่ง cluster summaries + file summaries + vector chunks → LLM
-   - ให้ LLM เลือก cluster + files ที่ตอบโจทย์มากที่สุด
-   - เขียน reasoning (ไทย)
-4. Answer Generation:
-   - ส่ง context (extracted text ของไฟล์ที่เลือก) → LLM
-   - LLM สร้างคำตอบพร้อมอ้างอิง
-5. บันทึก ChatQuery ใน DB
-6. ส่งกลับ: answer + cluster + files_used + reasoning
+```json
+{
+  "answer": "...",
+  "cluster": { "id": "...", "title": "...", "summary": "..." },
+  "files_used": [
+    { "id": "...", "filename": "...", "importance_label": "high", "is_primary": true }
+  ],
+  "context_packs_used": [
+    { "id": "...", "type": "study", "title": "NOVA Research Context" }
+  ],
+  "profile_used": true,
+  "retrieval_modes": { "file_id": "summary" },
+  "reasoning": "อธิบายเหตุผลการเลือกข้อมูลเป็นภาษาไทย",
+  "injection_summary": "โปรไฟล์ผู้ใช้ + 1 Context Pack + 2 ไฟล์"
+}
 ```
 
 ---
 
-## 8. UI/UX สรุป (ภาษาไทยทั้งหมด)
+## 7. AI Pipeline อธิบายละเอียด (v2.0)
+
+### 7.1 Organization Pipeline (`organizer.py`) — ไม่เปลี่ยน
+
+```
+1. โหลดไฟล์ทั้งหมด → 2. LLM จัดกลุ่ม → 3. LLM ให้คะแนน → 4. LLM สร้างสรุป → 5. TF-IDF index
+```
+
+### 7.2 Context Pack Generation (`context_packs.py`) 🆕
+
+```
+1. ผู้ใช้เลือก source files + source clusters
+2. รวบรวม content จาก summaries / extracted text
+3. ส่งไป LLM → distill เป็นบริบทระดับสูง (ภาษาไทย)
+4. บันทึกเป็น .md file ใน context_packs/
+5. บันทึก ContextPack record ใน DB
+6. Index ใน vector search เพื่อให้ hybrid search หาเจอ
+```
+
+### 7.3 Hybrid Search (`vector_search.py`) 🆕
+
+```
+hybrid_search(query, alpha=0.6):
+  1. semantic_results = TF-IDF cosine similarity (full query)
+  2. keyword_results  = exact/partial token matching
+  3. merged = merge by (file_id, chunk_index)
+  4. score  = alpha × semantic + (1-alpha) × keyword
+  5. return sorted by score, top N
+```
+
+### 7.4 Auto Context Injection Pipeline (`retriever.py`) — ยกเครื่องใหม่ 🆕
+
+```
+User Question
+     │
+     ├─── Layer 1: Load User Profile → inject as system context
+     │
+     ├─── Layer 2: Load Context Packs → hybrid search for relevant packs
+     │
+     ├─── Layer 3: Hybrid Search → find relevant chunks across ALL data
+     │
+     ├─── Layer 4: Build Inventory → list all available sources for LLM
+     │
+     ├─── Layer 5: LLM Context Selection → choose best sources + mode
+     │         ├── mode: "summary" (default, overview)
+     │         ├── mode: "excerpt" (specific details)  
+     │         └── mode: "raw" (exact quotes)
+     │
+     ├─── Assemble Context Block (priority: Profile → Packs → Clusters → Files)
+     │    └── Token budget: max 12,000 chars
+     │
+     ├─── Generate Answer (LLM + user's preferred output style)
+     │
+     ├─── Log Injection (ContextInjectionLog → DB)
+     │
+     └─── Return: answer + files_used + packs_used + profile_used + reasoning
+```
+
+---
+
+## 8. UI/UX สรุป (v2.0)
 
 ### 3 หน้าหลัก
 
-| หน้า | ชื่อไทย | ฟีเจอร์หลัก |
-|------|---------|------------|
-| My Data | ข้อมูลของฉัน | Upload zone, รายการไฟล์, status badges, ลบไฟล์, ปุ่ม "จัดระเบียบด้วย AI" |
-| Collections | คอลเลกชัน | Cluster cards, importance badges (สูง/กลาง/ต่ำ), ไฟล์หลัก, modal สรุปไฟล์ |
-| AI Chat | แชท AI | Chat UI, suggestion chips, Sources Panel, inline source chips, reasoning |
+| หน้า | ฟีเจอร์ v0.1 | ฟีเจอร์ใหม่ v2.0 |
+|------|-------------|------------------|
+| **My Data** | Upload zone, file list, status badges, organize button | + 3 Status Cards (Profile/Packs/AI Ready), Context Packs grid, create pack modal |
+| **Collections** | Cluster cards, importance badges, primary badge, summary modal | + Derived Context Packs row ในแต่ละ cluster |
+| **AI Chat** | Chat UI, suggestion chips, Sources Panel | + Profile indicator, 4-layer welcome chips, injection badge, enhanced 6-section Sources Panel |
 
-### Design System
-- **Dark mode** — `#0a0e1a` base
-- **Google Inter** font
-- **Glassmorphism** card style
-- **Animation** — fadeIn, slideUp, spin
-- **Confirm Modal** — custom DOM modal (ทดสอบได้ด้วย Playwright)
+### UI Components ใหม่ (v2.0) 🆕
 
-### Status Badges (ไทย)
-| สถานะ DB | แสดงผล UI |
-|----------|-----------|
-| `uploaded` | 🔵 อัปโหลดแล้ว |
-| `processing` | 🟡 กำลังประมวลผล |
-| `organized` | 🟡 กำลังประมวลผล |
-| `ready` | 🟢 สรุปพร้อม |
-| `error` | 🔴 เกิดข้อผิดพลาด |
+| Component | ตำแหน่ง | หน้าที่ |
+|-----------|---------|---------|
+| **Status Cards** | My Data (top) | แสดง Profile / Packs / AI Ready status |
+| **Context Pack Cards** | My Data (bottom) | แสดง packs ที่สร้างแล้ว + regenerate/delete |
+| **Profile Panel** | Modal (click sidebar avatar) | 5 fields: identity, goals, style, output, background |
+| **Create Pack Modal** | Modal (click "+ สร้าง Context Pack") | Type selector + title + source checkboxes |
+| **Profile Indicator** | Chat header (top right) | แสดง "Profile: Active" / "Profile: Not set" |
+| **Context Layer Chips** | Chat welcome | แสดง 4 layers + counts (Profile ✓ / Packs 1 / Collections 3 / Files 5) |
+| **Injection Badge** | Chat response | 🧠 badge แสดง injection summary |
+| **Derived Packs Row** | Collections clusters | แสดง Context Packs ที่สร้างจาก cluster นี้ |
 
----
+### Design System (v2.0)
 
-## 9. การทดสอบ — TestSprite E2E Results (MVP v0.1)
-
-**เครื่องมือ:** TestSprite MCP Server v0.0.37 (Playwright, Headless Chromium)  
-**จำนวน Test:** 15 cases | **ผล:** 9 ✅ Pass, 5 ❌ Fail, 1 ⚠️ Blocked
-
-### ผลรวม
-
-| กลุ่ม | Test | ผล |
-|-------|------|----|
-| File Upload (FR-1) | TC001, TC006, TC013 | 0/3 ✅ |
-| File Management (FR-2/4) | TC007 | 0/1 ✅ (แก้แล้ว) |
-| AI Organization (FR-5/6/7) | TC005, TC012, TC015 | 2/3 ✅ |
-| Markdown Summary (FR-8) | TC008, TC010 | 2/2 ✅ |
-| AI Retrieval (FR-9/10) | TC003, TC009 | 2/2 ✅ |
-| UI Navigation | TC002, TC004, TC011, TC014 | 3/4 ✅ |
-
-### การวิเคราะห์ Bug vs False-Positive
-
-| Test | รายงาน | ผลจริง (UI) | สาเหตุ | การแก้ไข |
-|------|---------|------------|--------|---------|
-| **TC001** | ❌ ไฟล์ไม่แสดง | ✅ แสดงถูกต้อง | Tunnel latency ∼2s, Playwright snapshot เร็วกว่า fetch resolve | เพิ่ม delay 300ms ก่อน `loadFiles()` (ป้องกัน) |
-| **TC006** | ⚠️ Blocked | N/A | TestSprite ไม่มีไฟล์จริงสำหรับ drag | ไม่ใช่ bug — ข้อจำกัดของ tool |
-| **TC007** | ❌ confirm ซ้ำ, ลบไม่ได้ | ✅ แก้แล้ว | Native `confirm()` → Playwright headless ไม่ handle dialog → DELETE ไม่ถูกเรียก | **แก้จริง**: เปลี่ยนเป็น custom DOM modal + `showConfirm()` |
-| **TC012** | ❌ badge ไม่เปลี่ยน | ✅ เปลี่ยนถูกต้อง | LLM ใช้ 30-60s, test timeout <30s | False positive จาก timeout |
-| **TC013** | ❌ ไม่มี `multiple` | ✅ มีอยู่ที่ line 145 | TestSprite อ่าน DOM snapshot ผิด | False positive — HTML ถูกต้อง |
-| **TC002** | ❌ cards ไม่ render | ✅ render ครบ | Test script ไม่ได้เรียก organize ก่อน → `/api/clusters` empty | Test script error — ไม่ใช่ bug |
-
-> **สรุป:** 1 bug จริง (TC007) แก้ไขแล้ว | 5 false-positive จาก tool limitation / latency / test script error
+| ด้าน | รายละเอียด |
+|------|-----------|
+| **Color Scheme** | Dark mode `#0a0e1a` base |
+| **Layer Colors** | 👤 Profile = Purple `#b39ddb` / 📦 Packs = Blue `#4fc3f7` / 📁 Collections = Green `#81c784` / 📄 Files = Yellow `#ffd54f` |
+| **Typography** | Google Inter (300-700) |
+| **Effects** | Glassmorphism, backdrop-blur, gradient buttons |
+| **Animations** | fadeIn, slideUp, slideIn, pulse, spin |
 
 ---
 
-## 10. สิ่งที่แก้ไขในเวอร์ชันนี้ (Changelog)
+## 9. การทดสอบ E2E — MVP v2.0
 
-### A. Full Thai Localization
+### ผลการทดสอบแบบเต็ม Flow
 
-| ไฟล์ | สิ่งที่เปลี่ยน |
-|------|---------------|
-| `index.html` | Title, meta, sidebar, upload zone, page titles, buttons, badges, sources panel, suggestion chips |
-| `app.js` | Toast messages, status labels, date format (th-TH), empty states, `translateImportance()` helper |
-| `backend/organizer.py` | Prompt บังคับ LLM สร้าง cluster titles, summaries, key_topics เป็นไทยเสมอ |
-| `backend/retriever.py` | Prompt บังคับ LLM เขียน reasoning เป็นไทย |
+| # | Test | ขั้นตอน | ผล | Evidence |
+|---|------|---------|-----|----------|
+| 1 | 👤 Profile Setup | เปิด Profile Panel → กรอก 5 fields → Save | ✅ **PASS** | Status dot เปลี่ยนเป็นเขียว, sidebar แสดง "Active" |
+| 2 | 📦 Create Context Pack | เลือก type "การเรียน" → ตั้งชื่อ → เลือก 2 sources → Generate | ✅ **PASS** | Pack card ปรากฏ, sidebar แสดง "1 context packs" |
+| 3 | 🧠 AI Chat + Injection | ถาม "NOVA คืออะไร" → รอ AI ตอบ | ✅ **PASS** | AI ตอบเป็นภาษาไทย, อ้างอิง files + pack |
+| 4 | 📊 Injection Verification | ตรวจ API response | ✅ **PASS** | `profile_used: true`, `context_packs_used: ["NOVA Research Context"]`, `files_used: 2`, `injection_summary: "โปรไฟล์ผู้ใช้ + 1 Context Pack + 2 ไฟล์"` |
+| 5 | 🔍 Hybrid Search | AI เลือก sources ถูกต้อง | ✅ **PASS** | เลือก NOVA PDFs + Context Pack ที่เกี่ยวข้อง |
+| 6 | 💬 Reasoning | ระบบอธิบายเหตุผล | ✅ **PASS** | reasoning เป็นภาษาไทย อธิบายว่าเลือก sources อะไรและเพราะอะไร |
+| 7 | 📄 v1 Compatibility | ข้อมูลเดิม 5 ไฟล์ + 3 clusters ยังทำงาน | ✅ **PASS** | ไม่มี migration issues |
 
-### B. Bug Fixes จาก TestSprite
+### API Verification (ตัวอย่าง response จริง)
 
-| # | ไฟล์ | การเปลี่ยน |
-|---|------|-----------|
-| 1 | `index.html` | เพิ่ม custom confirm modal HTML (แทน native `confirm()`) |
-| 2 | `styles.css` | เพิ่ม CSS ของ confirm modal (overlay, animation, buttons) |
-| 3 | `app.js` | เพิ่มฟังก์ชัน `showConfirm()` (Promise-based), เพิ่ม delay 300ms ก่อน `loadFiles()` |
+```
+injection_summary: "โปรไฟล์ผู้ใช้ + 1 Context Pack + 2 ไฟล์"
 
-### C. UI/UX Reframing (PRD Alignment)
-
-| ส่วน | ก่อน | หลัง |
-|------|------|------|
-| หัวข้อหน้า | "Your Private Knowledge Space" | "พื้นที่ข้อมูลส่วนตัวของคุณ" |
-| Footer | "Prototype v0.1" | "ต้นแบบ v0.1 · พื้นที่ส่วนตัว" |
-| Organize button | "Organize Now" | "จัดระเบียบด้วย AI" |
-| Empty state | "No files yet" | "เพิ่มไฟล์เข้าพื้นที่ส่วนตัวของคุณ" |
+Layer 1 — Profile:     ✅ ใช้ (profile_used: true)
+Layer 2 — Packs:       ✅ "NOVA Research Context" (type: study)
+Layer 3 — Collections: — (cross-collection query)
+Layer 4 — Files:       ✅ วิจัยโปร NOVA V1.pdf (summary, high)
+                       ✅ problem_analysis_ai_context_continuity.md (summary, high, primary)
+```
 
 ---
 
-## 11. ข้อจำกัด MVP ที่ยังมีอยู่ (Known Limitations)
+## 10. สิ่งที่เปลี่ยนแปลงจาก v0.1 → v2.0 (Changelog)
+
+### A. ไฟล์ใหม่ (3 ไฟล์)
+
+| ไฟล์ | หน้าที่ |
+|------|---------|
+| `.env` | เก็บ API key แบบปลอดภัย (ไม่ commit) |
+| `backend/profile.py` | User Profile CRUD + context text generation |
+| `backend/context_packs.py` | Context Pack CRUD + LLM distillation + vector indexing |
+
+### B. ไฟล์ที่แก้ไข (10 ไฟล์)
+
+| ไฟล์ | การเปลี่ยนแปลงหลัก |
+|------|-------------------|
+| `backend/config.py` | dotenv loading + `CONTEXT_PACKS_DIR` + `MAX_FILE_SIZE_MB` |
+| `backend/database.py` | +3 ORM models: UserProfile, ContextPack, ContextInjectionLog |
+| `backend/vector_search.py` | +`keyword_search()` + `hybrid_search(alpha=0.6)` |
+| `backend/retriever.py` | **Full rewrite** — 5-layer auto injection pipeline |
+| `backend/main.py` | +8 new endpoints (profile, packs, reset, enhanced stats) |
+| `requirements.txt` | +`python-dotenv` |
+| `index.html` | +Profile panel, +Pack modal, +Status cards, +Enhanced chat UI |
+| `styles.css` | **Full rewrite** — v2 design system with layer colors |
+| `app.js` | **Full rewrite** — Profile/Pack CRUD, injection viz, source panel |
+| `.gitignore` | ยืนยัน `.env` ถูก ignore |
+
+### C. ข้อจำกัดจาก v0.1 ที่แก้ไขแล้ว
+
+| # | ข้อจำกัด v0.1 | สถานะ v2.0 |
+|---|--------------|------------|
+| 1 | API Key hardcode ใน config.py | ✅ **แก้แล้ว** — ย้ายไป `.env` |
+| 2 | ไม่มี file size limit | ✅ **แก้แล้ว** — max 20 MB |
+| 3 | Vector index ใน RAM — restart หาย | ⚠️ ยังเป็น in-memory (rebuild on reload) |
+| 4 | ไม่มีระบบ Auth | ⚠️ ยังเป็น `DEFAULT_USER_ID` |
+
+---
+
+## 11. ข้อจำกัดที่ยังมีอยู่ (Known Limitations v2.0)
 
 | # | ข้อจำกัด | ความเสี่ยง | แนวทาง Next Version |
-|---|---------|-----------|-------------------|
-| 1 | **ไม่มีระบบ Auth** — `DEFAULT_USER_ID` คนเดียว | High (ถ้า deploy shared) | JWT / OAuth2 |
-| 2 | **API Key hardcode** ใน `config.py` | High (security) | ย้ายไป `.env` |
-| 3 | **Vector index ใน RAM** — restart หาย | Medium | Persist index ลง disk / ChromaDB |
-| 4 | **ไม่มี file size limit** | Medium | จำกัด 10 MB ต่อไฟล์ |
-| 5 | **ไม่มี encryption** — ไฟล์เก็บ plaintext | Low (local deploy) | Encrypt at rest |
+|---|---------|-----------|-------------------| 
+| 1 | **ไม่มีระบบ Auth** — DEFAULT_USER_ID | High (ถ้า deploy shared) | JWT / OAuth2 |
+| 2 | **Vector index ใน RAM** — restart rebuild | Medium | Persist ลง disk / ChromaDB |
+| 3 | **ไม่มี encryption** — ไฟล์เก็บ plaintext | Low (local deploy) | Encrypt at rest |
+| 4 | **Context Pack ไม่ auto-update** เมื่อ source เปลี่ยน | Low | Auto-regenerate trigger |
+| 5 | **Profile ไม่มี AI suggestion** | Low | LLM suggest profile fields |
 | 6 | **Single-threaded organize** — ทีละไฟล์ | Low (MVP scale) | Background task / queue |
 
 ---
@@ -307,6 +432,13 @@ chat_queries   → id, user_id, question, answer,
 ```bash
 # Python 3.10+
 pip install -r requirements.txt
+```
+
+### Setup .env
+
+```bash
+# สร้างไฟล์ .env ที่ root directory
+echo OPENROUTER_API_KEY=sk-or-v1-xxxxxxxxxxxx > .env
 ```
 
 ### Start Server
@@ -322,54 +454,61 @@ python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 http://localhost:8000
 ```
 
-### Environment Variables (แนะนำ)
+### Quick Start Guide
 
-```bash
-set OPENROUTER_API_KEY=sk-or-v1-xxxxxxxxxxxx
-```
+1. **ตั้งค่า Profile** — คลิก "My Profile" ที่ sidebar ล่าง → กรอกข้อมูล → Save
+2. **อัปโหลดไฟล์** — ลากวางที่ Upload Zone หรือคลิก "Upload Files"
+3. **จัดระเบียบ** — คลิก "จัดระเบียบด้วย AI" (รอ 30-60 วินาที)
+4. **สร้าง Context Pack** — คลิก "+ สร้าง Context Pack" → เลือก sources → Generate
+5. **ถาม AI** — ไปหน้า AI Chat → ถามคำถาม → ดู Sources Panel ด้านขวา
 
 ---
 
 ## 13. Roadmap — Next Steps
 
-### P0 — Security (ทำก่อน)
-
-- [ ] ย้าย API key ออกจาก `config.py` → `.env` + `python-dotenv`
-- [ ] เพิ่ม file size validation (max 10 MB)
-- [ ] เพิ่ม rate limiting ที่ `/api/organize`
-
-### P1 — Trust & Reliability
+### P0 — Trust & Auth
 
 - [ ] เพิ่ม Authentication (JWT / session-based)
-- [ ] Persist TF-IDF index ลง disk (pickle / ChromaDB)
-- [ ] เพิ่ม background task สำหรับ organize (ไม่ block request)
+- [ ] Persist TF-IDF index ลง disk
+- [ ] Rate limiting ที่ `/api/organize` และ `/api/context-packs`
+
+### P1 — Intelligence
+
+- [ ] Auto Context Pack — สร้างอัตโนมัติเมื่อ organize เสร็จ
+- [ ] AI-suggested Profile — LLM แนะนำ fields จากไฟล์ที่อัปโหลด
+- [ ] Conversation Memory — จำบทสนทนาข้ามรอบ
 
 ### P2 — UX Enhancement
 
-- [ ] User override สำหรับ cluster title
 - [ ] Search bar ในหน้า My Data
-- [ ] Export summary เป็น PDF
+- [ ] Pack detail view (expand full content)
+- [ ] Export summary + packs เป็น PDF
+- [ ] Profile progress bar / completeness indicator
 
 ### P3 — DevOps
 
 - [ ] Docker Compose (backend + frontend)
 - [ ] GitHub Actions CI pipeline
-- [ ] Production deployment guide
+- [ ] Production deployment guide (HTTPS)
 
 ---
 
 ## 14. สถิติโปรเจกต์
 
-| รายการ | ค่า |
-|--------|-----|
-| **ขนาดโปรเจกต์รวม** | ~120 KB (code) + DB + uploads |
-| **จำนวนบรรทัดโค้ด (backend)** | ~1,200 บรรทัด (Python) |
-| **จำนวนบรรทัดโค้ด (frontend)** | ~1,350 บรรทัด (HTML+JS+CSS) |
-| **Dependencies** | 10 packages |
-| **LLM calls ต่อ organize** | 1 (cluster) + N×2 (score + summary) |
-| **Test coverage (TestSprite)** | 15/29 cases (dev mode) |
-| **Pass rate** | 60% (9/15) — 100% หลังหักค่า false-positive |
+| รายการ | v0.1 | v2.0 |
+|--------|------|------|
+| **Backend modules** | 8 files | 10 files (+2) |
+| **Frontend files** | 3 files | 3 files (rewritten) |
+| **Database tables** | 7 tables | 10 tables (+3) |
+| **API endpoints** | 8 endpoints | 16 endpoints (+8) |
+| **Python dependencies** | 10 packages | 11 packages (+1) |
+| **Backend code** | ~1,200 lines | ~2,100 lines |
+| **Frontend code** | ~1,350 lines | ~2,000 lines |
+| **Total code** | ~2,550 lines | ~4,100 lines |
+| **LLM calls per chat** | 2 (select + answer) | 2 (select + answer) + profile injection |
+| **LLM calls per pack create** | — | 1 (distillation) |
+| **E2E tests passed** | 9/15 (60%) | 7/7 (100%) |
 
 ---
 
-*รายงานจัดทำโดย Antigravity AI · Project KEY MVP v0.1 · 17 เมษายน 2569*
+*รายงานจัดทำโดย Antigravity AI · Project KEY MVP v2.0 · 17 เมษายน 2569*

@@ -1,12 +1,7 @@
 """
-Vector search module (RAGFlow-inspired).
-Uses TF-IDF + cosine similarity for lightweight semantic search.
+Vector search module (RAGFlow-inspired) — MVP v2 with Hybrid Search.
+Supports: TF-IDF semantic search + keyword exact match + hybrid combination.
 No external model download required.
-
-Reference: RAGFlow
-- Intelligent chunking
-- Relevance scoring
-- Context assembly from relevant chunks
 """
 import os
 import re
@@ -186,6 +181,104 @@ def search(query: str, n_results: int = 8, file_ids: list = None) -> list[dict]:
     # Sort by relevance (highest first)
     scored.sort(key=lambda x: x["relevance"], reverse=True)
     return scored[:n_results]
+
+
+# ═══════════════════════════════════════════
+# MVP v2 — Hybrid Search
+# ═══════════════════════════════════════════
+
+def keyword_search(query: str, n_results: int = 8, file_ids: list = None) -> list[dict]:
+    """
+    Keyword-based search — exact/partial term matching.
+    Good for proper nouns, specific terms, codes.
+    """
+    if not _index:
+        return []
+
+    query_tokens = _tokenize(query)
+    query_lower = query.lower()
+
+    scored = []
+    for file_id, chunks in _index.items():
+        if file_ids and file_id not in file_ids:
+            continue
+        for chunk in chunks:
+            # Count exact token matches
+            chunk_tokens_set = set(chunk["tokens"])
+            matches = sum(1 for qt in query_tokens if qt in chunk_tokens_set)
+
+            # Check substring matches in original text
+            text_lower = chunk["text"].lower()
+            substring_bonus = 0.3 if query_lower in text_lower else 0
+
+            if matches == 0 and substring_bonus == 0:
+                continue
+
+            token_score = matches / max(len(query_tokens), 1)
+            final_score = min(token_score + substring_bonus, 1.0)
+
+            scored.append({
+                "text": chunk["text"],
+                "file_id": chunk["file_id"],
+                "filename": chunk["filename"],
+                "chunk_index": chunk["chunk_index"],
+                "cluster": chunk["cluster"],
+                "distance": 1 - final_score,
+                "relevance": final_score
+            })
+
+    scored.sort(key=lambda x: x["relevance"], reverse=True)
+    return scored[:n_results]
+
+
+def hybrid_search(
+    query: str,
+    n_results: int = 8,
+    file_ids: list = None,
+    alpha: float = 0.6
+) -> list[dict]:
+    """
+    Hybrid search combining semantic (TF-IDF) and keyword matching.
+    alpha controls the balance: 1.0 = pure semantic, 0.0 = pure keyword.
+    """
+    semantic_results = search(query, n_results=n_results * 2, file_ids=file_ids)
+    keyword_results = keyword_search(query, n_results=n_results * 2, file_ids=file_ids)
+
+    # Merge results by chunk identity (file_id + chunk_index)
+    merged = {}
+
+    for r in semantic_results:
+        key = f"{r['file_id']}:{r['chunk_index']}"
+        merged[key] = {
+            **r,
+            "semantic_score": r["relevance"],
+            "keyword_score": 0,
+            "search_mode": "semantic"
+        }
+
+    for r in keyword_results:
+        key = f"{r['file_id']}:{r['chunk_index']}"
+        if key in merged:
+            merged[key]["keyword_score"] = r["relevance"]
+            merged[key]["search_mode"] = "hybrid"
+        else:
+            merged[key] = {
+                **r,
+                "semantic_score": 0,
+                "keyword_score": r["relevance"],
+                "search_mode": "keyword"
+            }
+
+    # Compute hybrid score
+    for key, item in merged.items():
+        item["relevance"] = (
+            alpha * item["semantic_score"] +
+            (1 - alpha) * item["keyword_score"]
+        )
+        item["distance"] = 1 - item["relevance"]
+
+    results = sorted(merged.values(), key=lambda x: x["relevance"], reverse=True)
+    return results[:n_results]
 
 
 def is_available() -> bool:

@@ -1,4 +1,4 @@
-"""Database models and setup for Project KEY."""
+"""Database models and setup for Project KEY — MVP v2."""
 from sqlalchemy import Column, String, Integer, Float, Boolean, Text, DateTime, ForeignKey, create_engine
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
@@ -21,6 +21,7 @@ class User(Base):
     name = Column(String, default="Personal Workspace")
     created_at = Column(DateTime, default=datetime.utcnow)
     files = relationship("File", back_populates="owner")
+    profile = relationship("UserProfile", uselist=False, back_populates="user", cascade="all, delete-orphan")
 
 
 class File(Base):
@@ -98,6 +99,57 @@ class ChatQuery(Base):
     retrieval_modes = Column(Text, default="{}")          # JSON
     reasoning = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.utcnow)
+    injection_log = relationship("ContextInjectionLog", uselist=False, back_populates="chat_query", cascade="all, delete-orphan")
+
+
+# ═══════════════════════════════════════════
+# MVP v2 — New Models
+# ═══════════════════════════════════════════
+
+class UserProfile(Base):
+    """User profile — lets AI understand the file owner."""
+    __tablename__ = "user_profiles"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String, ForeignKey("users.id"), unique=True, nullable=False)
+    identity_summary = Column(Text, default="")       # ฉันเป็นใคร
+    goals = Column(Text, default="")                   # เป้าหมายของฉัน
+    working_style = Column(Text, default="")           # สไตล์การทำงาน/เรียน
+    preferred_output_style = Column(Text, default="")  # ต้องการคำตอบแบบไหน
+    background_context = Column(Text, default="")      # บริบทสำคัญ
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="profile")
+
+
+class ContextPack(Base):
+    """High-level context distilled from multiple files/collections."""
+    __tablename__ = "context_packs"
+    id = Column(String, primary_key=True, default=gen_id)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    type = Column(String, nullable=False)          # profile, study, work, project
+    title = Column(String, nullable=False)
+    summary_text = Column(Text, default="")
+    md_path = Column(String, default="")
+    source_file_ids = Column(Text, default="[]")   # JSON array
+    source_cluster_ids = Column(Text, default="[]") # JSON array
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ContextInjectionLog(Base):
+    """Log of what context was injected for each chat query."""
+    __tablename__ = "context_injection_logs"
+    id = Column(String, primary_key=True, default=gen_id)
+    chat_query_id = Column(String, ForeignKey("chat_queries.id"), nullable=False)
+    profile_used = Column(Boolean, default=False)
+    context_pack_ids = Column(Text, default="[]")  # JSON
+    file_ids = Column(Text, default="[]")           # JSON
+    cluster_ids = Column(Text, default="[]")        # JSON
+    injection_summary = Column(Text, default="")    # Human-readable summary
+    retrieval_reason = Column(Text, default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    chat_query = relationship("ChatQuery", back_populates="injection_log")
 
 
 # Async engine

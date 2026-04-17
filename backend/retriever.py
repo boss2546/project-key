@@ -1,6 +1,15 @@
-"""Retrieval logic for AI Chat — selects relevant context before sending to LLM.
+"""Retrieval logic for AI Chat — MVP v2 with Automatic Context Injection.
 
-RAGFlow-inspired: Uses vector search for first-pass retrieval, then LLM for refinement.
+Flow:
+1. Parse user question
+2. Load user profile → inject as system context
+3. Retrieve relevant context packs (hybrid search)
+4. Retrieve relevant files (hybrid search)
+5. Assemble context block (priority order)
+6. Token budget management
+7. Generate answer with enriched prompt
+8. Log injection details
+9. Return answer + full transparency data
 """
 import json
 import logging
@@ -8,22 +17,48 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from .database import File, Cluster, FileClusterMap, FileInsight, FileSummary, ChatQuery, gen_id
+from .database import (
+    File, Cluster, FileClusterMap, FileInsight, FileSummary,
+    ChatQuery, ContextPack, ContextInjectionLog, gen_id
+)
 from .llm import call_llm, call_llm_json
+from .profile import get_profile, get_profile_context_text, is_profile_complete
+from .context_packs import get_pack_context_text
 from . import vector_search
 
 logger = logging.getLogger(__name__)
 
+# Max characters for context to avoid token overflow
+MAX_CONTEXT_CHARS = 12000
+
 
 async def chat_with_retrieval(db: AsyncSession, user_id: str, question: str) -> dict:
-    """Process a user question with intelligent retrieval from their data."""
+    """Process a user question with automatic context injection from all layers."""
 
-    # 1. Get all user's clusters and files with summaries
+    # ═══ LAYER 1: Load User Profile ═══
+    profile_data = await get_profile(db, user_id)
+    profile_text = get_profile_context_text(profile_data)
+    profile_used = is_profile_complete(profile_data)
+
+    # ═══ LAYER 2: Get all context packs ═══
+    packs_result = await db.execute(
+        select(ContextPack).where(ContextPack.user_id == user_id)
+    )
+    all_packs = packs_result.scalars().all()
+    packs_data = [{
+        "id": p.id,
+        "type": p.type,
+        "title": p.title,
+        "summary_text": p.summary_text or ""
+    } for p in all_packs]
+
+    # ═══ LAYER 3: Get all clusters ═══
     clusters_result = await db.execute(
         select(Cluster).where(Cluster.user_id == user_id)
     )
     clusters = clusters_result.scalars().all()
 
+    # ═══ LAYER 4: Get all ready files ═══
     files_result = await db.execute(
         select(File).where(
             File.user_id == user_id,
@@ -36,36 +71,63 @@ async def chat_with_retrieval(db: AsyncSession, user_id: str, question: str) -> 
     )
     files = files_result.scalars().all()
 
-    if not files:
+    if not files and not packs_data and not profile_used:
         return {
-            "answer": "You don't have any organized files yet. Please upload files first and let the system organize them.",
+            "answer": "คุณยังไม่มีข้อมูลในระบบ กรุณาอัปโหลดไฟล์ ตั้งค่าโปรไฟล์ หรือสร้าง Context Pack ก่อนเพื่อให้ AI สามารถช่วยตอบคำถามได้",
             "cluster": None,
             "files_used": [],
+            "context_packs_used": [],
+            "profile_used": False,
             "retrieval_modes": {},
-            "reasoning": "No organized files available to answer from."
+            "reasoning": "ไม่มีข้อมูลในระบบ",
+            "injection_summary": "ไม่มีข้อมูล"
         }
 
-    # 2. RAGFlow-style: Vector search for relevant chunks first
+    # ═══ HYBRID SEARCH: Find relevant chunks ═══
     vector_context = ""
     vector_hits = []
     if vector_search.is_available():
-        vector_hits = vector_search.search(question, n_results=8)
+        vector_hits = vector_search.hybrid_search(question, n_results=8)
         if vector_hits:
-            vector_context = "\n\nSEMANTIC SEARCH RESULTS (most relevant chunks):\n"
+            vector_context = "\n\nHYBRID SEARCH RESULTS (most relevant chunks):\n"
             for hit in vector_hits[:5]:
-                vector_context += f"  - [{hit['filename']}] (relevance: {hit['relevance']:.2f}): {hit['text'][:200]}...\n"
+                mode_label = hit.get("search_mode", "hybrid")
+                vector_context += f"  - [{hit['filename']}] ({mode_label}, relevance: {hit['relevance']:.2f}): {hit['text'][:200]}...\n"
 
-    # 3. Build context inventory for LLM retrieval decision
-    inventory = _build_inventory(clusters, files)
+    # ═══ BUILD INVENTORY for LLM selection ═══
+    inventory = _build_inventory(clusters, files, packs_data)
 
-    # 4. Ask LLM to select relevant context (enhanced with vector search results)
-    selection = await _select_context(question, inventory + vector_context)
+    # ═══ LLM CONTEXT SELECTION ═══
+    selection = await _select_context(question, inventory + vector_context, profile_used, bool(packs_data))
 
-    # 4. Build the actual context to send to the answering LLM
+    # ═══ ASSEMBLE CONTEXT BLOCK (priority order) ═══
     context_parts = []
+    context_char_count = 0
     files_used = []
     retrieval_modes = {}
+    context_packs_used = []
 
+    # Priority 1: Profile
+    if profile_used and profile_text:
+        context_parts.append(profile_text)
+        context_char_count += len(profile_text)
+
+    # Priority 2: Selected Context Packs
+    selected_pack_ids = selection.get("selected_context_pack_ids", [])
+    if selected_pack_ids:
+        relevant_packs = [p for p in packs_data if p["id"] in selected_pack_ids]
+        if relevant_packs:
+            pack_text = get_pack_context_text(relevant_packs)
+            if context_char_count + len(pack_text) < MAX_CONTEXT_CHARS:
+                context_parts.append(pack_text)
+                context_char_count += len(pack_text)
+            context_packs_used = [{
+                "id": p["id"],
+                "type": p["type"],
+                "title": p["title"]
+            } for p in relevant_packs]
+
+    # Priority 3-5: Selected Files (summary/excerpt/raw)
     for sel_file in selection.get("selected_files", []):
         file_id = sel_file.get("file_id", "")
         mode = sel_file.get("mode", "summary")
@@ -82,29 +144,28 @@ async def chat_with_retrieval(db: AsyncSession, user_id: str, question: str) -> 
         })
         retrieval_modes[matching_file.id] = mode
 
+        file_context = ""
         if mode == "summary" and matching_file.summary:
-            context_parts.append(
+            file_context = (
                 f"=== {matching_file.filename} (Summary) ===\n"
                 f"{matching_file.summary.summary_text}\n"
                 f"Key Topics: {matching_file.summary.key_topics}\n"
                 f"Key Facts: {matching_file.summary.key_facts}\n"
             )
         elif mode == "excerpt":
-            # Use first 2000 chars of extracted text
             text = matching_file.extracted_text[:2000] if matching_file.extracted_text else ""
-            context_parts.append(
-                f"=== {matching_file.filename} (Excerpt) ===\n{text}\n"
-            )
+            file_context = f"=== {matching_file.filename} (Excerpt) ===\n{text}\n"
         elif mode == "raw":
-            # Use full extracted text (up to 6000 chars)
             text = matching_file.extracted_text[:6000] if matching_file.extracted_text else ""
-            context_parts.append(
-                f"=== {matching_file.filename} (Full Text) ===\n{text}\n"
-            )
+            file_context = f"=== {matching_file.filename} (Full Text) ===\n{text}\n"
+
+        if file_context and context_char_count + len(file_context) < MAX_CONTEXT_CHARS:
+            context_parts.append(file_context)
+            context_char_count += len(file_context)
 
     context_block = "\n\n".join(context_parts)
 
-    # 5. Get the selected cluster info
+    # ═══ SELECTED CLUSTER ═══
     selected_cluster = None
     sel_cluster_id = selection.get("selected_cluster_id")
     if sel_cluster_id:
@@ -118,10 +179,26 @@ async def chat_with_retrieval(db: AsyncSession, user_id: str, question: str) -> 
 
     reasoning = selection.get("reasoning", "")
 
-    # 6. Generate answer
-    answer = await _generate_answer(question, context_block, [f["filename"] for f in files_used])
+    # ═══ GENERATE ANSWER ═══
+    answer = await _generate_answer(
+        question, context_block,
+        [f["filename"] for f in files_used],
+        profile_data if profile_used else None
+    )
 
-    # 7. Save to database
+    # ═══ BUILD INJECTION SUMMARY ═══
+    injection_parts = []
+    if profile_used:
+        injection_parts.append("โปรไฟล์ผู้ใช้")
+    if context_packs_used:
+        injection_parts.append(f"{len(context_packs_used)} Context Pack")
+    if selected_cluster:
+        injection_parts.append(f"คอลเลกชัน: {selected_cluster['title']}")
+    if files_used:
+        injection_parts.append(f"{len(files_used)} ไฟล์")
+    injection_summary = " + ".join(injection_parts) if injection_parts else "ไม่มีบริบทที่เกี่ยวข้อง"
+
+    # ═══ SAVE TO DATABASE ═══
     chat_record = ChatQuery(
         id=gen_id(),
         user_id=user_id,
@@ -133,24 +210,54 @@ async def chat_with_retrieval(db: AsyncSession, user_id: str, question: str) -> 
         reasoning=reasoning
     )
     db.add(chat_record)
+    await db.flush()
+
+    # Log injection
+    injection_log = ContextInjectionLog(
+        id=gen_id(),
+        chat_query_id=chat_record.id,
+        profile_used=profile_used,
+        context_pack_ids=json.dumps([p["id"] for p in context_packs_used]),
+        file_ids=json.dumps([f["id"] for f in files_used]),
+        cluster_ids=json.dumps([selected_cluster["id"]] if selected_cluster else []),
+        injection_summary=injection_summary,
+        retrieval_reason=reasoning
+    )
+    db.add(injection_log)
     await db.commit()
 
     return {
         "answer": answer,
         "cluster": selected_cluster,
         "files_used": files_used,
+        "context_packs_used": context_packs_used,
+        "profile_used": profile_used,
         "retrieval_modes": retrieval_modes,
-        "reasoning": reasoning
+        "reasoning": reasoning,
+        "injection_summary": injection_summary
     }
 
 
-def _build_inventory(clusters, files) -> str:
+def _build_inventory(clusters, files, packs_data) -> str:
     """Build a text inventory of all available data for the retrieval selector."""
     parts = []
-    cluster_map = {}
-    for c in clusters:
-        cluster_map[c.id] = c
 
+    # Context Packs inventory
+    if packs_data:
+        parts.append("=== AVAILABLE CONTEXT PACKS ===")
+        for p in packs_data:
+            parts.append(
+                f"PACK_ID: {p['id']}\n"
+                f"TYPE: {p['type']}\n"
+                f"TITLE: {p['title']}\n"
+                f"PREVIEW: {p['summary_text'][:200]}\n"
+                f"---"
+            )
+
+    # Files inventory
+    cluster_map = {c.id: c for c in clusters}
+
+    parts.append("=== AVAILABLE FILES ===")
     for f in files:
         cluster_titles = []
         cluster_ids = []
@@ -160,10 +267,7 @@ def _build_inventory(clusters, files) -> str:
                 cluster_titles.append(c.title)
                 cluster_ids.append(c.id)
 
-        summary_preview = ""
-        if f.summary:
-            summary_preview = f.summary.summary_text[:200]
-
+        summary_preview = f.summary.summary_text[:200] if f.summary else ""
         importance = f.insight.importance_label if f.insight else "unknown"
         is_primary = f.insight.is_primary_candidate if f.insight else False
 
@@ -180,53 +284,76 @@ def _build_inventory(clusters, files) -> str:
     return "\n".join(parts)
 
 
-async def _select_context(question: str, inventory: str) -> dict:
-    """Use LLM to decide which files and retrieval mode to use."""
+async def _select_context(question: str, inventory: str, has_profile: bool, has_packs: bool) -> dict:
+    """Use LLM to decide which context sources to use."""
 
-    system_prompt = """You are a retrieval selector AI. Based on the user's question and the available file inventory, select which files are most relevant and how they should be used.
+    pack_instruction = ""
+    if has_packs:
+        pack_instruction = """
+  "selected_context_pack_ids": ["pack_id_1", "pack_id_2"],"""
+
+    system_prompt = f"""You are a retrieval selector AI for a personal data space. Based on the user's question and the available data inventory, select the most relevant sources.
+
+The user {"has a profile set up" if has_profile else "has not set up a profile"}.
+{"The user has context packs available." if has_packs else "No context packs available."}
 
 Respond with ONLY valid JSON:
 
-{
-  "selected_cluster_id": "cluster_id or null",
+{{
+  "selected_cluster_id": "cluster_id or null",{pack_instruction}
   "selected_files": [
-    {
+    {{
       "file_id": "actual file id",
       "mode": "summary|excerpt|raw"
-    }
+    }}
   ],
-  "reasoning": "อธิบายสั้นๆ เป็นภาษาไทยว่าทำไมถึงเลือกไฟล์เหล่านี้ และเลือกโหมดการดึงข้อมูลอะไร"
-}
+  "reasoning": "อธิบายสั้นๆ เป็นภาษาไทยว่าทำไมถึงเลือกแหล่งข้อมูลเหล่านี้ และระบุด้วยว่าใช้ profile / context pack / files อะไรบ้าง"
+}}
 
 Mode selection rules:
-- "summary": Default. Use when the question is about general understanding, overview, or broad topics.
-- "excerpt": Use when the question asks about a specific part, detail, or section.
-- "raw": Use when the question needs precise quotes, exact wording, or very detailed content.
+- "summary": Default. Use for general understanding, overview, or broad topics.
+- "excerpt": Use when the question asks about a specific part or detail.
+- "raw": Use when precise quotes, exact wording, or very detailed content is needed.
 
+{"Select relevant context packs if they match the question's domain." if has_packs else ""}
 Select 1-4 most relevant files. Prefer files with higher importance and primary candidates.
 Always write the "reasoning" field in Thai."""
 
-    user_prompt = f"USER QUESTION: {question}\n\nAVAILABLE FILES:\n{inventory}"
+    user_prompt = f"USER QUESTION: {question}\n\nAVAILABLE DATA:\n{inventory}"
 
     return await call_llm_json(system_prompt, user_prompt)
 
 
-async def _generate_answer(question: str, context: str, filenames: list) -> str:
-    """Generate the final answer using retrieved context."""
+async def _generate_answer(question: str, context: str, filenames: list, profile_data: dict = None) -> str:
+    """Generate the final answer using injected context from all layers."""
 
-    system_prompt = """You are an AI assistant that answers questions using the user's personal document collection. 
+    profile_instruction = ""
+    if profile_data and profile_data.get("exists"):
+        style = profile_data.get("preferred_output_style", "")
+        if style:
+            profile_instruction = f"\nThe user prefers answers in this style: {style}"
+
+    system_prompt = f"""You are an AI assistant that answers questions using the user's personal data space.
+
+You have access to the user's:
+- Personal profile (if provided)
+- Context packs (high-level context documents)
+- File collections and summaries
+- Raw file content
 
 Rules:
 - ONLY answer based on the provided context
 - If the context doesn't contain enough information, say so honestly
-- Reference specific files by name when relevant
+- Reference specific files or context packs by name when relevant
 - Write in the SAME LANGUAGE as the user's question
 - Be detailed and helpful
-- Structure your answer with clear formatting (paragraphs, bullet points if needed)"""
+- Structure your answer with clear formatting (paragraphs, bullet points if needed)
+- Acknowledge that you're using the user's personal data when appropriate{profile_instruction}"""
 
+    source_list = ', '.join(filenames) if filenames else 'injected context'
     user_prompt = (
         f"QUESTION: {question}\n\n"
-        f"CONTEXT FROM USER'S FILES ({', '.join(filenames)}):\n\n"
+        f"CONTEXT FROM USER'S PERSONAL DATA SPACE ({source_list}):\n\n"
         f"{context}"
     )
 

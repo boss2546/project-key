@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Project KEY — พื้นที่ข้อมูลส่วนตัวของคุณ</title>
-  <meta name="description" content="พื้นที่ข้อมูลส่วนตัวที่ช่วยเก็บ จัดระบบ และเตรียมไฟล์สำคัญของคุณให้พร้อมใช้กับ AI">
+  <title>Project KEY — Personal Data Space + AI Context</title>
+  <meta name="description" content="พื้นที่ข้อมูลส่วนตัวที่ช่วยเก็บ จัดระบบ สร้างบริบท และเตรียมข้อมูลของคุณให้พร้อมใช้กับ AI อย่างต่อเนื่อง">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -27,7 +27,10 @@
               <rect x="14" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.3"/>
             </svg>
           </div>
-          <span class="logo-text">Project KEY</span>
+          <div class="logo-text-area">
+            <span class="logo-text">Project KEY</span>
+            <span class="logo-version">v2</span>
+          </div>
         </div>
       </div>
 
@@ -39,7 +42,7 @@
               <polyline points="13 2 13 9 20 9"/>
             </svg>
           </span>
-          <span class="nav-label">ข้อมูลของฉัน</span>
+          <span class="nav-label">My Data</span>
         </a>
         <a href="#" class="nav-item" data-page="organized" id="nav-organized">
           <span class="nav-icon">
@@ -50,7 +53,7 @@
               <rect x="3" y="14" width="7" height="7"/>
             </svg>
           </span>
-          <span class="nav-label">คอลเลกชัน</span>
+          <span class="nav-label">Collections</span>
         </a>
         <a href="#" class="nav-item" data-page="ai-chat" id="nav-ai-chat">
           <span class="nav-icon">
@@ -58,50 +61,40 @@
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
             </svg>
           </span>
-          <span class="nav-label">แชท AI</span>
+          <span class="nav-label">AI Chat</span>
         </a>
       </nav>
 
       <div class="sidebar-footer">
         <div class="storage-summary">
-          <div class="storage-label">ภาพรวมพื้นที่จัดเก็บ</div>
+          <div class="storage-label">Data Overview</div>
           <div class="storage-stats">
             <div class="stat-row">
-              <span class="stat-icon">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
-                  <polyline points="13 2 13 9 20 9"/>
-                </svg>
-              </span>
-              <span id="total-files-count">5 ไฟล์</span>
+              <span class="stat-icon">📄</span>
+              <span id="total-files-count">0 files</span>
             </div>
             <div class="stat-row">
-              <span class="stat-icon">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="3" y="3" width="7" height="7"/>
-                  <rect x="14" y="3" width="7" height="7"/>
-                  <rect x="3" y="14" width="7" height="7"/>
-                </svg>
-              </span>
-              <span id="total-clusters-count">3 คอลเลกชัน</span>
+              <span class="stat-icon">📁</span>
+              <span id="total-clusters-count">0 collections</span>
             </div>
             <div class="stat-row">
-              <span class="stat-icon">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="20 6 9 17 4 12"/>
-                </svg>
-              </span>
-              <span id="processed-count">5 ประมวลผลแล้ว</span>
+              <span class="stat-icon">📦</span>
+              <span id="total-packs-count">0 context packs</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-icon">✅</span>
+              <span id="processed-count">0 processed</span>
             </div>
           </div>
         </div>
-        <div class="user-profile">
-          <div class="user-avatar">K</div>
+        <button class="user-profile-btn" id="btn-open-profile" title="My Profile">
+          <div class="user-avatar" id="profile-avatar">K</div>
           <div class="user-info">
-            <span class="user-name">พื้นที่ส่วนตัว</span>
-            <span class="user-plan">ต้นแบบ v0.1</span>
+            <span class="user-name">My Profile</span>
+            <span class="user-plan" id="profile-status-text">Not configured</span>
           </div>
-        </div>
+          <span class="profile-status-dot" id="profile-status-dot"></span>
+        </button>
       </div>
     </aside>
 
@@ -116,8 +109,8 @@
       <section class="page active" id="page-my-data">
         <header class="page-header">
           <div class="page-header-text">
-            <h1 class="page-title">ข้อมูลของฉัน</h1>
-            <p class="page-subtitle">พื้นที่ส่วนตัวสำหรับไฟล์สำคัญของคุณ ไฟล์ต้นฉบับจะถูกเก็บรักษาไว้ — ระบบจัดระเบียบและสรุปแยกต่างหาก</p>
+            <h1 class="page-title">My Data</h1>
+            <p class="page-subtitle">พื้นที่ข้อมูลส่วนตัวของคุณ — ไฟล์ต้นฉบับถูกเก็บรักษาไว้ ระบบจัดระเบียบและสร้างบริบทพร้อมใช้ให้อัตโนมัติ</p>
           </div>
           <button class="btn btn-primary" id="btn-upload">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -125,9 +118,37 @@
               <polyline points="17 8 12 3 7 8"/>
               <line x1="12" y1="3" x2="12" y2="15"/>
             </svg>
-            อัปโหลดไฟล์
+            Upload Files
           </button>
         </header>
+
+        <!-- Status Cards Row -->
+        <div class="status-cards-row" id="status-cards-row">
+          <div class="status-card" id="profile-status-card" onclick="openProfilePanel()">
+            <div class="status-card-icon profile">👤</div>
+            <div class="status-card-info">
+              <div class="status-card-title">Profile</div>
+              <div class="status-card-desc" id="profile-card-status">ยังไม่ได้ตั้งค่า</div>
+            </div>
+            <div class="status-card-badge" id="profile-card-badge">Setup</div>
+          </div>
+          <div class="status-card" id="context-packs-status-card">
+            <div class="status-card-icon packs">📦</div>
+            <div class="status-card-info">
+              <div class="status-card-title">Context Packs</div>
+              <div class="status-card-desc" id="packs-card-status">0 packs</div>
+            </div>
+            <div class="status-card-badge" id="packs-card-badge">—</div>
+          </div>
+          <div class="status-card" id="ai-ready-status-card">
+            <div class="status-card-icon ai">🧠</div>
+            <div class="status-card-info">
+              <div class="status-card-title">AI Ready</div>
+              <div class="status-card-desc" id="ai-ready-status">ยังไม่พร้อม</div>
+            </div>
+            <div class="status-card-badge ready" id="ai-ready-badge">—</div>
+          </div>
+        </div>
 
         <!-- Upload Drop Zone -->
         <div class="upload-zone" id="upload-zone">
@@ -148,36 +169,51 @@
         <!-- File List -->
         <div class="file-list-section">
           <div class="file-list-header">
-            <h2 class="section-title">ไฟล์ของคุณ</h2>
-            <span class="file-count" id="file-count-badge">5 ไฟล์</span>
+            <h2 class="section-title">Your Files</h2>
+            <span class="file-count" id="file-count-badge">0 files</span>
           </div>
           <div class="file-list" id="file-list">
             <!-- Files will be injected by JS -->
           </div>
         </div>
+
+        <!-- Context Packs Section -->
+        <div class="context-packs-section" id="context-packs-section">
+          <div class="section-header-row">
+            <h2 class="section-title">Context Packs</h2>
+            <button class="btn btn-secondary btn-sm" id="btn-create-pack" onclick="openCreatePackModal()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              สร้าง Context Pack
+            </button>
+          </div>
+          <p class="section-desc">บริบทระดับสูงที่กลั่นจากหลายไฟล์ — พร้อมใช้ซ้ำกับ AI ได้ทันที</p>
+          <div class="packs-grid" id="packs-grid">
+            <!-- Context packs injected by JS -->
+          </div>
+        </div>
       </section>
 
       <!-- ═══════════════════════════════════════ -->
-      <!-- PAGE: ORGANIZED VIEW -->
+      <!-- PAGE: COLLECTIONS -->
       <!-- ═══════════════════════════════════════ -->
       <section class="page" id="page-organized">
         <header class="page-header">
           <div class="page-header-text">
-            <h1 class="page-title">คอลเลกชัน</h1>
-            <p class="page-subtitle">ไฟล์ของคุณถูกจัดเป็นกลุ่มที่มีความหมาย พร้อมให้คะแนนความสำคัญ ข้อมูลที่สกัดมาจากไฟล์ของคุณ — ต้นฉบับถูกเก็บรักษาไว้เสมอ</p>
+            <h1 class="page-title">Collections</h1>
+            <p class="page-subtitle">ข้อมูลที่ระบบจัดให้เป็นระบบแล้ว พร้อมคะแนนความสำคัญ — กำลังกลั่นเป็นบริบทพร้อมใช้</p>
           </div>
           <div class="page-header-stats">
             <div class="header-stat">
-              <span class="header-stat-value" id="cluster-count">3</span>
-              <span class="header-stat-label">คอลเลกชัน</span>
+              <span class="header-stat-value" id="cluster-count">0</span>
+              <span class="header-stat-label">Collections</span>
             </div>
             <div class="header-stat">
-              <span class="header-stat-value" id="organized-file-count">5</span>
-              <span class="header-stat-label">จัดระเบียบแล้ว</span>
+              <span class="header-stat-value" id="organized-file-count">0</span>
+              <span class="header-stat-label">Organized</span>
             </div>
             <div class="header-stat">
-              <span class="header-stat-value" id="summary-count">5</span>
-              <span class="header-stat-label">สรุป</span>
+              <span class="header-stat-value" id="summary-count">0</span>
+              <span class="header-stat-label">Summaries</span>
             </div>
           </div>
         </header>
@@ -191,7 +227,7 @@
         <div class="summary-overlay" id="summary-overlay">
           <div class="summary-panel" id="summary-panel">
             <div class="summary-panel-header">
-              <h3 class="summary-panel-title" id="summary-panel-title">สรุปไฟล์</h3>
+              <h3 class="summary-panel-title" id="summary-panel-title">File Summary</h3>
               <button class="btn-close" id="btn-close-summary">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18"/>
@@ -216,8 +252,13 @@
           <div class="chat-main">
             <header class="page-header chat-header">
               <div class="page-header-text">
-                <h1 class="page-title">แชท AI</h1>
-                <p class="page-subtitle">ถามคำถามโดยใช้ข้อมูลส่วนตัวของคุณ ระบบจะเลือกไฟล์ที่เกี่ยวข้องจากพื้นที่ของคุณ และแสดงแหล่งที่มาอย่างโปร่งใส</p>
+                <h1 class="page-title">AI Chat</h1>
+                <p class="page-subtitle">ถามคำถามโดยใช้ข้อมูลส่วนตัว + โปรไฟล์ + บริบทของคุณ — ระบบเลือก context ที่เกี่ยวข้องให้อัตโนมัติ</p>
+              </div>
+              <!-- Profile injection indicator -->
+              <div class="chat-profile-indicator" id="chat-profile-indicator">
+                <span class="indicator-dot" id="chat-profile-dot"></span>
+                <span id="chat-profile-label">Profile: Not set</span>
               </div>
             </header>
 
@@ -230,21 +271,42 @@
                   </svg>
                 </div>
                 <h3 class="chat-welcome-title">ถามอะไรก็ได้เกี่ยวกับข้อมูลของคุณ</h3>
-                <p class="chat-welcome-text">AI ตอบคำถามโดยใช้บริบทจากไฟล์ส่วนตัวของคุณ ระบบจะเลือกคอลเลกชันและเอกสารที่เกี่ยวข้องที่สุด พร้อมแสดงว่าใช้แหล่งข้อมูลใดและเพราะเหตุใด</p>
+                <p class="chat-welcome-text">AI ใช้บริบทจากโปรไฟล์ + Context Packs + ไฟล์ส่วนตัวของคุณ ระบบเลือก context ที่เกี่ยวข้องที่สุดให้อัตโนมัติ พร้อมแสดงว่าใช้แหล่งข้อมูลใดและเพราะเหตุใด</p>
+
+                <!-- Context layers indicator -->
+                <div class="context-layers-preview">
+                  <div class="layer-chip profile" id="welcome-profile-chip">
+                    <span class="layer-dot"></span>
+                    <span>Profile</span>
+                    <span class="layer-status" id="welcome-profile-status">—</span>
+                  </div>
+                  <div class="layer-chip packs" id="welcome-packs-chip">
+                    <span class="layer-dot"></span>
+                    <span>Context Packs</span>
+                    <span class="layer-status" id="welcome-packs-status">—</span>
+                  </div>
+                  <div class="layer-chip collections">
+                    <span class="layer-dot"></span>
+                    <span>Collections</span>
+                    <span class="layer-status" id="welcome-collections-status">—</span>
+                  </div>
+                  <div class="layer-chip files">
+                    <span class="layer-dot"></span>
+                    <span>Files</span>
+                    <span class="layer-status" id="welcome-files-status">—</span>
+                  </div>
+                </div>
+
                 <div class="chat-suggestions">
-                  <button class="suggestion-chip" data-prompt="สรุปประเด็นสำคัญจากเอกสารกลยุทธ์ผลิตภัณฑ์ของฉัน">
+                  <button class="suggestion-chip" data-prompt="สรุปประเด็นสำคัญจากเอกสารของฉัน">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                    สรุปกลยุทธ์ผลิตภัณฑ์
+                    สรุปประเด็นสำคัญ
                   </button>
-                  <button class="suggestion-chip" data-prompt="ไฟล์ไหนเป็นเวอร์ชันหลักของข้อเสนอโครงการ?">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
-                    ค้นหาไฟล์หลักของโครงการ
+                  <button class="suggestion-chip" data-prompt="วิเคราะห์ข้อมูลของฉันโดยใช้โปรไฟล์และบริบท">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                    วิเคราะห์โดยใช้บริบท
                   </button>
-                  <button class="suggestion-chip" data-prompt="เปรียบเทียบความแตกต่างระหว่างเอกสารสองฉบับ">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-                    เปรียบเทียบเอกสาร
-                  </button>
-                  <button class="suggestion-chip" data-prompt="มีข้อมูลสำคัญอะไรบ้างจากเอกสารที่อัปโหลด?">
+                  <button class="suggestion-chip" data-prompt="มีข้อมูลสำคัญอะไรบ้างที่ฉันควรรู้?">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
                     ไฮไลท์ข้อมูลสำคัญ
                   </button>
@@ -263,14 +325,14 @@
                   </svg>
                 </button>
               </div>
-              <p class="chat-input-hint">AI ใช้เฉพาะข้อมูลจากพื้นที่ส่วนตัวของคุณ ทุกคำตอบมีการอ้างอิงแหล่งที่มาเพื่อให้ตรวจสอบได้</p>
+              <p class="chat-input-hint">AI ใช้โปรไฟล์ + Context Packs + ไฟล์จากพื้นที่ส่วนตัวของคุณ — ทุกคำตอบมีการแสดงแหล่งที่มา</p>
             </div>
           </div>
 
-          <!-- Chat Sources Panel -->
+          <!-- Chat Sources Panel (v2 enhanced) -->
           <aside class="chat-sources-panel" id="chat-sources-panel">
             <div class="sources-panel-header">
-              <h3 class="sources-panel-title">แหล่งข้อมูลและบริบท</h3>
+              <h3 class="sources-panel-title">Context & Sources</h3>
             </div>
 
             <div class="sources-panel-body" id="sources-panel-body">
@@ -280,34 +342,78 @@
                   <circle cx="11" cy="11" r="8"/>
                   <line x1="21" y1="21" x2="16.65" y2="16.65"/>
                 </svg>
-                <p>แหล่งข้อมูลจะปรากฏที่นี่เมื่อคุณถามคำถาม</p>
+                <p>บริบทและแหล่งข้อมูลจะปรากฏที่นี่เมื่อคุณถามคำถาม</p>
+                <div class="sources-empty-layers">
+                  <span class="mini-layer profile">👤 Profile</span>
+                  <span class="mini-layer packs">📦 Packs</span>
+                  <span class="mini-layer collections">📁 Collections</span>
+                  <span class="mini-layer files">📄 Files</span>
+                </div>
               </div>
 
               <!-- Active sources (hidden by default) -->
               <div class="sources-active" id="sources-active" style="display:none;">
-                <div class="source-section">
-                  <h4 class="source-section-title">คอลเลกชันที่เลือก</h4>
+                <!-- Injection Summary -->
+                <div class="injection-summary-card" id="injection-summary-card">
+                  <div class="injection-label">Injected Context</div>
+                  <div class="injection-text" id="injection-summary-text">—</div>
+                </div>
+
+                <!-- Layer: Profile -->
+                <div class="source-section source-layer-profile" id="source-layer-profile">
+                  <h4 class="source-section-title">
+                    <span class="layer-indicator profile"></span>
+                    Profile
+                  </h4>
+                  <div class="source-profile-status" id="source-profile-status">
+                    <!-- Filled by JS -->
+                  </div>
+                </div>
+
+                <!-- Layer: Context Packs -->
+                <div class="source-section source-layer-packs" id="source-layer-packs">
+                  <h4 class="source-section-title">
+                    <span class="layer-indicator packs"></span>
+                    Context Packs
+                  </h4>
+                  <div class="source-packs-list" id="source-packs-list">
+                    <!-- Filled by JS -->
+                  </div>
+                </div>
+
+                <!-- Layer: Collection -->
+                <div class="source-section source-layer-collections">
+                  <h4 class="source-section-title">
+                    <span class="layer-indicator collections"></span>
+                    Collection
+                  </h4>
                   <div class="source-cluster-card" id="source-cluster-card">
                     <!-- Filled by JS -->
                   </div>
                 </div>
 
-                <div class="source-section">
-                  <h4 class="source-section-title">ไฟล์ที่ใช้</h4>
+                <!-- Layer: Files -->
+                <div class="source-section source-layer-files">
+                  <h4 class="source-section-title">
+                    <span class="layer-indicator files"></span>
+                    Files Used
+                  </h4>
                   <div class="source-files-list" id="source-files-list">
                     <!-- Filled by JS -->
                   </div>
                 </div>
 
+                <!-- Retrieval Mode -->
                 <div class="source-section">
-                  <h4 class="source-section-title">โหมดการดึงข้อมูล</h4>
+                  <h4 class="source-section-title">Retrieval Mode</h4>
                   <div class="retrieval-mode-indicator" id="retrieval-mode">
                     <!-- Filled by JS -->
                   </div>
                 </div>
 
+                <!-- Reasoning -->
                 <div class="source-section">
-                  <h4 class="source-section-title">เหตุผลที่เลือกแหล่งเหล่านี้</h4>
+                  <h4 class="source-section-title">ทำไมระบบถึงเลือกข้อมูลนี้</h4>
                   <p class="source-reasoning" id="source-reasoning">
                     <!-- Filled by JS -->
                   </p>
@@ -321,19 +427,102 @@
     </main>
   </div>
 
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- MODALS -->
+  <!-- ═══════════════════════════════════════════ -->
+
   <!-- Confirm Modal -->
-  <div class="confirm-overlay" id="confirm-overlay">
-    <div class="confirm-modal" id="confirm-modal">
+  <div class="modal-overlay" id="confirm-overlay">
+    <div class="modal-panel modal-sm" id="confirm-modal">
       <div class="confirm-icon">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--status-error)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
         </svg>
       </div>
-      <h3 class="confirm-title" id="confirm-title">ยืนยันการลบ</h3>
-      <p class="confirm-message" id="confirm-message">ลบไฟล์นี้หรือ? ไม่สามารถย้อนกลับได้</p>
-      <div class="confirm-buttons">
-        <button class="confirm-btn confirm-btn-cancel" id="confirm-cancel">ยกเลิก</button>
-        <button class="confirm-btn confirm-btn-delete" id="confirm-ok">ลบไฟล์</button>
+      <h3 class="modal-title" id="confirm-title">ยืนยันการลบ</h3>
+      <p class="modal-message" id="confirm-message">ลบไฟล์นี้หรือ? ไม่สามารถย้อนกลับได้</p>
+      <div class="modal-buttons">
+        <button class="btn btn-ghost" id="confirm-cancel">ยกเลิก</button>
+        <button class="btn btn-danger" id="confirm-ok">ลบ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Profile Panel (slide-in) -->
+  <div class="modal-overlay" id="profile-overlay">
+    <div class="modal-panel modal-profile" id="profile-panel">
+      <div class="modal-panel-header">
+        <h3 class="modal-title">👤 My Profile</h3>
+        <p class="modal-desc">ข้อมูลที่ช่วยให้ AI เข้าใจคุณมากขึ้น — ไม่ต้องเริ่มอธิบายใหม่ทุกครั้ง</p>
+        <button class="btn-close" id="btn-close-profile">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="profile-form" id="profile-form">
+        <div class="form-group">
+          <label class="form-label" for="pf-identity">ฉันเป็นใคร</label>
+          <textarea class="form-input" id="pf-identity" placeholder="เช่น นักศึกษาปี 3 คณะวิศวกรรมศาสตร์ / Product Manager ที่บริษัท Tech startup" rows="2"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="pf-goals">เป้าหมายของฉัน</label>
+          <textarea class="form-input" id="pf-goals" placeholder="เช่น เตรียมสอบปลายภาค / เขียน proposal โปรเจกต์ / วิจัยตลาด" rows="2"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="pf-working-style">สไตล์การทำงาน</label>
+          <textarea class="form-input" id="pf-working-style" placeholder="เช่น ชอบสรุปเป็น bullet points / ชอบวิเคราะห์เชิงลึก / ชอบตัวอย่างจริง" rows="2"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="pf-output-style">ต้องการคำตอบแบบไหน</label>
+          <textarea class="form-input" id="pf-output-style" placeholder="เช่น กระชับ ตรงประเด็น / ละเอียดพร้อมอ้างอิง / ภาษาง่ายๆ" rows="2"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="pf-background">บริบทสำคัญ</label>
+          <textarea class="form-input" id="pf-background" placeholder="เช่น กำลังทำวิจัยเรื่อง AI / มีโปรเจกต์ส่งอาทิตย์หน้า / ทำงานกับทีม 5 คน" rows="3"></textarea>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary" id="btn-save-profile" onclick="saveProfile()">Save Profile</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Context Pack Modal -->
+  <div class="modal-overlay" id="create-pack-overlay">
+    <div class="modal-panel modal-md" id="create-pack-modal">
+      <div class="modal-panel-header">
+        <h3 class="modal-title">📦 สร้าง Context Pack</h3>
+        <p class="modal-desc">เลือกไฟล์และ Collections เพื่อกลั่นเป็นบริบทระดับสูงที่ใช้ซ้ำได้</p>
+        <button class="btn-close" id="btn-close-create-pack">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="pack-form" id="pack-form">
+        <div class="form-group">
+          <label class="form-label">ประเภท</label>
+          <div class="pack-type-selector" id="pack-type-selector">
+            <button class="pack-type-btn active" data-type="project">🎯 โปรเจกต์</button>
+            <button class="pack-type-btn" data-type="study">📚 การเรียน</button>
+            <button class="pack-type-btn" data-type="work">💼 การทำงาน</button>
+            <button class="pack-type-btn" data-type="profile">👤 โปรไฟล์</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="pack-title">ชื่อ Context Pack</label>
+          <input class="form-input" id="pack-title" type="text" placeholder="เช่น โปรเจกต์ Project KEY / วิชา Software Engineering">
+        </div>
+        <div class="form-group">
+          <label class="form-label">เลือก Files / Collections</label>
+          <div class="source-selector" id="source-selector">
+            <!-- Filled by JS - checkboxes -->
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-ghost" onclick="closeCreatePackModal()">ยกเลิก</button>
+          <button class="btn btn-primary" id="btn-generate-pack" onclick="generatePack()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+            Generate Context Pack
+          </button>
+        </div>
       </div>
     </div>
   </div>

@@ -1,6 +1,6 @@
 /* ════════════════════════════════════════════════════════════
-   PROJECT KEY — Application Logic (Real Backend)
-   MVP v0.1 — พื้นที่ข้อมูลส่วนตัว
+   PROJECT KEY — Application Logic (MVP v2)
+   Personal Data Space + AI Context Layer
    ════════════════════════════════════════════════════════════ */
 
 const API_BASE = '';  // Same origin since FastAPI serves frontend
@@ -10,8 +10,11 @@ const state = {
   currentPage: 'my-data',
   files: [],
   clusters: [],
+  contextPacks: [],
   chatMessages: [],
-  isOrganizing: false
+  profile: null,
+  isOrganizing: false,
+  selectedPackType: 'project'
 };
 
 // ─── DOM REFS ───
@@ -24,8 +27,12 @@ document.addEventListener('DOMContentLoaded', () => {
   initUpload();
   initChat();
   initSummaryPanel();
+  initProfilePanel();
+  initCreatePackModal();
   loadFiles();
   loadStats();
+  loadProfile();
+  loadContextPacks();
 });
 
 // ════════════════════════════════════════════════════════════
@@ -50,13 +57,13 @@ function navigateTo(page) {
   const pageEl = $(`#page-${page}`);
   if (pageEl) pageEl.classList.add('active');
 
-  // Reload data when switching pages
-  if (page === 'my-data') loadFiles();
+  if (page === 'my-data') { loadFiles(); loadContextPacks(); }
   if (page === 'organized') loadClusters();
+  if (page === 'ai-chat') updateChatWelcomeIndicators();
 }
 
 // ════════════════════════════════════════════════════════════
-// DATA LOADING (REAL API)
+// DATA LOADING
 // ════════════════════════════════════════════════════════════
 
 async function loadFiles() {
@@ -89,16 +96,181 @@ async function loadStats() {
   try {
     const res = await fetch(`${API_BASE}/api/stats`);
     const data = await res.json();
-    $('#total-files-count').textContent = `${data.total_files} ไฟล์`;
-    $('#total-clusters-count').textContent = `${data.total_clusters} คอลเลกชัน`;
-    $('#processed-count').textContent = `${data.processed} ประมวลผลแล้ว`;
+    $('#total-files-count').textContent = `${data.total_files} files`;
+    $('#total-clusters-count').textContent = `${data.total_clusters} collections`;
+    $('#total-packs-count').textContent = `${data.total_context_packs} context packs`;
+    $('#processed-count').textContent = `${data.processed} processed`;
+
+    // Update status cards
+    updateProfileStatusCard(data.profile_set);
+    updatePacksStatusCard(data.total_context_packs);
+    updateAIReadyCard(data.processed, data.profile_set, data.total_context_packs);
   } catch (e) {
     console.error('Failed to load stats:', e);
   }
 }
 
+async function loadProfile() {
+  try {
+    const res = await fetch(`${API_BASE}/api/profile`);
+    state.profile = await res.json();
+    updateProfileUI();
+  } catch (e) {
+    console.error('Failed to load profile:', e);
+  }
+}
+
+async function loadContextPacks() {
+  try {
+    const res = await fetch(`${API_BASE}/api/context-packs`);
+    const data = await res.json();
+    state.contextPacks = data.packs || [];
+    renderContextPacks();
+  } catch (e) {
+    console.error('Failed to load context packs:', e);
+  }
+}
+
 // ════════════════════════════════════════════════════════════
-// FILE UPLOAD (REAL)
+// STATUS CARDS
+// ════════════════════════════════════════════════════════════
+
+function updateProfileStatusCard(isSet) {
+  const desc = $('#profile-card-status');
+  const badge = $('#profile-card-badge');
+  if (isSet) {
+    desc.textContent = 'ตั้งค่าแล้ว';
+    badge.textContent = 'Active';
+    badge.className = 'status-card-badge active';
+  } else {
+    desc.textContent = 'ยังไม่ได้ตั้งค่า';
+    badge.textContent = 'Setup';
+    badge.className = 'status-card-badge';
+  }
+}
+
+function updatePacksStatusCard(count) {
+  const desc = $('#packs-card-status');
+  const badge = $('#packs-card-badge');
+  desc.textContent = `${count} packs`;
+  badge.textContent = count > 0 ? 'Ready' : '—';
+  badge.className = count > 0 ? 'status-card-badge active' : 'status-card-badge';
+}
+
+function updateAIReadyCard(processed, profileSet, packsCount) {
+  const desc = $('#ai-ready-status');
+  const badge = $('#ai-ready-badge');
+  const layers = [];
+  if (profileSet) layers.push('Profile');
+  if (packsCount > 0) layers.push('Packs');
+  if (processed > 0) layers.push('Files');
+
+  if (layers.length >= 2) {
+    desc.textContent = layers.join(' + ');
+    badge.textContent = 'Ready';
+    badge.className = 'status-card-badge active';
+  } else if (layers.length === 1) {
+    desc.textContent = `${layers[0]} พร้อม`;
+    badge.textContent = 'Partial';
+    badge.className = 'status-card-badge ready';
+  } else {
+    desc.textContent = 'ยังไม่พร้อม';
+    badge.textContent = '—';
+    badge.className = 'status-card-badge';
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// PROFILE
+// ════════════════════════════════════════════════════════════
+
+function initProfilePanel() {
+  const overlay = $('#profile-overlay');
+  const closeBtn = $('#btn-close-profile');
+  const openBtn = $('#btn-open-profile');
+
+  openBtn.addEventListener('click', openProfilePanel);
+  closeBtn.addEventListener('click', closeProfilePanel);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeProfilePanel(); });
+}
+
+function openProfilePanel() {
+  const overlay = $('#profile-overlay');
+  if (state.profile) {
+    $('#pf-identity').value = state.profile.identity_summary || '';
+    $('#pf-goals').value = state.profile.goals || '';
+    $('#pf-working-style').value = state.profile.working_style || '';
+    $('#pf-output-style').value = state.profile.preferred_output_style || '';
+    $('#pf-background').value = state.profile.background_context || '';
+  }
+  overlay.classList.add('active');
+}
+
+function closeProfilePanel() {
+  $('#profile-overlay').classList.remove('active');
+}
+
+async function saveProfile() {
+  const data = {
+    identity_summary: $('#pf-identity').value.trim(),
+    goals: $('#pf-goals').value.trim(),
+    working_style: $('#pf-working-style').value.trim(),
+    preferred_output_style: $('#pf-output-style').value.trim(),
+    background_context: $('#pf-background').value.trim()
+  };
+
+  try {
+    const res = await fetch(`${API_BASE}/api/profile`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    state.profile = await res.json();
+    updateProfileUI();
+    closeProfilePanel();
+    showToast('✅ บันทึกโปรไฟล์เรียบร้อย — AI จะใช้ข้อมูลนี้ในการตอบคำถาม', 'success');
+    loadStats();
+  } catch (e) {
+    showToast('บันทึกโปรไฟล์ไม่สำเร็จ', 'error');
+  }
+}
+
+function updateProfileUI() {
+  const p = state.profile;
+  const isSet = p && p.exists;
+  const dot = $('#profile-status-dot');
+  const text = $('#profile-status-text');
+  const chatDot = $('#chat-profile-dot');
+  const chatLabel = $('#chat-profile-label');
+
+  if (isSet) {
+    dot.classList.add('active');
+    text.textContent = 'Active';
+    if (chatDot) chatDot.classList.add('active');
+    if (chatLabel) chatLabel.textContent = 'Profile: Active';
+  } else {
+    dot.classList.remove('active');
+    text.textContent = 'Not configured';
+    if (chatDot) chatDot.classList.remove('active');
+    if (chatLabel) chatLabel.textContent = 'Profile: Not set';
+  }
+}
+
+function updateChatWelcomeIndicators() {
+  const p = state.profile;
+  const profileStatus = $('#welcome-profile-status');
+  const packsStatus = $('#welcome-packs-status');
+  const collectionsStatus = $('#welcome-collections-status');
+  const filesStatus = $('#welcome-files-status');
+
+  if (profileStatus) profileStatus.textContent = (p && p.exists) ? '✓' : '—';
+  if (packsStatus) packsStatus.textContent = state.contextPacks.length > 0 ? `${state.contextPacks.length}` : '—';
+  if (collectionsStatus) collectionsStatus.textContent = state.clusters.length > 0 ? `${state.clusters.length}` : '—';
+  if (filesStatus) filesStatus.textContent = state.files.length > 0 ? `${state.files.length}` : '—';
+}
+
+// ════════════════════════════════════════════════════════════
+// FILE UPLOAD
 // ════════════════════════════════════════════════════════════
 
 function initUpload() {
@@ -144,7 +316,6 @@ async function handleFiles(fileList) {
   }
 
   if (validCount === 0) return;
-
   showToast(`กำลังอัปโหลด ${validCount} ไฟล์...`, 'success');
 
   try {
@@ -153,10 +324,8 @@ async function handleFiles(fileList) {
       body: formData
     });
     const data = await res.json();
-
     if (data.uploaded && data.uploaded.length > 0) {
-      showToast(`อัปโหลดและดึงข้อความสำเร็จ ${data.uploaded.length} ไฟล์!`, 'success');
-      // Retry loadFiles with small delay to handle DB write latency
+      showToast(`✅ อัปโหลดสำเร็จ ${data.uploaded.length} ไฟล์!`, 'success');
       await new Promise(r => setTimeout(r, 300));
       await loadFiles();
       await loadStats();
@@ -168,7 +337,7 @@ async function handleFiles(fileList) {
 }
 
 // ════════════════════════════════════════════════════════════
-// ORGANIZE (REAL — calls LLM)
+// ORGANIZE
 // ════════════════════════════════════════════════════════════
 
 async function triggerOrganize() {
@@ -198,7 +367,7 @@ async function triggerOrganize() {
       await loadStats();
       await loadClusters();
     } else {
-      showToast('จัดระเบียบไม่สำเร็จ: ' + (data.detail || 'ข้อผิดพลาดไม่ทราบสาเหตุ'), 'error');
+      showToast('จัดระเบียบไม่สำเร็จ: ' + (data.detail || 'ข้อผิดพลาด'), 'error');
     }
   } catch (e) {
     console.error('Organize failed:', e);
@@ -226,7 +395,7 @@ async function triggerOrganize() {
 function renderFileList() {
   const container = $('#file-list');
   const countBadge = $('#file-count-badge');
-  countBadge.textContent = `${state.files.length} ไฟล์`;
+  countBadge.textContent = `${state.files.length} files`;
 
   if (state.files.length === 0) {
     container.innerHTML = `
@@ -237,14 +406,13 @@ function renderFileList() {
             <polyline points="13 2 13 9 20 9"/>
           </svg>
         </div>
-        <p class="empty-state-title">ยังไม่มีไฟล์</p>
-        <p class="empty-state-text">อัปโหลดไฟล์สำคัญของคุณเพื่อเริ่มต้น ระบบจะจัดระเบียบและสรุปให้คุณอัตโนมัติ</p>
+        <p class="empty-state-title">ยังไม่มีไฟล์ในพื้นที่ส่วนตัว</p>
+        <p class="empty-state-text">อัปโหลดไฟล์สำคัญของคุณเพื่อเริ่มต้น ระบบจะจัดระเบียบ สร้างสรุป และเตรียม context ให้คุณอัตโนมัติ</p>
       </div>
     `;
     return;
   }
 
-  // Show organize button if there are uploaded but unorganized files
   const hasUnorganized = state.files.some(f => f.processing_status === 'uploaded');
   const organizeBtn = hasUnorganized ? `
     <button class="btn btn-primary" id="btn-organize" onclick="triggerOrganize()" style="margin-bottom: 20px;">
@@ -283,11 +451,11 @@ function renderFileList() {
 
 function formatStatus(status) {
   const statusMap = {
-    uploaded: 'อัปโหลดแล้ว',
-    processing: 'กำลังประมวลผล…',
-    organized: 'จัดระเบียบแล้ว',
-    ready: 'สรุปพร้อม',
-    error: 'ผิดพลาด — ลองจัดใหม่'
+    uploaded: 'Uploaded',
+    processing: 'Processing…',
+    organized: 'Organized',
+    ready: 'Summary Ready',
+    error: 'Error'
   };
   return statusMap[status] || status;
 }
@@ -301,8 +469,8 @@ function formatDate(isoDate) {
 }
 
 function formatTextLength(len) {
-  if (len > 10000) return `${Math.round(len / 1000)}K ตัวอักษร`;
-  return `${len.toLocaleString()} ตัวอักษร`;
+  if (len > 10000) return `${Math.round(len / 1000)}K chars`;
+  return `${len.toLocaleString()} chars`;
 }
 
 async function deleteFile(fileId) {
@@ -318,6 +486,198 @@ async function deleteFile(fileId) {
     await loadStats();
   } catch (e) {
     showToast('ลบไฟล์ไม่สำเร็จ', 'error');
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// RENDER: CONTEXT PACKS
+// ════════════════════════════════════════════════════════════
+
+function renderContextPacks() {
+  const container = $('#packs-grid');
+  if (!container) return;
+
+  if (state.contextPacks.length === 0) {
+    container.innerHTML = `
+      <div class="packs-empty">
+        <p>ยังไม่มี Context Pack — สร้างจากไฟล์และ Collections เพื่อให้ AI มีบริบทพร้อมใช้</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = state.contextPacks.map(pack => `
+    <div class="pack-card" data-pack-id="${pack.id}">
+      <div class="pack-card-header">
+        <div class="pack-card-icon">${pack.type_icon || '📦'}</div>
+        <div class="pack-card-title">${escapeHtml(pack.title)}</div>
+        <span class="pack-card-type">${pack.type_label || pack.type}</span>
+      </div>
+      <div class="pack-card-body">${escapeHtml(pack.summary_text ? pack.summary_text.slice(0, 200) + '...' : 'No content')}</div>
+      <div class="pack-card-footer">
+        <span>${pack.source_count || 0} sources · ${formatDate(pack.updated_at)}</span>
+        <div class="pack-card-actions">
+          <button class="pack-action-btn" onclick="regeneratePackAction('${pack.id}')" title="Regenerate">🔄</button>
+          <button class="pack-action-btn danger" onclick="deletePackAction('${pack.id}')" title="Delete">🗑</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function deletePackAction(packId) {
+  const confirmed = await showConfirm('ลบ Context Pack', 'ลบ Context Pack นี้หรือ?');
+  if (!confirmed) return;
+  try {
+    await fetch(`${API_BASE}/api/context-packs/${packId}`, { method: 'DELETE' });
+    showToast('ลบ Context Pack แล้ว', 'success');
+    await loadContextPacks();
+    await loadStats();
+  } catch (e) {
+    showToast('ลบไม่สำเร็จ', 'error');
+  }
+}
+
+async function regeneratePackAction(packId) {
+  showToast('🔄 กำลัง regenerate Context Pack...', 'success');
+  try {
+    const res = await fetch(`${API_BASE}/api/context-packs/${packId}/regenerate`, { method: 'POST' });
+    if (res.ok) {
+      showToast('✅ Regenerate สำเร็จ!', 'success');
+      await loadContextPacks();
+    } else {
+      showToast('Regenerate ไม่สำเร็จ', 'error');
+    }
+  } catch (e) {
+    showToast('Regenerate ไม่สำเร็จ: ' + e.message, 'error');
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// CREATE CONTEXT PACK MODAL
+// ════════════════════════════════════════════════════════════
+
+function initCreatePackModal() {
+  const overlay = $('#create-pack-overlay');
+  const closeBtn = $('#btn-close-create-pack');
+
+  closeBtn.addEventListener('click', closeCreatePackModal);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeCreatePackModal(); });
+
+  // Pack type buttons
+  $$('.pack-type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      $$('.pack-type-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.selectedPackType = btn.dataset.type;
+    });
+  });
+}
+
+async function openCreatePackModal() {
+  // Refresh data
+  await loadFiles();
+  await loadClusters();
+
+  const selector = $('#source-selector');
+  let html = '';
+
+  // Add clusters as options
+  if (state.clusters.length > 0) {
+    html += '<div style="font-size: 10px; color: var(--text-muted); padding: 4px 8px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Collections</div>';
+    state.clusters.forEach(c => {
+      html += `
+        <label class="source-check-item">
+          <input type="checkbox" value="cluster:${c.id}">
+          <span class="source-check-label">📁 ${escapeHtml(c.title)}</span>
+          <span class="source-check-type">${c.file_count || 0} files</span>
+        </label>
+      `;
+    });
+  }
+
+  // Add files as options
+  const readyFiles = state.files.filter(f => f.processing_status === 'ready' || f.processing_status === 'organized');
+  if (readyFiles.length > 0) {
+    html += '<div style="font-size: 10px; color: var(--text-muted); padding: 4px 8px; margin-top: 8px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Files</div>';
+    readyFiles.forEach(f => {
+      html += `
+        <label class="source-check-item">
+          <input type="checkbox" value="file:${f.id}">
+          <span class="source-check-label">📄 ${escapeHtml(f.filename)}</span>
+          <span class="source-check-type">${f.filetype}</span>
+        </label>
+      `;
+    });
+  }
+
+  if (!html) {
+    html = '<div class="packs-empty"><p>ยังไม่มีไฟล์หรือ Collections ที่พร้อม</p></div>';
+  }
+
+  selector.innerHTML = html;
+  $('#pack-title').value = '';
+  $('#create-pack-overlay').classList.add('active');
+}
+
+function closeCreatePackModal() {
+  $('#create-pack-overlay').classList.remove('active');
+}
+
+async function generatePack() {
+  const title = $('#pack-title').value.trim();
+  if (!title) {
+    showToast('กรุณาใส่ชื่อ Context Pack', 'error');
+    return;
+  }
+
+  const checked = $$('#source-selector input[type="checkbox"]:checked');
+  const sourceFileIds = [];
+  const sourceClusterIds = [];
+
+  checked.forEach(cb => {
+    const [type, id] = cb.value.split(':');
+    if (type === 'file') sourceFileIds.push(id);
+    if (type === 'cluster') sourceClusterIds.push(id);
+  });
+
+  if (sourceFileIds.length === 0 && sourceClusterIds.length === 0) {
+    showToast('กรุณาเลือก sources อย่างน้อย 1 รายการ', 'error');
+    return;
+  }
+
+  const btn = $('#btn-generate-pack');
+  btn.disabled = true;
+  btn.innerHTML = '<svg class="spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg> Generating...';
+
+  showToast('🧠 AI กำลังสร้าง Context Pack...', 'success');
+
+  try {
+    const res = await fetch(`${API_BASE}/api/context-packs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: state.selectedPackType,
+        title,
+        source_file_ids: sourceFileIds,
+        source_cluster_ids: sourceClusterIds
+      })
+    });
+
+    if (res.ok) {
+      showToast('✅ สร้าง Context Pack สำเร็จ!', 'success');
+      closeCreatePackModal();
+      await loadContextPacks();
+      await loadStats();
+    } else {
+      const err = await res.json();
+      showToast('สร้างไม่สำเร็จ: ' + (err.detail || 'Error'), 'error');
+    }
+  } catch (e) {
+    showToast('สร้างไม่สำเร็จ: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> Generate Context Pack';
   }
 }
 
@@ -346,8 +706,8 @@ function renderClusters() {
             <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
           </svg>
         </div>
-        <p class="empty-state-title">ยังไม่มีคอลเลกชัน</p>
-        <p class="empty-state-text">อัปโหลดไฟล์ในหน้าข้อมูลของฉัน แล้วคลิก "จัดระเบียบด้วย AI" เพื่อจัดกลุ่มไฟล์อย่างมีความหมาย</p>
+        <p class="empty-state-title">ยังไม่มี Collections</p>
+        <p class="empty-state-text">อัปโหลดไฟล์ใน My Data แล้วคลิก "จัดระเบียบด้วย AI" เพื่อจัดกลุ่มไฟล์อย่างเป็นระบบ</p>
       </div>
     `;
     return;
@@ -356,6 +716,18 @@ function renderClusters() {
   container.innerHTML = state.clusters.map((cluster, idx) => {
     const color = CLUSTER_COLORS[idx % CLUSTER_COLORS.length];
     const files = cluster.files || [];
+    const derivedPacks = cluster.derived_packs || [];
+
+    // Derived packs row
+    let derivedHtml = '';
+    if (derivedPacks.length > 0) {
+      derivedHtml = `
+        <div class="cluster-derived-packs">
+          <span class="derived-label">Context Packs:</span>
+          ${derivedPacks.map(p => `<span class="derived-pack-chip">📦 ${escapeHtml(p.title)}</span>`).join('')}
+        </div>
+      `;
+    }
 
     return `
       <div class="cluster-card" data-cluster-id="${cluster.id}">
@@ -372,8 +744,9 @@ function renderClusters() {
             </div>
             <p class="cluster-summary">${escapeHtml(cluster.summary)}</p>
           </div>
-          <span class="cluster-file-count">${files.length} ไฟล์</span>
+          <span class="cluster-file-count">${files.length} files</span>
         </div>
+        ${derivedHtml}
         <div class="cluster-files">
           ${files.map(file => `
             <div class="cluster-file" onclick="openSummary('${file.id}')">
@@ -383,14 +756,14 @@ function renderClusters() {
                   ${escapeHtml(file.filename)}
                   ${file.is_primary ? `<span class="primary-badge">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
-                    ไฟล์หลัก
+                    Primary
                   </span>` : ''}
                 </div>
                 <div class="cluster-file-snippet">${escapeHtml(file.snippet || '')}</div>
               </div>
               <div class="cluster-file-badges">
                 ${file.importance_label ? `<span class="importance-badge ${file.importance_label}">${translateImportance(file.importance_label)}</span>` : ''}
-                ${file.has_summary ? `<button class="btn-view-summary" onclick="event.stopPropagation(); openSummary('${file.id}')">ดูสรุป</button>` : ''}
+                ${file.has_summary ? `<button class="btn-view-summary" onclick="event.stopPropagation(); openSummary('${file.id}')">View Summary</button>` : ''}
               </div>
             </div>
           `).join('')}
@@ -410,7 +783,7 @@ function getFileIconStyle(type) {
 }
 
 // ════════════════════════════════════════════════════════════
-// SUMMARY PANEL (REAL DATA)
+// SUMMARY PANEL
 // ════════════════════════════════════════════════════════════
 
 function initSummaryPanel() {
@@ -427,8 +800,7 @@ async function openSummary(fileId) {
   const meta = $('#summary-panel-meta');
   const body = $('#summary-panel-body');
 
-  // Show loading state
-  title.textContent = 'กำลังโหลด...';
+  title.textContent = 'Loading...';
   meta.innerHTML = '';
   body.innerHTML = '<p style="color: var(--text-tertiary);">กำลังโหลดสรุป...</p>';
   overlay.classList.add('active');
@@ -441,13 +813,12 @@ async function openSummary(fileId) {
     }
 
     const data = await res.json();
-
     title.textContent = data.filename;
     meta.innerHTML = `
       <span class="summary-meta-tag">${data.filetype.toUpperCase()}</span>
-      <span class="summary-meta-tag">ความสำคัญ: ${translateImportance(data.importance_label)} (${data.importance_score})</span>
-      ${data.is_primary ? `<span class="summary-meta-tag" style="color: var(--accent-primary);">★ ไฟล์หลัก</span>` : ''}
-      <span class="summary-meta-tag">คอลเลกชัน: ${escapeHtml(data.cluster)}</span>
+      <span class="summary-meta-tag">Importance: ${translateImportance(data.importance_label)} (${data.importance_score})</span>
+      ${data.is_primary ? `<span class="summary-meta-tag" style="color: var(--accent-primary);">★ Primary File</span>` : ''}
+      <span class="summary-meta-tag">Collection: ${escapeHtml(data.cluster)}</span>
     `;
 
     body.innerHTML = `
@@ -476,7 +847,7 @@ function closeSummary() {
 }
 
 // ════════════════════════════════════════════════════════════
-// AI CHAT (REAL — calls backend → LLM)
+// AI CHAT (v2 — with injection transparency)
 // ════════════════════════════════════════════════════════════
 
 function initChat() {
@@ -510,12 +881,10 @@ async function sendMessage() {
   const welcome = $('#chat-welcome');
   if (welcome) welcome.style.display = 'none';
 
-  // Add user bubble
   addChatBubble('user', question);
   input.value = '';
   input.style.height = 'auto';
 
-  // Show thinking
   const thinkingId = showThinking();
 
   try {
@@ -554,7 +923,6 @@ function addChatBubble(role, content, sourceData) {
       <div class="chat-bubble-content"><p>${escapeHtml(content)}</p></div>
     `;
   } else {
-    // Format markdown-like content
     let formatted = escapeHtml(content)
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\n\n/g, '</p><p>')
@@ -563,6 +931,13 @@ function addChatBubble(role, content, sourceData) {
       .replace(/\n\* /g, '<br>• ')
       .replace(/\n/g, '<br>');
 
+    // Injection badge
+    let injectionHtml = '';
+    if (sourceData && sourceData.injection_summary) {
+      injectionHtml = `<div class="chat-injection-badge">🧠 ${escapeHtml(sourceData.injection_summary)}</div>`;
+    }
+
+    // Source chips
     let sourcesHtml = '';
     if (sourceData && sourceData.files_used && sourceData.files_used.length > 0) {
       const modeColors = { summary: 'var(--mode-summary)', excerpt: 'var(--mode-excerpt)', raw: 'var(--mode-raw)' };
@@ -570,6 +945,10 @@ function addChatBubble(role, content, sourceData) {
         <div class="chat-sources-inline">
           <div class="chat-sources-label">แหล่งข้อมูลที่ใช้</div>
           <div class="chat-source-chips">
+            ${sourceData.profile_used ? `<span class="chat-source-chip"><span class="source-dot" style="background: var(--layer-profile)"></span>Profile</span>` : ''}
+            ${(sourceData.context_packs_used || []).map(p =>
+              `<span class="chat-source-chip"><span class="source-dot" style="background: var(--layer-packs)"></span>${escapeHtml(p.title)}</span>`
+            ).join('')}
             ${sourceData.files_used.map(f => {
               const mode = sourceData.retrieval_modes[f.id] || 'summary';
               return `<span class="chat-source-chip">
@@ -585,7 +964,7 @@ function addChatBubble(role, content, sourceData) {
 
     bubble.innerHTML = `
       <div class="chat-avatar ai">AI</div>
-      <div class="chat-bubble-content"><p>${formatted}</p>${sourcesHtml}</div>
+      <div class="chat-bubble-content">${injectionHtml}<p>${formatted}</p>${sourcesHtml}</div>
     `;
   }
 
@@ -615,23 +994,58 @@ function removeThinking(id) {
   if (el) el.remove();
 }
 
+// ════════════════════════════════════════════════════════════
+// SOURCES PANEL (v2 — layered transparency)
+// ════════════════════════════════════════════════════════════
+
 function updateSourcesPanel(data) {
   const empty = $('#sources-empty');
   const active = $('#sources-active');
   empty.style.display = 'none';
   active.style.display = 'block';
 
-  // Cluster
+  // Injection Summary
+  $('#injection-summary-text').textContent = data.injection_summary || '—';
+
+  // Layer: Profile
+  const profileSection = $('#source-layer-profile');
+  const profileStatus = $('#source-profile-status');
+  if (data.profile_used) {
+    profileSection.style.display = 'block';
+    profileStatus.innerHTML = `<span style="color: var(--status-success);">✓</span> โปรไฟล์ถูกใช้ในการตอบคำถามนี้`;
+  } else {
+    profileSection.style.display = 'block';
+    profileStatus.innerHTML = `<span style="color: var(--text-muted);">—</span> ไม่ได้ใช้โปรไฟล์`;
+  }
+
+  // Layer: Context Packs
+  const packsSection = $('#source-layer-packs');
+  const packsList = $('#source-packs-list');
+  const packsUsed = data.context_packs_used || [];
+  if (packsUsed.length > 0) {
+    packsSection.style.display = 'block';
+    packsList.innerHTML = packsUsed.map(p => `
+      <div class="source-pack-item">
+        <span class="pack-type-emoji">${p.type === 'study' ? '📚' : p.type === 'work' ? '💼' : p.type === 'project' ? '🎯' : '👤'}</span>
+        <span>${escapeHtml(p.title)}</span>
+      </div>
+    `).join('');
+  } else {
+    packsSection.style.display = 'block';
+    packsList.innerHTML = '<div style="font-size: 12px; color: var(--text-muted);">ไม่มี Context Pack ที่เกี่ยวข้อง</div>';
+  }
+
+  // Layer: Collection
   if (data.cluster) {
     $('#source-cluster-card').innerHTML = `
       <div class="source-cluster-name">${escapeHtml(data.cluster.title)}</div>
       <div class="source-cluster-desc">${escapeHtml(data.cluster.summary || '')}</div>
     `;
   } else {
-    $('#source-cluster-card').innerHTML = '<div class="source-cluster-name">หลายคอลเลกชัน</div>';
+    $('#source-cluster-card').innerHTML = '<div class="source-cluster-name">หลาย Collections</div>';
   }
 
-  // Files
+  // Layer: Files
   const filesList = $('#source-files-list');
   filesList.innerHTML = (data.files_used || []).map(f => {
     const mode = data.retrieval_modes[f.id] || 'summary';
@@ -644,12 +1058,12 @@ function updateSourcesPanel(data) {
     `;
   }).join('');
 
-  // Retrieval modes
+  // Retrieval Mode
   const modes = [...new Set(Object.values(data.retrieval_modes || {}))];
   const allModes = ['summary', 'excerpt', 'raw'];
-  $('#retrieval-mode').innerHTML = allModes.map(m => `
-    <span class="retrieval-mode-tag ${modes.includes(m) ? 'active' : ''}">${cap(m)}</span>
-  `).join('');
+  $('#retrieval-mode').innerHTML = allModes.map(m =>
+    `<span class="retrieval-mode-tag ${modes.includes(m) ? 'active' : ''}">${cap(m)}</span>`
+  ).join('');
 
   // Reasoning
   $('#source-reasoning').textContent = data.reasoning || '';
@@ -672,7 +1086,7 @@ function cap(s) {
 }
 
 function translateImportance(label) {
-  const map = { high: 'สูง', medium: 'กลาง', low: 'ต่ำ' };
+  const map = { high: 'High', medium: 'Medium', low: 'Low' };
   return map[label] || label;
 }
 
