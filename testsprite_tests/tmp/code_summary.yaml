@@ -1,0 +1,154 @@
+version: "2"
+type: frontend
+tech_stack:
+  - Python
+  - FastAPI
+  - SQLAlchemy (async)
+  - ChromaDB
+  - Vanilla JavaScript
+  - HTML5
+  - CSS3
+  - Google Fonts (Inter)
+routes:
+  - path: /
+    file: index.html
+    auth_required: false
+    description: Main page - My Data view with file upload, file list, and navigation sidebar
+  - path: /#my-data
+    file: index.html
+    auth_required: false
+    description: My Data page - Upload files and view file list with processing status
+  - path: /#organized
+    file: index.html
+    auth_required: false
+    description: Collections page - View organized file clusters with importance scores and summaries
+  - path: /#ai-chat
+    file: index.html
+    auth_required: false
+    description: AI Chat page - Ask questions using personal data with source transparency
+features:
+  - name: File Upload
+    description: Upload multiple files (PDF, TXT, MD, DOCX) to personal data space with drag-and-drop support
+    files:
+      - index.html
+      - app.js
+      - backend/main.py
+      - backend/extraction.py
+    entry_route: /
+    user_interactions:
+      - Click upload button or drag files to drop zone
+      - Select files from file picker (PDF, TXT, MD, DOCX)
+      - See upload progress toast notification
+      - View uploaded files in file list with processing status
+    api_calls:
+      - method: POST
+        endpoint: /api/upload
+    auth_required: false
+  - name: File List View
+    description: View all uploaded files with metadata, processing status, and delete capability
+    files:
+      - index.html
+      - app.js
+      - backend/main.py
+    entry_route: /
+    user_interactions:
+      - View list of uploaded files with filename, type, date, and text length
+      - See processing status badge (uploaded, processing, organized, ready, error)
+      - Click delete button to remove a file
+    api_calls:
+      - method: GET
+        endpoint: /api/files
+      - method: DELETE
+        endpoint: /api/files/{file_id}
+    auth_required: false
+  - name: AI Organization
+    description: Organize files into clusters using AI, score importance, and generate markdown summaries
+    files:
+      - app.js
+      - backend/main.py
+      - backend/organizer.py
+      - backend/llm.py
+    entry_route: /
+    user_interactions:
+      - Click "จัดระเบียบด้วย AI" (Organize with AI) button
+      - See loading spinner during organization
+      - View toast notification when organization completes
+    api_calls:
+      - method: POST
+        endpoint: /api/organize
+    auth_required: false
+  - name: Collections View
+    description: Browse organized file clusters with cluster titles, summaries, file importance badges, and primary file indicators
+    files:
+      - index.html
+      - app.js
+      - backend/main.py
+    entry_route: /#organized
+    user_interactions:
+      - Click Collections nav item in sidebar
+      - View cluster cards with title and summary
+      - See file count, importance labels (high/medium/low), and primary file badges
+      - Click on a file within cluster to view its summary
+    api_calls:
+      - method: GET
+        endpoint: /api/clusters
+    auth_required: false
+  - name: File Summary Panel
+    description: View detailed markdown summary of a file including key topics, key facts, importance score, and suggested usage
+    files:
+      - index.html
+      - app.js
+      - backend/main.py
+    entry_route: /#organized
+    user_interactions:
+      - Click on a file in cluster view to open summary panel
+      - View summary text, key topics, key facts, importance details
+      - Click close button or press Escape to close panel
+    api_calls:
+      - method: GET
+        endpoint: /api/summary/{file_id}
+    auth_required: false
+  - name: AI Chat with Retrieval
+    description: Ask questions about uploaded data with AI-powered retrieval showing source files, retrieval modes, and reasoning
+    files:
+      - index.html
+      - app.js
+      - backend/main.py
+      - backend/retriever.py
+      - backend/vector_search.py
+    entry_route: /#ai-chat
+    user_interactions:
+      - Click AI Chat nav item in sidebar
+      - Type a question in chat input textarea
+      - Click send button or press Enter to submit
+      - Click suggestion chips for pre-defined questions
+      - View AI response with inline source references
+      - View sources panel showing selected cluster, files used, retrieval mode, and reasoning
+    api_calls:
+      - method: POST
+        endpoint: /api/chat
+    auth_required: false
+  - name: Navigation
+    description: Sidebar navigation between three main pages with active state indicators and storage stats
+    files:
+      - index.html
+      - app.js
+      - styles.css
+    entry_route: /
+    user_interactions:
+      - Click sidebar nav items to switch pages (My Data, Collections, AI Chat)
+      - View storage stats in sidebar footer (file count, cluster count, processed count)
+    api_calls:
+      - method: GET
+        endpoint: /api/stats
+    auth_required: false
+known_limitations:
+  - issue: Single user mode - no authentication or multi-user support
+    location: backend/main.py
+    impact: All data belongs to a hardcoded default-user, no login required
+  - issue: Frontend is a single-page app using CSS class toggling, not URL-based routing
+    location: app.js
+    impact: Pages are shown/hidden via adding/removing CSS active class, browser URL does not change
+  - issue: File organization requires manual trigger
+    location: app.js
+    impact: User must click organize button after uploading files, not automatic

@@ -1,0 +1,18 @@
+{
+  "status": "commited",
+  "type": "frontend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:8000",
+  "executionArgs": {
+    "projectName": "PDB",
+    "projectPath": "c:\\Users\\meuok\\Desktop\\PDB",
+    "testIds": [],
+    "additionalInstruction": "This is a Thai-language web app called Project KEY. The UI is in Thai. The app runs on http://localhost:8000. It is a single-page app with 3 pages: My Data (file upload), Collections (organized clusters), and AI Chat. Navigation is via sidebar clicking, not URL routing. No login is required.",
+    "serverMode": "development",
+    "envs": {
+      "API_KEY": "sk-user-fZ7jWch8f__rXMaExYe4sGUTi1yEtBxy_Slj3l7dJMzsZ6eLzupuF0DPJzqsFnj7AyKjt8zVxzIeFvfl5MJiEqCM8xV7opV8IStDTMGisBRpvAMy8vTII_Iz9MqbbygULz4"
+    }
+  },
+  "serverPort": 57799,
+  "proxy": "http://f2e673c5-2a1d-49cb-9af4-ac88d814a846:nxa9WDjEkbspYOT6pZqBunn2lXWMqQL1@tun.testsprite.com:8080"
+}

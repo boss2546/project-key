@@ -1,0 +1,991 @@
+[
+  {
+    "id": "TC001",
+    "title": "Upload multiple supported files and see them listed",
+    "description": "Verifies a user can upload multiple supported documents and that they appear in My Data with an initial processing status.",
+    "category": "File Upload",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /#my-data"
+      },
+      {
+        "type": "action",
+        "description": "Add multiple supported files using the file picker (include a PDF, a TXT, and a DOCX)."
+      },
+      {
+        "type": "action",
+        "description": "Wait for the upload progress notification to appear."
+      },
+      {
+        "type": "action",
+        "description": "Wait for the upload progress notification to finish."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the uploaded files appear in the My Data file list."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify each uploaded file shows a processing status badge."
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC002",
+    "title": "View organized clusters after running organization",
+    "description": "Verifies the user can upload multiple supported documents, run organization, and then see cluster cards rendered in Collections view.",
+    "category": "Collections View",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Upload multiple supported files (choose at least three across PDF/TXT/DOCX) using the file picker"
+      },
+      {
+        "type": "action",
+        "description": "Wait for the upload progress to complete"
+      },
+      {
+        "type": "action",
+        "description": "Run the AI organization action"
+      },
+      {
+        "type": "action",
+        "description": "Wait for organization to complete"
+      },
+      {
+        "type": "action",
+        "description": "Click the Collections navigation item in the sidebar"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify cluster cards are displayed with a title, a summary preview, a member count, and importance/primary indicators"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC003",
+    "title": "Ask a question and see sourced answer with sources panel",
+    "description": "Verifies the user can submit a chat question and receive an answer that includes inline citations and a sources panel with retrieval details.",
+    "category": "AI Chat with Retrieval",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Upload multiple supported files using the file picker"
+      },
+      {
+        "type": "action",
+        "description": "Wait for the upload progress to complete"
+      },
+      {
+        "type": "action",
+        "description": "Run the AI organization action"
+      },
+      {
+        "type": "action",
+        "description": "Wait for organization to complete"
+      },
+      {
+        "type": "action",
+        "description": "Click the AI Chat navigation item in the sidebar"
+      },
+      {
+        "type": "action",
+        "description": "Fill a question that requires using multiple documents into the chat input"
+      },
+      {
+        "type": "action",
+        "description": "Submit the question"
+      },
+      {
+        "type": "action",
+        "description": "Open the sources panel"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the AI answer is displayed with inline source references and the sources panel lists selected sources with retrieval mode and reasoning"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC004",
+    "title": "Switch between My Data, Collections, and AI Chat with correct active state and persistent stats",
+    "description": "Verifies the user can navigate between the three main pages and the sidebar active state and storage stats remain visible and consistent.",
+    "category": "Navigation",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the sidebar item for My Data"
+      },
+      {
+        "type": "action",
+        "description": "Click the sidebar item for Collections"
+      },
+      {
+        "type": "action",
+        "description": "Click the sidebar item for AI Chat"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the AI Chat page content is displayed and the AI Chat nav item is active"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify storage statistics are visible in the sidebar footer"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC005",
+    "title": "Run Organize with AI and reach Collections with clusters",
+    "description": "Verifies a user can manually run AI organization and then see resulting clusters in Collections.",
+    "category": "AI Organization",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /#my-data"
+      },
+      {
+        "type": "action",
+        "description": "Add multiple supported files using the file picker."
+      },
+      {
+        "type": "action",
+        "description": "Wait for the upload progress notification to finish."
+      },
+      {
+        "type": "action",
+        "description": "Trigger AI organization."
+      },
+      {
+        "type": "action",
+        "description": "Wait for the organization loading spinner to disappear."
+      },
+      {
+        "type": "action",
+        "description": "Click to open Collections from the navigation."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify cluster cards are displayed in Collections."
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC006",
+    "title": "Upload supported file via drag-and-drop",
+    "description": "Verifies a user can drag and drop a supported file onto the drop zone and it uploads and appears in the file list.",
+    "category": "File Upload",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /#my-data"
+      },
+      {
+        "type": "action",
+        "description": "Drag and drop a supported file onto the upload drop zone."
+      },
+      {
+        "type": "action",
+        "description": "Wait for the upload progress notification to appear."
+      },
+      {
+        "type": "action",
+        "description": "Wait for the upload progress notification to finish."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the dropped file appears in the My Data file list."
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC007",
+    "title": "View file metadata and delete a file with stats update",
+    "description": "Verifies a user can see file metadata in My Data and delete a file so it disappears and storage stats update.",
+    "category": "File List View",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /#my-data"
+      },
+      {
+        "type": "action",
+        "description": "Add a supported file using the file picker."
+      },
+      {
+        "type": "action",
+        "description": "Wait for the upload progress notification to finish."
+      },
+      {
+        "type": "action",
+        "description": "Note the current storage stats values."
+      },
+      {
+        "type": "action",
+        "description": "Delete the newly uploaded file from the file list."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the deleted file is no longer shown in the My Data file list."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the storage stats have updated to reflect the deletion."
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC008",
+    "title": "Open a file summary from a cluster",
+    "description": "Verifies the user can open a file inside a cluster from Collections and see a detailed summary panel.",
+    "category": "Collections View",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Upload multiple supported files using the file picker"
+      },
+      {
+        "type": "action",
+        "description": "Wait for the upload progress to complete"
+      },
+      {
+        "type": "action",
+        "description": "Run the AI organization action"
+      },
+      {
+        "type": "action",
+        "description": "Wait for organization to complete"
+      },
+      {
+        "type": "action",
+        "description": "Click the Collections navigation item in the sidebar"
+      },
+      {
+        "type": "action",
+        "description": "Open a file from within a displayed cluster"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a file summary panel opens showing a detailed markdown-style summary for the selected file"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC009",
+    "title": "Sources reference items that exist in user data views",
+    "description": "Verifies that sources shown for a chat answer correspond to items that can be found in Collections or My Data views.",
+    "category": "AI Chat with Retrieval",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Upload multiple supported files using the file picker"
+      },
+      {
+        "type": "action",
+        "description": "Wait for the upload progress to complete"
+      },
+      {
+        "type": "action",
+        "description": "Run the AI organization action"
+      },
+      {
+        "type": "action",
+        "description": "Wait for organization to complete"
+      },
+      {
+        "type": "action",
+        "description": "Click the AI Chat navigation item in the sidebar"
+      },
+      {
+        "type": "action",
+        "description": "Fill a question into the chat input and submit it"
+      },
+      {
+        "type": "action",
+        "description": "Open the sources panel"
+      },
+      {
+        "type": "action",
+        "description": "Click a listed source item to navigate to its corresponding file or cluster context if supported"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the UI reveals the referenced item in a data view context (file or cluster) rather than showing an unresolved reference"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC010",
+    "title": "Close file summary panel using a close action",
+    "description": "Verifies the user can close an opened file summary panel and return to the collections list view.",
+    "category": "File Summary Panel",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Upload multiple supported files using the file picker"
+      },
+      {
+        "type": "action",
+        "description": "Wait for the upload progress to complete"
+      },
+      {
+        "type": "action",
+        "description": "Run the AI organization action"
+      },
+      {
+        "type": "action",
+        "description": "Wait for organization to complete"
+      },
+      {
+        "type": "action",
+        "description": "Click the Collections navigation item in the sidebar"
+      },
+      {
+        "type": "action",
+        "description": "Open a file from within a displayed cluster"
+      },
+      {
+        "type": "action",
+        "description": "Close the file summary panel using the panel close control"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the file summary panel is no longer visible and the collections view is visible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC011",
+    "title": "Storage stats remain visible and update across page switches",
+    "description": "Verifies storage statistics remain visible while switching pages and display numeric values on each page.",
+    "category": "Navigation",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the sidebar item for My Data"
+      },
+      {
+        "type": "action",
+        "description": "Click the sidebar item for Collections"
+      },
+      {
+        "type": "action",
+        "description": "Click the sidebar item for AI Chat"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify storage statistics are visible in the sidebar footer on the current page"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the file, cluster, and processed counts display as numbers"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC012",
+    "title": "Processing status transitions after organization completes",
+    "description": "Verifies that after running organization, file status badges in My Data reflect a post-organization state.",
+    "category": "File List View",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /#my-data"
+      },
+      {
+        "type": "action",
+        "description": "Add a supported file using the file picker."
+      },
+      {
+        "type": "action",
+        "description": "Wait for the upload progress notification to finish."
+      },
+      {
+        "type": "action",
+        "description": "Trigger AI organization."
+      },
+      {
+        "type": "action",
+        "description": "Wait for the organization loading spinner to disappear."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the uploaded file shows an organized or ready status badge."
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC013",
+    "title": "Upload many supported files in one batch",
+    "description": "Verifies a power user can upload a larger batch of supported files at once and they all appear in the file list.",
+    "category": "File Upload",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /#my-data"
+      },
+      {
+        "type": "action",
+        "description": "Add a larger batch of supported files using the file picker (select many files)."
+      },
+      {
+        "type": "action",
+        "description": "Wait for the upload progress notification to finish."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify multiple newly uploaded files appear in the My Data file list."
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC014",
+    "title": "Cluster cards show per-file importance labels and primary indicator",
+    "description": "Verifies that after organization, files listed within a cluster show an importance label and a primary indicator where applicable.",
+    "category": "Collections View",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Upload multiple supported files using the file picker"
+      },
+      {
+        "type": "action",
+        "description": "Wait for the upload progress to complete"
+      },
+      {
+        "type": "action",
+        "description": "Run the AI organization action"
+      },
+      {
+        "type": "action",
+        "description": "Wait for organization to complete"
+      },
+      {
+        "type": "action",
+        "description": "Click the Collections navigation item in the sidebar"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify at least one cluster shows files with importance labels and that a primary indicator is present for a primary file"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC015",
+    "title": "Show completion notification after organizing",
+    "description": "Verifies the app shows a completion notification after an AI organization run finishes.",
+    "category": "AI Organization",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /#my-data"
+      },
+      {
+        "type": "action",
+        "description": "Add a supported file using the file picker."
+      },
+      {
+        "type": "action",
+        "description": "Wait for the upload progress notification to finish."
+      },
+      {
+        "type": "action",
+        "description": "Trigger AI organization."
+      },
+      {
+        "type": "action",
+        "description": "Wait for the organization loading spinner to disappear."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an organization completion notification is visible."
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC016",
+    "title": "Suggested question chip submits and returns sourced answer",
+    "description": "Verifies the user can click a suggested question chip and receive an AI response with inline citations.",
+    "category": "AI Chat with Retrieval",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Upload multiple supported files using the file picker"
+      },
+      {
+        "type": "action",
+        "description": "Wait for the upload progress to complete"
+      },
+      {
+        "type": "action",
+        "description": "Run the AI organization action"
+      },
+      {
+        "type": "action",
+        "description": "Wait for organization to complete"
+      },
+      {
+        "type": "action",
+        "description": "Click the AI Chat navigation item in the sidebar"
+      },
+      {
+        "type": "action",
+        "description": "Select a suggested question chip"
+      },
+      {
+        "type": "action",
+        "description": "Submit the populated question"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an AI response is displayed that includes inline source references"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC017",
+    "title": "Show processing status badges for uploaded files",
+    "description": "Verifies the My Data list displays processing status badges for uploaded files.",
+    "category": "File List View",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /#my-data"
+      },
+      {
+        "type": "action",
+        "description": "Add a supported file using the file picker."
+      },
+      {
+        "type": "action",
+        "description": "Wait for the upload progress notification to finish."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the file row displays filename, file type, upload time, text length, and a processing status badge."
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC018",
+    "title": "Collections view remains usable after switching between pages",
+    "description": "Verifies the user can navigate between My Data, Collections, and AI Chat and return to Collections with clusters still visible.",
+    "category": "Collections View",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Upload multiple supported files using the file picker"
+      },
+      {
+        "type": "action",
+        "description": "Wait for the upload progress to complete"
+      },
+      {
+        "type": "action",
+        "description": "Run the AI organization action"
+      },
+      {
+        "type": "action",
+        "description": "Wait for organization to complete"
+      },
+      {
+        "type": "action",
+        "description": "Click the Collections navigation item in the sidebar"
+      },
+      {
+        "type": "action",
+        "description": "Click the AI Chat navigation item in the sidebar"
+      },
+      {
+        "type": "action",
+        "description": "Click the Collections navigation item in the sidebar"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify cluster cards are still displayed in Collections view"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC019",
+    "title": "Direct-load My Data via hash route shows correct page and active state",
+    "description": "Verifies loading the app directly on the My Data hash route displays My Data with the correct active nav item and visible stats.",
+    "category": "Navigation",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /#my-data"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the My Data page content is displayed and the My Data nav item is active"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify storage statistics are visible in the sidebar footer"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC020",
+    "title": "Organization shows loading state while running",
+    "description": "Verifies that starting AI organization displays a loading spinner while the process runs.",
+    "category": "AI Organization",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /#my-data"
+      },
+      {
+        "type": "action",
+        "description": "Add a supported file using the file picker."
+      },
+      {
+        "type": "action",
+        "description": "Wait for the upload progress notification to finish."
+      },
+      {
+        "type": "action",
+        "description": "Trigger AI organization."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an organization loading spinner is visible."
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC021",
+    "title": "Summary panel displays key summary sections",
+    "description": "Verifies the file summary panel shows a markdown-style summary with key topics, key facts, and importance/suggested usage information.",
+    "category": "File Summary Panel",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Upload multiple supported files using the file picker"
+      },
+      {
+        "type": "action",
+        "description": "Wait for the upload progress to complete"
+      },
+      {
+        "type": "action",
+        "description": "Run the AI organization action"
+      },
+      {
+        "type": "action",
+        "description": "Wait for organization to complete"
+      },
+      {
+        "type": "action",
+        "description": "Click the Collections navigation item in the sidebar"
+      },
+      {
+        "type": "action",
+        "description": "Open a file from within a displayed cluster"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the summary panel shows sections for topics/facts and includes importance and suggested usage details"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC022",
+    "title": "Upload a supported markdown file",
+    "description": "Verifies uploading a supported markdown document succeeds and it appears in the My Data file list.",
+    "category": "File Upload",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /#my-data"
+      },
+      {
+        "type": "action",
+        "description": "Add a supported markdown file using the file picker."
+      },
+      {
+        "type": "action",
+        "description": "Wait for the upload progress notification to finish."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the markdown file appears in the My Data file list."
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC023",
+    "title": "Close file summary panel with Escape key",
+    "description": "Verifies the user can dismiss the file summary panel with the Escape key and return to Collections.",
+    "category": "File Summary Panel",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Upload multiple supported files using the file picker"
+      },
+      {
+        "type": "action",
+        "description": "Wait for the upload progress to complete"
+      },
+      {
+        "type": "action",
+        "description": "Run the AI organization action"
+      },
+      {
+        "type": "action",
+        "description": "Wait for organization to complete"
+      },
+      {
+        "type": "action",
+        "description": "Click the Collections navigation item in the sidebar"
+      },
+      {
+        "type": "action",
+        "description": "Open a file from within a displayed cluster"
+      },
+      {
+        "type": "action",
+        "description": "Press Escape"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the file summary panel is no longer visible"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC024",
+    "title": "Prevent organization when there are no files",
+    "description": "Verifies triggering AI organization with no uploaded files shows a warning and does not start organization.",
+    "category": "AI Organization",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /#my-data"
+      },
+      {
+        "type": "action",
+        "description": "If any files are present, delete them until the file list is empty."
+      },
+      {
+        "type": "action",
+        "description": "Trigger AI organization."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a warning is visible indicating there are no files to organize."
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC025",
+    "title": "Collections empty state when no clusters exist",
+    "description": "Verifies that visiting Collections before any organization shows an empty state guiding the user to upload files and run organization.",
+    "category": "Collections View",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the Collections navigation item in the sidebar"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an empty state is displayed indicating there are no collections yet and guidance is provided to upload files and organize"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC026",
+    "title": "Pending summary shows placeholder state",
+    "description": "Verifies that opening a file whose summary is not yet generated shows a pending placeholder rather than a broken panel.",
+    "category": "File Summary Panel",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Upload a supported file using the file picker"
+      },
+      {
+        "type": "action",
+        "description": "Wait for the upload progress to complete"
+      },
+      {
+        "type": "action",
+        "description": "Click the Collections navigation item in the sidebar"
+      },
+      {
+        "type": "action",
+        "description": "If clusters are available, open a file that indicates it is not fully summarized yet"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the summary panel shows a placeholder indicating the summary is pending"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC027",
+    "title": "Rapid navigation switching does not leave multiple pages visible",
+    "description": "Verifies quickly switching between nav items results in only the selected page being shown and the active state matching it.",
+    "category": "Navigation",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the sidebar item for Collections"
+      },
+      {
+        "type": "action",
+        "description": "Click the sidebar item for My Data"
+      },
+      {
+        "type": "action",
+        "description": "Click the sidebar item for AI Chat"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify only the AI Chat page content is displayed and other page contents are not displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the AI Chat nav item is active"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC028",
+    "title": "Block upload of unsupported file type",
+    "description": "Verifies the app prevents uploading an unsupported file type and shows a validation error without adding it to the list.",
+    "category": "File Upload",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /#my-data"
+      },
+      {
+        "type": "action",
+        "description": "Add an unsupported file type using the file picker (for example, an image file)."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a file type validation error is visible."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify no new item is added to the My Data file list for the unsupported file."
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC029",
+    "title": "Empty question validation in chat",
+    "description": "Verifies that submitting an empty chat question is blocked and the UI prompts the user to enter a question.",
+    "category": "AI Chat with Retrieval",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the AI Chat navigation item in the sidebar"
+      },
+      {
+        "type": "action",
+        "description": "Submit the question with the chat input left empty"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a validation prompt is shown indicating a question is required and no new AI message is added"
+      }
+    ],
+    "priority": "Low"
+  }
+]

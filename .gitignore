@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env
+
+# Database (personal data — do not commit)
+projectkey.db
+projectkey.db-shm
+projectkey.db-wal
+
+# Uploaded files (personal data — do not commit)
+uploads/
+summaries/
+
+# ChromaDB vector store
+chroma_db/
+
+# IDE
+.gemini/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
