@@ -1,0 +1,32 @@
+.git
+.gitignore
+.gemini
+.testsprite
+.vscode
+.env
+
+# Data (persisted via volume)
+projectkey.db
+projectkey.db-shm
+projectkey.db-wal
+uploads/
+summaries/
+context_packs/
+chroma_db/
+
+# Docs & tests (not needed in container)
+docs/
+tests/
+*.md
+!README.md
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+venv/
+env/
+
+# OS
+.DS_Store
+Thumbs.db
