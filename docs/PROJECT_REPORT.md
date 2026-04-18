@@ -865,7 +865,96 @@ http://localhost:8000
 
 ---
 
-## 17. สรุปภาพรวม
+## 17. สิ่งที่ทำเพิ่มเหนือจากแผน (Beyond the Plan) 🌟
+
+PRD v3 (§18 Final Scope Lock) ล็อกขอบเขตไว้ที่:
+- metadata expansion, relationship graph, global/local graph, link discovery, graph-aware retrieval, graph-aware AI chat, canvas-ready architecture
+
+**ทั้งหมดข้างบนทำครบ 100%** — แต่นอกจากนี้ยังทำสิ่งเหล่านี้เพิ่มเติม ซึ่ง **ไม่อยู่ใน PRD ตั้งแต่แรก**:
+
+### A. ระบบ 2 ภาษา (Bilingual i18n) — ⭐ ไม่อยู่ใน PRD
+
+PRD v3 ไม่ได้พูดถึงเรื่องภาษาเลย — UI เดิมเป็นภาษาไทยอย่างเดียว
+
+| สิ่งที่ทำ | รายละเอียด |
+|----------|-----------|
+| Translation Dictionary | สร้าง I18N object 120+ keys ครอบคลุม TH + EN |
+| Helper Functions | `getLang()`, `t(key)`, `applyLanguage(lang)` |
+| DOM Binding | ทุก static text มี `data-i18n` attribute |
+| Dynamic Translation | ปุ่ม, toast, placeholder, modal, source panel — ทุกจุดใช้ `t()` |
+| Language Persistence | `localStorage('projectkey_lang')` จำข้ามรอบ |
+| Language Toggle UI | Globe icon + TH\|EN pill design (ไม่ใช่ flag emoji ที่พังบน Windows) |
+
+### B. การจัดระเบียบโปรเจกต์ (Project Restructure) — ⭐ ไม่อยู่ใน PRD
+
+PRD ไม่ได้พูดถึง file organization เลย — ไฟล์ทุกอย่างกระจายอยู่ที่ root
+
+| สิ่งที่ทำ | เหตุผล |
+|----------|--------|
+| สร้าง `docs/prd/` | รวม PRD v1, v2, v3 ไว้ที่เดียว |
+| สร้าง `docs/guides/` | แยกคู่มือ USER_GUIDE_V3 ออก |
+| สร้าง `docs/screenshots/` | รวมภาพ UI ไว้ที่เดียว |
+| สร้าง `tests/e2e/` | ย้าย test_*.py ออกจาก root |
+| สร้าง `tests/testsprite/` | จัดกลุ่ม 29 test cases |
+| สร้าง `tests/fixtures/` | รวม test_files/ + test_files_v3/ |
+| ลบ context_packs/ (ว่าง) | ไม่จำเป็น |
+| สร้าง `README.md` | มาตรฐานโปรเจกต์ — quick start + structure |
+
+### C. README.md — ⭐ ไม่อยู่ใน PRD
+
+สร้าง README.md ที่ครบถ้วน:
+- Quick Start Guide (3 ขั้นตอน)
+- Project Structure diagram
+- Feature highlights (6 ฟีเจอร์)
+- Tech Stack table
+
+### D. UX Polish — ⭐ ไม่ได้กำหนดใน PRD
+
+| รายการ | รายละเอียด |
+|--------|-----------|
+| **Delete button translation** | ปุ่ม "ลบ" เปลี่ยนเป็น "Delete" เมื่อสลับภาษา |
+| **Confirm dialog bilingual** | "ต้องการลบไฟล์นี้?" / "Delete this file?" |
+| **Toast notifications bilingual** | ทุก toast message รองรับ 2 ภาษา |
+| **Chat loading bilingual** | "กำลังคิด..." / "Thinking..." |
+| **Chat error bilingual** | "เกิดข้อผิดพลาดในการเชื่อมต่อ AI" / "Error connecting to AI" |
+| **Ask AI from graph** | "อธิบายเกี่ยวกับ X ให้หน่อย" / "Tell me about X" |
+| **Source panel bilingual** | "โปรไฟล์ถูกใช้" / "Profile used", "ไม่ได้ใช้" / "Not used" |
+| **Detail panel bilingual** | "ไม่มีสรุป" / "No summary", "ไม่มีความสัมพันธ์" / "No relations" |
+
+### E. Bug Fixes — ⭐ พบและแก้ระหว่างทำ
+
+| Bug | Root Cause | Fix |
+|-----|-----------|-----|
+| ปุ่ม Delete ไม่แปลภาษา | Variable shadowing: `.map(t =>)` shadow ฟังก์ชัน `t()` | เปลี่ยนเป็น `.map(tag =>)` |
+| Flag emoji แตก (Windows) | Windows ไม่ render 🇹🇭🇺🇸 flag emoji | ใช้ SVG globe icon + text label แทน |
+| File list ไม่ re-render | Language toggle ไม่เรียก `loadFiles()` | เพิ่ม `loadFiles()` ใน toggle handler |
+| LLM call signature ผิด | `graph_builder.py` ส่ง params ไม่ตรง | แก้ให้ตรงกับ `llm.py` interface |
+
+### F. TestSprite Test Coverage Expansion — ⭐ ขยายจาก PRD scope
+
+- PRD v3 ไม่ได้กำหนดจำนวน test cases
+- ขยายจาก 15 TCs (v2) → **29 TCs (v3)** (+14 cases ใหม่)
+- ครอบคลุม: Upload, Organize, Chat, Navigation, Graph, Delete, Empty states, Validation
+
+### สรุป: PRD Scope vs จริง
+
+```
+PRD v3 Scope Lock (8 items):            ✅ ครบ 100%
+────────────────────────────────────
+Beyond Plan (6 categories):             ✅ ทำเพิ่มทั้งหมด
+  A. Bilingual i18n (120+ keys)
+  B. Project Restructure (8 changes)
+  C. README.md
+  D. UX Polish (8 items)
+  E. Bug Fixes (4 bugs)
+  F. TestSprite 29 TCs
+────────────────────────────────────
+Total Delivery:                         PRD + 6 extras = 14 items
+```
+
+---
+
+## 18. สรุปภาพรวม
 
 MVP v3.0 (Final) คือการเปลี่ยน Project KEY จาก **"ที่เก็บข้อมูลอัจฉริยะ"** ไปเป็น **"พื้นที่ทำงานความรู้"** ที่ผู้ใช้สามารถ:
 
