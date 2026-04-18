@@ -24,6 +24,7 @@ chroma_db/
 .gemini/
 .vscode/
 *.swp
+.testsprite/
 
 # OS
 .DS_Store
@@ -31,3 +32,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Node (testsprite)
+node_modules/

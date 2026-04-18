@@ -3,11 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Project KEY — Personal Data Space + AI Context</title>
-  <meta name="description" content="พื้นที่ข้อมูลส่วนตัวที่ช่วยเก็บ จัดระบบ สร้างบริบท และเตรียมข้อมูลของคุณให้พร้อมใช้กับ AI อย่างต่อเนื่อง">
+  <title>Project KEY — Knowledge Workspace</title>
+  <meta name="description" content="พื้นที่ข้อมูลส่วนตัวที่ช่วยเก็บ จัดระบบ เห็นความเชื่อมโยง และใช้กับ AI อย่างมีหลักฐาน">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://d3js.org/d3.v7.min.js"></script>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -29,7 +30,7 @@
           </div>
           <div class="logo-text-area">
             <span class="logo-text">Project KEY</span>
-            <span class="logo-version">v2</span>
+            <span class="logo-version">v3</span>
           </div>
         </div>
       </div>
@@ -42,493 +43,400 @@
               <polyline points="13 2 13 9 20 9"/>
             </svg>
           </span>
-          <span class="nav-label">My Data</span>
+          <span class="nav-label" data-i18n="nav.myData">My Data</span>
         </a>
-        <a href="#" class="nav-item" data-page="organized" id="nav-organized">
+        <a href="#" class="nav-item" data-page="knowledge" id="nav-knowledge">
           <span class="nav-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="3" width="7" height="7"/>
               <rect x="14" y="3" width="7" height="7"/>
-              <rect x="14" y="14" width="7" height="7"/>
               <rect x="3" y="14" width="7" height="7"/>
+              <rect x="14" y="14" width="7" height="7"/>
             </svg>
           </span>
-          <span class="nav-label">Collections</span>
+          <span class="nav-label" data-i18n="nav.knowledge">Knowledge View</span>
         </a>
-        <a href="#" class="nav-item" data-page="ai-chat" id="nav-ai-chat">
+        <a href="#" class="nav-item" data-page="graph" id="nav-graph">
+          <span class="nav-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/>
+              <circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/>
+              <line x1="9" y1="6" x2="15" y2="6"/>
+              <line x1="6" y1="9" x2="6" y2="15"/>
+              <line x1="18" y1="9" x2="18" y2="15"/>
+              <line x1="9" y1="18" x2="15" y2="18"/>
+              <line x1="9" y1="8" x2="15" y2="16"/>
+            </svg>
+          </span>
+          <span class="nav-label" data-i18n="nav.graph">Graph</span>
+        </a>
+        <a href="#" class="nav-item" data-page="chat" id="nav-chat">
           <span class="nav-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
             </svg>
           </span>
-          <span class="nav-label">AI Chat</span>
+          <span class="nav-label" data-i18n="nav.chat">AI Chat</span>
         </a>
       </nav>
 
+      <!-- Sidebar Stats -->
+      <div class="sidebar-stats" id="sidebar-stats">
+        <div class="stat-row"><span class="stat-label" data-i18n="stat.files">Files</span><span class="stat-value" id="stat-files">0</span></div>
+        <div class="stat-row"><span class="stat-label" data-i18n="stat.collections">Collections</span><span class="stat-value" id="stat-clusters">0</span></div>
+        <div class="stat-row"><span class="stat-label" data-i18n="stat.nodes">Nodes</span><span class="stat-value" id="stat-nodes">0</span></div>
+        <div class="stat-row"><span class="stat-label" data-i18n="stat.relations">Relations</span><span class="stat-value" id="stat-edges">0</span></div>
+        <div class="stat-row"><span class="stat-label" data-i18n="stat.packs">Packs</span><span class="stat-value" id="stat-packs">0</span></div>
+      </div>
+
+      <!-- Profile -->
       <div class="sidebar-footer">
-        <div class="storage-summary">
-          <div class="storage-label">Data Overview</div>
-          <div class="storage-stats">
-            <div class="stat-row">
-              <span class="stat-icon">📄</span>
-              <span id="total-files-count">0 files</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-icon">📁</span>
-              <span id="total-clusters-count">0 collections</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-icon">📦</span>
-              <span id="total-packs-count">0 context packs</span>
-            </div>
-            <div class="stat-row">
-              <span class="stat-icon">✅</span>
-              <span id="processed-count">0 processed</span>
-            </div>
-          </div>
-        </div>
-        <button class="user-profile-btn" id="btn-open-profile" title="My Profile">
-          <div class="user-avatar" id="profile-avatar">K</div>
-          <div class="user-info">
-            <span class="user-name">My Profile</span>
-            <span class="user-plan" id="profile-status-text">Not configured</span>
-          </div>
-          <span class="profile-status-dot" id="profile-status-dot"></span>
+        <button class="lang-toggle" id="lang-toggle" title="Switch Language">
+          <svg id="lang-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          <span id="lang-label">TH</span>
+          <span class="lang-separator">|</span>
+          <span id="lang-alt">EN</span>
         </button>
+        <a href="#" class="nav-item profile-trigger" id="profile-trigger">
+          <span class="nav-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+          </span>
+          <span class="nav-label" data-i18n="nav.profile">My Profile</span>
+          <span class="profile-status-dot" id="profile-dot"></span>
+        </a>
       </div>
     </aside>
 
     <!-- ═══════════════════════════════════════════ -->
-    <!-- MAIN CONTENT AREA -->
+    <!-- MAIN CONTENT -->
     <!-- ═══════════════════════════════════════════ -->
-    <main class="main-content">
+    <main class="main-content" id="main-content">
 
-      <!-- ═══════════════════════════════════════ -->
-      <!-- PAGE: MY DATA -->
-      <!-- ═══════════════════════════════════════ -->
+      <!-- ─── PAGE: MY DATA ─── -->
       <section class="page active" id="page-my-data">
-        <header class="page-header">
-          <div class="page-header-text">
-            <h1 class="page-title">My Data</h1>
-            <p class="page-subtitle">พื้นที่ข้อมูลส่วนตัวของคุณ — ไฟล์ต้นฉบับถูกเก็บรักษาไว้ ระบบจัดระเบียบและสร้างบริบทพร้อมใช้ให้อัตโนมัติ</p>
+        <div class="page-header">
+          <div>
+            <h1 class="page-title" data-i18n="myData.title">My Data</h1>
+            <p class="page-subtitle" data-i18n="myData.subtitle">Your personal data space</p>
           </div>
-          <button class="btn btn-primary" id="btn-upload">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <div class="header-actions">
+            <button class="btn btn-outline" id="btn-enrich" title="Enrich metadata ด้วย AI">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+              <span data-i18n="myData.enrich">Enrich Metadata</span>
+            </button>
+            <button class="btn btn-primary" id="btn-organize">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg>
+              <span data-i18n="myData.organize">Organize with AI</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Upload Zone -->
+        <div class="upload-zone" id="upload-zone">
+          <div class="upload-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
               <polyline points="17 8 12 3 7 8"/>
               <line x1="12" y1="3" x2="12" y2="15"/>
             </svg>
-            Upload Files
-          </button>
-        </header>
-
-        <!-- Status Cards Row -->
-        <div class="status-cards-row" id="status-cards-row">
-          <div class="status-card" id="profile-status-card" onclick="openProfilePanel()">
-            <div class="status-card-icon profile">👤</div>
-            <div class="status-card-info">
-              <div class="status-card-title">Profile</div>
-              <div class="status-card-desc" id="profile-card-status">ยังไม่ได้ตั้งค่า</div>
-            </div>
-            <div class="status-card-badge" id="profile-card-badge">Setup</div>
           </div>
-          <div class="status-card" id="context-packs-status-card">
-            <div class="status-card-icon packs">📦</div>
-            <div class="status-card-info">
-              <div class="status-card-title">Context Packs</div>
-              <div class="status-card-desc" id="packs-card-status">0 packs</div>
-            </div>
-            <div class="status-card-badge" id="packs-card-badge">—</div>
-          </div>
-          <div class="status-card" id="ai-ready-status-card">
-            <div class="status-card-icon ai">🧠</div>
-            <div class="status-card-info">
-              <div class="status-card-title">AI Ready</div>
-              <div class="status-card-desc" id="ai-ready-status">ยังไม่พร้อม</div>
-            </div>
-            <div class="status-card-badge ready" id="ai-ready-badge">—</div>
-          </div>
-        </div>
-
-        <!-- Upload Drop Zone -->
-        <div class="upload-zone" id="upload-zone">
-          <div class="upload-zone-content">
-            <div class="upload-icon">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="17 8 12 3 7 8"/>
-                <line x1="12" y1="3" x2="12" y2="15"/>
-              </svg>
-            </div>
-            <p class="upload-text">เพิ่มไฟล์เข้าพื้นที่ส่วนตัวของคุณ</p>
-            <p class="upload-subtext">ลากไฟล์วางที่นี่ หรือคลิกเพื่อเลือก · รองรับ PDF, TXT, MD, DOCX</p>
-          </div>
+          <p class="upload-text" data-i18n="myData.uploadText">Drag files here or click to select</p>
+          <p class="upload-hint" data-i18n="myData.uploadHint">Supports PDF, TXT, MD, DOCX (max 20 MB)</p>
           <input type="file" id="file-input" multiple accept=".pdf,.txt,.md,.docx" hidden>
         </div>
 
         <!-- File List -->
-        <div class="file-list-section">
-          <div class="file-list-header">
-            <h2 class="section-title">Your Files</h2>
-            <span class="file-count" id="file-count-badge">0 files</span>
+        <div class="section-header">
+          <h2 data-i18n="myData.allFiles">All Files</h2>
+          <span class="badge" id="file-count-badge">0</span>
+        </div>
+        <div class="file-list" id="file-list">
+          <div class="empty-state">
+            <p>ยังไม่มีไฟล์ — เพิ่มไฟล์เข้าพื้นที่ส่วนตัวของคุณ</p>
           </div>
-          <div class="file-list" id="file-list">
-            <!-- Files will be injected by JS -->
+        </div>
+      </section>
+
+      <!-- ─── PAGE: KNOWLEDGE VIEW ─── -->
+      <section class="page" id="page-knowledge">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title" data-i18n="knowledge.title">Knowledge View</h1>
+            <p class="page-subtitle" data-i18n="knowledge.subtitle">Your organized knowledge system</p>
+          </div>
+          <div class="header-actions">
+            <div class="view-toggle">
+              <button class="toggle-btn active" data-view="cards" id="view-cards">Cards</button>
+              <button class="toggle-btn" data-view="table" id="view-table">Table</button>
+            </div>
           </div>
         </div>
 
-        <!-- Context Packs Section -->
-        <div class="context-packs-section" id="context-packs-section">
-          <div class="section-header-row">
-            <h2 class="section-title">Context Packs</h2>
-            <button class="btn btn-secondary btn-sm" id="btn-create-pack" onclick="openCreatePackModal()">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              สร้าง Context Pack
+        <!-- Knowledge Tabs -->
+        <div class="knowledge-tabs">
+          <button class="tab-btn active" data-tab="collections" data-i18n="knowledge.collections">Collections</button>
+          <button class="tab-btn" data-tab="notes" data-i18n="knowledge.notes">Notes & Summaries</button>
+          <button class="tab-btn" data-tab="packs" data-i18n="knowledge.packs">Context Packs</button>
+        </div>
+
+        <div class="knowledge-content" id="knowledge-content">
+          <div class="empty-state">
+            <p>จัดระเบียบไฟล์ก่อนเพื่อสร้างระบบความรู้</p>
+          </div>
+        </div>
+
+        <!-- Relation Preview Sidebar (shows when item selected) -->
+        <div class="relation-sidebar hidden" id="relation-sidebar">
+          <div class="relation-sidebar-header">
+            <h3 id="relation-item-title">—</h3>
+            <button class="btn-close" id="close-relation-sidebar">✕</button>
+          </div>
+          <div class="relation-section">
+            <h4>📥 Backlinks <span class="badge" id="backlink-count">0</span></h4>
+            <div id="backlinks-list" class="relation-list"></div>
+          </div>
+          <div class="relation-section">
+            <h4>📤 Outgoing <span class="badge" id="outgoing-count">0</span></h4>
+            <div id="outgoing-list" class="relation-list"></div>
+          </div>
+          <div class="relation-section">
+            <h4>💡 Suggestions <span class="badge" id="suggestion-count">0</span></h4>
+            <div id="suggestions-list" class="relation-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─── PAGE: GRAPH ─── -->
+      <section class="page" id="page-graph">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title" id="graph-page-title" data-i18n="graph.globalTitle">Global Graph</h1>
+            <p class="page-subtitle" id="graph-page-subtitle" data-i18n="graph.globalSubtitle">Overview of all connections</p>
+          </div>
+          <div class="header-actions">
+            <div class="view-toggle">
+              <button class="toggle-btn active" data-graph="global" id="graph-global-btn">Global</button>
+              <button class="toggle-btn" data-graph="local" id="graph-local-btn">Local</button>
+            </div>
+            <button class="btn btn-outline" id="btn-rebuild-graph">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+              Rebuild Graph
             </button>
           </div>
-          <p class="section-desc">บริบทระดับสูงที่กลั่นจากหลายไฟล์ — พร้อมใช้ซ้ำกับ AI ได้ทันที</p>
-          <div class="packs-grid" id="packs-grid">
-            <!-- Context packs injected by JS -->
+        </div>
+
+        <!-- Graph Controls -->
+        <div class="graph-controls" id="graph-controls">
+          <div class="graph-search">
+            <input type="text" id="graph-search-input" placeholder="ค้นหา node..." class="search-input">
+          </div>
+          <div class="graph-filters">
+            <label class="filter-chip active" data-family="source_file"><span class="dot dot-file"></span> <span data-i18n="graph.filterFile">File</span></label>
+            <label class="filter-chip active" data-family="entity"><span class="dot dot-entity"></span> Entity</label>
+            <label class="filter-chip active" data-family="tag"><span class="dot dot-tag"></span> Tag</label>
+            <label class="filter-chip active" data-family="project"><span class="dot dot-project"></span> Collection</label>
+            <label class="filter-chip active" data-family="context_pack"><span class="dot dot-pack"></span> Pack</label>
+            <label class="filter-chip active" data-family="person"><span class="dot dot-person"></span> Person</label>
+          </div>
+          <!-- Local graph depth slider (hidden for global) -->
+          <div class="local-controls hidden" id="local-controls">
+            <label>Depth: <input type="range" id="depth-slider" min="1" max="3" value="1"><span id="depth-value">1</span></label>
+          </div>
+        </div>
+
+        <!-- Graph Canvas -->
+        <div class="graph-area">
+          <div class="graph-canvas" id="graph-canvas">
+            <svg id="graph-svg" width="100%" height="100%"></svg>
+            <div class="graph-empty hidden" id="graph-empty">
+              <p data-i18n="graph.emptyTitle">No Knowledge Graph yet</p>
+              <p class="hint" data-i18n="graph.emptyHint">Organize files first to build graph</p>
+            </div>
+            <!-- Tooltip (Obsidian-style) -->
+            <div class="graph-tooltip hidden" id="graph-tooltip">
+              <div class="tooltip-label" id="tooltip-label"></div>
+              <div class="tooltip-type" id="tooltip-type"></div>
+            </div>
+            <!-- Zoom Controls -->
+            <div class="graph-zoom-controls" id="graph-zoom-controls">
+              <button class="zoom-btn" id="zoom-in-btn" title="Zoom In">+</button>
+              <button class="zoom-btn" id="zoom-out-btn" title="Zoom Out">−</button>
+              <button class="zoom-btn" id="zoom-fit-btn" title="Fit All">⊡</button>
+            </div>
+            <!-- Node count overlay -->
+            <div class="graph-info-overlay" id="graph-info-overlay">
+              <span id="graph-node-count">0</span> nodes · <span id="graph-edge-count">0</span> edges
+            </div>
+          </div>
+
+          <!-- Detail Panel -->
+          <div class="detail-panel hidden" id="detail-panel">
+            <div class="detail-header">
+              <div class="detail-type-badge" id="detail-type">—</div>
+              <h3 id="detail-label">—</h3>
+              <button class="btn-close" id="close-detail">✕</button>
+            </div>
+            <div class="detail-body">
+              <div class="detail-section">
+                <h4 data-i18n="detail.summary">Summary</h4>
+                <p id="detail-summary" class="detail-text">—</p>
+              </div>
+              <div class="detail-section">
+                <h4>Metadata</h4>
+                <div id="detail-metadata" class="detail-meta-grid"></div>
+              </div>
+              <div class="detail-section">
+                <h4 data-i18n="detail.relations">Relations</h4>
+                <div id="detail-relations" class="detail-relations"></div>
+              </div>
+              <div class="detail-actions">
+                <button class="btn btn-sm" id="detail-open-local" data-i18n="detail.showLocal">Show Local Graph</button>
+                <button class="btn btn-sm" id="detail-ask-ai" data-i18n="detail.askAi">Ask AI about this</button>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      <!-- ═══════════════════════════════════════ -->
-      <!-- PAGE: COLLECTIONS -->
-      <!-- ═══════════════════════════════════════ -->
-      <section class="page" id="page-organized">
-        <header class="page-header">
-          <div class="page-header-text">
-            <h1 class="page-title">Collections</h1>
-            <p class="page-subtitle">ข้อมูลที่ระบบจัดให้เป็นระบบแล้ว พร้อมคะแนนความสำคัญ — กำลังกลั่นเป็นบริบทพร้อมใช้</p>
-          </div>
-          <div class="page-header-stats">
-            <div class="header-stat">
-              <span class="header-stat-value" id="cluster-count">0</span>
-              <span class="header-stat-label">Collections</span>
-            </div>
-            <div class="header-stat">
-              <span class="header-stat-value" id="organized-file-count">0</span>
-              <span class="header-stat-label">Organized</span>
-            </div>
-            <div class="header-stat">
-              <span class="header-stat-value" id="summary-count">0</span>
-              <span class="header-stat-label">Summaries</span>
-            </div>
-          </div>
-        </header>
-
-        <!-- Clusters -->
-        <div class="clusters-grid" id="clusters-grid">
-          <!-- Clusters will be injected by JS -->
-        </div>
-
-        <!-- Summary Preview Panel (modal-like) -->
-        <div class="summary-overlay" id="summary-overlay">
-          <div class="summary-panel" id="summary-panel">
-            <div class="summary-panel-header">
-              <h3 class="summary-panel-title" id="summary-panel-title">File Summary</h3>
-              <button class="btn-close" id="btn-close-summary">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18"/>
-                  <line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-              </button>
-            </div>
-            <div class="summary-panel-meta" id="summary-panel-meta"></div>
-            <div class="summary-panel-body" id="summary-panel-body">
-              <!-- Markdown summary content -->
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ═══════════════════════════════════════ -->
-      <!-- PAGE: AI CHAT -->
-      <!-- ═══════════════════════════════════════ -->
-      <section class="page" id="page-ai-chat">
-        <div class="chat-layout">
-          <!-- Chat Main -->
+      <!-- ─── PAGE: AI CHAT ─── -->
+      <section class="page" id="page-chat">
+        <div class="chat-container">
           <div class="chat-main">
-            <header class="page-header chat-header">
-              <div class="page-header-text">
-                <h1 class="page-title">AI Chat</h1>
-                <p class="page-subtitle">ถามคำถามโดยใช้ข้อมูลส่วนตัว + โปรไฟล์ + บริบทของคุณ — ระบบเลือก context ที่เกี่ยวข้องให้อัตโนมัติ</p>
+            <div class="chat-header">
+              <div>
+                <h1 class="page-title" data-i18n="chat.title">AI Chat</h1>
+                <p class="page-subtitle" data-i18n="chat.subtitle">AI uses your data, relations, and context to respond</p>
               </div>
-              <!-- Profile injection indicator -->
-              <div class="chat-profile-indicator" id="chat-profile-indicator">
-                <span class="indicator-dot" id="chat-profile-dot"></span>
-                <span id="chat-profile-label">Profile: Not set</span>
+              <div class="profile-indicator" id="chat-profile-indicator">
+                <span class="profile-dot"></span>
+                <span>Profile: <span id="chat-profile-status">Not set</span></span>
               </div>
-            </header>
-
-            <div class="chat-messages" id="chat-messages">
-              <!-- Welcome message -->
-              <div class="chat-welcome" id="chat-welcome">
-                <div class="chat-welcome-icon">
-                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                  </svg>
-                </div>
-                <h3 class="chat-welcome-title">ถามอะไรก็ได้เกี่ยวกับข้อมูลของคุณ</h3>
-                <p class="chat-welcome-text">AI ใช้บริบทจากโปรไฟล์ + Context Packs + ไฟล์ส่วนตัวของคุณ ระบบเลือก context ที่เกี่ยวข้องที่สุดให้อัตโนมัติ พร้อมแสดงว่าใช้แหล่งข้อมูลใดและเพราะเหตุใด</p>
-
-                <!-- Context layers indicator -->
-                <div class="context-layers-preview">
-                  <div class="layer-chip profile" id="welcome-profile-chip">
-                    <span class="layer-dot"></span>
-                    <span>Profile</span>
-                    <span class="layer-status" id="welcome-profile-status">—</span>
-                  </div>
-                  <div class="layer-chip packs" id="welcome-packs-chip">
-                    <span class="layer-dot"></span>
-                    <span>Context Packs</span>
-                    <span class="layer-status" id="welcome-packs-status">—</span>
-                  </div>
-                  <div class="layer-chip collections">
-                    <span class="layer-dot"></span>
-                    <span>Collections</span>
-                    <span class="layer-status" id="welcome-collections-status">—</span>
-                  </div>
-                  <div class="layer-chip files">
-                    <span class="layer-dot"></span>
-                    <span>Files</span>
-                    <span class="layer-status" id="welcome-files-status">—</span>
-                  </div>
-                </div>
-
-                <div class="chat-suggestions">
-                  <button class="suggestion-chip" data-prompt="สรุปประเด็นสำคัญจากเอกสารของฉัน">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                    สรุปประเด็นสำคัญ
-                  </button>
-                  <button class="suggestion-chip" data-prompt="วิเคราะห์ข้อมูลของฉันโดยใช้โปรไฟล์และบริบท">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-                    วิเคราะห์โดยใช้บริบท
-                  </button>
-                  <button class="suggestion-chip" data-prompt="มีข้อมูลสำคัญอะไรบ้างที่ฉันควรรู้?">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                    ไฮไลท์ข้อมูลสำคัญ
-                  </button>
-                </div>
-              </div>
-              <!-- Messages injected by JS -->
             </div>
 
+            <!-- Chat Messages -->
+            <div class="chat-messages" id="chat-messages">
+              <div class="welcome-message">
+                <h2 data-i18n="chat.welcome">Hi! Ask anything about your data</h2>
+                <p data-i18n="chat.welcomeSub">AI uses Profile, Context Packs, Files, and Knowledge Graph to answer</p>
+                <div class="context-layers" id="context-layers">
+                  <span class="layer-chip layer-profile">👤 Profile</span>
+                  <span class="layer-chip layer-pack">📦 Packs</span>
+                  <span class="layer-chip layer-collection">📁 Collections</span>
+                  <span class="layer-chip layer-file">📄 Files</span>
+                  <span class="layer-chip layer-graph">🔗 Graph</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Chat Input -->
             <div class="chat-input-area">
               <div class="chat-input-wrapper">
-                <textarea class="chat-input" id="chat-input" placeholder="ถามคำถามเกี่ยวกับข้อมูลของคุณ..." rows="1"></textarea>
-                <button class="btn-send" id="btn-send">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="22" y1="2" x2="11" y2="13"/>
-                    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                  </svg>
+                <textarea id="chat-input" placeholder="ถามเกี่ยวกับข้อมูลของคุณ..." rows="1"></textarea>
+                <button class="btn btn-send" id="btn-send">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
                 </button>
               </div>
-              <p class="chat-input-hint">AI ใช้โปรไฟล์ + Context Packs + ไฟล์จากพื้นที่ส่วนตัวของคุณ — ทุกคำตอบมีการแสดงแหล่งที่มา</p>
             </div>
           </div>
 
-          <!-- Chat Sources Panel (v2 enhanced) -->
-          <aside class="chat-sources-panel" id="chat-sources-panel">
-            <div class="sources-panel-header">
-              <h3 class="sources-panel-title">Context & Sources</h3>
+          <!-- Sources Panel -->
+          <div class="sources-panel" id="sources-panel">
+            <div class="sources-header">
+              <h3 data-i18n="sources.title">Evidence Used</h3>
             </div>
-
-            <div class="sources-panel-body" id="sources-panel-body">
-              <!-- Default state -->
-              <div class="sources-empty" id="sources-empty">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="11" cy="11" r="8"/>
-                  <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                </svg>
-                <p>บริบทและแหล่งข้อมูลจะปรากฏที่นี่เมื่อคุณถามคำถาม</p>
-                <div class="sources-empty-layers">
-                  <span class="mini-layer profile">👤 Profile</span>
-                  <span class="mini-layer packs">📦 Packs</span>
-                  <span class="mini-layer collections">📁 Collections</span>
-                  <span class="mini-layer files">📄 Files</span>
-                </div>
+            <div class="sources-body" id="sources-body">
+              <div class="source-section">
+                <h4 data-i18n="sources.profile">👤 Profile</h4>
+                <div id="src-profile" class="source-content">—</div>
               </div>
-
-              <!-- Active sources (hidden by default) -->
-              <div class="sources-active" id="sources-active" style="display:none;">
-                <!-- Injection Summary -->
-                <div class="injection-summary-card" id="injection-summary-card">
-                  <div class="injection-label">Injected Context</div>
-                  <div class="injection-text" id="injection-summary-text">—</div>
-                </div>
-
-                <!-- Layer: Profile -->
-                <div class="source-section source-layer-profile" id="source-layer-profile">
-                  <h4 class="source-section-title">
-                    <span class="layer-indicator profile"></span>
-                    Profile
-                  </h4>
-                  <div class="source-profile-status" id="source-profile-status">
-                    <!-- Filled by JS -->
-                  </div>
-                </div>
-
-                <!-- Layer: Context Packs -->
-                <div class="source-section source-layer-packs" id="source-layer-packs">
-                  <h4 class="source-section-title">
-                    <span class="layer-indicator packs"></span>
-                    Context Packs
-                  </h4>
-                  <div class="source-packs-list" id="source-packs-list">
-                    <!-- Filled by JS -->
-                  </div>
-                </div>
-
-                <!-- Layer: Collection -->
-                <div class="source-section source-layer-collections">
-                  <h4 class="source-section-title">
-                    <span class="layer-indicator collections"></span>
-                    Collection
-                  </h4>
-                  <div class="source-cluster-card" id="source-cluster-card">
-                    <!-- Filled by JS -->
-                  </div>
-                </div>
-
-                <!-- Layer: Files -->
-                <div class="source-section source-layer-files">
-                  <h4 class="source-section-title">
-                    <span class="layer-indicator files"></span>
-                    Files Used
-                  </h4>
-                  <div class="source-files-list" id="source-files-list">
-                    <!-- Filled by JS -->
-                  </div>
-                </div>
-
-                <!-- Retrieval Mode -->
-                <div class="source-section">
-                  <h4 class="source-section-title">Retrieval Mode</h4>
-                  <div class="retrieval-mode-indicator" id="retrieval-mode">
-                    <!-- Filled by JS -->
-                  </div>
-                </div>
-
-                <!-- Reasoning -->
-                <div class="source-section">
-                  <h4 class="source-section-title">ทำไมระบบถึงเลือกข้อมูลนี้</h4>
-                  <p class="source-reasoning" id="source-reasoning">
-                    <!-- Filled by JS -->
-                  </p>
+              <div class="source-section">
+                <h4>📦 Context Packs</h4>
+                <div id="src-packs" class="source-content">—</div>
+              </div>
+              <div class="source-section">
+                <h4 data-i18n="sources.files">📄 Files Used</h4>
+                <div id="src-files" class="source-content">—</div>
+              </div>
+              <div class="source-section">
+                <h4>🔗 Nodes & Edges</h4>
+                <div id="src-graph" class="source-content">—</div>
+              </div>
+              <div class="source-section">
+                <h4 data-i18n="sources.reasoning">🧠 Reasoning</h4>
+                <div id="src-reasoning" class="source-content">—</div>
+              </div>
+              <div class="source-section">
+                <h4>📊 Evidence Graph</h4>
+                <div id="src-evidence-graph" class="evidence-graph-container">
+                  <svg id="evidence-graph-svg" width="100%" height="200"></svg>
                 </div>
               </div>
             </div>
-          </aside>
+          </div>
         </div>
       </section>
 
     </main>
-  </div>
 
-  <!-- ═══════════════════════════════════════════ -->
-  <!-- MODALS -->
-  <!-- ═══════════════════════════════════════════ -->
-
-  <!-- Confirm Modal -->
-  <div class="modal-overlay" id="confirm-overlay">
-    <div class="modal-panel modal-sm" id="confirm-modal">
-      <div class="confirm-icon">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--status-error)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
-        </svg>
-      </div>
-      <h3 class="modal-title" id="confirm-title">ยืนยันการลบ</h3>
-      <p class="modal-message" id="confirm-message">ลบไฟล์นี้หรือ? ไม่สามารถย้อนกลับได้</p>
-      <div class="modal-buttons">
-        <button class="btn btn-ghost" id="confirm-cancel">ยกเลิก</button>
-        <button class="btn btn-danger" id="confirm-ok">ลบ</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Profile Panel (slide-in) -->
-  <div class="modal-overlay" id="profile-overlay">
-    <div class="modal-panel modal-profile" id="profile-panel">
-      <div class="modal-panel-header">
-        <h3 class="modal-title">👤 My Profile</h3>
-        <p class="modal-desc">ข้อมูลที่ช่วยให้ AI เข้าใจคุณมากขึ้น — ไม่ต้องเริ่มอธิบายใหม่ทุกครั้ง</p>
-        <button class="btn-close" id="btn-close-profile">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
-      <div class="profile-form" id="profile-form">
-        <div class="form-group">
-          <label class="form-label" for="pf-identity">ฉันเป็นใคร</label>
-          <textarea class="form-input" id="pf-identity" placeholder="เช่น นักศึกษาปี 3 คณะวิศวกรรมศาสตร์ / Product Manager ที่บริษัท Tech startup" rows="2"></textarea>
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- PROFILE MODAL -->
+    <!-- ═══════════════════════════════════════════ -->
+    <div class="modal-overlay hidden" id="profile-modal">
+      <div class="modal profile-modal">
+        <div class="modal-header">
+          <h2 data-i18n="profile.title">👤 My Profile</h2>
+          <button class="btn-close" id="close-profile-modal">✕</button>
         </div>
-        <div class="form-group">
-          <label class="form-label" for="pf-goals">เป้าหมายของฉัน</label>
-          <textarea class="form-input" id="pf-goals" placeholder="เช่น เตรียมสอบปลายภาค / เขียน proposal โปรเจกต์ / วิจัยตลาด" rows="2"></textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="pf-working-style">สไตล์การทำงาน</label>
-          <textarea class="form-input" id="pf-working-style" placeholder="เช่น ชอบสรุปเป็น bullet points / ชอบวิเคราะห์เชิงลึก / ชอบตัวอย่างจริง" rows="2"></textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="pf-output-style">ต้องการคำตอบแบบไหน</label>
-          <textarea class="form-input" id="pf-output-style" placeholder="เช่น กระชับ ตรงประเด็น / ละเอียดพร้อมอ้างอิง / ภาษาง่ายๆ" rows="2"></textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="pf-background">บริบทสำคัญ</label>
-          <textarea class="form-input" id="pf-background" placeholder="เช่น กำลังทำวิจัยเรื่อง AI / มีโปรเจกต์ส่งอาทิตย์หน้า / ทำงานกับทีม 5 คน" rows="3"></textarea>
-        </div>
-        <div class="form-actions">
-          <button class="btn btn-primary" id="btn-save-profile" onclick="saveProfile()">Save Profile</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Create Context Pack Modal -->
-  <div class="modal-overlay" id="create-pack-overlay">
-    <div class="modal-panel modal-md" id="create-pack-modal">
-      <div class="modal-panel-header">
-        <h3 class="modal-title">📦 สร้าง Context Pack</h3>
-        <p class="modal-desc">เลือกไฟล์และ Collections เพื่อกลั่นเป็นบริบทระดับสูงที่ใช้ซ้ำได้</p>
-        <button class="btn-close" id="btn-close-create-pack">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
-      <div class="pack-form" id="pack-form">
-        <div class="form-group">
-          <label class="form-label">ประเภท</label>
-          <div class="pack-type-selector" id="pack-type-selector">
-            <button class="pack-type-btn active" data-type="project">🎯 โปรเจกต์</button>
-            <button class="pack-type-btn" data-type="study">📚 การเรียน</button>
-            <button class="pack-type-btn" data-type="work">💼 การทำงาน</button>
-            <button class="pack-type-btn" data-type="profile">👤 โปรไฟล์</button>
+        <div class="modal-body">
+          <div class="form-group">
+            <label data-i18n="profile.identity">Who am I</label>
+            <textarea id="profile-identity" rows="2" placeholder="เช่น นักศึกษาปริญญาโท สาขาวิทยาศาสตร์..."></textarea>
+          </div>
+          <div class="form-group">
+            <label data-i18n="profile.goals">My Goals</label>
+            <textarea id="profile-goals" rows="2" placeholder="เช่น ทำวิจัยเกี่ยวกับ..."></textarea>
+          </div>
+          <div class="form-group">
+            <label data-i18n="profile.style">Work Style</label>
+            <textarea id="profile-style" rows="2" placeholder="เช่น ชอบข้อมูลที่เป็นระบบ..."></textarea>
+          </div>
+          <div class="form-group">
+            <label data-i18n="profile.output">Answer Preference</label>
+            <textarea id="profile-output" rows="2" placeholder="เช่น สรุปสั้นๆ ตรงประเด็น..."></textarea>
+          </div>
+          <div class="form-group">
+            <label data-i18n="profile.background">Important Context</label>
+            <textarea id="profile-background" rows="2" placeholder="เช่น กำลังทำโปรเจกต์..."></textarea>
           </div>
         </div>
-        <div class="form-group">
-          <label class="form-label" for="pack-title">ชื่อ Context Pack</label>
-          <input class="form-input" id="pack-title" type="text" placeholder="เช่น โปรเจกต์ Project KEY / วิชา Software Engineering">
-        </div>
-        <div class="form-group">
-          <label class="form-label">เลือก Files / Collections</label>
-          <div class="source-selector" id="source-selector">
-            <!-- Filled by JS - checkboxes -->
-          </div>
-        </div>
-        <div class="form-actions">
-          <button class="btn btn-ghost" onclick="closeCreatePackModal()">ยกเลิก</button>
-          <button class="btn btn-primary" id="btn-generate-pack" onclick="generatePack()">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-            Generate Context Pack
-          </button>
+        <div class="modal-footer">
+          <button class="btn btn-primary" id="btn-save-profile" data-i18n="profile.save">Save Profile</button>
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- Toast notification -->
-  <div class="toast-container" id="toast-container"></div>
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- CONFIRM MODAL -->
+    <!-- ═══════════════════════════════════════════ -->
+    <div class="modal-overlay hidden" id="confirm-modal">
+      <div class="modal confirm-modal">
+        <div class="modal-body">
+          <p id="confirm-message">ยืนยันการดำเนินการ?</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline" id="confirm-cancel" data-i18n="confirm.cancel">Cancel</button>
+          <button class="btn btn-danger" id="confirm-ok" data-i18n="confirm.ok">Confirm</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+  </div>
 
   <script src="app.js"></script>
 </body>

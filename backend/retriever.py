@@ -1,15 +1,16 @@
-"""Retrieval logic for AI Chat — MVP v2 with Automatic Context Injection.
+"""Retrieval logic for AI Chat — MVP v3 with Graph-aware Context Injection.
 
 Flow:
 1. Parse user question
 2. Load user profile → inject as system context
 3. Retrieve relevant context packs (hybrid search)
 4. Retrieve relevant files (hybrid search)
-5. Assemble context block (priority order)
-6. Token budget management
-7. Generate answer with enriched prompt
-8. Log injection details
-9. Return answer + full transparency data
+5. Retrieve relevant graph nodes and edges (v3)
+6. Assemble graph-aware context block (priority order)
+7. Token budget management
+8. Generate answer with enriched prompt
+9. Log injection details
+10. Return answer + full transparency data + evidence graph
 """
 import json
 import logging
@@ -19,7 +20,7 @@ from sqlalchemy.orm import selectinload
 
 from .database import (
     File, Cluster, FileClusterMap, FileInsight, FileSummary,
-    ChatQuery, ContextPack, ContextInjectionLog, gen_id
+    ChatQuery, ContextPack, ContextInjectionLog, GraphNode, GraphEdge, gen_id
 )
 from .llm import call_llm, call_llm_json
 from .profile import get_profile, get_profile_context_text, is_profile_complete
@@ -163,6 +164,75 @@ async def chat_with_retrieval(db: AsyncSession, user_id: str, question: str) -> 
             context_parts.append(file_context)
             context_char_count += len(file_context)
 
+    # ═══ LAYER 5 (v3): Graph Nodes & Edges ═══
+    nodes_used = []
+    edges_used = []
+    graph_context = ""
+
+    # Find relevant graph nodes for files used
+    file_ids_used = [f["id"] for f in files_used]
+    if file_ids_used:
+        for fid in file_ids_used:
+            # Find the graph node for this file
+            file_node = (await db.execute(
+                select(GraphNode).where(
+                    GraphNode.user_id == user_id,
+                    GraphNode.object_type == "source_file",
+                    GraphNode.object_id == fid
+                )
+            )).scalar_one_or_none()
+
+            if file_node:
+                # Get edges from this node
+                outgoing = (await db.execute(
+                    select(GraphEdge).where(GraphEdge.source_node_id == file_node.id)
+                )).scalars().all()
+                incoming = (await db.execute(
+                    select(GraphEdge).where(GraphEdge.target_node_id == file_node.id)
+                )).scalars().all()
+
+                for edge in (outgoing + incoming)[:5]:  # limit per file
+                    other_id = edge.target_node_id if edge.source_node_id == file_node.id else edge.source_node_id
+                    other_node = (await db.execute(
+                        select(GraphNode).where(GraphNode.id == other_id)
+                    )).scalar_one_or_none()
+
+                    if other_node:
+                        nodes_used.append({
+                            "id": other_node.id,
+                            "label": other_node.label,
+                            "type": other_node.node_family,
+                        })
+                        edges_used.append({
+                            "source": file_node.label,
+                            "target": other_node.label,
+                            "type": edge.edge_type,
+                            "evidence": edge.evidence_text,
+                        })
+
+    # Add graph context to prompt
+    if nodes_used:
+        graph_lines = ["\n=== KNOWLEDGE GRAPH RELATIONSHIPS ==="]
+        seen = set()
+        for eu in edges_used:
+            key = f"{eu['source']}→{eu['target']}"
+            if key not in seen:
+                seen.add(key)
+                graph_lines.append(f"  {eu['source']} --[{eu['type']}]--> {eu['target']}: {eu['evidence']}")
+        graph_context = "\n".join(graph_lines)
+        if context_char_count + len(graph_context) < MAX_CONTEXT_CHARS:
+            context_parts.append(graph_context)
+            context_char_count += len(graph_context)
+
+    # Deduplicate nodes_used
+    seen_nodes = set()
+    unique_nodes = []
+    for n in nodes_used:
+        if n["id"] not in seen_nodes:
+            seen_nodes.add(n["id"])
+            unique_nodes.append(n)
+    nodes_used = unique_nodes
+
     context_block = "\n\n".join(context_parts)
 
     # ═══ SELECTED CLUSTER ═══
@@ -196,6 +266,10 @@ async def chat_with_retrieval(db: AsyncSession, user_id: str, question: str) -> 
         injection_parts.append(f"คอลเลกชัน: {selected_cluster['title']}")
     if files_used:
         injection_parts.append(f"{len(files_used)} ไฟล์")
+    if nodes_used:
+        injection_parts.append(f"{len(nodes_used)} graph nodes")
+    if edges_used:
+        injection_parts.append(f"{len(edges_used)} relations")
     injection_summary = " + ".join(injection_parts) if injection_parts else "ไม่มีบริบทที่เกี่ยวข้อง"
 
     # ═══ SAVE TO DATABASE ═══
@@ -221,7 +295,9 @@ async def chat_with_retrieval(db: AsyncSession, user_id: str, question: str) -> 
         file_ids=json.dumps([f["id"] for f in files_used]),
         cluster_ids=json.dumps([selected_cluster["id"]] if selected_cluster else []),
         injection_summary=injection_summary,
-        retrieval_reason=reasoning
+        retrieval_reason=reasoning,
+        node_ids_used=json.dumps([n["id"] for n in nodes_used]),
+        edge_ids_used=json.dumps([]),  # simplified
     )
     db.add(injection_log)
     await db.commit()
@@ -234,7 +310,10 @@ async def chat_with_retrieval(db: AsyncSession, user_id: str, question: str) -> 
         "profile_used": profile_used,
         "retrieval_modes": retrieval_modes,
         "reasoning": reasoning,
-        "injection_summary": injection_summary
+        "injection_summary": injection_summary,
+        # v3 — graph data
+        "nodes_used": nodes_used,
+        "edges_used": edges_used,
     }
 
 
@@ -333,18 +412,20 @@ async def _generate_answer(question: str, context: str, filenames: list, profile
         if style:
             profile_instruction = f"\nThe user prefers answers in this style: {style}"
 
-    system_prompt = f"""You are an AI assistant that answers questions using the user's personal data space.
+    system_prompt = f"""You are an AI assistant that answers questions using the user's personal knowledge workspace.
 
 You have access to the user's:
 - Personal profile (if provided)
 - Context packs (high-level context documents)
 - File collections and summaries
 - Raw file content
+- Knowledge graph relationships (nodes and typed edges with evidence)
 
 Rules:
 - ONLY answer based on the provided context
 - If the context doesn't contain enough information, say so honestly
 - Reference specific files or context packs by name when relevant
+- When knowledge graph relationships are provided, use them to connect ideas and explain connections
 - Write in the SAME LANGUAGE as the user's question
 - Be detailed and helpful
 - Structure your answer with clear formatting (paragraphs, bullet points if needed)
@@ -353,7 +434,7 @@ Rules:
     source_list = ', '.join(filenames) if filenames else 'injected context'
     user_prompt = (
         f"QUESTION: {question}\n\n"
-        f"CONTEXT FROM USER'S PERSONAL DATA SPACE ({source_list}):\n\n"
+        f"CONTEXT FROM USER'S KNOWLEDGE WORKSPACE ({source_list}):\n\n"
         f"{context}"
     )
 
