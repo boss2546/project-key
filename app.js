@@ -156,7 +156,7 @@ const I18N = {
     'mcp.step1Title': 'Connector URL (มี Key ในตัว)',
     'mcp.step1Desc': 'คัดลอก URL นี้ไปวางใน Claude — URL มี Secret Key ฝังอยู่แล้ว',
     'mcp.step2Title': 'สร้าง Access Token',
-    'mcp.step2Desc': 'สร้าง Bearer token แบบอ่านอย่างเดียว สำหรับ REST API',
+    'mcp.step2Desc': 'สร้าง Bearer token สำหรับ REST API',
     'mcp.step3Title': 'ตั้งค่าใน Claude',
     'mcp.step3Desc': 'ไป Customize > Connectors > Add custom connector แล้ววาง URL',
     'mcp.step4Title': 'ทดสอบการเชื่อมต่อ',
@@ -164,8 +164,10 @@ const I18N = {
     'mcp.generateToken': 'สร้าง Token',
     'mcp.tokenWarning': 'บันทึก token นี้ตอนนี้ — จะไม่แสดงอีกครั้ง',
     'mcp.testConnection': 'ทดสอบการเชื่อมต่อ',
-    'mcp.availableTools': 'เครื่องมือที่เปิดใช้งาน',
-    'mcp.readOnly': 'อ่านอย่างเดียว',
+    'mcp.availableTools': 'เครื่องมือทั้งหมด',
+    'mcp.scope': 'อ่าน+เขียน',
+    'mcp.toolEnabled': 'เปิดใช้งาน',
+    'mcp.toolDisabled': 'ปิดใช้งาน',
 
     // Token Management page
     'tokens.title': 'จัดการ Token',
@@ -316,7 +318,7 @@ const I18N = {
     'mcp.step1Title': 'Connector URL (Key included)',
     'mcp.step1Desc': 'Copy this URL to Claude — it contains your Secret Key',
     'mcp.step2Title': 'Generate Access Token',
-    'mcp.step2Desc': 'Create a read-only Bearer token for REST API access',
+    'mcp.step2Desc': 'Create a Bearer token for REST API access',
     'mcp.step3Title': 'Add to Claude',
     'mcp.step3Desc': 'Go to Customize > Connectors > Add custom connector, paste URL',
     'mcp.step4Title': 'Test Connection',
@@ -325,7 +327,9 @@ const I18N = {
     'mcp.tokenWarning': 'Save this token now — it won\'t be shown again',
     'mcp.testConnection': 'Test Connection',
     'mcp.availableTools': 'Available Tools',
-    'mcp.readOnly': 'Read-only',
+    'mcp.scope': 'read+write',
+    'mcp.toolEnabled': 'Enabled',
+    'mcp.toolDisabled': 'Disabled',
 
     // Token Management page
     'tokens.title': 'Token Management',
@@ -418,6 +422,7 @@ document.addEventListener('DOMContentLoaded', () => {
     applyLanguage(newLang);
     // Re-render dynamic content with new language
     loadFiles();
+    if (state.mcpInfo) renderMCPTools(state.mcpInfo.available_tools || []);
   });
 
   initNavigation();
@@ -1808,7 +1813,10 @@ async function loadMCPSetup() {
     document.getElementById('mcp-config-json').textContent = JSON.stringify(configObj, null, 2);
 
     // Render available tools
-    renderMCPTools(info.available_tools || []);
+    const tools = info.available_tools || [];
+    renderMCPTools(tools);
+    const countEl = document.getElementById('mcp-tools-count');
+    if (countEl) countEl.textContent = tools.length;
 
     // Check token status
     const tokRes = await fetch('/api/mcp/tokens');
@@ -1921,9 +1929,8 @@ function toggleToolPermission(toolName, enabled) {
   }).catch(e => console.error('Save permissions error:', e));
 
   // Toggle card look
-  const card = document.querySelector(`.mcp-tool-card code.mcp-tool-name`);
   // Re-render after toggle for clean state
-  const label = getLang() === 'th' ? (enabled ? 'เปิดใช้งาน' : 'ปิดใช้งาน') : (enabled ? 'Enabled' : 'Disabled');
+  const label = enabled ? t('mcp.toolEnabled') : t('mcp.toolDisabled');
   showToast(`${toolName}: ${label}`, enabled ? 'success' : 'info');
 
   // Re-render
