@@ -25,11 +25,11 @@ ADMIN_PASSWORD = "1234"
 logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════
-# TOOL REGISTRY — 13 tools
+# TOOL REGISTRY — 21 tools in 4 categories
 # ═══════════════════════════════════════════
 
 TOOL_REGISTRY = {
-    # ─── READ (7) ───
+    # ─── 📖 READ & SEARCH (10) ───
     "get_profile": {
         "name": "get_profile",
         "description": "Get the user's profile including identity, goals, working style, and preferences",
@@ -72,8 +72,6 @@ TOOL_REGISTRY = {
         "params": [{"name": "pack_id", "type": "string", "required": True}],
         "category": "read",
     },
-
-    # ─── SEARCH & GRAPH (2) ───
     "search_knowledge": {
         "name": "search_knowledge",
         "description": "Search the user's knowledge base using semantic + keyword hybrid search. Returns matching files, packs, and graph nodes.",
@@ -81,7 +79,7 @@ TOOL_REGISTRY = {
             {"name": "query", "type": "string", "required": True},
             {"name": "limit", "type": "integer", "required": False, "default": 5},
         ],
-        "category": "search",
+        "category": "read",
     },
     "explore_graph": {
         "name": "explore_graph",
@@ -90,10 +88,16 @@ TOOL_REGISTRY = {
             {"name": "node_id", "type": "string", "required": False},
             {"name": "depth", "type": "integer", "required": False, "default": 1},
         ],
-        "category": "search",
+        "category": "read",
+    },
+    "get_overview": {
+        "name": "get_overview",
+        "description": "Get system overview with counts of files, collections, packs, graph nodes, and edges",
+        "params": [],
+        "category": "read",
     },
 
-    # ─── WRITE (3) ───
+    # ─── ✏️ CREATE & EDIT (5) ───
     "create_context_pack": {
         "name": "create_context_pack",
         "description": "Create a new context pack from selected files. Types: profile, study, work, project.",
@@ -102,7 +106,7 @@ TOOL_REGISTRY = {
             {"name": "type", "type": "string", "required": True},
             {"name": "file_ids", "type": "array", "required": True},
         ],
-        "category": "write",
+        "category": "edit",
     },
     "add_note": {
         "name": "add_note",
@@ -111,7 +115,7 @@ TOOL_REGISTRY = {
             {"name": "file_id", "type": "string", "required": True},
             {"name": "summary_text", "type": "string", "required": True},
         ],
-        "category": "write",
+        "category": "edit",
     },
     "update_file_tags": {
         "name": "update_file_tags",
@@ -120,57 +124,16 @@ TOOL_REGISTRY = {
             {"name": "file_id", "type": "string", "required": True},
             {"name": "tags", "type": "array", "required": True},
         ],
-        "category": "write",
+        "category": "edit",
     },
-
-    # ─── SYSTEM (1) ───
-    "get_overview": {
-        "name": "get_overview",
-        "description": "Get system overview with counts of files, collections, packs, graph nodes, and edges",
-        "params": [],
-        "category": "system",
-    },
-
-    # ─── ADMIN (8) — enabled via UI toggle OR admin_key bypass ───
-    "admin_login": {
-        "name": "admin_login",
-        "description": "Verify admin password. Use when tools are disabled — correct password unlocks them.",
-        "params": [{"name": "admin_key", "type": "string", "required": True}],
-        "category": "admin",
-    },
-    "delete_file": {
-        "name": "delete_file",
-        "description": "Delete a file and all its related data (summary, insights, clusters)",
+    "upload_text": {
+        "name": "upload_text",
+        "description": "Upload text content as a new file (Claude can create new knowledge files)",
         "params": [
-            {"name": "file_id", "type": "string", "required": True},
+            {"name": "filename", "type": "string", "required": True},
+            {"name": "content", "type": "string", "required": True},
         ],
-        "category": "admin",
-    },
-    "delete_pack": {
-        "name": "delete_pack",
-        "description": "Delete a context pack",
-        "params": [
-            {"name": "pack_id", "type": "string", "required": True},
-        ],
-        "category": "admin",
-    },
-    "run_organize": {
-        "name": "run_organize",
-        "description": "Run the full AI organization pipeline: summarize, cluster, build graph",
-        "params": [],
-        "category": "admin",
-    },
-    "build_graph": {
-        "name": "build_graph",
-        "description": "Rebuild the knowledge graph from all data",
-        "params": [],
-        "category": "admin",
-    },
-    "enrich_metadata": {
-        "name": "enrich_metadata",
-        "description": "Run AI metadata enrichment on all files (tags, sensitivity, freshness)",
-        "params": [],
-        "category": "admin",
+        "category": "edit",
     },
     "update_profile": {
         "name": "update_profile",
@@ -182,16 +145,51 @@ TOOL_REGISTRY = {
             {"name": "preferred_output_style", "type": "string", "required": False},
             {"name": "background_context", "type": "string", "required": False},
         ],
-        "category": "admin",
+        "category": "edit",
     },
-    "upload_text": {
-        "name": "upload_text",
-        "description": "Upload text content as a new file (Claude can create new knowledge files)",
+
+    # ─── 🗑️ DELETE (2) ───
+    "delete_file": {
+        "name": "delete_file",
+        "description": "Delete a file and all its related data (summary, insights, clusters)",
         "params": [
-            {"name": "filename", "type": "string", "required": True},
-            {"name": "content", "type": "string", "required": True},
+            {"name": "file_id", "type": "string", "required": True},
         ],
-        "category": "admin",
+        "category": "delete",
+    },
+    "delete_pack": {
+        "name": "delete_pack",
+        "description": "Delete a context pack",
+        "params": [
+            {"name": "pack_id", "type": "string", "required": True},
+        ],
+        "category": "delete",
+    },
+
+    # ─── ⚙️ AI PIPELINE (4) ───
+    "run_organize": {
+        "name": "run_organize",
+        "description": "Run the full AI organization pipeline: summarize, cluster, build graph",
+        "params": [],
+        "category": "pipeline",
+    },
+    "build_graph": {
+        "name": "build_graph",
+        "description": "Rebuild the knowledge graph from all data",
+        "params": [],
+        "category": "pipeline",
+    },
+    "enrich_metadata": {
+        "name": "enrich_metadata",
+        "description": "Run AI metadata enrichment on all files (tags, sensitivity, freshness)",
+        "params": [],
+        "category": "pipeline",
+    },
+    "admin_login": {
+        "name": "admin_login",
+        "description": "Verify admin password to bypass disabled tools",
+        "params": [{"name": "admin_key", "type": "string", "required": True}],
+        "category": "pipeline",
     },
 }
 

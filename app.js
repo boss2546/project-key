@@ -1850,11 +1850,10 @@ function renderMCPTools(tools) {
   };
 
   const categoryLabels = {
-    read: { icon: '📖', en: 'Read', th: 'อ่านข้อมูล' },
-    search: { icon: '🔍', en: 'Search & Graph', th: 'ค้นหาและกราฟ' },
-    write: { icon: '✏️', en: 'Write', th: 'เขียนข้อมูล' },
-    system: { icon: '📊', en: 'System', th: 'ระบบ' },
-    admin: { icon: '🔐', en: 'Admin (password required)', th: 'แอดมิน (ต้องใส่รหัส)' },
+    read: { icon: '📖', en: 'Read & Search', th: 'อ่านและค้นหา' },
+    edit: { icon: '✏️', en: 'Create & Edit', th: 'สร้างและแก้ไข' },
+    delete: { icon: '🗑️', en: 'Delete', th: 'ลบข้อมูล' },
+    pipeline: { icon: '⚙️', en: 'AI Pipeline', th: 'ประมวลผล AI' },
   };
 
   // Group tools by category
@@ -1869,7 +1868,7 @@ function renderMCPTools(tools) {
   const savedPerms = JSON.parse(localStorage.getItem('mcp_tool_permissions') || '{}');
 
   let html = '';
-  const order = ['read', 'search', 'write', 'system', 'admin'];
+  const order = ['read', 'edit', 'delete', 'pipeline'];
   for (const cat of order) {
     if (!groups[cat]) continue;
     const label = categoryLabels[cat] || { icon: '🔧', en: cat, th: cat };
