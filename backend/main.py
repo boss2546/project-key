@@ -1000,16 +1000,19 @@ async def mcp_streamable_http(secret: str, request: Request, db: AsyncSession = 
                 "error": {"code": -32602, "message": f"Unknown tool: {tool_name}"},
             })
 
-        # Check if tool is disabled by permissions (admin_key bypasses)
-        if MCP_PERMISSIONS.get(tool_name) is False and not arguments.get("admin_key"):
-            return JSONResponse({
-                "jsonrpc": "2.0",
-                "id": msg_id,
-                "result": {
-                    "content": [{"type": "text", "text": f"Tool '{tool_name}' is disabled by the user. Ask them to enable it in MCP Setup."}],
-                    "isError": True,
-                },
-            })
+        # Check if tool is disabled by permissions
+        # Admin key (password) can bypass disabled tools
+        from .mcp_tools import ADMIN_PASSWORD
+        if MCP_PERMISSIONS.get(tool_name) is False:
+            if arguments.get("admin_key") != ADMIN_PASSWORD:
+                return JSONResponse({
+                    "jsonrpc": "2.0",
+                    "id": msg_id,
+                    "result": {
+                        "content": [{"type": "text", "text": f"Tool '{tool_name}' is disabled. Enable it in MCP Setup or use admin_login to get the admin_key."}],
+                        "isError": True,
+                    },
+                })
 
         # Call the tool using our existing dispatcher
         tool_result = await call_tool(db, DEFAULT_USER_ID, "mcp-connector", tool_name, arguments)

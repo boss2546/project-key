@@ -131,54 +131,51 @@ TOOL_REGISTRY = {
         "category": "system",
     },
 
-    # ─── ADMIN (8) — require admin_key ───
+    # ─── ADMIN (8) — enabled via UI toggle OR admin_key bypass ───
     "admin_login": {
         "name": "admin_login",
-        "description": "Enter admin mode with password. Returns available admin tools if password is correct.",
+        "description": "Verify admin password. Use when tools are disabled — correct password unlocks them.",
         "params": [{"name": "admin_key", "type": "string", "required": True}],
         "category": "admin",
     },
     "delete_file": {
         "name": "delete_file",
-        "description": "[ADMIN] Delete a file and all its related data (summary, insights, clusters)",
+        "description": "Delete a file and all its related data (summary, insights, clusters)",
         "params": [
-            {"name": "admin_key", "type": "string", "required": True},
             {"name": "file_id", "type": "string", "required": True},
         ],
         "category": "admin",
     },
     "delete_pack": {
         "name": "delete_pack",
-        "description": "[ADMIN] Delete a context pack",
+        "description": "Delete a context pack",
         "params": [
-            {"name": "admin_key", "type": "string", "required": True},
             {"name": "pack_id", "type": "string", "required": True},
         ],
         "category": "admin",
     },
     "run_organize": {
         "name": "run_organize",
-        "description": "[ADMIN] Run the full AI organization pipeline: summarize, cluster, build graph",
-        "params": [{"name": "admin_key", "type": "string", "required": True}],
+        "description": "Run the full AI organization pipeline: summarize, cluster, build graph",
+        "params": [],
         "category": "admin",
     },
     "build_graph": {
         "name": "build_graph",
-        "description": "[ADMIN] Rebuild the knowledge graph from all data",
-        "params": [{"name": "admin_key", "type": "string", "required": True}],
+        "description": "Rebuild the knowledge graph from all data",
+        "params": [],
         "category": "admin",
     },
     "enrich_metadata": {
         "name": "enrich_metadata",
-        "description": "[ADMIN] Run AI metadata enrichment on all files (tags, sensitivity, freshness)",
-        "params": [{"name": "admin_key", "type": "string", "required": True}],
+        "description": "Run AI metadata enrichment on all files (tags, sensitivity, freshness)",
+        "params": [],
         "category": "admin",
     },
     "update_profile": {
         "name": "update_profile",
-        "description": "[ADMIN] Update the user profile (identity, goals, working style, preferences)",
+        "description": "Update the user profile (identity, goals, working style, preferences)",
         "params": [
-            {"name": "admin_key", "type": "string", "required": True},
             {"name": "identity_summary", "type": "string", "required": False},
             {"name": "goals", "type": "string", "required": False},
             {"name": "working_style", "type": "string", "required": False},
@@ -189,9 +186,8 @@ TOOL_REGISTRY = {
     },
     "upload_text": {
         "name": "upload_text",
-        "description": "[ADMIN] Upload text content as a new file (Claude can create new knowledge files)",
+        "description": "Upload text content as a new file (Claude can create new knowledge files)",
         "params": [
-            {"name": "admin_key", "type": "string", "required": True},
             {"name": "filename", "type": "string", "required": True},
             {"name": "content", "type": "string", "required": True},
         ],
@@ -221,12 +217,8 @@ async def call_tool(
         if tool_name not in TOOL_REGISTRY:
             raise ValueError(f"Unknown tool: {tool_name}")
 
-        # ─── Check admin access for admin tools ───
-        tool_category = TOOL_REGISTRY[tool_name].get("category", "")
-        if tool_category == "admin" and tool_name != "admin_login":
-            admin_key = params.get("admin_key", "")
-            if admin_key != ADMIN_PASSWORD:
-                raise ValueError("Admin access denied — wrong admin_key")
+        # Permissions are enforced by the MCP handler (main.py).
+        # Toggle ON = free access. Toggle OFF = blocked unless admin_key is provided.
 
         # ─── READ ───
         if tool_name == "get_profile":
@@ -768,13 +760,14 @@ async def _tool_get_overview(db: AsyncSession, user_id: str) -> dict:
 # ═══════════════════════════════════════════
 
 def _tool_admin_login(admin_key: str) -> dict:
-    """Check admin password and return available tools."""
+    """Verify admin password — grants bypass for disabled tools."""
     if admin_key == ADMIN_PASSWORD:
-        admin_tools = [k for k, v in TOOL_REGISTRY.items() if v.get("category") == "admin" and k != "admin_login"]
+        all_tools = list(TOOL_REGISTRY.keys())
         return {
             "status": "authenticated",
-            "message": "Admin mode activated — all tools unlocked",
-            "admin_tools": admin_tools,
+            "message": "Admin verified — you can now use admin_key to bypass any disabled tool",
+            "total_tools": len(all_tools),
+            "hint": "Pass admin_key in any tool call to bypass its disabled state",
         }
     else:
         return {"status": "denied", "message": "Wrong admin password"}
@@ -822,6 +815,7 @@ async def _tool_run_organize(db: AsyncSession, user_id: str) -> dict:
     from .organizer import organize_files
 
     result = await organize_files(db, user_id)
+    result = result or {}
 
     return {
         "status": "completed",
@@ -836,6 +830,7 @@ async def _tool_build_graph(db: AsyncSession, user_id: str) -> dict:
     from .graph_builder import build_full_graph
 
     graph_result = await build_full_graph(db, user_id)
+    graph_result = graph_result or {}
 
     return {
         "status": "completed",
@@ -850,6 +845,7 @@ async def _tool_enrich_metadata(db: AsyncSession, user_id: str) -> dict:
     from .metadata import enrich_all_files
 
     result = await enrich_all_files(db, user_id)
+    result = result or {}
 
     return {
         "status": "completed",
