@@ -476,7 +476,7 @@ async def _tool_get_context_pack(db: AsyncSession, user_id: str, pack_id: str) -
 # ═══════════════════════════════════════════
 
 async def _tool_search_knowledge(db: AsyncSession, user_id: str, query: str, limit: int = 5) -> dict:
-    """Search knowledge base using hybrid search + graph nodes."""
+    """Search knowledge base using hybrid search + graph nodes + DB fallback."""
     if not query:
         raise ValueError("query is required")
     limit = min(max(limit, 1), 10)
@@ -495,6 +495,74 @@ async def _tool_search_knowledge(db: AsyncSession, user_id: str, query: str, lim
                 "search_mode": hit.get("search_mode", "hybrid"),
             })
 
+    # Fallback: search directly in DB if vector search returned nothing
+    if not results:
+        query_lower = query.lower()
+        files_res = await db.execute(
+            select(File).where(File.user_id == user_id, File.processing_status == "ready")
+        )
+        all_files = files_res.scalars().all()
+
+        # Search in summaries
+        summaries_res = await db.execute(select(FileSummary))
+        all_summaries = {s.file_id: s for s in summaries_res.scalars().all()}
+
+        for f in all_files:
+            score = 0
+            snippet = ""
+
+            # Check filename match
+            if query_lower in f.filename.lower():
+                score += 0.5
+
+            # Check summary match
+            summary = all_summaries.get(f.id)
+            if summary and summary.summary_text:
+                if query_lower in summary.summary_text.lower():
+                    score += 0.4
+                    idx = summary.summary_text.lower().find(query_lower)
+                    start = max(0, idx - 50)
+                    snippet = summary.summary_text[start:start + 300]
+
+                # Check key_topics
+                topics = summary.key_topics or "[]"
+                if isinstance(topics, str):
+                    import json as _json
+                    try:
+                        topics = _json.loads(topics)
+                    except Exception:
+                        topics = []
+                if any(query_lower in str(t).lower() for t in topics):
+                    score += 0.3
+
+            # Check extracted text
+            if not snippet and f.extracted_text and query_lower in f.extracted_text.lower():
+                score += 0.3
+                idx = f.extracted_text.lower().find(query_lower)
+                start = max(0, idx - 50)
+                snippet = f.extracted_text[start:start + 300]
+
+            # Check tags
+            import json as _json
+            try:
+                tags = _json.loads(f.tags or "[]") if isinstance(f.tags, str) else (f.tags or [])
+            except Exception:
+                tags = []
+            if any(query_lower in str(tag).lower() for tag in tags):
+                score += 0.2
+
+            if score > 0:
+                results.append({
+                    "filename": f.filename,
+                    "file_id": f.id,
+                    "text_snippet": snippet[:300] if snippet else f"[{f.filename}]",
+                    "relevance": round(min(score, 1.0), 3),
+                    "search_mode": "db_fallback",
+                })
+
+        results.sort(key=lambda x: x["relevance"], reverse=True)
+        results = results[:limit]
+
     # Search context packs
     packs = await list_packs(db, user_id)
     query_lower = query.lower()
@@ -510,7 +578,7 @@ async def _tool_search_knowledge(db: AsyncSession, user_id: str, query: str, lim
         or query_lower in (p.get("summary_text", "") or "").lower()
     ]
 
-    # Search graph nodes (NEW in v4.1)
+    # Search graph nodes
     nodes_result = await db.execute(
         select(GraphNode).where(GraphNode.user_id == user_id)
     )
@@ -654,7 +722,7 @@ async def _tool_create_context_pack(db: AsyncSession, user_id: str, params: dict
 
 
 async def _tool_add_note(db: AsyncSession, user_id: str, params: dict) -> dict:
-    """Update summary text for a file."""
+    """Update summary text for a file. Auto-creates summary record if none exists."""
     file_id = params.get("file_id")
     summary_text = params.get("summary_text")
 
@@ -670,10 +738,22 @@ async def _tool_add_note(db: AsyncSession, user_id: str, params: dict) -> dict:
     file = result.scalar_one_or_none()
     if not file:
         return {"error": "File not found"}
-    if not file.summary:
-        return {"error": "File has no summary yet — run 'Organize with AI' first"}
 
-    file.summary.summary_text = summary_text
+    if file.summary:
+        file.summary.summary_text = summary_text
+    else:
+        # Auto-create summary record so add_note works without organize
+        new_summary = FileSummary(
+            file_id=file_id,
+            summary_text=summary_text,
+            md_path="",
+            key_topics="[]",
+            key_facts="[]",
+            why_important="",
+            suggested_usage="",
+        )
+        db.add(new_summary)
+
     await db.commit()
 
     return {
@@ -845,10 +925,21 @@ async def _tool_enrich_metadata(db: AsyncSession, user_id: str) -> dict:
     result = await enrich_all_files(db, user_id)
     result = result or {}
 
+    enriched = result.get("enriched", 0)
+    total = result.get("total", 0)
+
+    if enriched == 0 and total > 0:
+        message = f"All {total} files already have metadata, or LLM enrichment was skipped. Try running 'run_organize' first for new files."
+    elif enriched == 0:
+        message = "No files found to enrich"
+    else:
+        message = f"Metadata enrichment completed — {enriched}/{total} files updated"
+
     return {
         "status": "completed",
-        "enriched": result.get("enriched", 0),
-        "message": "Metadata enrichment completed",
+        "enriched": enriched,
+        "total_files": total,
+        "message": message,
     }
 
 

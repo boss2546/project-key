@@ -60,6 +60,45 @@ async def startup():
         if not user:
             db.add(User(id=DEFAULT_USER_ID, name="Personal Workspace"))
             await db.commit()
+
+        # Rebuild TF-IDF search index from existing data (survives restart)
+        try:
+            from . import vector_search
+            files_res = await db.execute(
+                select(File).where(
+                    File.user_id == DEFAULT_USER_ID,
+                    File.processing_status == "ready"
+                )
+            )
+            ready_files = files_res.scalars().all()
+            indexed = 0
+            for f in ready_files:
+                if f.extracted_text:
+                    # Find cluster title for this file
+                    cluster_title = ""
+                    cm_res = await db.execute(
+                        select(FileClusterMap).where(FileClusterMap.file_id == f.id)
+                    )
+                    cm = cm_res.scalar_one_or_none()
+                    if cm:
+                        cl_res = await db.execute(
+                            select(Cluster).where(Cluster.id == cm.cluster_id)
+                        )
+                        cl = cl_res.scalar_one_or_none()
+                        if cl:
+                            cluster_title = cl.title or ""
+                    vector_search.index_file(
+                        file_id=f.id,
+                        filename=f.filename,
+                        text=f.extracted_text,
+                        cluster_title=cluster_title
+                    )
+                    indexed += 1
+            if indexed:
+                logger.info(f"Startup: rebuilt search index for {indexed} files")
+        except Exception as e:
+            logger.warning(f"Startup: search index rebuild failed: {e}")
+
         break
 
 
