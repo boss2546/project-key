@@ -8,6 +8,9 @@ env/
 venv/
 .env
 
+# Secrets
+.mcp_secret
+
 # Database (personal data — do not commit)
 projectkey.db
 projectkey.db-shm

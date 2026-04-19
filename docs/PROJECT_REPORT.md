@@ -1,8 +1,8 @@
-# 📋 Project KEY — รายงานสรุปโปรเจกต์ (v0.1 → v4.2)
+# 📋 Project KEY — รายงานสรุปโปรเจกต์ (v0.1 → v4.3)
 
 > **วันที่จัดทำ:** 19 เมษายน 2569  
-> **อัพเดทล่าสุด:** 19 เมษายน 2569  
-> **เวอร์ชันปัจจุบัน:** v4.2 — MCP Full Permission System  
+> **อัพเดทล่าสุด:** 19 เมษายน 2569 (14:50 น.)  
+> **เวอร์ชันปัจจุบัน:** v4.3 — MCP Bugfix + Search Rebuild  
 > **Git Tags:** `MVPV1` → `v3.0` → `v4.2`  
 > **สถานะ:** ✅ Production (https://project-key.fly.dev/)  
 > **จัดทำโดย:** Antigravity AI + ทีมพัฒนา  
@@ -19,6 +19,7 @@ v3.0  → Knowledge Workspace — Graph Visualization + i18n
 v4.0  → Production Deploy — Fly.io + MCP Connector (5 tools)
 v4.1  → Full MCP — 21 tools + Data Management UX
 v4.2  → Permission System — 4 categories + Admin bypass + Thai bilingual complete
+v4.3  → Bugfix — Search index auto-rebuild + DB fallback + add_note fix
 ```
 
 ---
@@ -537,12 +538,27 @@ primary_region = "sin"  # Singapore
 
 ---
 
+### 📦 v4.3 — Bugfix: Search + add_note + Metadata
+> **Commit:** `5929134` | **วันที่:** 19 เม.ย. 2569
+
+**ปัญหาจากรายงานทดสอบ MCP (Claude Sonnet 4.6 ทดสอบ 21 ฟังก์ชัน):**
+
+| Bug | Root Cause | Fix |
+|-----|-----------|-----|
+| `search_knowledge` ผลลัพธ์ว่างเปล่า | TF-IDF index อยู่ใน RAM หายตอน Fly.io restart | ✅ Startup auto-rebuild จาก DB + DB fallback search |
+| `enrich_metadata` enriched=0 ไม่บอกเหตุผล | Response ไม่มี context | ✅ เพิ่ม total_files + message อธิบายเหตุผล |
+| `add_note` ต้อง organize ก่อน | ไม่มี FileSummary record | ✅ Auto-create summary record ถ้ายังไม่มี |
+
+**ผลลัพธ์:** 21/21 ฟังก์ชัน ✅ PASS ครบหมด
+
+---
+
 ## 12. ข้อจำกัดที่ยังมี (Known Limitations)
 
 | # | ข้อจำกัด | ความเสี่ยง | แนวทาง |
 |---|---------|-----------|--------|
 | 1 | ไม่มีระบบ Auth — DEFAULT_USER_ID | High (multi-user) | JWT / OAuth2 |
-| 2 | Vector index ใน RAM — restart rebuild | Medium | ChromaDB persist |
+| 2 | ~~Vector index ใน RAM — restart rebuild~~ | ~~Medium~~ | ✅ **แก้แล้ว v4.3** — startup auto-rebuild |
 | 3 | Graph rebuild = ล้างทั้งหมด | Medium | Incremental update |
 | 4 | Admin password hardcoded | Medium | Environment variable |
 | 5 | Permissions ใน memory (reset on restart) | Low | Persist to DB |
@@ -581,4 +597,4 @@ flyctl ssh console
 
 ---
 
-*รายงานจัดทำโดย Antigravity AI · Project KEY v4.2 · 19 เมษายน 2569*
+*รายงานจัดทำโดย Antigravity AI · Project KEY v4.3 · 19 เมษายน 2569*
