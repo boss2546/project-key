@@ -1,5 +1,6 @@
 """Configuration for Project KEY backend."""
 import os
+import secrets
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -27,3 +28,17 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(CONTEXT_PACKS_DIR, exist_ok=True)
 os.makedirs(SUMMARIES_DIR, exist_ok=True)
 
+# MCP Secret — persists across restarts
+_MCP_SECRET_FILE = os.path.join(DATA_DIR, ".mcp_secret")
+
+def _load_or_create_mcp_secret() -> str:
+    """Load existing MCP secret or generate a new one."""
+    if os.path.exists(_MCP_SECRET_FILE):
+        with open(_MCP_SECRET_FILE, "r") as f:
+            return f.read().strip()
+    secret = secrets.token_urlsafe(32)
+    with open(_MCP_SECRET_FILE, "w") as f:
+        f.write(secret)
+    return secret
+
+MCP_SECRET = os.getenv("MCP_SECRET", _load_or_create_mcp_secret())

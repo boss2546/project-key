@@ -30,7 +30,7 @@
           </div>
           <div class="logo-text-area">
             <span class="logo-text">Project KEY</span>
-            <span class="logo-version">v3</span>
+            <span class="logo-version">v4</span>
           </div>
         </div>
       </div>
@@ -78,6 +78,35 @@
           </span>
           <span class="nav-label" data-i18n="nav.chat">AI Chat</span>
         </a>
+
+        <!-- v4 — Connector Layer -->
+        <div class="nav-divider"></div>
+        <span class="nav-section-label" data-i18n="nav.connectorSection">Connector</span>
+
+        <a href="#" class="nav-item" data-page="mcp-setup" id="nav-mcp-setup">
+          <span class="nav-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+            </svg>
+          </span>
+          <span class="nav-label" data-i18n="nav.mcpSetup">MCP Setup</span>
+        </a>
+        <a href="#" class="nav-item" data-page="tokens" id="nav-tokens">
+          <span class="nav-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </span>
+          <span class="nav-label" data-i18n="nav.tokens">Tokens</span>
+        </a>
+        <a href="#" class="nav-item" data-page="mcp-logs" id="nav-mcp-logs">
+          <span class="nav-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+            </svg>
+          </span>
+          <span class="nav-label" data-i18n="nav.mcpLogs">MCP Logs</span>
+        </a>
       </nav>
 
       <!-- Sidebar Stats -->
@@ -87,6 +116,7 @@
         <div class="stat-row"><span class="stat-label" data-i18n="stat.nodes">Nodes</span><span class="stat-value" id="stat-nodes">0</span></div>
         <div class="stat-row"><span class="stat-label" data-i18n="stat.relations">Relations</span><span class="stat-value" id="stat-edges">0</span></div>
         <div class="stat-row"><span class="stat-label" data-i18n="stat.packs">Packs</span><span class="stat-value" id="stat-packs">0</span></div>
+        <div class="stat-row"><span class="stat-label" data-i18n="stat.tokens">Tokens</span><span class="stat-value" id="stat-tokens">0</span></div>
       </div>
 
       <!-- Profile -->
@@ -158,6 +188,60 @@
             <p>ยังไม่มีไฟล์ — เพิ่มไฟล์เข้าพื้นที่ส่วนตัวของคุณ</p>
           </div>
         </div>
+
+        <!-- File Detail Slide Panel -->
+        <div class="file-detail-panel hidden" id="file-detail-panel">
+          <div class="file-detail-header">
+            <div class="file-detail-title-area">
+              <div class="file-detail-icon" id="fd-icon">MD</div>
+              <div>
+                <h2 id="fd-filename">—</h2>
+                <div class="fd-meta-row">
+                  <span class="badge" id="fd-cluster">—</span>
+                  <span id="fd-importance">—</span>
+                </div>
+              </div>
+            </div>
+            <button class="btn-close" id="fd-close">✕</button>
+          </div>
+          <div class="file-detail-body">
+            <!-- Edit Actions -->
+            <div class="fd-edit-bar" id="fd-edit-bar">
+              <button class="btn btn-outline btn-sm" id="fd-edit-btn" onclick="toggleSummaryEdit(true)">✏️ Edit</button>
+              <div class="fd-edit-actions hidden" id="fd-edit-actions">
+                <button class="btn btn-primary btn-sm" id="fd-save-btn" onclick="saveSummaryEdit()">💾 Save</button>
+                <button class="btn btn-outline btn-sm" onclick="toggleSummaryEdit(false)">Cancel</button>
+              </div>
+            </div>
+            <!-- Summary -->
+            <div class="fd-section">
+              <h3>📝 Summary</h3>
+              <p id="fd-summary" class="fd-text">—</p>
+              <textarea id="fd-summary-edit" class="fd-edit-textarea hidden"></textarea>
+            </div>
+            <!-- Key Topics -->
+            <div class="fd-section">
+              <h3>🏷️ Key Topics</h3>
+              <div id="fd-topics" class="fd-chips"></div>
+            </div>
+            <!-- Key Facts -->
+            <div class="fd-section">
+              <h3>📋 Key Facts</h3>
+              <ul id="fd-facts" class="fd-list"></ul>
+            </div>
+            <!-- Why Important -->
+            <div class="fd-section">
+              <h3>⭐ Why Important</h3>
+              <p id="fd-why" class="fd-text">—</p>
+              <textarea id="fd-why-edit" class="fd-edit-textarea hidden"></textarea>
+            </div>
+            <!-- Content Preview -->
+            <div class="fd-section">
+              <h3>📄 Content Preview</h3>
+              <pre id="fd-content" class="fd-content-preview">—</pre>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- ─── PAGE: KNOWLEDGE VIEW ─── -->
@@ -205,6 +289,41 @@
           <div class="relation-section">
             <h4>💡 Suggestions <span class="badge" id="suggestion-count">0</span></h4>
             <div id="suggestions-list" class="relation-list"></div>
+          </div>
+        </div>
+
+        <!-- Create Context Pack Modal -->
+        <div class="pack-modal-overlay hidden" id="pack-modal-overlay">
+          <div class="pack-modal">
+            <div class="pack-modal-header">
+              <h2 id="pack-modal-title">📦 Create Context Pack</h2>
+              <button class="btn-close" id="pack-modal-close">✕</button>
+            </div>
+            <div class="pack-modal-body">
+              <div class="form-group">
+                <label>Pack Name</label>
+                <input type="text" id="pack-title-input" placeholder="e.g. My Work Context" class="form-input">
+              </div>
+              <div class="form-group">
+                <label>Type</label>
+                <select id="pack-type-select" class="form-input">
+                  <option value="project">📁 Project</option>
+                  <option value="study">📚 Study</option>
+                  <option value="work">💼 Work</option>
+                  <option value="profile">👤 Profile</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Select Files</label>
+                <div id="pack-file-list" class="pack-file-list">
+                  <p class="text-muted">Loading files...</p>
+                </div>
+              </div>
+            </div>
+            <div class="pack-modal-footer">
+              <button class="btn btn-outline" id="pack-cancel-btn">Cancel</button>
+              <button class="btn btn-primary" id="pack-create-btn">Create Pack</button>
+            </div>
           </div>
         </div>
       </section>
@@ -376,6 +495,180 @@
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- ─── PAGE: MCP SETUP (v4) ─── -->
+      <section class="page" id="page-mcp-setup">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title" data-i18n="mcp.setupTitle">Claude Connector Setup</h1>
+            <p class="page-subtitle" data-i18n="mcp.setupSubtitle">Connect your Project KEY data to Claude via remote MCP</p>
+          </div>
+        </div>
+
+        <!-- Connection Status -->
+        <div class="mcp-status-card" id="mcp-status-card">
+          <div class="mcp-status-indicator">
+            <span class="mcp-status-dot" id="mcp-status-dot"></span>
+            <span class="mcp-status-text" id="mcp-status-text" data-i18n="mcp.notConfigured">Not configured</span>
+          </div>
+          <div class="mcp-status-meta" id="mcp-status-meta"></div>
+        </div>
+
+        <!-- Setup Steps -->
+        <div class="mcp-setup-grid">
+
+          <!-- Step 1: Server URL -->
+          <div class="mcp-step-card">
+            <div class="mcp-step-number">1</div>
+            <div class="mcp-step-content">
+              <h3 data-i18n="mcp.step1Title">MCP Server URL</h3>
+              <p data-i18n="mcp.step1Desc">Copy this URL to your Claude custom connector settings</p>
+              <div class="code-block" id="mcp-server-url">
+                <code id="mcp-url-value">Loading...</code>
+                <button class="copy-btn" id="btn-copy-url" title="Copy URL">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 2: Generate Token -->
+          <div class="mcp-step-card">
+            <div class="mcp-step-number">2</div>
+            <div class="mcp-step-content">
+              <h3 data-i18n="mcp.step2Title">Generate Access Token</h3>
+              <p data-i18n="mcp.step2Desc">Create a read-only Bearer token for Claude to authenticate</p>
+              <div class="mcp-token-area">
+                <div class="mcp-token-input-row">
+                  <input type="text" id="mcp-token-label" placeholder="Token label (e.g. Claude Desktop)" class="search-input" value="Claude Connector">
+                  <button class="btn btn-primary" id="btn-generate-token" data-i18n="mcp.generateToken">Generate Token</button>
+                </div>
+                <div class="mcp-token-display hidden" id="mcp-token-display">
+                  <div class="mcp-token-warning">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <span data-i18n="mcp.tokenWarning">Save this token now — it won't be shown again</span>
+                  </div>
+                  <div class="code-block code-block-token">
+                    <code id="mcp-token-value"></code>
+                    <button class="copy-btn" id="btn-copy-token" title="Copy Token">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 3: Configure Claude -->
+          <div class="mcp-step-card">
+            <div class="mcp-step-number">3</div>
+            <div class="mcp-step-content">
+              <h3 data-i18n="mcp.step3Title">Configure Claude</h3>
+              <p data-i18n="mcp.step3Desc">Add this configuration to your Claude Desktop settings</p>
+              <div class="code-block code-block-multi" id="mcp-config-block">
+                <pre id="mcp-config-json">Loading...</pre>
+                <button class="copy-btn" id="btn-copy-config" title="Copy Config">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 4: Test Connection -->
+          <div class="mcp-step-card">
+            <div class="mcp-step-number">4</div>
+            <div class="mcp-step-content">
+              <h3 data-i18n="mcp.step4Title">Test Connection</h3>
+              <p data-i18n="mcp.step4Desc">Verify your connector setup is working</p>
+              <button class="btn btn-outline" id="btn-test-connection" data-i18n="mcp.testConnection">Test Connection</button>
+              <div class="mcp-test-result hidden" id="mcp-test-result"></div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Available Tools -->
+        <div class="section-header" style="margin-top:32px">
+          <h2 data-i18n="mcp.availableTools">Available Tools</h2>
+          <span class="badge">5</span>
+        </div>
+        <div class="mcp-tools-grid" id="mcp-tools-grid"></div>
+
+      </section>
+
+      <!-- ─── PAGE: TOKEN MANAGEMENT (v4) ─── -->
+      <section class="page" id="page-tokens">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title" data-i18n="tokens.title">Token Management</h1>
+            <p class="page-subtitle" data-i18n="tokens.subtitle">Manage access tokens for external AI connectors</p>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-primary" id="btn-new-token">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              <span data-i18n="tokens.newToken">New Token</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="token-list" id="token-list">
+          <div class="empty-state">
+            <p data-i18n="tokens.empty">No tokens yet — generate one from MCP Setup</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─── PAGE: MCP LOGS (v4) ─── -->
+      <section class="page" id="page-mcp-logs">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title" data-i18n="logs.title">MCP Logs</h1>
+            <p class="page-subtitle" data-i18n="logs.subtitle">Track connector tool usage and debug issues</p>
+          </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="log-filters" id="log-filters">
+          <select class="log-filter-select" id="log-filter-tool">
+            <option value="" data-i18n="logs.allTools">All Tools</option>
+            <option value="get_profile">get_profile</option>
+            <option value="list_context_packs">list_context_packs</option>
+            <option value="get_context_pack">get_context_pack</option>
+            <option value="search_knowledge">search_knowledge</option>
+            <option value="get_file_summary">get_file_summary</option>
+          </select>
+          <select class="log-filter-select" id="log-filter-status">
+            <option value="" data-i18n="logs.allStatus">All Status</option>
+            <option value="success">Success</option>
+            <option value="error">Error</option>
+          </select>
+          <button class="btn btn-outline btn-sm" id="btn-refresh-logs" data-i18n="logs.refresh">Refresh</button>
+        </div>
+
+        <!-- Log Table -->
+        <div class="log-table-wrapper">
+          <table class="log-table" id="log-table">
+            <thead>
+              <tr>
+                <th data-i18n="logs.colTime">Time</th>
+                <th data-i18n="logs.colTool">Tool</th>
+                <th data-i18n="logs.colStatus">Status</th>
+                <th data-i18n="logs.colLatency">Latency</th>
+                <th data-i18n="logs.colDetails">Details</th>
+              </tr>
+            </thead>
+            <tbody id="log-table-body">
+              <tr class="log-empty-row">
+                <td colspan="5">
+                  <div class="empty-state">
+                    <p data-i18n="logs.empty">No logs yet — connector usage will appear here</p>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </section>
 

@@ -1,10 +1,10 @@
-"""Project KEY — FastAPI Backend (MVP v3)"""
+"""Project KEY — FastAPI Backend (MVP v4 — PDB Connector Layer)"""
 import os
 import json
 import logging
 from datetime import datetime
 
-from fastapi import FastAPI, UploadFile, File as FastAPIFile, Depends, HTTPException, BackgroundTasks, Query
+from fastapi import FastAPI, UploadFile, File as FastAPIFile, Depends, HTTPException, BackgroundTasks, Query, Header, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,7 +16,8 @@ from sqlalchemy.orm import selectinload
 from .database import (
     init_db, get_db, gen_id,
     User, File, Cluster, FileClusterMap, FileInsight, FileSummary,
-    ContextPack, GraphNode, GraphEdge, NoteObject, SuggestedRelation, GraphLens
+    ContextPack, GraphNode, GraphEdge, NoteObject, SuggestedRelation, GraphLens,
+    MCPToken, MCPUsageLog
 )
 from .extraction import extract_text
 from .organizer import organize_files
@@ -26,14 +27,16 @@ from .context_packs import list_packs, get_pack, create_pack, delete_pack, regen
 from .graph_builder import build_full_graph, get_graph_data, get_node_detail, get_neighborhood
 from .relations import get_backlinks, get_outgoing, get_suggestions, accept_suggestion, dismiss_suggestion, generate_suggestions
 from .metadata import enrich_file_metadata, enrich_all_files, get_file_metadata, update_file_metadata
-from .config import UPLOAD_DIR, BASE_DIR, MAX_FILE_SIZE_MB
+from .config import UPLOAD_DIR, BASE_DIR, MAX_FILE_SIZE_MB, MCP_SECRET
+from .mcp_tokens import generate_token, validate_token, list_tokens, revoke_token, get_active_token_count
+from .mcp_tools import call_tool, get_usage_logs, TOOL_REGISTRY
 
 # Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # App
-app = FastAPI(title="Project KEY", version="0.3.0")
+app = FastAPI(title="Project KEY", version="0.4.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -244,6 +247,27 @@ async def list_clusters(db: AsyncSession = Depends(get_db)):
     }
 
 
+class ClusterUpdateRequest(BaseModel):
+    title: str | None = None
+    summary: str | None = None
+
+@app.put("/api/clusters/{cluster_id}")
+async def update_cluster(cluster_id: str, req: ClusterUpdateRequest, db: AsyncSession = Depends(get_db)):
+    """Update a cluster title or summary."""
+    result = await db.execute(
+        select(Cluster).where(Cluster.id == cluster_id, Cluster.user_id == DEFAULT_USER_ID)
+    )
+    cluster = result.scalar_one_or_none()
+    if not cluster:
+        raise HTTPException(status_code=404, detail="Cluster not found")
+    if req.title is not None:
+        cluster.title = req.title
+    if req.summary is not None:
+        cluster.summary = req.summary
+    await db.commit()
+    return {"status": "ok", "id": cluster_id, "title": cluster.title, "summary": cluster.summary}
+
+
 @app.get("/api/summary/{file_id}")
 async def get_summary(file_id: str, db: AsyncSession = Depends(get_db)):
     """Get the full markdown summary for a file."""
@@ -282,6 +306,59 @@ async def get_summary(file_id: str, db: AsyncSession = Depends(get_db)):
         "why_important": file.summary.why_important,
         "suggested_usage": file.summary.suggested_usage
     }
+
+
+@app.get("/api/files/{file_id}/content")
+async def get_file_content(file_id: str, db: AsyncSession = Depends(get_db)):
+    """Get file extracted text content for preview."""
+    result = await db.execute(
+        select(File).where(File.id == file_id, File.user_id == DEFAULT_USER_ID)
+    )
+    file = result.scalar_one_or_none()
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found")
+    return {
+        "file_id": file.id,
+        "filename": file.filename,
+        "filetype": file.filetype,
+        "text": file.extracted_text or "",
+        "uploaded_at": file.uploaded_at.isoformat() if file.uploaded_at else ""
+    }
+
+
+class SummaryUpdateRequest(BaseModel):
+    summary_text: str | None = None
+    key_topics: list[str] | None = None
+    key_facts: list[str] | None = None
+    why_important: str | None = None
+    suggested_usage: str | None = None
+
+@app.put("/api/summary/{file_id}")
+async def update_summary(file_id: str, req: SummaryUpdateRequest, db: AsyncSession = Depends(get_db)):
+    """Update the summary for a file."""
+    result = await db.execute(
+        select(File).where(File.id == file_id, File.user_id == DEFAULT_USER_ID)
+        .options(selectinload(File.summary))
+    )
+    file = result.scalar_one_or_none()
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found")
+    if not file.summary:
+        raise HTTPException(status_code=404, detail="Summary not yet generated")
+
+    if req.summary_text is not None:
+        file.summary.summary_text = req.summary_text
+    if req.key_topics is not None:
+        file.summary.key_topics = json.dumps(req.key_topics, ensure_ascii=False)
+    if req.key_facts is not None:
+        file.summary.key_facts = json.dumps(req.key_facts, ensure_ascii=False)
+    if req.why_important is not None:
+        file.summary.why_important = req.why_important
+    if req.suggested_usage is not None:
+        file.summary.suggested_usage = req.suggested_usage
+
+    await db.commit()
+    return {"status": "ok", "file_id": file_id}
 
 
 @app.delete("/api/files/{file_id}")
@@ -582,7 +659,7 @@ async def api_list_lenses(db: AsyncSession = Depends(get_db)):
 
 @app.get("/api/stats")
 async def get_stats(db: AsyncSession = Depends(get_db)):
-    """Get storage/processing stats including v3 graph data."""
+    """Get storage/processing stats including v3 graph data and v4 MCP data."""
     files_result = await db.execute(select(File).where(File.user_id == DEFAULT_USER_ID))
     files = files_result.scalars().all()
 
@@ -608,6 +685,9 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
 
     profile = await get_profile(db, DEFAULT_USER_ID)
 
+    # v4 — MCP stats
+    active_tokens = await get_active_token_count(db, DEFAULT_USER_ID)
+
     return {
         "total_files": len(files),
         "total_clusters": len(clusters),
@@ -621,6 +701,8 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
         "total_edges": len(edges),
         "total_suggestions": len(suggestions),
         "graph_built": len(nodes) > 0,
+        # v4 — MCP stats
+        "active_tokens": active_tokens,
     }
 
 
@@ -656,6 +738,125 @@ async def reset_all(db: AsyncSession = Depends(get_db)):
     return {"status": "ok", "message": "All data cleared"}
 
 
+# ═══════════════════════════════════════════
+# MCP / CONNECTOR APIs (v4 — new)
+# ═══════════════════════════════════════════
+
+class MCPTokenRequest(BaseModel):
+    label: str = "Default Token"
+
+class MCPToolCallRequest(BaseModel):
+    tool: str
+    params: dict = {}
+
+
+@app.get("/api/mcp/info")
+async def api_mcp_info(request: Request):
+    """Get MCP server info and available tools."""
+    base_url = str(request.base_url).rstrip('/')
+    # Fly.io reverse proxy sends X-Forwarded-Proto
+    if request.headers.get("x-forwarded-proto") == "https":
+        base_url = base_url.replace("http://", "https://", 1)
+    return {
+        "mcp_server_url": f"{base_url}/api/mcp/tools/call",
+        "mcp_connector_url": f"{base_url}/mcp/{MCP_SECRET}",
+        "auth_type": "bearer",
+        "scope": "read-only",
+        "version": "v4",
+        "available_tools": list(TOOL_REGISTRY.values()),
+    }
+
+
+@app.post("/api/mcp/tokens")
+async def api_generate_token(
+    req: MCPTokenRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """Generate a new MCP Bearer token."""
+    result = await generate_token(db, DEFAULT_USER_ID, req.label)
+    return result
+
+
+@app.get("/api/mcp/tokens")
+async def api_list_tokens(db: AsyncSession = Depends(get_db)):
+    """List all MCP tokens."""
+    tokens = await list_tokens(db, DEFAULT_USER_ID)
+    return {"tokens": tokens, "count": len(tokens)}
+
+
+@app.delete("/api/mcp/tokens/{token_id}")
+async def api_revoke_token(token_id: str, db: AsyncSession = Depends(get_db)):
+    """Revoke an MCP token."""
+    revoked = await revoke_token(db, token_id, DEFAULT_USER_ID)
+    if not revoked:
+        raise HTTPException(status_code=404, detail="Token not found")
+    return {"status": "ok", "message": "Token revoked"}
+
+
+@app.post("/api/mcp/test")
+async def api_test_connection(
+    authorization: str | None = Header(None, alias="Authorization"),
+    db: AsyncSession = Depends(get_db)
+):
+    """Test MCP connection with a Bearer token."""
+    if not authorization or not authorization.startswith("Bearer "):
+        return {"status": "error", "message": "Missing or invalid Authorization header"}
+
+    raw_token = authorization.split(" ", 1)[1]
+    token_info = await validate_token(db, raw_token)
+
+    if not token_info:
+        return {"status": "error", "message": "Invalid or revoked token"}
+
+    return {
+        "status": "success",
+        "message": "Connection successful",
+        "user_id": token_info["user_id"],
+        "scope": token_info["scope"],
+        "token_label": token_info["label"],
+    }
+
+
+@app.post("/api/mcp/tools/call")
+async def api_mcp_tool_call(
+    req: MCPToolCallRequest,
+    authorization: str | None = Header(None, alias="Authorization"),
+    db: AsyncSession = Depends(get_db)
+):
+    """Main MCP tool dispatcher — called by Claude custom connector."""
+    # Validate token
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+
+    raw_token = authorization.split(" ", 1)[1]
+    token_info = await validate_token(db, raw_token)
+
+    if not token_info:
+        raise HTTPException(status_code=401, detail="Invalid or revoked token")
+
+    # Call tool
+    result = await call_tool(
+        db=db,
+        user_id=token_info["user_id"],
+        token_id=token_info["token_id"],
+        tool_name=req.tool,
+        params=req.params,
+    )
+    return result
+
+
+@app.get("/api/mcp/logs")
+async def api_mcp_logs(
+    tool: str | None = None,
+    status: str | None = None,
+    limit: int = Query(50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get MCP usage logs."""
+    logs = await get_usage_logs(db, DEFAULT_USER_ID, tool, status, limit)
+    return {"logs": logs, "count": len(logs)}
+
+
 # ─── HELPERS ───
 
 def _serialize_file(f: File) -> dict:
@@ -677,6 +878,143 @@ def _serialize_file(f: File) -> dict:
         "freshness": f.freshness or "current",
         "source_of_truth": f.source_of_truth or False,
     }
+
+
+# ═══════════════════════════════════════════
+# MCP STREAMABLE HTTP TRANSPORT (for Claude Custom Connector)
+# ═══════════════════════════════════════════
+
+def _build_mcp_tools_list():
+    """Convert our tool registry to MCP-spec tool format."""
+    tools = []
+    for tool in TOOL_REGISTRY.values():
+        # Build JSON Schema for inputSchema
+        properties = {}
+        required = []
+        for p in tool.get("params", []):
+            prop = {"type": p["type"]}
+            if "default" in p:
+                prop["default"] = p["default"]
+            properties[p["name"]] = prop
+            if p.get("required"):
+                required.append(p["name"])
+
+        tools.append({
+            "name": tool["name"],
+            "description": tool["description"],
+            "inputSchema": {
+                "type": "object",
+                "properties": properties,
+                "required": required,
+            },
+        })
+    return tools
+
+
+@app.post("/mcp/{secret}")
+async def mcp_streamable_http(secret: str, request: Request, db: AsyncSession = Depends(get_db)):
+    """MCP Streamable HTTP transport — JSON-RPC 2.0 endpoint for Claude Custom Connector."""
+    # Validate secret key
+    if secret != MCP_SECRET:
+        return JSONResponse(
+            {"jsonrpc": "2.0", "error": {"code": -32600, "message": "Unauthorized"}, "id": None},
+            status_code=401,
+        )
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(
+            {"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}, "id": None},
+            status_code=400,
+        )
+
+    method = body.get("method", "")
+    msg_id = body.get("id")
+    params = body.get("params", {})
+
+    logger.info(f"MCP request: method={method}, id={msg_id}")
+
+    # ── Notification (no id) — return 202 Accepted ──
+    if msg_id is None:
+        return JSONResponse(content=None, status_code=202)
+
+    # ── initialize ──
+    if method == "initialize":
+        return JSONResponse({
+            "jsonrpc": "2.0",
+            "id": msg_id,
+            "result": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {
+                    "tools": {},
+                },
+                "serverInfo": {
+                    "name": "project-key",
+                    "version": "0.4.0",
+                },
+            },
+        })
+
+    # ── tools/list ──
+    elif method == "tools/list":
+        return JSONResponse({
+            "jsonrpc": "2.0",
+            "id": msg_id,
+            "result": {
+                "tools": _build_mcp_tools_list(),
+            },
+        })
+
+    # ── tools/call ──
+    elif method == "tools/call":
+        tool_name = params.get("name", "")
+        arguments = params.get("arguments", {})
+
+        if tool_name not in TOOL_REGISTRY:
+            return JSONResponse({
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "error": {"code": -32602, "message": f"Unknown tool: {tool_name}"},
+            })
+
+        # Call the tool using our existing dispatcher
+        tool_result = await call_tool(db, DEFAULT_USER_ID, "mcp-connector", tool_name, arguments)
+
+        # Format result as MCP content
+        if tool_result["status"] == "success":
+            text_content = json.dumps(tool_result["result"], ensure_ascii=False, indent=2)
+            return JSONResponse({
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "result": {
+                    "content": [{"type": "text", "text": text_content}],
+                },
+            })
+        else:
+            return JSONResponse({
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "result": {
+                    "content": [{"type": "text", "text": f"Error: {tool_result['result'].get('error', 'Unknown error')}"}],
+                    "isError": True,
+                },
+            })
+
+    # ── ping ──
+    elif method == "ping":
+        return JSONResponse({
+            "jsonrpc": "2.0",
+            "id": msg_id,
+            "result": {},
+        })
+
+    # ── Unknown method ──
+    else:
+        return JSONResponse({
+            "jsonrpc": "2.0",
+            "id": msg_id,
+            "error": {"code": -32601, "message": f"Method not found: {method}"},
+        })
 
 
 # ─── SERVE FRONTEND ───

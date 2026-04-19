@@ -257,6 +257,38 @@ class CanvasObject(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+# ═══════════════════════════════════════════
+# MVP v4 — PDB Connector Layer Models
+# ═══════════════════════════════════════════
+
+class MCPToken(Base):
+    """Bearer token for MCP connector access."""
+    __tablename__ = "mcp_tokens"
+    id = Column(String, primary_key=True, default=gen_id)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    token_hash = Column(String, nullable=False, unique=True)  # SHA-256 hash
+    label = Column(String, default="Default Token")
+    scope = Column(String, default="read-only")               # read-only only in v4
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_used_at = Column(DateTime, nullable=True)
+    revoked_at = Column(DateTime, nullable=True)
+
+
+class MCPUsageLog(Base):
+    """Log of MCP tool calls for traceability."""
+    __tablename__ = "mcp_usage_logs"
+    id = Column(String, primary_key=True, default=gen_id)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    token_id = Column(String, ForeignKey("mcp_tokens.id"), nullable=False)
+    tool_name = Column(String, nullable=False)
+    request_summary = Column(Text, default="")
+    status = Column(String, default="success")          # success, error
+    latency_ms = Column(Integer, default=0)
+    error_message = Column(Text, default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 # Async engine
 engine = create_async_engine(DATABASE_URL, echo=False)
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)

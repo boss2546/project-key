@@ -75,17 +75,27 @@ async def organize_files(db: AsyncSession, user_id: str):
 
         await db.commit()
 
-        # 5. Create insights (importance scoring)
+        # 5. Create/Update insights (importance scoring)
         for f in files:
             importance = _find_importance(clusters_data, f.id)
-            insight = FileInsight(
-                file_id=f.id,
-                importance_score=importance.get("score", 50),
-                importance_label=importance.get("label", "medium"),
-                is_primary_candidate=importance.get("is_primary", False),
-                why_important=importance.get("why", "")
-            )
-            db.add(insight)
+            existing_insight = (await db.execute(
+                select(FileInsight).where(FileInsight.file_id == f.id)
+            )).scalar_one_or_none()
+
+            if existing_insight:
+                existing_insight.importance_score = importance.get("score", 50)
+                existing_insight.importance_label = importance.get("label", "medium")
+                existing_insight.is_primary_candidate = importance.get("is_primary", False)
+                existing_insight.why_important = importance.get("why", "")
+            else:
+                insight = FileInsight(
+                    file_id=f.id,
+                    importance_score=importance.get("score", 50),
+                    importance_label=importance.get("label", "medium"),
+                    is_primary_candidate=importance.get("is_primary", False),
+                    why_important=importance.get("why", "")
+                )
+                db.add(insight)
 
         # Update status to organized
         for f in files:
@@ -106,14 +116,28 @@ async def organize_files(db: AsyncSession, user_id: str):
                 importance_data = _find_importance(clusters_data, f.id)
                 summary_data = await _generate_summary(f, cluster_title, importance_data)
 
-                file_summary = FileSummary(
-                    file_id=f.id,
-                    summary_text=summary_data.get("summary", ""),
-                    key_topics=json.dumps(summary_data.get("key_topics", []), ensure_ascii=False),
-                    key_facts=json.dumps(summary_data.get("key_facts", []), ensure_ascii=False),
-                    why_important=summary_data.get("why_important", ""),
-                    suggested_usage=summary_data.get("suggested_usage", "")
-                )
+                # Upsert: update existing summary or create new
+                existing_summary = (await db.execute(
+                    select(FileSummary).where(FileSummary.file_id == f.id)
+                )).scalar_one_or_none()
+
+                if existing_summary:
+                    existing_summary.summary_text = summary_data.get("summary", "")
+                    existing_summary.key_topics = json.dumps(summary_data.get("key_topics", []), ensure_ascii=False)
+                    existing_summary.key_facts = json.dumps(summary_data.get("key_facts", []), ensure_ascii=False)
+                    existing_summary.why_important = summary_data.get("why_important", "")
+                    existing_summary.suggested_usage = summary_data.get("suggested_usage", "")
+                    file_summary = existing_summary
+                else:
+                    file_summary = FileSummary(
+                        file_id=f.id,
+                        summary_text=summary_data.get("summary", ""),
+                        key_topics=json.dumps(summary_data.get("key_topics", []), ensure_ascii=False),
+                        key_facts=json.dumps(summary_data.get("key_facts", []), ensure_ascii=False),
+                        why_important=summary_data.get("why_important", ""),
+                        suggested_usage=summary_data.get("suggested_usage", "")
+                    )
+                    db.add(file_summary)
 
                 # memsearch: Write .md summary file to disk
                 md_path = write_summary_md(
@@ -132,7 +156,6 @@ async def organize_files(db: AsyncSession, user_id: str):
                     uploaded_at=f.uploaded_at.isoformat() + "Z" if f.uploaded_at else ""
                 )
                 file_summary.md_path = md_path
-                db.add(file_summary)
 
                 # RAGFlow: Index file text into vector store
                 vector_search.index_file(

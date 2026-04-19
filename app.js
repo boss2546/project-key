@@ -1,6 +1,6 @@
 /**
- * Project KEY v3 — Frontend Logic
- * Knowledge Workspace with Graph Visualization
+ * Project KEY v4 — Frontend Logic
+ * Knowledge Workspace + PDB Connector Layer
  */
 
 // ═══════════════════════════════════════════
@@ -18,6 +18,9 @@ const state = {
     project: true, context_pack: true, person: true,
   },
   knowledgeTab: 'collections',
+  // v4 — MCP state
+  mcpInfo: null,
+  mcpLastToken: null,
 };
 
 // Node family color map
@@ -38,13 +41,18 @@ const I18N = {
     'nav.graph': 'กราฟ',
     'nav.chat': 'AI แชท',
     'nav.profile': 'โปรไฟล์',
+    'nav.connectorSection': 'Connector',
+    'nav.mcpSetup': 'ตั้งค่า MCP',
+    'nav.tokens': 'โทเค็น',
+    'nav.mcpLogs': 'บันทึกการใช้งาน',
 
     // Stats
     'stat.files': 'ไฟล์',
-    'stat.collections': 'Collections',
-    'stat.nodes': 'Nodes',
-    'stat.relations': 'Relations',
-    'stat.packs': 'Packs',
+    'stat.collections': 'คอลเลกชัน',
+    'stat.nodes': 'โหนด',
+    'stat.relations': 'ความสัมพันธ์',
+    'stat.packs': 'แพ็ก',
+    'stat.tokens': 'โทเค็น',
 
     // My Data page
     'myData.title': 'ข้อมูลของฉัน',
@@ -133,6 +141,57 @@ const I18N = {
     'toast.enriched': 'Enrich metadata เรียบร้อย',
     'toast.graphBuilt': 'สร้างกราฟเรียบร้อย',
     'toast.error': 'เกิดข้อผิดพลาด',
+    'toast.tokenGenerated': 'สร้าง Token เรียบร้อย',
+    'toast.tokenRevoked': 'ยกเลิก Token เรียบร้อย',
+    'toast.copied': 'คัดลอกแล้ว',
+    'toast.testSuccess': 'เชื่อมต่อสำเร็จ!',
+    'toast.testFailed': 'เชื่อมต่อล้มเหลว',
+
+    // MCP Setup page
+    'mcp.setupTitle': 'ตั้งค่าตัวเชื่อมต่อ Claude',
+    'mcp.setupSubtitle': 'เชื่อมต่อข้อมูล Project KEY ของคุณไปยัง Claude ผ่าน Remote MCP',
+    'mcp.notConfigured': 'ยังไม่ได้ตั้งค่า',
+    'mcp.configured': 'เชื่อมต่อแล้ว',
+    'mcp.noActiveToken': 'ยังไม่มี Token ที่เปิดใช้งาน',
+    'mcp.step1Title': 'Connector URL (มี Key ในตัว)',
+    'mcp.step1Desc': 'คัดลอก URL นี้ไปวางใน Claude — URL มี Secret Key ฝังอยู่แล้ว',
+    'mcp.step2Title': 'สร้าง Access Token',
+    'mcp.step2Desc': 'สร้าง Bearer token แบบอ่านอย่างเดียว สำหรับ REST API',
+    'mcp.step3Title': 'ตั้งค่าใน Claude',
+    'mcp.step3Desc': 'ไป Customize > Connectors > Add custom connector แล้ววาง URL',
+    'mcp.step4Title': 'ทดสอบการเชื่อมต่อ',
+    'mcp.step4Desc': 'ตรวจสอบว่า connector ทำงานถูกต้อง',
+    'mcp.generateToken': 'สร้าง Token',
+    'mcp.tokenWarning': 'บันทึก token นี้ตอนนี้ — จะไม่แสดงอีกครั้ง',
+    'mcp.testConnection': 'ทดสอบการเชื่อมต่อ',
+    'mcp.availableTools': 'เครื่องมือที่เปิดใช้งาน',
+    'mcp.readOnly': 'อ่านอย่างเดียว',
+
+    // Token Management page
+    'tokens.title': 'จัดการ Token',
+    'tokens.subtitle': 'จัดการ access tokens สำหรับ AI connectors ภายนอก',
+    'tokens.newToken': 'สร้าง Token ใหม่',
+    'tokens.empty': 'ยังไม่มี token — สร้างได้จากหน้า MCP Setup',
+    'tokens.revoke': 'ยกเลิก',
+    'tokens.active': 'ใช้งาน',
+    'tokens.revoked': 'ยกเลิกแล้ว',
+    'tokens.created': 'สร้างเมื่อ',
+    'tokens.lastUsed': 'ใช้ล่าสุด',
+    'tokens.never': 'ยังไม่เคยใช้',
+    'tokens.confirmRevoke': 'ต้องการยกเลิก token นี้?',
+
+    // MCP Logs page
+    'logs.title': 'บันทึก MCP',
+    'logs.subtitle': 'ติดตามการใช้งาน connector และแก้ไขปัญหา',
+    'logs.allTools': 'ทุกเครื่องมือ',
+    'logs.allStatus': 'ทุกสถานะ',
+    'logs.refresh': 'รีเฟรช',
+    'logs.colTime': 'เวลา',
+    'logs.colTool': 'เครื่องมือ',
+    'logs.colStatus': 'สถานะ',
+    'logs.colLatency': 'เวลาตอบ',
+    'logs.colDetails': 'รายละเอียด',
+    'logs.empty': 'ยังไม่มีบันทึก — การใช้งาน connector จะแสดงที่นี่',
   },
 
   en: {
@@ -142,6 +201,10 @@ const I18N = {
     'nav.graph': 'Graph',
     'nav.chat': 'AI Chat',
     'nav.profile': 'My Profile',
+    'nav.connectorSection': 'Connector',
+    'nav.mcpSetup': 'MCP Setup',
+    'nav.tokens': 'Tokens',
+    'nav.mcpLogs': 'MCP Logs',
 
     // Stats
     'stat.files': 'Files',
@@ -149,6 +212,7 @@ const I18N = {
     'stat.nodes': 'Nodes',
     'stat.relations': 'Relations',
     'stat.packs': 'Packs',
+    'stat.tokens': 'Tokens',
 
     // My Data page
     'myData.title': 'My Data',
@@ -237,6 +301,57 @@ const I18N = {
     'toast.enriched': 'Metadata enriched',
     'toast.graphBuilt': 'Graph built successfully',
     'toast.error': 'An error occurred',
+    'toast.tokenGenerated': 'Token generated successfully',
+    'toast.tokenRevoked': 'Token revoked',
+    'toast.copied': 'Copied to clipboard',
+    'toast.testSuccess': 'Connection successful!',
+    'toast.testFailed': 'Connection failed',
+
+    // MCP Setup page
+    'mcp.setupTitle': 'Claude Connector Setup',
+    'mcp.setupSubtitle': 'Connect your Project KEY data to Claude via remote MCP',
+    'mcp.notConfigured': 'Not configured',
+    'mcp.configured': 'Connected',
+    'mcp.noActiveToken': 'No active token',
+    'mcp.step1Title': 'Connector URL (Key included)',
+    'mcp.step1Desc': 'Copy this URL to Claude — it contains your Secret Key',
+    'mcp.step2Title': 'Generate Access Token',
+    'mcp.step2Desc': 'Create a read-only Bearer token for REST API access',
+    'mcp.step3Title': 'Add to Claude',
+    'mcp.step3Desc': 'Go to Customize > Connectors > Add custom connector, paste URL',
+    'mcp.step4Title': 'Test Connection',
+    'mcp.step4Desc': 'Verify your connector setup is working',
+    'mcp.generateToken': 'Generate Token',
+    'mcp.tokenWarning': 'Save this token now — it won\'t be shown again',
+    'mcp.testConnection': 'Test Connection',
+    'mcp.availableTools': 'Available Tools',
+    'mcp.readOnly': 'Read-only',
+
+    // Token Management page
+    'tokens.title': 'Token Management',
+    'tokens.subtitle': 'Manage access tokens for external AI connectors',
+    'tokens.newToken': 'New Token',
+    'tokens.empty': 'No tokens yet — generate one from MCP Setup',
+    'tokens.revoke': 'Revoke',
+    'tokens.active': 'Active',
+    'tokens.revoked': 'Revoked',
+    'tokens.created': 'Created',
+    'tokens.lastUsed': 'Last used',
+    'tokens.never': 'Never used',
+    'tokens.confirmRevoke': 'Revoke this token?',
+
+    // MCP Logs page
+    'logs.title': 'MCP Logs',
+    'logs.subtitle': 'Track connector tool usage and debug issues',
+    'logs.allTools': 'All Tools',
+    'logs.allStatus': 'All Status',
+    'logs.refresh': 'Refresh',
+    'logs.colTime': 'Time',
+    'logs.colTool': 'Tool',
+    'logs.colStatus': 'Status',
+    'logs.colLatency': 'Latency',
+    'logs.colDetails': 'Details',
+    'logs.empty': 'No logs yet — connector usage will appear here',
   }
 };
 
@@ -311,6 +426,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initChat();
   initGraphControls();
   initKnowledgeTabs();
+  initMCP();
   loadStats();
   loadFiles();
 });
@@ -337,6 +453,9 @@ function switchPage(page) {
   if (page === 'knowledge') loadKnowledge();
   if (page === 'graph') loadGraph();
   if (page === 'chat') loadProfile();
+  if (page === 'mcp-setup') loadMCPSetup();
+  if (page === 'tokens') loadTokens();
+  if (page === 'mcp-logs') loadMCPLogs();
 }
 
 // ═══════════════════════════════════════════
@@ -351,6 +470,7 @@ async function loadStats() {
     document.getElementById('stat-nodes').textContent = data.total_nodes || 0;
     document.getElementById('stat-edges').textContent = data.total_edges || 0;
     document.getElementById('stat-packs').textContent = data.total_context_packs;
+    document.getElementById('stat-tokens').textContent = data.active_tokens || 0;
     const dot = document.getElementById('profile-dot');
     if (dot) dot.className = `profile-status-dot ${data.profile_set ? 'active' : ''}`;
   } catch (e) { console.error('Stats error:', e); }
@@ -409,7 +529,7 @@ function renderFileList(files) {
     const freshness = f.freshness && f.freshness !== 'current' ? `<span class="freshness-badge ${f.freshness}">${f.freshness}</span>` : '';
     const sot = f.source_of_truth ? '<span class="sot-badge">📌 Source of Truth</span>' : '';
     return `
-      <div class="file-item" data-id="${f.id}">
+      <div class="file-item" data-id="${f.id}" onclick="openFileDetail('${f.id}')">
         <div class="file-icon ${f.filetype}">${f.filetype.toUpperCase()}</div>
         <div class="file-info">
           <div class="file-name">${f.filename}</div>
@@ -421,7 +541,7 @@ function renderFileList(files) {
           ${tags ? `<div class="file-tags">${tags}</div>` : ''}
         </div>
         <div class="file-actions">
-          <button class="btn-sm" onclick="deleteFile('${f.id}')">${t('myData.delete')}</button>
+          <button class="btn-sm" onclick="event.stopPropagation(); deleteFile('${f.id}')">${t('myData.delete')}</button>
         </div>
       </div>`;
   }).join('');
@@ -432,9 +552,157 @@ async function deleteFile(id) {
   try {
     await fetch(`/api/files/${id}`, { method: 'DELETE' });
     showToast(t('toast.deleted'), 'success');
+    closeFileDetail();
     loadFiles();
     loadStats();
   } catch (e) { showToast(t('toast.error'), 'error'); }
+}
+
+
+// ─── File Detail Panel ───
+
+let _fdBackdrop = null;
+
+async function openFileDetail(fileId) {
+  const panel = document.getElementById('file-detail-panel');
+  _currentFileId = fileId;
+
+  // Create backdrop if not exists
+  if (!_fdBackdrop) {
+    _fdBackdrop = document.createElement('div');
+    _fdBackdrop.className = 'fd-backdrop';
+    _fdBackdrop.addEventListener('click', closeFileDetail);
+    document.body.appendChild(_fdBackdrop);
+  }
+
+  // Show panel + backdrop
+  panel.classList.remove('hidden');
+  requestAnimationFrame(() => {
+    panel.classList.add('visible');
+    _fdBackdrop.classList.add('visible');
+  });
+
+  // Set loading state
+  document.getElementById('fd-filename').textContent = 'Loading...';
+  document.getElementById('fd-summary').textContent = '...';
+  document.getElementById('fd-topics').innerHTML = '';
+  document.getElementById('fd-facts').innerHTML = '';
+  document.getElementById('fd-why').textContent = '';
+  document.getElementById('fd-content').textContent = '';
+
+  try {
+    // Fetch summary data
+    const res = await fetch(`/api/summary/${fileId}`);
+    if (res.ok) {
+      const d = await res.json();
+      document.getElementById('fd-icon').textContent = d.filetype?.toUpperCase() || '?';
+      document.getElementById('fd-filename').textContent = d.filename;
+      document.getElementById('fd-cluster').textContent = d.cluster || '—';
+      const stars = '⭐'.repeat(Math.min(5, Math.round(d.importance_score / 20)));
+      document.getElementById('fd-importance').textContent = `${stars} ${d.importance_label}`;
+      document.getElementById('fd-summary').textContent = d.summary_text || 'No summary yet';
+      document.getElementById('fd-topics').innerHTML = (d.key_topics || []).map(t => `<span class="chip">${t}</span>`).join('');
+      document.getElementById('fd-facts').innerHTML = (d.key_facts || []).map(f => `<li>${f}</li>`).join('');
+      document.getElementById('fd-why').textContent = d.why_important || '—';
+    } else {
+      document.getElementById('fd-summary').textContent = getLang() === 'th'
+        ? 'ยังไม่มี Summary — กด "จัดระเบียบด้วย AI" ก่อน'
+        : 'No summary yet — click "Organize with AI" first';
+    }
+
+    // Fetch file content for preview
+    const contentRes = await fetch(`/api/files/${fileId}/content`);
+    if (contentRes.ok) {
+      const c = await contentRes.json();
+      if (!document.getElementById('fd-filename').textContent || document.getElementById('fd-filename').textContent === 'Loading...') {
+        document.getElementById('fd-icon').textContent = c.filetype?.toUpperCase() || '?';
+        document.getElementById('fd-filename').textContent = c.filename;
+      }
+      document.getElementById('fd-content').textContent = c.text
+        ? c.text.substring(0, 3000) + (c.text.length > 3000 ? '\n\n... (truncated)' : '')
+        : getLang() === 'th' ? 'ไม่มีเนื้อหา' : 'No content available';
+    }
+  } catch (e) {
+    console.error('File detail load error:', e);
+    document.getElementById('fd-summary').textContent = 'Error loading details';
+  }
+}
+
+function closeFileDetail() {
+  const panel = document.getElementById('file-detail-panel');
+  panel.classList.remove('visible');
+  if (_fdBackdrop) _fdBackdrop.classList.remove('visible');
+  setTimeout(() => panel.classList.add('hidden'), 300);
+  toggleSummaryEdit(false); // reset edit mode
+}
+
+// Close button
+document.getElementById('fd-close')?.addEventListener('click', closeFileDetail);
+
+// ─── Summary Edit Mode ───
+
+let _currentFileId = null;
+
+function toggleSummaryEdit(editing) {
+  const editBtn = document.getElementById('fd-edit-btn');
+  const editActions = document.getElementById('fd-edit-actions');
+  const summaryView = document.getElementById('fd-summary');
+  const summaryEdit = document.getElementById('fd-summary-edit');
+  const whyView = document.getElementById('fd-why');
+  const whyEdit = document.getElementById('fd-why-edit');
+
+  if (editing) {
+    // Enter edit mode — copy current text to textareas
+    summaryEdit.value = summaryView.textContent;
+    whyEdit.value = whyView.textContent;
+    summaryView.classList.add('hidden');
+    summaryEdit.classList.remove('hidden');
+    whyView.classList.add('hidden');
+    whyEdit.classList.remove('hidden');
+    editBtn.classList.add('hidden');
+    editActions.classList.remove('hidden');
+    summaryEdit.focus();
+  } else {
+    // Exit edit mode
+    summaryView.classList.remove('hidden');
+    summaryEdit.classList.add('hidden');
+    whyView.classList.remove('hidden');
+    whyEdit.classList.add('hidden');
+    editBtn.classList.remove('hidden');
+    editActions.classList.add('hidden');
+  }
+}
+
+async function saveSummaryEdit() {
+  if (!_currentFileId) return;
+
+  const summaryText = document.getElementById('fd-summary-edit').value.trim();
+  const whyImportant = document.getElementById('fd-why-edit').value.trim();
+  const saveBtn = document.getElementById('fd-save-btn');
+  saveBtn.disabled = true;
+  saveBtn.textContent = '...';
+
+  try {
+    const res = await fetch(`/api/summary/${_currentFileId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        summary_text: summaryText,
+        why_important: whyImportant
+      })
+    });
+    if (!res.ok) throw new Error('Save failed');
+
+    // Update display
+    document.getElementById('fd-summary').textContent = summaryText;
+    document.getElementById('fd-why').textContent = whyImportant;
+    toggleSummaryEdit(false);
+    showToast(getLang() === 'th' ? 'บันทึก Summary แล้ว' : 'Summary saved', 'success');
+  } catch (e) {
+    showToast(getLang() === 'th' ? 'บันทึกล้มเหลว' : 'Save failed', 'error');
+  }
+  saveBtn.disabled = false;
+  saveBtn.textContent = '💾 Save';
 }
 
 async function runOrganize() {
@@ -491,9 +759,12 @@ async function loadKnowledge() {
         return;
       }
       container.innerHTML = data.clusters.map(c => `
-        <div class="cluster-card">
-          <div class="cluster-title">📁 ${c.title} <span class="badge">${c.file_count}</span></div>
-          <div class="cluster-summary">${c.summary || ''}</div>
+        <div class="cluster-card" data-cluster-id="${c.id}">
+          <div class="cluster-card-header">
+            <div class="cluster-title" id="ct-title-${c.id}">📁 ${escapeHtml(c.title)} <span class="badge">${c.file_count}</span></div>
+            <button class="btn-icon" onclick="editCluster('${c.id}', '${escapeHtml(c.title).replace(/'/g, "\\'")}', '${escapeHtml(c.summary || '').replace(/'/g, "\\'").replace(/\n/g, '\\n')}')" title="Edit">✏️</button>
+          </div>
+          <div class="cluster-summary" id="ct-summary-${c.id}">${escapeHtml(c.summary || '')}</div>
           <div class="cluster-files">
             ${c.files.map(f => `<span class="cluster-file-chip">${f.filename}</span>`).join('')}
           </div>
@@ -503,15 +774,34 @@ async function loadKnowledge() {
     try {
       const res = await fetch('/api/context-packs');
       const data = await res.json();
+      const createBtnLabel = getLang() === 'th' ? '+ สร้าง Pack' : '+ Create Pack';
+      const emptyMsg = getLang() === 'th' ? 'ยังไม่มี Context Pack — สร้างเพื่อจัดกลุ่มข้อมูลให้ AI' : 'No context packs yet — create one to bundle data for AI';
+
+      let html = `<div class="packs-header">
+        <span>${data.count || 0} pack${data.count !== 1 ? 's' : ''}</span>
+        <button class="btn btn-primary" onclick="openCreatePackModal()">${createBtnLabel}</button>
+      </div>`;
+
       if (!data.packs.length) {
-        container.innerHTML = `<div class="empty-state"><p>${t('knowledge.emptyPacks')}</p></div>`;
-        return;
+        html += `<div class="empty-state"><p>${emptyMsg}</p></div>`;
+      } else {
+        html += data.packs.map(p => `
+          <div class="pack-card" data-pack-id="${p.id}">
+            <div class="pack-card-header">
+              <div class="pack-card-title">📦 ${escapeHtml(p.title)}</div>
+              <div class="pack-card-actions">
+                <button onclick="regeneratePack('${p.id}')" title="Regenerate">🔄</button>
+                <button class="btn-danger" onclick="deletePack('${p.id}')" title="Delete">🗑</button>
+              </div>
+            </div>
+            <div class="pack-card-summary">${escapeHtml(p.summary_text?.substring(0, 200) || '')}${p.summary_text?.length > 200 ? '...' : ''}</div>
+            <div class="pack-card-meta">
+              <span class="badge">${p.type}</span>
+              ${p.created_at ? `<span>${formatDate(p.created_at)}</span>` : ''}
+            </div>
+          </div>`).join('');
       }
-      container.innerHTML = data.packs.map(p => `
-        <div class="cluster-card">
-          <div class="cluster-title">📦 ${p.title} <span class="badge">${p.type}</span></div>
-          <div class="cluster-summary">${p.summary_text?.substring(0, 200) || ''}...</div>
-        </div>`).join('');
+      container.innerHTML = html;
     } catch (e) { container.innerHTML = `<div class="empty-state"><p>${t('knowledge.loadFailed')}</p></div>`; }
   } else if (state.knowledgeTab === 'notes') {
     try {
@@ -538,6 +828,175 @@ function showNodeInGraph(nodeId) {
   state.graphMode = 'local';
   switchPage('graph');
 }
+
+// ─── Collection Editing ───
+
+function editCluster(clusterId, currentTitle, currentSummary) {
+  const card = document.querySelector(`[data-cluster-id="${clusterId}"]`);
+  if (!card || card.querySelector('.cluster-edit-form')) return; // already editing
+
+  const titleEl = card.querySelector('.cluster-title');
+  const summaryEl = card.querySelector('.cluster-summary');
+  const headerEl = card.querySelector('.cluster-card-header');
+
+  // Replace title with input
+  const titleInput = document.createElement('input');
+  titleInput.type = 'text';
+  titleInput.value = currentTitle;
+  titleInput.className = 'form-input';
+  titleInput.style.marginBottom = '8px';
+
+  // Replace summary with textarea
+  const summaryTextarea = document.createElement('textarea');
+  summaryTextarea.value = currentSummary.replace(/\\n/g, '\n');
+  summaryTextarea.className = 'fd-edit-textarea';
+  summaryTextarea.style.minHeight = '60px';
+
+  // Add save/cancel buttons
+  const actions = document.createElement('div');
+  actions.className = 'cluster-edit-form';
+  actions.style.cssText = 'display:flex;gap:6px;margin-top:8px';
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'btn btn-primary btn-sm';
+  saveBtn.textContent = '💾 Save';
+  saveBtn.onclick = () => saveCluster(clusterId, titleInput.value, summaryTextarea.value);
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'btn btn-outline btn-sm';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.onclick = () => loadKnowledge();
+  actions.appendChild(saveBtn);
+  actions.appendChild(cancelBtn);
+
+  // Hide originals, show inputs
+  titleEl.classList.add('hidden');
+  summaryEl.classList.add('hidden');
+  headerEl.querySelector('.btn-icon').classList.add('hidden');
+  titleEl.after(titleInput);
+  summaryEl.after(summaryTextarea);
+  summaryTextarea.after(actions);
+  titleInput.focus();
+}
+
+async function saveCluster(clusterId, newTitle, newSummary) {
+  try {
+    const res = await fetch(`/api/clusters/${clusterId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: newTitle.trim(), summary: newSummary.trim() })
+    });
+    if (!res.ok) throw new Error('Save failed');
+    showToast(getLang() === 'th' ? 'บันทึก Collection แล้ว' : 'Collection saved', 'success');
+    loadKnowledge(); // refresh
+  } catch (e) {
+    showToast(getLang() === 'th' ? 'บันทึกล้มเหลว' : 'Save failed', 'error');
+  }
+}
+
+// ─── Context Pack Management ───
+
+async function openCreatePackModal() {
+  const overlay = document.getElementById('pack-modal-overlay');
+  overlay.classList.remove('hidden');
+
+  // Reset form
+  document.getElementById('pack-title-input').value = '';
+  document.getElementById('pack-type-select').value = 'project';
+
+  // Load files for selection
+  try {
+    const res = await fetch('/api/files');
+    const data = await res.json();
+    const fileList = document.getElementById('pack-file-list');
+    if (!data.files.length) {
+      fileList.innerHTML = `<p class="text-muted" style="padding:12px">${getLang() === 'th' ? 'ไม่มีไฟล์' : 'No files'}</p>`;
+      return;
+    }
+    fileList.innerHTML = data.files.map(f => `
+      <label class="pack-file-item">
+        <input type="checkbox" value="${f.id}">
+        <span class="file-icon ${f.filetype}" style="width:28px;height:28px;font-size:10px">${f.filetype.toUpperCase()}</span>
+        <span class="pf-name">${f.filename}</span>
+      </label>
+    `).join('');
+  } catch (e) {
+    document.getElementById('pack-file-list').innerHTML = '<p class="text-muted" style="padding:12px">Error loading files</p>';
+  }
+}
+
+function closePackModal() {
+  document.getElementById('pack-modal-overlay').classList.add('hidden');
+}
+
+async function submitCreatePack() {
+  const title = document.getElementById('pack-title-input').value.trim();
+  const type = document.getElementById('pack-type-select').value;
+  const checkboxes = document.querySelectorAll('#pack-file-list input[type="checkbox"]:checked');
+  const fileIds = Array.from(checkboxes).map(cb => cb.value);
+
+  if (!title) {
+    showToast(getLang() === 'th' ? 'กรุณาตั้งชื่อ Pack' : 'Please enter a pack name', 'error');
+    return;
+  }
+  if (!fileIds.length) {
+    showToast(getLang() === 'th' ? 'กรุณาเลือกไฟล์อย่างน้อย 1 ไฟล์' : 'Please select at least 1 file', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('pack-create-btn');
+  btn.disabled = true;
+  btn.textContent = getLang() === 'th' ? 'กำลังสร้าง...' : 'Creating...';
+
+  try {
+    const res = await fetch('/api/context-packs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, type, source_file_ids: fileIds, source_cluster_ids: [] })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Failed');
+    }
+    showToast(getLang() === 'th' ? `สร้าง Pack "${title}" สำเร็จ!` : `Pack "${title}" created!`, 'success');
+    closePackModal();
+    loadKnowledge();
+    loadStats();
+  } catch (e) {
+    showToast(`Error: ${e.message}`, 'error');
+  }
+  btn.disabled = false;
+  btn.textContent = getLang() === 'th' ? 'สร้าง Pack' : 'Create Pack';
+}
+
+async function deletePack(packId) {
+  if (!await showConfirm(getLang() === 'th' ? 'ลบ Context Pack นี้?' : 'Delete this context pack?')) return;
+  try {
+    await fetch(`/api/context-packs/${packId}`, { method: 'DELETE' });
+    showToast(getLang() === 'th' ? 'ลบ Pack แล้ว' : 'Pack deleted', 'success');
+    loadKnowledge();
+    loadStats();
+  } catch (e) { showToast(t('toast.error'), 'error'); }
+}
+
+async function regeneratePack(packId) {
+  try {
+    showToast(getLang() === 'th' ? 'กำลัง regenerate...' : 'Regenerating...', 'info');
+    const res = await fetch(`/api/context-packs/${packId}/regenerate`, { method: 'POST' });
+    if (res.ok) {
+      showToast(getLang() === 'th' ? 'Regenerate สำเร็จ!' : 'Pack regenerated!', 'success');
+      loadKnowledge();
+    } else {
+      showToast(getLang() === 'th' ? 'Regenerate ล้มเหลว' : 'Regeneration failed', 'error');
+    }
+  } catch (e) { showToast(t('toast.error'), 'error'); }
+}
+
+// Pack modal event listeners
+document.getElementById('pack-modal-close')?.addEventListener('click', closePackModal);
+document.getElementById('pack-cancel-btn')?.addEventListener('click', closePackModal);
+document.getElementById('pack-create-btn')?.addEventListener('click', submitCreatePack);
+document.getElementById('pack-modal-overlay')?.addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closePackModal();
+});
 
 // ═══════════════════════════════════════════
 // GRAPH (Obsidian-style)
@@ -1280,4 +1739,419 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+// ═══════════════════════════════════════════
+// MCP / CONNECTOR LAYER (v4)
+// ═══════════════════════════════════════════
+
+function initMCP() {
+  // MCP Setup page
+  const labelInput = document.getElementById('mcp-token-label');
+  labelInput?.addEventListener('focus', () => {
+    if (labelInput.value === 'Claude Connector') labelInput.value = '';
+  });
+
+  document.getElementById('btn-copy-url')?.addEventListener('click', () => {
+    const url = document.getElementById('mcp-url-value')?.textContent;
+    if (url && url !== 'Loading...') copyToClipboard(url);
+  });
+
+  document.getElementById('btn-generate-token')?.addEventListener('click', generateMCPToken);
+
+  document.getElementById('btn-copy-token')?.addEventListener('click', () => {
+    const token = document.getElementById('mcp-token-value')?.textContent;
+    if (token) copyToClipboard(token);
+  });
+
+  document.getElementById('btn-copy-config')?.addEventListener('click', () => {
+    const config = document.getElementById('mcp-config-json')?.textContent;
+    if (config && config !== 'Loading...') copyToClipboard(config);
+  });
+
+  document.getElementById('btn-test-connection')?.addEventListener('click', testMCPConnection);
+
+  // Token Management page
+  document.getElementById('btn-new-token')?.addEventListener('click', () => {
+    switchPage('mcp-setup');
+    document.getElementById('mcp-token-label')?.focus();
+  });
+
+  // MCP Logs page
+  document.getElementById('btn-refresh-logs')?.addEventListener('click', loadMCPLogs);
+  document.getElementById('log-filter-tool')?.addEventListener('change', loadMCPLogs);
+  document.getElementById('log-filter-status')?.addEventListener('change', loadMCPLogs);
+}
+
+
+// ─── MCP SETUP PAGE ───
+
+async function loadMCPSetup() {
+  try {
+    // Load MCP info
+    const res = await fetch('/api/mcp/info');
+    const info = await res.json();
+    state.mcpInfo = info;
+
+    // Set server URL — use the secured connector URL with secret
+    const connectorUrl = info.mcp_connector_url || info.mcp_server_url;
+    document.getElementById('mcp-url-value').textContent = connectorUrl;
+
+    // Build config JSON — simplified for Claude Custom Connector
+    const configObj = {
+      "mcpServers": {
+        "project-key": {
+          "url": connectorUrl
+        }
+      }
+    };
+    document.getElementById('mcp-config-json').textContent = JSON.stringify(configObj, null, 2);
+
+    // Render available tools
+    renderMCPTools(info.available_tools || []);
+
+    // Check token status
+    const tokRes = await fetch('/api/mcp/tokens');
+    const tokData = await tokRes.json();
+    const activeTokens = (tokData.tokens || []).filter(t => t.is_active);
+
+    const statusDot = document.getElementById('mcp-status-dot');
+    const statusText = document.getElementById('mcp-status-text');
+    const statusMeta = document.getElementById('mcp-status-meta');
+
+    if (activeTokens.length > 0) {
+      statusDot.className = 'mcp-status-dot active';
+      statusText.textContent = t('mcp.configured');
+      statusMeta.textContent = `${activeTokens.length} ${activeTokens.length === 1 ? 'token' : 'tokens'} · ${info.scope}`;
+    } else {
+      statusDot.className = 'mcp-status-dot active';
+      statusText.textContent = t('mcp.configured');
+      statusMeta.textContent = `secured · ${info.scope}`;
+    }
+
+  } catch (e) {
+    console.error('MCP setup load error:', e);
+  }
+}
+
+function renderMCPTools(tools) {
+  const grid = document.getElementById('mcp-tools-grid');
+  if (!grid) return;
+
+  const toolIcons = {
+    'get_profile': '👤',
+    'list_context_packs': '📦',
+    'get_context_pack': '📦',
+    'search_knowledge': '🔍',
+    'get_file_summary': '📄',
+  };
+
+  grid.innerHTML = tools.map(tool => `
+    <div class="mcp-tool-card">
+      <div class="mcp-tool-header">
+        <span class="mcp-tool-icon">${toolIcons[tool.name] || '🔧'}</span>
+        <code class="mcp-tool-name">${tool.name}</code>
+        <span class="mcp-tool-scope">${t('mcp.readOnly')}</span>
+      </div>
+      <p class="mcp-tool-desc">${tool.description}</p>
+      ${tool.params && tool.params.length ? `
+        <div class="mcp-tool-params">
+          ${tool.params.map(p => `<span class="mcp-param-chip">${p.name}: ${p.type}${p.required ? ' *' : ''}</span>`).join('')}
+        </div>
+      ` : ''}
+    </div>
+  `).join('');
+}
+
+
+async function generateMCPToken() {
+  const labelInput = document.getElementById('mcp-token-label');
+  const label = labelInput?.value?.trim() || 'Claude Connector';
+
+  const btn = document.getElementById('btn-generate-token');
+  btn.disabled = true;
+  btn.innerHTML = `<span class="loading-spinner"></span> ${getLang() === 'th' ? 'กำลังสร้าง...' : 'Generating...'}`;
+
+  try {
+    const res = await fetch('/api/mcp/tokens', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label }),
+    });
+    const data = await res.json();
+
+    if (data.raw_token) {
+      state.mcpLastToken = data.raw_token;
+
+      // Show token display
+      const display = document.getElementById('mcp-token-display');
+      display.classList.remove('hidden');
+      document.getElementById('mcp-token-value').textContent = data.raw_token;
+
+      // Update config JSON with real token
+      if (state.mcpInfo) {
+        const configObj = {
+          "mcpServers": {
+            "project-key": {
+              "url": state.mcpInfo.mcp_server_url,
+              "headers": {
+                "Authorization": `Bearer ${data.raw_token}`
+              }
+            }
+          }
+        };
+        document.getElementById('mcp-config-json').textContent = JSON.stringify(configObj, null, 2);
+      }
+
+      showToast(t('toast.tokenGenerated'), 'success');
+      loadStats();
+      loadMCPSetup();
+    }
+  } catch (e) {
+    showToast(t('toast.error'), 'error');
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = `<span data-i18n="mcp.generateToken">${t('mcp.generateToken')}</span>`;
+}
+
+
+async function testMCPConnection() {
+  const btn = document.getElementById('btn-test-connection');
+  const resultDiv = document.getElementById('mcp-test-result');
+
+  // Need a token to test
+  const token = state.mcpLastToken;
+  if (!token) {
+    // Try to find hint
+    resultDiv.classList.remove('hidden');
+    resultDiv.className = 'mcp-test-result warning';
+    resultDiv.innerHTML = `<span class="test-icon">⚠️</span> <span>${getLang() === 'th' ? 'กรุณาสร้าง token ก่อน (ขั้นตอนที่ 2)' : 'Please generate a token first (Step 2)'}</span>`;
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = `<span class="loading-spinner"></span> ${getLang() === 'th' ? 'ทดสอบ...' : 'Testing...'}`;
+
+  try {
+    const res = await fetch('/api/mcp/test', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+    const data = await res.json();
+
+    resultDiv.classList.remove('hidden');
+    if (data.status === 'success') {
+      resultDiv.className = 'mcp-test-result success';
+      resultDiv.innerHTML = `<span class="test-icon">✅</span> <span>${t('toast.testSuccess')} — ${data.token_label} (${data.scope})</span>`;
+      showToast(t('toast.testSuccess'), 'success');
+    } else {
+      resultDiv.className = 'mcp-test-result error';
+      resultDiv.innerHTML = `<span class="test-icon">❌</span> <span>${data.message || t('toast.testFailed')}</span>`;
+      showToast(t('toast.testFailed'), 'error');
+    }
+  } catch (e) {
+    resultDiv.classList.remove('hidden');
+    resultDiv.className = 'mcp-test-result error';
+    resultDiv.innerHTML = `<span class="test-icon">❌</span> <span>${t('toast.testFailed')}: ${e.message}</span>`;
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = `<span data-i18n="mcp.testConnection">${t('mcp.testConnection')}</span>`;
+}
+
+
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    showToast(t('toast.copied'), 'success');
+  }).catch(() => {
+    // Fallback
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+    showToast(t('toast.copied'), 'success');
+  });
+}
+
+
+// ─── TOKEN MANAGEMENT PAGE ───
+
+async function loadTokens() {
+  try {
+    const res = await fetch('/api/mcp/tokens');
+    const data = await res.json();
+    renderTokenList(data.tokens || []);
+  } catch (e) {
+    console.error('Load tokens error:', e);
+  }
+}
+
+function renderTokenList(tokens) {
+  const container = document.getElementById('token-list');
+  if (!tokens.length) {
+    container.innerHTML = `<div class="empty-state"><p>${t('tokens.empty')}</p></div>`;
+    return;
+  }
+
+  container.innerHTML = tokens.map(tok => {
+    const isActive = tok.is_active;
+    const statusClass = isActive ? 'active' : 'revoked';
+    const statusLabel = isActive ? t('tokens.active') : t('tokens.revoked');
+    const lastUsed = tok.last_used_at ? formatTimeAgo(tok.last_used_at) : t('tokens.never');
+    const created = tok.created_at ? formatDate(tok.created_at) : '—';
+
+    return `
+      <div class="token-card ${statusClass}">
+        <div class="token-card-header">
+          <div class="token-card-label">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <span>${tok.label}</span>
+          </div>
+          <span class="token-status-pill ${statusClass}">${statusLabel}</span>
+        </div>
+        <div class="token-card-meta">
+          <div class="token-meta-item">
+            <span class="token-meta-label">${t('tokens.created')}</span>
+            <span class="token-meta-value">${created}</span>
+          </div>
+          <div class="token-meta-item">
+            <span class="token-meta-label">${t('tokens.lastUsed')}</span>
+            <span class="token-meta-value">${lastUsed}</span>
+          </div>
+          <div class="token-meta-item">
+            <span class="token-meta-label">Scope</span>
+            <span class="token-meta-value">${tok.scope}</span>
+          </div>
+        </div>
+        ${isActive ? `
+          <div class="token-card-actions">
+            <button class="btn btn-sm btn-danger-outline" onclick="revokeTokenAction('${tok.id}')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              ${t('tokens.revoke')}
+            </button>
+          </div>
+        ` : `
+          <div class="token-card-actions">
+            <span class="token-revoked-info">${tok.revoked_at ? formatDate(tok.revoked_at) : ''}</span>
+          </div>
+        `}
+      </div>
+    `;
+  }).join('');
+}
+
+async function revokeTokenAction(tokenId) {
+  if (!await showConfirm(t('tokens.confirmRevoke'))) return;
+
+  try {
+    await fetch(`/api/mcp/tokens/${tokenId}`, { method: 'DELETE' });
+    showToast(t('toast.tokenRevoked'), 'success');
+    loadTokens();
+    loadStats();
+  } catch (e) {
+    showToast(t('toast.error'), 'error');
+  }
+}
+
+
+// ─── MCP LOGS PAGE ───
+
+async function loadMCPLogs() {
+  const toolFilter = document.getElementById('log-filter-tool')?.value || '';
+  const statusFilter = document.getElementById('log-filter-status')?.value || '';
+
+  let url = '/api/mcp/logs?limit=100';
+  if (toolFilter) url += `&tool=${toolFilter}`;
+  if (statusFilter) url += `&status=${statusFilter}`;
+
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    renderMCPLogs(data.logs || []);
+  } catch (e) {
+    console.error('Load MCP logs error:', e);
+  }
+}
+
+function renderMCPLogs(logs) {
+  const tbody = document.getElementById('log-table-body');
+  if (!logs.length) {
+    tbody.innerHTML = `
+      <tr class="log-empty-row">
+        <td colspan="5">
+          <div class="empty-state"><p>${t('logs.empty')}</p></div>
+        </td>
+      </tr>`;
+    return;
+  }
+
+  const toolIcons = {
+    'get_profile': '👤',
+    'list_context_packs': '📦',
+    'get_context_pack': '📦',
+    'search_knowledge': '🔍',
+    'get_file_summary': '📄',
+  };
+
+  tbody.innerHTML = logs.map(log => {
+    const isError = log.status === 'error';
+    const icon = toolIcons[log.tool_name] || '🔧';
+    const time = log.created_at ? formatDateTime(log.created_at) : '—';
+    const details = isError ? log.error_message : (log.request_summary || '—');
+
+    return `
+      <tr class="${isError ? 'log-row-error' : ''}">
+        <td class="log-time">${time}</td>
+        <td>
+          <span class="log-tool-chip">${icon} ${log.tool_name}</span>
+        </td>
+        <td>
+          <span class="log-status-pill ${log.status}">${log.status}</span>
+        </td>
+        <td class="log-latency">${log.latency_ms}ms</td>
+        <td class="log-details" title="${escapeHtml(details)}">${escapeHtml(details).substring(0, 60)}${details.length > 60 ? '…' : ''}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+
+// ─── TIME FORMATTING HELPERS ───
+
+function formatDate(isoStr) {
+  try {
+    const d = new Date(isoStr);
+    return d.toLocaleDateString(getLang() === 'th' ? 'th-TH' : 'en-US', {
+      month: 'short', day: 'numeric', year: 'numeric'
+    });
+  } catch { return isoStr; }
+}
+
+function formatDateTime(isoStr) {
+  try {
+    const d = new Date(isoStr);
+    return d.toLocaleString(getLang() === 'th' ? 'th-TH' : 'en-US', {
+      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+  } catch { return isoStr; }
+}
+
+function formatTimeAgo(isoStr) {
+  try {
+    const d = new Date(isoStr);
+    const now = new Date();
+    const diffMs = now - d;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHrs = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return getLang() === 'th' ? 'เมื่อกี้' : 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHrs < 24) return `${diffHrs}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return formatDate(isoStr);
+  } catch { return isoStr; }
 }
