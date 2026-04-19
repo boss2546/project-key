@@ -15,9 +15,12 @@ from .database import (
     ContextPack, MCPUsageLog, GraphNode, GraphEdge,
     SuggestedRelation, gen_id
 )
-from .profile import get_profile
-from .context_packs import list_packs, get_pack, create_pack
+from .profile import get_profile, update_profile
+from .context_packs import list_packs, get_pack, create_pack, delete_pack
 from . import vector_search
+
+# Admin password — pass this to unlock all tools
+ADMIN_PASSWORD = "1234"
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +130,73 @@ TOOL_REGISTRY = {
         "params": [],
         "category": "system",
     },
+
+    # ─── ADMIN (8) — require admin_key ───
+    "admin_login": {
+        "name": "admin_login",
+        "description": "Enter admin mode with password. Returns available admin tools if password is correct.",
+        "params": [{"name": "admin_key", "type": "string", "required": True}],
+        "category": "admin",
+    },
+    "delete_file": {
+        "name": "delete_file",
+        "description": "[ADMIN] Delete a file and all its related data (summary, insights, clusters)",
+        "params": [
+            {"name": "admin_key", "type": "string", "required": True},
+            {"name": "file_id", "type": "string", "required": True},
+        ],
+        "category": "admin",
+    },
+    "delete_pack": {
+        "name": "delete_pack",
+        "description": "[ADMIN] Delete a context pack",
+        "params": [
+            {"name": "admin_key", "type": "string", "required": True},
+            {"name": "pack_id", "type": "string", "required": True},
+        ],
+        "category": "admin",
+    },
+    "run_organize": {
+        "name": "run_organize",
+        "description": "[ADMIN] Run the full AI organization pipeline: summarize, cluster, build graph",
+        "params": [{"name": "admin_key", "type": "string", "required": True}],
+        "category": "admin",
+    },
+    "build_graph": {
+        "name": "build_graph",
+        "description": "[ADMIN] Rebuild the knowledge graph from all data",
+        "params": [{"name": "admin_key", "type": "string", "required": True}],
+        "category": "admin",
+    },
+    "enrich_metadata": {
+        "name": "enrich_metadata",
+        "description": "[ADMIN] Run AI metadata enrichment on all files (tags, sensitivity, freshness)",
+        "params": [{"name": "admin_key", "type": "string", "required": True}],
+        "category": "admin",
+    },
+    "update_profile": {
+        "name": "update_profile",
+        "description": "[ADMIN] Update the user profile (identity, goals, working style, preferences)",
+        "params": [
+            {"name": "admin_key", "type": "string", "required": True},
+            {"name": "identity_summary", "type": "string", "required": False},
+            {"name": "goals", "type": "string", "required": False},
+            {"name": "working_style", "type": "string", "required": False},
+            {"name": "preferred_output_style", "type": "string", "required": False},
+            {"name": "background_context", "type": "string", "required": False},
+        ],
+        "category": "admin",
+    },
+    "upload_text": {
+        "name": "upload_text",
+        "description": "[ADMIN] Upload text content as a new file (Claude can create new knowledge files)",
+        "params": [
+            {"name": "admin_key", "type": "string", "required": True},
+            {"name": "filename", "type": "string", "required": True},
+            {"name": "content", "type": "string", "required": True},
+        ],
+        "category": "admin",
+    },
 }
 
 
@@ -150,6 +220,13 @@ async def call_tool(
     try:
         if tool_name not in TOOL_REGISTRY:
             raise ValueError(f"Unknown tool: {tool_name}")
+
+        # ─── Check admin access for admin tools ───
+        tool_category = TOOL_REGISTRY[tool_name].get("category", "")
+        if tool_category == "admin" and tool_name != "admin_login":
+            admin_key = params.get("admin_key", "")
+            if admin_key != ADMIN_PASSWORD:
+                raise ValueError("Admin access denied — wrong admin_key")
 
         # ─── READ ───
         if tool_name == "get_profile":
@@ -184,6 +261,24 @@ async def call_tool(
         # ─── SYSTEM ───
         elif tool_name == "get_overview":
             result = await _tool_get_overview(db, user_id)
+
+        # ─── ADMIN ───
+        elif tool_name == "admin_login":
+            result = _tool_admin_login(params.get("admin_key", ""))
+        elif tool_name == "delete_file":
+            result = await _tool_delete_file(db, user_id, params.get("file_id"))
+        elif tool_name == "delete_pack":
+            result = await _tool_delete_pack(db, user_id, params.get("pack_id"))
+        elif tool_name == "run_organize":
+            result = await _tool_run_organize(db, user_id)
+        elif tool_name == "build_graph":
+            result = await _tool_build_graph(db, user_id)
+        elif tool_name == "enrich_metadata":
+            result = await _tool_enrich_metadata(db, user_id)
+        elif tool_name == "update_profile":
+            result = await _tool_update_profile(db, user_id, params)
+        elif tool_name == "upload_text":
+            result = await _tool_upload_text(db, user_id, params)
 
     except Exception as e:
         status = "error"
@@ -667,6 +762,172 @@ async def _tool_get_overview(db: AsyncSession, user_id: str) -> dict:
         "system": "Project KEY v4.1 — Personal Data Bank",
     }
 
+
+# ═══════════════════════════════════════════
+# ADMIN Tool Implementations
+# ═══════════════════════════════════════════
+
+def _tool_admin_login(admin_key: str) -> dict:
+    """Check admin password and return available tools."""
+    if admin_key == ADMIN_PASSWORD:
+        admin_tools = [k for k, v in TOOL_REGISTRY.items() if v.get("category") == "admin" and k != "admin_login"]
+        return {
+            "status": "authenticated",
+            "message": "Admin mode activated — all tools unlocked",
+            "admin_tools": admin_tools,
+        }
+    else:
+        return {"status": "denied", "message": "Wrong admin password"}
+
+
+async def _tool_delete_file(db: AsyncSession, user_id: str, file_id: str) -> dict:
+    """Delete a file and all related data."""
+    if not file_id:
+        raise ValueError("file_id is required")
+
+    import os
+    result = await db.execute(
+        select(File).where(File.id == file_id, File.user_id == user_id)
+    )
+    file = result.scalar_one_or_none()
+    if not file:
+        return {"error": "File not found"}
+
+    filename = file.filename
+
+    # Delete raw file
+    if file.raw_path and os.path.exists(file.raw_path):
+        os.remove(file.raw_path)
+
+    await db.delete(file)
+    await db.commit()
+
+    return {"status": "deleted", "filename": filename, "file_id": file_id}
+
+
+async def _tool_delete_pack(db: AsyncSession, user_id: str, pack_id: str) -> dict:
+    """Delete a context pack."""
+    if not pack_id:
+        raise ValueError("pack_id is required")
+
+    deleted = await delete_pack(db, pack_id, user_id)
+    if not deleted:
+        return {"error": "Pack not found"}
+
+    return {"status": "deleted", "pack_id": pack_id}
+
+
+async def _tool_run_organize(db: AsyncSession, user_id: str) -> dict:
+    """Run the full organization pipeline."""
+    from .organizer import organize_files
+
+    result = await organize_files(db, user_id)
+
+    return {
+        "status": "completed",
+        "clusters_created": result.get("clusters_created", 0),
+        "files_processed": result.get("files_processed", 0),
+        "message": "Organization pipeline completed — summaries, clusters, and graph built",
+    }
+
+
+async def _tool_build_graph(db: AsyncSession, user_id: str) -> dict:
+    """Rebuild the knowledge graph."""
+    from .graph_builder import build_full_graph
+
+    graph_result = await build_full_graph(db, user_id)
+
+    return {
+        "status": "completed",
+        "nodes": graph_result.get("nodes", 0),
+        "edges": graph_result.get("edges", 0),
+        "message": "Knowledge graph rebuilt",
+    }
+
+
+async def _tool_enrich_metadata(db: AsyncSession, user_id: str) -> dict:
+    """Enrich metadata for all files."""
+    from .metadata import enrich_all_files
+
+    result = await enrich_all_files(db, user_id)
+
+    return {
+        "status": "completed",
+        "enriched": result.get("enriched", 0),
+        "message": "Metadata enrichment completed",
+    }
+
+
+async def _tool_update_profile(db: AsyncSession, user_id: str, params: dict) -> dict:
+    """Update user profile fields."""
+    updates = {}
+    for key in ["identity_summary", "goals", "working_style", "preferred_output_style", "background_context"]:
+        if params.get(key):
+            updates[key] = params[key]
+
+    if not updates:
+        return {"error": "No profile fields provided to update"}
+
+    result = await update_profile(db, user_id, updates)
+
+    return {
+        "status": "updated",
+        "updated_fields": list(updates.keys()),
+        "message": f"Profile updated: {', '.join(updates.keys())}",
+    }
+
+
+async def _tool_upload_text(db: AsyncSession, user_id: str, params: dict) -> dict:
+    """Upload text content as a new file."""
+    import os
+    from datetime import datetime
+
+    filename = params.get("filename", "")
+    content = params.get("content", "")
+
+    if not filename:
+        raise ValueError("filename is required")
+    if not content:
+        raise ValueError("content is required")
+
+    # Ensure .md or .txt extension
+    if not filename.endswith((".md", ".txt")):
+        filename += ".md"
+
+    file_id = gen_id()
+
+    # Save raw file
+    upload_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
+    os.makedirs(upload_dir, exist_ok=True)
+    safe_filename = f"{file_id}_{filename}"
+    raw_path = os.path.join(upload_dir, safe_filename)
+
+    with open(raw_path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+    # Determine filetype
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "md"
+
+    # Save to DB
+    db_file = File(
+        id=file_id,
+        user_id=user_id,
+        filename=filename,
+        filetype=ext,
+        raw_path=raw_path,
+        extracted_text=content,
+        processing_status="uploaded",
+    )
+    db.add(db_file)
+    await db.commit()
+
+    return {
+        "status": "uploaded",
+        "file_id": file_id,
+        "filename": filename,
+        "text_length": len(content),
+        "message": f"File '{filename}' uploaded — run 'run_organize' to process it",
+    }
 
 # ═══════════════════════════════════════════
 # USAGE LOGS
