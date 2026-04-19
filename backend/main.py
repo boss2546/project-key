@@ -858,6 +858,25 @@ async def api_mcp_logs(
     return {"logs": logs, "count": len(logs)}
 
 
+# ─── MCP TOOL PERMISSIONS ───
+
+# In-memory permissions store (persists until restart, saved per session)
+MCP_PERMISSIONS: dict = {}  # tool_name -> bool
+
+@app.get("/api/mcp/permissions")
+async def api_get_permissions():
+    """Get current tool permissions."""
+    return {"permissions": MCP_PERMISSIONS}
+
+@app.put("/api/mcp/permissions")
+async def api_set_permissions(request: Request):
+    """Set tool permissions (enable/disable individual tools)."""
+    body = await request.json()
+    perms = body.get("permissions", {})
+    MCP_PERMISSIONS.update(perms)
+    return {"status": "ok", "permissions": MCP_PERMISSIONS}
+
+
 # ─── HELPERS ───
 
 def _serialize_file(f: File) -> dict:
@@ -979,6 +998,17 @@ async def mcp_streamable_http(secret: str, request: Request, db: AsyncSession = 
                 "jsonrpc": "2.0",
                 "id": msg_id,
                 "error": {"code": -32602, "message": f"Unknown tool: {tool_name}"},
+            })
+
+        # Check if tool is disabled by permissions (admin_key bypasses)
+        if MCP_PERMISSIONS.get(tool_name) is False and not arguments.get("admin_key"):
+            return JSONResponse({
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "result": {
+                    "content": [{"type": "text", "text": f"Tool '{tool_name}' is disabled by the user. Ask them to enable it in MCP Setup."}],
+                    "isError": True,
+                },
             })
 
         # Call the tool using our existing dispatcher

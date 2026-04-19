@@ -1839,28 +1839,96 @@ function renderMCPTools(tools) {
   if (!grid) return;
 
   const toolIcons = {
-    'get_profile': '👤',
-    'list_context_packs': '📦',
-    'get_context_pack': '📦',
-    'search_knowledge': '🔍',
-    'get_file_summary': '📄',
+    'get_profile': '👤', 'list_files': '📋', 'get_file_content': '📄',
+    'get_file_summary': '📝', 'list_collections': '📁', 'list_context_packs': '📦',
+    'get_context_pack': '📦', 'search_knowledge': '🔍', 'explore_graph': '🕸️',
+    'create_context_pack': '➕', 'add_note': '✏️', 'update_file_tags': '🏷️',
+    'get_overview': '📊',
+    'admin_login': '🔐', 'delete_file': '🗑️', 'delete_pack': '🗑️',
+    'run_organize': '⚙️', 'build_graph': '🔨', 'enrich_metadata': '✨',
+    'update_profile': '👤', 'upload_text': '📤',
   };
 
-  grid.innerHTML = tools.map(tool => `
-    <div class="mcp-tool-card">
-      <div class="mcp-tool-header">
-        <span class="mcp-tool-icon">${toolIcons[tool.name] || '🔧'}</span>
-        <code class="mcp-tool-name">${tool.name}</code>
-        <span class="mcp-tool-scope">${t('mcp.readOnly')}</span>
-      </div>
-      <p class="mcp-tool-desc">${tool.description}</p>
-      ${tool.params && tool.params.length ? `
-        <div class="mcp-tool-params">
-          ${tool.params.map(p => `<span class="mcp-param-chip">${p.name}: ${p.type}${p.required ? ' *' : ''}</span>`).join('')}
+  const categoryLabels = {
+    read: { icon: '📖', en: 'Read', th: 'อ่านข้อมูล' },
+    search: { icon: '🔍', en: 'Search & Graph', th: 'ค้นหาและกราฟ' },
+    write: { icon: '✏️', en: 'Write', th: 'เขียนข้อมูล' },
+    system: { icon: '📊', en: 'System', th: 'ระบบ' },
+    admin: { icon: '🔐', en: 'Admin (password required)', th: 'แอดมิน (ต้องใส่รหัส)' },
+  };
+
+  // Group tools by category
+  const groups = {};
+  tools.forEach(tool => {
+    const cat = tool.category || 'other';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(tool);
+  });
+
+  // Load saved permissions
+  const savedPerms = JSON.parse(localStorage.getItem('mcp_tool_permissions') || '{}');
+
+  let html = '';
+  const order = ['read', 'search', 'write', 'system', 'admin'];
+  for (const cat of order) {
+    if (!groups[cat]) continue;
+    const label = categoryLabels[cat] || { icon: '🔧', en: cat, th: cat };
+    const langLabel = getLang() === 'th' ? label.th : label.en;
+
+    html += `<div class="mcp-tools-category">
+      <div class="mcp-category-header">
+        <span>${label.icon} ${langLabel}</span>
+        <span class="badge">${groups[cat].length}</span>
+      </div>`;
+
+    groups[cat].forEach(tool => {
+      const isEnabled = savedPerms[tool.name] !== false; // default: enabled
+      const scopeLabel = cat === 'admin' ? '🔐 Admin' : cat === 'write' ? '✏️ Write' : '📖 Read';
+      html += `
+      <div class="mcp-tool-card ${!isEnabled ? 'disabled' : ''}">
+        <div class="mcp-tool-header">
+          <span class="mcp-tool-icon">${toolIcons[tool.name] || '🔧'}</span>
+          <code class="mcp-tool-name">${tool.name}</code>
+          <label class="toggle-switch">
+            <input type="checkbox" ${isEnabled ? 'checked' : ''} onchange="toggleToolPermission('${tool.name}', this.checked)">
+            <span class="toggle-slider"></span>
+          </label>
         </div>
-      ` : ''}
-    </div>
-  `).join('');
+        <p class="mcp-tool-desc">${tool.description}</p>
+        ${tool.params && tool.params.length ? `
+          <div class="mcp-tool-params">
+            ${tool.params.filter(p => p.name !== 'admin_key').map(p => `<span class="mcp-param-chip">${p.name}: ${p.type}${p.required ? ' *' : ''}</span>`).join('')}
+          </div>
+        ` : ''}
+      </div>`;
+    });
+
+    html += '</div>';
+  }
+
+  grid.innerHTML = html;
+}
+
+function toggleToolPermission(toolName, enabled) {
+  const perms = JSON.parse(localStorage.getItem('mcp_tool_permissions') || '{}');
+  perms[toolName] = enabled;
+  localStorage.setItem('mcp_tool_permissions', JSON.stringify(perms));
+
+  // Save to backend
+  fetch('/api/mcp/permissions', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ permissions: perms }),
+  }).catch(e => console.error('Save permissions error:', e));
+
+  // Toggle card look
+  const card = document.querySelector(`.mcp-tool-card code.mcp-tool-name`);
+  // Re-render after toggle for clean state
+  const label = getLang() === 'th' ? (enabled ? 'เปิดใช้งาน' : 'ปิดใช้งาน') : (enabled ? 'Enabled' : 'Disabled');
+  showToast(`${toolName}: ${label}`, enabled ? 'success' : 'info');
+
+  // Re-render
+  if (state.mcpInfo) renderMCPTools(state.mcpInfo.available_tools || []);
 }
 
 
