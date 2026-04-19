@@ -761,9 +761,10 @@ async def api_mcp_info(request: Request):
         "mcp_server_url": f"{base_url}/api/mcp/tools/call",
         "mcp_connector_url": f"{base_url}/mcp/{MCP_SECRET}",
         "auth_type": "bearer",
-        "scope": "read-only",
-        "version": "v4",
+        "scope": "read+write",
+        "version": "v4.1",
         "available_tools": list(TOOL_REGISTRY.values()),
+        "tool_count": len(TOOL_REGISTRY),
     }
 
 
@@ -892,7 +893,10 @@ def _build_mcp_tools_list():
         properties = {}
         required = []
         for p in tool.get("params", []):
-            prop = {"type": p["type"]}
+            if p["type"] == "array":
+                prop = {"type": "array", "items": {"type": "string"}}
+            else:
+                prop = {"type": p["type"]}
             if "default" in p:
                 prop["default"] = p["default"]
             properties[p["name"]] = prop
@@ -950,7 +954,7 @@ async def mcp_streamable_http(secret: str, request: Request, db: AsyncSession = 
                 },
                 "serverInfo": {
                     "name": "project-key",
-                    "version": "0.4.0",
+                    "version": "0.4.1",
                 },
             },
         })

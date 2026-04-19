@@ -1,58 +1,138 @@
-"""MCP Tools — PDB Core API tool implementations for MVP v4.
+"""MCP Tools — PDB Core API tool implementations for MVP v4.1.
 
-Read-only tools that expose Project KEY data to external AI connectors.
-These wrap existing services (profile, context_packs, retriever)
-rather than duplicating logic.
+13 tools that expose Project KEY data to external AI connectors.
+Read (7) + Search & Graph (2) + Write (3) + System (1).
 """
 import json
 import time
 import logging
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from .database import (
     File, Cluster, FileClusterMap, FileSummary, FileInsight,
-    ContextPack, MCPUsageLog, gen_id
+    ContextPack, MCPUsageLog, GraphNode, GraphEdge,
+    SuggestedRelation, gen_id
 )
 from .profile import get_profile
-from .context_packs import list_packs, get_pack
+from .context_packs import list_packs, get_pack, create_pack
 from . import vector_search
 
 logger = logging.getLogger(__name__)
 
-# Available tools registry
+# ═══════════════════════════════════════════
+# TOOL REGISTRY — 13 tools
+# ═══════════════════════════════════════════
+
 TOOL_REGISTRY = {
+    # ─── READ (7) ───
     "get_profile": {
         "name": "get_profile",
         "description": "Get the user's profile including identity, goals, working style, and preferences",
         "params": [],
+        "category": "read",
+    },
+    "list_files": {
+        "name": "list_files",
+        "description": "List all files in the knowledge base with their metadata, tags, and summary snippets",
+        "params": [],
+        "category": "read",
+    },
+    "get_file_content": {
+        "name": "get_file_content",
+        "description": "Get the extracted text content of a specific file (max 5000 chars)",
+        "params": [{"name": "file_id", "type": "string", "required": True}],
+        "category": "read",
+    },
+    "get_file_summary": {
+        "name": "get_file_summary",
+        "description": "Get the AI-generated summary, key topics, and key facts of a specific file",
+        "params": [{"name": "file_id", "type": "string", "required": True}],
+        "category": "read",
+    },
+    "list_collections": {
+        "name": "list_collections",
+        "description": "List all AI-organized collections (clusters) with their files and summaries",
+        "params": [],
+        "category": "read",
     },
     "list_context_packs": {
         "name": "list_context_packs",
         "description": "List all context packs (distilled knowledge bundles) available",
         "params": [],
+        "category": "read",
     },
     "get_context_pack": {
         "name": "get_context_pack",
         "description": "Get a specific context pack by ID with full content",
         "params": [{"name": "pack_id", "type": "string", "required": True}],
+        "category": "read",
     },
+
+    # ─── SEARCH & GRAPH (2) ───
     "search_knowledge": {
         "name": "search_knowledge",
-        "description": "Search the user's knowledge base using semantic + keyword hybrid search",
+        "description": "Search the user's knowledge base using semantic + keyword hybrid search. Returns matching files, packs, and graph nodes.",
         "params": [
             {"name": "query", "type": "string", "required": True},
             {"name": "limit", "type": "integer", "required": False, "default": 5},
         ],
+        "category": "search",
     },
-    "get_file_summary": {
-        "name": "get_file_summary",
-        "description": "Get the AI-generated summary of a specific file",
-        "params": [{"name": "file_id", "type": "string", "required": True}],
+    "explore_graph": {
+        "name": "explore_graph",
+        "description": "Explore the knowledge graph. Without a node_id, returns all nodes overview. With a node_id, returns the node's connections and neighborhood.",
+        "params": [
+            {"name": "node_id", "type": "string", "required": False},
+            {"name": "depth", "type": "integer", "required": False, "default": 1},
+        ],
+        "category": "search",
+    },
+
+    # ─── WRITE (3) ───
+    "create_context_pack": {
+        "name": "create_context_pack",
+        "description": "Create a new context pack from selected files. Types: profile, study, work, project.",
+        "params": [
+            {"name": "title", "type": "string", "required": True},
+            {"name": "type", "type": "string", "required": True},
+            {"name": "file_ids", "type": "array", "required": True},
+        ],
+        "category": "write",
+    },
+    "add_note": {
+        "name": "add_note",
+        "description": "Update the summary text for a file. Use this to add notes or improve AI-generated summaries.",
+        "params": [
+            {"name": "file_id", "type": "string", "required": True},
+            {"name": "summary_text", "type": "string", "required": True},
+        ],
+        "category": "write",
+    },
+    "update_file_tags": {
+        "name": "update_file_tags",
+        "description": "Update tags for a file. Use this to organize and categorize files.",
+        "params": [
+            {"name": "file_id", "type": "string", "required": True},
+            {"name": "tags", "type": "array", "required": True},
+        ],
+        "category": "write",
+    },
+
+    # ─── SYSTEM (1) ───
+    "get_overview": {
+        "name": "get_overview",
+        "description": "Get system overview with counts of files, collections, packs, graph nodes, and edges",
+        "params": [],
+        "category": "system",
     },
 }
 
+
+# ═══════════════════════════════════════════
+# DISPATCHER
+# ═══════════════════════════════════════════
 
 async def call_tool(
     db: AsyncSession,
@@ -71,26 +151,39 @@ async def call_tool(
         if tool_name not in TOOL_REGISTRY:
             raise ValueError(f"Unknown tool: {tool_name}")
 
+        # ─── READ ───
         if tool_name == "get_profile":
             result = await _tool_get_profile(db, user_id)
+        elif tool_name == "list_files":
+            result = await _tool_list_files(db, user_id)
+        elif tool_name == "get_file_content":
+            result = await _tool_get_file_content(db, user_id, params.get("file_id"))
+        elif tool_name == "get_file_summary":
+            result = await _tool_get_file_summary(db, user_id, params.get("file_id"))
+        elif tool_name == "list_collections":
+            result = await _tool_list_collections(db, user_id)
         elif tool_name == "list_context_packs":
             result = await _tool_list_context_packs(db, user_id)
         elif tool_name == "get_context_pack":
-            pack_id = params.get("pack_id")
-            if not pack_id:
-                raise ValueError("pack_id is required")
-            result = await _tool_get_context_pack(db, user_id, pack_id)
+            result = await _tool_get_context_pack(db, user_id, params.get("pack_id"))
+
+        # ─── SEARCH & GRAPH ───
         elif tool_name == "search_knowledge":
-            query = params.get("query")
-            if not query:
-                raise ValueError("query is required")
-            limit = params.get("limit", 5)
-            result = await _tool_search_knowledge(db, user_id, query, limit)
-        elif tool_name == "get_file_summary":
-            file_id = params.get("file_id")
-            if not file_id:
-                raise ValueError("file_id is required")
-            result = await _tool_get_file_summary(db, user_id, file_id)
+            result = await _tool_search_knowledge(db, user_id, params.get("query"), params.get("limit", 5))
+        elif tool_name == "explore_graph":
+            result = await _tool_explore_graph(db, user_id, params.get("node_id"), params.get("depth", 1))
+
+        # ─── WRITE ───
+        elif tool_name == "create_context_pack":
+            result = await _tool_create_context_pack(db, user_id, params)
+        elif tool_name == "add_note":
+            result = await _tool_add_note(db, user_id, params)
+        elif tool_name == "update_file_tags":
+            result = await _tool_update_file_tags(db, user_id, params)
+
+        # ─── SYSTEM ───
+        elif tool_name == "get_overview":
+            result = await _tool_get_overview(db, user_id)
 
     except Exception as e:
         status = "error"
@@ -124,7 +217,7 @@ async def call_tool(
 
 
 # ═══════════════════════════════════════════
-# Tool Implementations
+# READ Tool Implementations
 # ═══════════════════════════════════════════
 
 async def _tool_get_profile(db: AsyncSession, user_id: str) -> dict:
@@ -140,6 +233,120 @@ async def _tool_get_profile(db: AsyncSession, user_id: str) -> dict:
         "preferred_output_style": profile.get("preferred_output_style", ""),
         "background_context": profile.get("background_context", ""),
     }
+
+
+async def _tool_list_files(db: AsyncSession, user_id: str) -> dict:
+    """List all files with metadata."""
+    result = await db.execute(
+        select(File).where(File.user_id == user_id)
+        .options(selectinload(File.summary), selectinload(File.insight))
+    )
+    files = result.scalars().all()
+
+    return {
+        "files": [
+            {
+                "file_id": f.id,
+                "filename": f.filename,
+                "filetype": f.filetype,
+                "text_length": len(f.extracted_text or ""),
+                "tags": json.loads(f.tags or "[]"),
+                "sensitivity": f.sensitivity or "normal",
+                "freshness": f.freshness or "current",
+                "source_of_truth": f.source_of_truth or False,
+                "importance": f.insight.importance_label if f.insight else "medium",
+                "summary_snippet": (f.summary.summary_text[:150] + "...") if f.summary and f.summary.summary_text else "",
+                "uploaded_at": f.uploaded_at.isoformat() if f.uploaded_at else "",
+            }
+            for f in files
+        ],
+        "count": len(files),
+    }
+
+
+async def _tool_get_file_content(db: AsyncSession, user_id: str, file_id: str) -> dict:
+    """Get file extracted text (max 5000 chars)."""
+    if not file_id:
+        raise ValueError("file_id is required")
+
+    result = await db.execute(
+        select(File).where(File.id == file_id, File.user_id == user_id)
+    )
+    file = result.scalar_one_or_none()
+    if not file:
+        return {"error": "File not found"}
+
+    text = file.extracted_text or ""
+    truncated = len(text) > 5000
+
+    return {
+        "filename": file.filename,
+        "filetype": file.filetype,
+        "content": text[:5000],
+        "total_length": len(text),
+        "truncated": truncated,
+    }
+
+
+async def _tool_get_file_summary(db: AsyncSession, user_id: str, file_id: str) -> dict:
+    """Get the summary of a specific file."""
+    if not file_id:
+        raise ValueError("file_id is required")
+
+    result = await db.execute(
+        select(File).where(File.id == file_id, File.user_id == user_id)
+        .options(selectinload(File.summary), selectinload(File.insight))
+    )
+    file = result.scalar_one_or_none()
+    if not file:
+        return {"error": "File not found"}
+
+    if not file.summary:
+        return {"error": "Summary not yet generated for this file"}
+
+    return {
+        "filename": file.filename,
+        "summary": file.summary.summary_text or "",
+        "key_topics": json.loads(file.summary.key_topics or "[]"),
+        "key_facts": json.loads(file.summary.key_facts or "[]"),
+        "why_important": file.summary.why_important or "",
+        "importance_label": file.insight.importance_label if file.insight else "medium",
+        "source_of_truth": file.source_of_truth or False,
+        "freshness": file.freshness or "current",
+    }
+
+
+async def _tool_list_collections(db: AsyncSession, user_id: str) -> dict:
+    """List all clusters with files."""
+    clusters_result = await db.execute(
+        select(Cluster).where(Cluster.user_id == user_id)
+    )
+    clusters = clusters_result.scalars().all()
+
+    files_result = await db.execute(
+        select(File).where(File.user_id == user_id)
+        .options(selectinload(File.cluster_maps))
+    )
+    files = files_result.scalars().all()
+
+    collections = []
+    for c in clusters:
+        cluster_files = []
+        for f in files:
+            for cm in f.cluster_maps:
+                if cm.cluster_id == c.id:
+                    cluster_files.append({"file_id": f.id, "filename": f.filename})
+                    break
+
+        collections.append({
+            "collection_id": c.id,
+            "title": c.title,
+            "summary": c.summary or "",
+            "file_count": len(cluster_files),
+            "files": cluster_files,
+        })
+
+    return {"collections": collections, "count": len(collections)}
 
 
 async def _tool_list_context_packs(db: AsyncSession, user_id: str) -> dict:
@@ -162,6 +369,9 @@ async def _tool_list_context_packs(db: AsyncSession, user_id: str) -> dict:
 
 async def _tool_get_context_pack(db: AsyncSession, user_id: str, pack_id: str) -> dict:
     """Get a single context pack with full content."""
+    if not pack_id:
+        raise ValueError("pack_id is required")
+
     pack = await get_pack(db, pack_id, user_id)
     if not pack:
         return {"error": "Context pack not found"}
@@ -176,9 +386,15 @@ async def _tool_get_context_pack(db: AsyncSession, user_id: str, pack_id: str) -
     }
 
 
+# ═══════════════════════════════════════════
+# SEARCH & GRAPH Tool Implementations
+# ═══════════════════════════════════════════
+
 async def _tool_search_knowledge(db: AsyncSession, user_id: str, query: str, limit: int = 5) -> dict:
-    """Search the knowledge base using hybrid search."""
-    limit = min(max(limit, 1), 10)  # Clamp 1-10
+    """Search knowledge base using hybrid search + graph nodes."""
+    if not query:
+        raise ValueError("query is required")
+    limit = min(max(limit, 1), 10)
 
     results = []
 
@@ -194,7 +410,7 @@ async def _tool_search_knowledge(db: AsyncSession, user_id: str, query: str, lim
                 "search_mode": hit.get("search_mode", "hybrid"),
             })
 
-    # Also search context packs by title
+    # Search context packs
     packs = await list_packs(db, user_id)
     query_lower = query.lower()
     matching_packs = [
@@ -209,35 +425,252 @@ async def _tool_search_knowledge(db: AsyncSession, user_id: str, query: str, lim
         or query_lower in (p.get("summary_text", "") or "").lower()
     ]
 
+    # Search graph nodes (NEW in v4.1)
+    nodes_result = await db.execute(
+        select(GraphNode).where(GraphNode.user_id == user_id)
+    )
+    all_nodes = nodes_result.scalars().all()
+    matching_nodes = [
+        {
+            "node_id": n.id,
+            "label": n.label,
+            "type": n.object_type,
+            "family": n.node_family,
+        }
+        for n in all_nodes
+        if query_lower in (n.label or "").lower()
+    ][:5]
+
     return {
         "query": query,
         "matched_files": results,
         "matched_packs": matching_packs[:3],
+        "matched_nodes": matching_nodes,
     }
 
 
-async def _tool_get_file_summary(db: AsyncSession, user_id: str, file_id: str) -> dict:
-    """Get the summary of a specific file."""
+async def _tool_explore_graph(db: AsyncSession, user_id: str, node_id: str = None, depth: int = 1) -> dict:
+    """Explore knowledge graph — overview or specific node neighborhood."""
+    depth = min(max(depth, 1), 3)
+
+    if not node_id:
+        # Return overview of all nodes grouped by family
+        nodes_result = await db.execute(
+            select(GraphNode).where(GraphNode.user_id == user_id)
+        )
+        nodes = nodes_result.scalars().all()
+
+        edges_result = await db.execute(
+            select(GraphEdge).where(GraphEdge.user_id == user_id)
+        )
+        edges = edges_result.scalars().all()
+
+        # Group by family
+        families = {}
+        for n in nodes:
+            fam = n.node_family or "other"
+            if fam not in families:
+                families[fam] = []
+            families[fam].append({
+                "node_id": n.id,
+                "label": n.label,
+                "type": n.object_type,
+                "importance": n.importance_score,
+            })
+
+        return {
+            "mode": "overview",
+            "total_nodes": len(nodes),
+            "total_edges": len(edges),
+            "families": families,
+        }
+    else:
+        # Return neighborhood of a specific node
+        node_result = await db.execute(
+            select(GraphNode).where(GraphNode.id == node_id)
+        )
+        node = node_result.scalar_one_or_none()
+        if not node:
+            return {"error": "Node not found"}
+
+        # Get edges involving this node
+        edges_result = await db.execute(
+            select(GraphEdge).where(
+                (GraphEdge.source_node_id == node_id) | (GraphEdge.target_node_id == node_id)
+            )
+        )
+        edges = edges_result.scalars().all()
+
+        # Get connected node IDs
+        connected_ids = set()
+        connections = []
+        for e in edges:
+            other_id = e.target_node_id if e.source_node_id == node_id else e.source_node_id
+            connected_ids.add(other_id)
+            connections.append({
+                "edge_type": e.edge_type,
+                "direction": "outgoing" if e.source_node_id == node_id else "incoming",
+                "connected_node_id": other_id,
+                "weight": e.weight,
+                "evidence": e.evidence_text or "",
+            })
+
+        # Get connected node labels
+        if connected_ids:
+            connected_result = await db.execute(
+                select(GraphNode).where(GraphNode.id.in_(connected_ids))
+            )
+            connected_nodes = {n.id: n.label for n in connected_result.scalars().all()}
+            for conn in connections:
+                conn["connected_label"] = connected_nodes.get(conn["connected_node_id"], "?")
+
+        return {
+            "mode": "neighborhood",
+            "node": {
+                "node_id": node.id,
+                "label": node.label,
+                "type": node.object_type,
+                "family": node.node_family,
+                "importance": node.importance_score,
+            },
+            "connections": connections,
+            "connection_count": len(connections),
+        }
+
+
+# ═══════════════════════════════════════════
+# WRITE Tool Implementations
+# ═══════════════════════════════════════════
+
+async def _tool_create_context_pack(db: AsyncSession, user_id: str, params: dict) -> dict:
+    """Create a new context pack."""
+    title = params.get("title")
+    pack_type = params.get("type")
+    file_ids = params.get("file_ids", [])
+
+    if not title:
+        raise ValueError("title is required")
+    if not pack_type:
+        raise ValueError("type is required")
+    if pack_type not in {"profile", "study", "work", "project"}:
+        raise ValueError("type must be one of: profile, study, work, project")
+    if not file_ids:
+        raise ValueError("file_ids must contain at least one file ID")
+
+    pack = await create_pack(db, user_id, pack_type, title, file_ids, [])
+
+    return {
+        "status": "created",
+        "pack_id": pack.get("id", ""),
+        "title": title,
+        "type": pack_type,
+        "file_count": len(file_ids),
+    }
+
+
+async def _tool_add_note(db: AsyncSession, user_id: str, params: dict) -> dict:
+    """Update summary text for a file."""
+    file_id = params.get("file_id")
+    summary_text = params.get("summary_text")
+
+    if not file_id:
+        raise ValueError("file_id is required")
+    if not summary_text:
+        raise ValueError("summary_text is required")
+
     result = await db.execute(
         select(File).where(File.id == file_id, File.user_id == user_id)
-        .options(selectinload(File.summary), selectinload(File.insight))
+        .options(selectinload(File.summary))
+    )
+    file = result.scalar_one_or_none()
+    if not file:
+        return {"error": "File not found"}
+    if not file.summary:
+        return {"error": "File has no summary yet — run 'Organize with AI' first"}
+
+    file.summary.summary_text = summary_text
+    await db.commit()
+
+    return {
+        "status": "updated",
+        "file_id": file_id,
+        "filename": file.filename,
+        "summary_length": len(summary_text),
+    }
+
+
+async def _tool_update_file_tags(db: AsyncSession, user_id: str, params: dict) -> dict:
+    """Update tags for a file."""
+    file_id = params.get("file_id")
+    tags = params.get("tags")
+
+    if not file_id:
+        raise ValueError("file_id is required")
+    if tags is None:
+        raise ValueError("tags is required")
+    if not isinstance(tags, list):
+        raise ValueError("tags must be an array of strings")
+
+    result = await db.execute(
+        select(File).where(File.id == file_id, File.user_id == user_id)
     )
     file = result.scalar_one_or_none()
     if not file:
         return {"error": "File not found"}
 
-    if not file.summary:
-        return {"error": "Summary not yet generated for this file"}
+    file.tags = json.dumps(tags, ensure_ascii=False)
+    await db.commit()
 
     return {
+        "status": "updated",
+        "file_id": file_id,
         "filename": file.filename,
-        "summary": file.summary.summary_text or "",
-        "key_topics": json.loads(file.summary.key_topics or "[]"),
-        "importance_label": file.insight.importance_label if file.insight else "medium",
-        "source_of_truth": file.source_of_truth or False,
-        "freshness": file.freshness or "current",
+        "tags": tags,
     }
 
+
+# ═══════════════════════════════════════════
+# SYSTEM Tool Implementations
+# ═══════════════════════════════════════════
+
+async def _tool_get_overview(db: AsyncSession, user_id: str) -> dict:
+    """Get system overview stats."""
+    files_count = (await db.execute(
+        select(func.count(File.id)).where(File.user_id == user_id)
+    )).scalar() or 0
+
+    clusters_count = (await db.execute(
+        select(func.count(Cluster.id)).where(Cluster.user_id == user_id)
+    )).scalar() or 0
+
+    packs_count = (await db.execute(
+        select(func.count(ContextPack.id)).where(ContextPack.user_id == user_id)
+    )).scalar() or 0
+
+    nodes_count = (await db.execute(
+        select(func.count(GraphNode.id)).where(GraphNode.user_id == user_id)
+    )).scalar() or 0
+
+    edges_count = (await db.execute(
+        select(func.count(GraphEdge.id)).where(GraphEdge.user_id == user_id)
+    )).scalar() or 0
+
+    profile = await get_profile(db, user_id)
+
+    return {
+        "files": files_count,
+        "collections": clusters_count,
+        "context_packs": packs_count,
+        "graph_nodes": nodes_count,
+        "graph_edges": edges_count,
+        "profile_set": profile.get("exists", False),
+        "system": "Project KEY v4.1 — Personal Data Bank",
+    }
+
+
+# ═══════════════════════════════════════════
+# USAGE LOGS
+# ═══════════════════════════════════════════
 
 async def get_usage_logs(
     db: AsyncSession,
@@ -258,10 +691,6 @@ async def get_usage_logs(
 
     result = await db.execute(query)
     logs = result.scalars().all()
-
-    # Resolve token labels
-    from .database import MCPToken
-    token_labels = {}
 
     return [
         {
