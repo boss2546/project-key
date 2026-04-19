@@ -168,6 +168,28 @@ const I18N = {
     'mcp.scope': 'อ่าน+เขียน',
     'mcp.toolEnabled': 'เปิดใช้งาน',
     'mcp.toolDisabled': 'ปิดใช้งาน',
+    // Tool descriptions (Thai)
+    'tool.get_profile': 'ดูโปรไฟล์ผู้ใช้ รวมถึงตัวตน เป้าหมาย สไตล์การทำงาน และความชอบ',
+    'tool.list_files': 'แสดงรายการไฟล์ทั้งหมดในฐานความรู้ พร้อมข้อมูล แท็ก และสรุปย่อ',
+    'tool.get_file_content': 'ดูเนื้อหาข้อความของไฟล์ (สูงสุด 5000 ตัวอักษร)',
+    'tool.get_file_summary': 'ดูสรุปที่ AI สร้าง หัวข้อหลัก และข้อเท็จจริงสำคัญของไฟล์',
+    'tool.list_collections': 'แสดงคอลเลกชันที่ AI จัดกลุ่ม พร้อมไฟล์และสรุป',
+    'tool.list_context_packs': 'แสดงรายการ Context Pack (กลุ่มความรู้ที่สกัดแล้ว)',
+    'tool.get_context_pack': 'ดู Context Pack ตาม ID พร้อมเนื้อหาทั้งหมด',
+    'tool.search_knowledge': 'ค้นหาฐานความรู้แบบ Semantic + Keyword ผสม ได้ไฟล์ แพ็ก และโหนดกราฟ',
+    'tool.explore_graph': 'สำรวจกราฟความรู้ ดูภาพรวมโหนดทั้งหมด หรือดูความเชื่อมโยงของโหนดเฉพาะ',
+    'tool.get_overview': 'ดูภาพรวมระบบ จำนวนไฟล์ คอลเลกชัน แพ็ก โหนด และเส้นเชื่อม',
+    'tool.create_context_pack': 'สร้าง Context Pack ใหม่จากไฟล์ที่เลือก ประเภท: profile, study, work, project',
+    'tool.add_note': 'อัพเดทสรุปของไฟล์ ใช้เพิ่มโน้ตหรือปรับปรุงสรุปที่ AI สร้าง',
+    'tool.update_file_tags': 'อัพเดทแท็กของไฟล์ ใช้จัดระเบียบและจำแนกหมวดหมู่',
+    'tool.upload_text': 'อัพโหลดข้อความเป็นไฟล์ใหม่ (Claude สามารถสร้างไฟล์ความรู้ได้)',
+    'tool.update_profile': 'อัพเดทโปรไฟล์ผู้ใช้ (ตัวตน เป้าหมาย สไตล์ ความชอบ)',
+    'tool.delete_file': 'ลบไฟล์และข้อมูลที่เกี่ยวข้องทั้งหมด (สรุป ข้อมูลเชิงลึก คลัสเตอร์)',
+    'tool.delete_pack': 'ลบ Context Pack',
+    'tool.run_organize': 'รันไปป์ไลน์ AI แบบเต็ม: สรุป จัดกลุ่ม สร้างกราฟ',
+    'tool.build_graph': 'สร้างกราฟความรู้ใหม่จากข้อมูลทั้งหมด',
+    'tool.enrich_metadata': 'รัน AI เสริมข้อมูลเมตา (แท็ก ความละเอียดอ่อน ความสด)',
+    'tool.admin_login': 'ยืนยันรหัสผ่านแอดมิน เพื่อเข้าถึงเครื่องมือที่ปิดอยู่',
 
     // Token Management page
     'tokens.title': 'จัดการ Token',
@@ -1890,7 +1912,7 @@ function renderMCPTools(tools) {
 
     groups[cat].forEach(tool => {
       const isEnabled = savedPerms[tool.name] !== false; // default: enabled
-      const scopeLabel = cat === 'admin' ? '🔐 Admin' : cat === 'write' ? '✏️ Write' : '📖 Read';
+      const toolDesc = t(`tool.${tool.name}`) !== `tool.${tool.name}` ? t(`tool.${tool.name}`) : tool.description;
       html += `
       <div class="mcp-tool-card ${!isEnabled ? 'disabled' : ''}">
         <div class="mcp-tool-header">
@@ -1901,7 +1923,7 @@ function renderMCPTools(tools) {
             <span class="toggle-slider"></span>
           </label>
         </div>
-        <p class="mcp-tool-desc">${tool.description}</p>
+        <p class="mcp-tool-desc">${toolDesc}</p>
         ${tool.params && tool.params.length ? `
           <div class="mcp-tool-params">
             ${tool.params.filter(p => p.name !== 'admin_key').map(p => `<span class="mcp-param-chip">${p.name}: ${p.type}${p.required ? ' *' : ''}</span>`).join('')}
