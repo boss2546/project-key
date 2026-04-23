@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker as async_sessionmaker
 from datetime import datetime
 import uuid
+import os
 
 from .config import DATABASE_URL
 
@@ -298,29 +299,70 @@ AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_co
 
 
 async def init_db():
-    """Create all tables + run safe migrations for v5.0 auth columns."""
+    """Create all tables + run safe migrations.
+    
+    SAFETY RULES for future migrations:
+    1. NEVER drop tables or columns — always ADD, never remove
+    2. NEVER rename columns — add new + copy data if needed
+    3. Auto-backup runs before every migration
+    4. All migrations are idempotent (safe to re-run)
+    5. Test locally before deploying to production
+    """
+    # Step 1: Create any missing tables (checkfirst=True is SQLAlchemy default — safe)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    # v5.0 — Safe migration: add auth columns to existing users table
+    # Step 2: Run safe column migrations
     import aiosqlite
+    import shutil
+    from datetime import datetime as dt
     db_path = DATABASE_URL.replace("sqlite+aiosqlite:///", "")
+    
+    if not os.path.exists(db_path):
+        print("✅ DB: Fresh database — no migration needed")
+        return
+
+    # Auto-backup before any migration
+    backup_dir = os.path.join(os.path.dirname(db_path), "backups")
+    os.makedirs(backup_dir, exist_ok=True)
+    backup_path = os.path.join(backup_dir, f"projectkey_{dt.utcnow().strftime('%Y%m%d_%H%M%S')}.db")
+    try:
+        shutil.copy2(db_path, backup_path)
+        # Keep only last 5 backups
+        backups = sorted([f for f in os.listdir(backup_dir) if f.endswith('.db')])
+        for old in backups[:-5]:
+            os.remove(os.path.join(backup_dir, old))
+        print(f"✅ DB Backup: {backup_path}")
+    except Exception as e:
+        print(f"⚠️ DB Backup failed (non-fatal): {e}")
+
     try:
         async with aiosqlite.connect(db_path) as db:
-            # Check if email column exists
             cursor = await db.execute("PRAGMA table_info(users)")
             columns = [row[1] for row in await cursor.fetchall()]
+            
+            migrated = False
 
+            # v5.0 Migration — Auth columns
             if "email" not in columns:
                 await db.execute("ALTER TABLE users ADD COLUMN email TEXT")
                 await db.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
                 await db.execute("ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT 1")
+                migrated = True
+                print("  → Added: email, password_hash, is_active")
+
+            # (future migrations go here, always check before adding)
+            # if "some_new_col" not in columns:
+            #     await db.execute("ALTER TABLE users ADD COLUMN some_new_col TEXT DEFAULT ''")
+            #     migrated = True
+
+            if migrated:
                 await db.commit()
-                print("✅ DB Migration: Added auth columns (email, password_hash, is_active) to users table")
+                print("✅ DB Migration: completed successfully")
             else:
-                print("✅ DB: Auth columns already exist")
+                print("✅ DB: Schema up to date — no migration needed")
     except Exception as e:
-        print(f"⚠️ DB Migration check: {e}")
+        print(f"❌ DB Migration error: {e}")
 
 
 async def get_db():

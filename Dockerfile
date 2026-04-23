@@ -12,7 +12,7 @@ COPY index.html app.js styles.css ./
 
 # Data dir — mounted as Fly volume at /app/data
 ENV DATA_DIR=/app/data
-RUN mkdir -p /app/data/uploads /app/data/summaries /app/data/context_packs
+RUN mkdir -p /app/data/uploads /app/data/summaries /app/data/context_packs /app/data/backups
 
 # Expose port
 EXPOSE 8000
