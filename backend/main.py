@@ -1147,12 +1147,18 @@ async def mcp_streamable_http(secret: str, request: Request, db: AsyncSession = 
 
 @app.get("/")
 async def serve_index():
-    return FileResponse(os.path.join(BASE_DIR, "index.html"))
+    resp = FileResponse(os.path.join(BASE_DIR, "index.html"))
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return resp
 
 
 @app.get("/{filename}")
 async def serve_static(filename: str):
     filepath = os.path.join(BASE_DIR, filename)
     if os.path.exists(filepath) and not os.path.isdir(filepath):
-        return FileResponse(filepath)
+        resp = FileResponse(filepath)
+        # Prevent caching of JS/CSS so deploys take effect immediately
+        if filename.endswith(('.js', '.css', '.html')):
+            resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return resp
     raise HTTPException(status_code=404)
