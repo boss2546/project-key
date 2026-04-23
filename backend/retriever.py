@@ -438,4 +438,4 @@ Rules:
         f"{context}"
     )
 
-    return await call_llm(system_prompt, user_prompt, temperature=0.4, max_tokens=4000)
+    return await call_llm(system_prompt, user_prompt, temperature=0.4, max_tokens=8192)

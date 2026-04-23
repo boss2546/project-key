@@ -9,7 +9,7 @@ load_dotenv()
 # OpenRouter API
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
-LLM_MODEL = "google/gemini-2.5-flash"
+LLM_MODEL = "google/gemini-3-flash-preview"
 
 # Limits
 MAX_FILE_SIZE_MB = 10

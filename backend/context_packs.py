@@ -235,7 +235,7 @@ Rules:
 
     user_prompt = f"Distill the following source documents into a cohesive {type_label} context:\n\n{source_content[:8000]}"
 
-    return await call_llm(system_prompt, user_prompt, temperature=0.3, max_tokens=4000)
+    return await call_llm(system_prompt, user_prompt, temperature=0.3, max_tokens=8192)
 
 
 def get_pack_context_text(packs: list[dict]) -> str:
