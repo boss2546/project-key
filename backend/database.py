@@ -298,9 +298,29 @@ AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_co
 
 
 async def init_db():
-    """Create all tables."""
+    """Create all tables + run safe migrations for v5.0 auth columns."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # v5.0 — Safe migration: add auth columns to existing users table
+    import aiosqlite
+    db_path = DATABASE_URL.replace("sqlite+aiosqlite:///", "")
+    try:
+        async with aiosqlite.connect(db_path) as db:
+            # Check if email column exists
+            cursor = await db.execute("PRAGMA table_info(users)")
+            columns = [row[1] for row in await cursor.fetchall()]
+
+            if "email" not in columns:
+                await db.execute("ALTER TABLE users ADD COLUMN email TEXT")
+                await db.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
+                await db.execute("ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT 1")
+                await db.commit()
+                print("✅ DB Migration: Added auth columns (email, password_hash, is_active) to users table")
+            else:
+                print("✅ DB: Auth columns already exist")
+    except Exception as e:
+        print(f"⚠️ DB Migration check: {e}")
 
 
 async def get_db():
