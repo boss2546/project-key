@@ -88,7 +88,7 @@ async def chat_with_retrieval(db: AsyncSession, user_id: str, question: str) -> 
     vector_context = ""
     vector_hits = []
     if vector_search.is_available():
-        vector_hits = vector_search.hybrid_search(question, n_results=8)
+        vector_hits = vector_search.hybrid_search(question, n_results=8, user_id=user_id)
         if vector_hits:
             vector_context = "\n\nHYBRID SEARCH RESULTS (most relevant chunks):\n"
             for hit in vector_hits[:5]:

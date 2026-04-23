@@ -11,10 +11,10 @@ from collections import Counter
 
 logger = logging.getLogger(__name__)
 
-# In-memory index
-_index = {}  # file_id -> list of chunk dicts
-_idf = {}    # term -> idf score
-_total_docs = 0
+# In-memory index — per-user isolation (v5.1)
+_user_indexes = {}  # user_id -> {file_id -> list of chunk dicts}
+_user_idf = {}      # user_id -> {term -> idf score}
+_user_doc_counts = {}  # user_id -> int
 
 
 def chunk_text(text: str, chunk_size: int = 500, overlap: int = 100) -> list[str]:
@@ -83,9 +83,14 @@ def _compute_tf(tokens: list[str]) -> dict:
     return {t: c / total for t, c in counts.items()} if total > 0 else {}
 
 
-def index_file(file_id: str, filename: str, text: str, cluster_title: str = ""):
-    """Index a file's text for search."""
-    global _total_docs, _idf
+def index_file(file_id: str, filename: str, text: str, cluster_title: str = "", user_id: str = ""):
+    """Index a file's text for search (per-user isolated)."""
+    if not user_id:
+        user_id = "__global__"  # fallback for legacy
+
+    if user_id not in _user_indexes:
+        _user_indexes[user_id] = {}
+        _user_doc_counts[user_id] = 0
 
     chunks = chunk_text(text)
     if not chunks:
@@ -105,20 +110,20 @@ def index_file(file_id: str, filename: str, text: str, cluster_title: str = ""):
             "cluster": cluster_title
         })
 
-    _index[file_id] = chunk_data
-    _total_docs += len(chunks)
+    _user_indexes[user_id][file_id] = chunk_data
+    _user_doc_counts[user_id] = sum(len(c) for c in _user_indexes[user_id].values())
 
-    # Rebuild IDF across all indexed chunks
-    _rebuild_idf()
-    logger.info(f"Indexed {len(chunks)} chunks for {filename}")
+    # Rebuild IDF for this user
+    _rebuild_idf(user_id)
+    logger.info(f"Indexed {len(chunks)} chunks for {filename} (user={user_id[:8]}..)")
 
 
-def _rebuild_idf():
-    """Rebuild IDF scores across all indexed documents."""
-    global _idf
+def _rebuild_idf(user_id: str):
+    """Rebuild IDF scores for a specific user's documents."""
+    index = _user_indexes.get(user_id, {})
     doc_freq = Counter()
     total = 0
-    for file_chunks in _index.values():
+    for file_chunks in index.values():
         for chunk in file_chunks:
             unique_terms = set(chunk["tokens"])
             for term in unique_terms:
@@ -126,28 +131,35 @@ def _rebuild_idf():
             total += 1
 
     if total == 0:
-        _idf = {}
+        _user_idf[user_id] = {}
         return
 
-    _idf = {term: math.log(total / (1 + freq)) for term, freq in doc_freq.items()}
+    _user_idf[user_id] = {term: math.log(total / (1 + freq)) for term, freq in doc_freq.items()}
 
 
-def search(query: str, n_results: int = 8, file_ids: list = None) -> list[dict]:
+def search(query: str, n_results: int = 8, file_ids: list = None, user_id: str = "") -> list[dict]:
     """
     Search indexed documents using TF-IDF cosine similarity.
     Returns relevant chunks with metadata and relevance scores.
+    Per-user isolated (v5.1).
     """
-    if not _index:
+    if not user_id:
+        user_id = "__global__"
+
+    index = _user_indexes.get(user_id, {})
+    idf = _user_idf.get(user_id, {})
+
+    if not index:
         return []
 
     query_tokens = _tokenize(query)
     query_tf = _compute_tf(query_tokens)
 
     # Compute query TF-IDF vector
-    query_tfidf = {t: tf * _idf.get(t, 0) for t, tf in query_tf.items()}
+    query_tfidf = {t: tf * idf.get(t, 0) for t, tf in query_tf.items()}
 
     scored = []
-    for file_id, chunks in _index.items():
+    for file_id, chunks in index.items():
         if file_ids and file_id not in file_ids:
             continue
         for chunk in chunks:
@@ -159,7 +171,7 @@ def search(query: str, n_results: int = 8, file_ids: list = None) -> list[dict]:
             all_terms = set(list(query_tfidf.keys()) + list(chunk["tf"].keys()))
             for term in all_terms:
                 q_val = query_tfidf.get(term, 0)
-                d_val = chunk["tf"].get(term, 0) * _idf.get(term, 0)
+                d_val = chunk["tf"].get(term, 0) * idf.get(term, 0)
                 score += q_val * d_val
                 chunk_norm += d_val ** 2
                 query_norm += q_val ** 2
@@ -187,19 +199,24 @@ def search(query: str, n_results: int = 8, file_ids: list = None) -> list[dict]:
 # MVP v2 — Hybrid Search
 # ═══════════════════════════════════════════
 
-def keyword_search(query: str, n_results: int = 8, file_ids: list = None) -> list[dict]:
+def keyword_search(query: str, n_results: int = 8, file_ids: list = None, user_id: str = "") -> list[dict]:
     """
     Keyword-based search — exact/partial term matching.
     Good for proper nouns, specific terms, codes.
+    Per-user isolated (v5.1).
     """
-    if not _index:
+    if not user_id:
+        user_id = "__global__"
+
+    index = _user_indexes.get(user_id, {})
+    if not index:
         return []
 
     query_tokens = _tokenize(query)
     query_lower = query.lower()
 
     scored = []
-    for file_id, chunks in _index.items():
+    for file_id, chunks in index.items():
         if file_ids and file_id not in file_ids:
             continue
         for chunk in chunks:
@@ -235,14 +252,16 @@ def hybrid_search(
     query: str,
     n_results: int = 8,
     file_ids: list = None,
-    alpha: float = 0.6
+    alpha: float = 0.6,
+    user_id: str = "",
 ) -> list[dict]:
     """
     Hybrid search combining semantic (TF-IDF) and keyword matching.
     alpha controls the balance: 1.0 = pure semantic, 0.0 = pure keyword.
+    Per-user isolated (v5.1).
     """
-    semantic_results = search(query, n_results=n_results * 2, file_ids=file_ids)
-    keyword_results = keyword_search(query, n_results=n_results * 2, file_ids=file_ids)
+    semantic_results = search(query, n_results=n_results * 2, file_ids=file_ids, user_id=user_id)
+    keyword_results = keyword_search(query, n_results=n_results * 2, file_ids=file_ids, user_id=user_id)
 
     # Merge results by chunk identity (file_id + chunk_index)
     merged = {}
@@ -284,3 +303,4 @@ def hybrid_search(
 def is_available() -> bool:
     """Always available since it's pure Python."""
     return True
+

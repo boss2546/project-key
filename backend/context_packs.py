@@ -132,7 +132,8 @@ async def create_pack(
         file_id=f"pack-{pack.id}",
         filename=f"context-pack:{title}",
         text=summary_text,
-        cluster_title=f"context-pack-{pack_type}"
+        cluster_title=f"context-pack-{pack_type}",
+        user_id=user_id,  # v5.1 — per-user index
     )
 
     logger.info(f"Created context pack '{title}' (type={pack_type}) for user {user_id}")

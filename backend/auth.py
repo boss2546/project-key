@@ -80,12 +80,14 @@ async def register_user(db: AsyncSession, email: str, password: str, name: str) 
 
     # Create user
     from .database import gen_id
+    import secrets as _secrets
     user = User(
         id=gen_id(),
         name=name or "User",
         email=email.lower().strip(),
         password_hash=hash_password(password),
         is_active=True,
+        mcp_secret=_secrets.token_urlsafe(32),
     )
     db.add(user)
     await db.commit()
@@ -100,6 +102,7 @@ async def register_user(db: AsyncSession, email: str, password: str, name: str) 
             "id": user.id,
             "name": user.name,
             "email": user.email,
+            "mcp_secret": user.mcp_secret,
         },
         "token": token,
     }

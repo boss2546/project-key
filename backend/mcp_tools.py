@@ -483,7 +483,7 @@ async def _tool_search_knowledge(db: AsyncSession, user_id: str, query: str, lim
 
     # Hybrid search from vector store
     if vector_search.is_available():
-        hits = vector_search.hybrid_search(query, n_results=limit)
+        hits = vector_search.hybrid_search(query, n_results=limit, user_id=user_id)
         for hit in hits:
             results.append({
                 "filename": hit.get("filename", ""),

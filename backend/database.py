@@ -23,6 +23,7 @@ class User(Base):
     email = Column(String, unique=True, nullable=True)         # v5.0 — nullable for legacy default-user
     password_hash = Column(String, nullable=True)               # v5.0 — nullable for legacy
     is_active = Column(Boolean, default=True)                   # v5.0
+    mcp_secret = Column(String, nullable=True, unique=True)     # v5.1 — per-user MCP connector secret
     created_at = Column(DateTime, default=datetime.utcnow)
     files = relationship("File", back_populates="owner")
     profile = relationship("UserProfile", uselist=False, back_populates="user", cascade="all, delete-orphan")
@@ -351,10 +352,18 @@ async def init_db():
                 migrated = True
                 print("  → Added: email, password_hash, is_active")
 
-            # (future migrations go here, always check before adding)
-            # if "some_new_col" not in columns:
-            #     await db.execute("ALTER TABLE users ADD COLUMN some_new_col TEXT DEFAULT ''")
-            #     migrated = True
+            # v5.1 Migration — Per-user MCP secret
+            if "mcp_secret" not in columns:
+                await db.execute("ALTER TABLE users ADD COLUMN mcp_secret TEXT")
+                migrated = True
+                print("  → Added: mcp_secret")
+                # Generate secrets for existing users
+                import secrets as _secrets
+                cursor2 = await db.execute("SELECT id FROM users")
+                for row in await cursor2.fetchall():
+                    secret = _secrets.token_urlsafe(32)
+                    await db.execute("UPDATE users SET mcp_secret = ? WHERE id = ?", (secret, row[0]))
+                print("  → Generated MCP secrets for existing users")
 
             if migrated:
                 await db.commit()

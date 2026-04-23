@@ -162,7 +162,8 @@ async def organize_files(db: AsyncSession, user_id: str):
                     file_id=f.id,
                     filename=f.filename,
                     text=f.extracted_text or "",
-                    cluster_title=cluster_title
+                    cluster_title=cluster_title,
+                    user_id=user_id,  # v5.1 — per-user index
                 )
 
                 f.processing_status = "ready"

@@ -78,7 +78,8 @@ async def startup():
                         file_id=f.id,
                         filename=f.filename,
                         text=f.extracted_text,
-                        cluster_title=cluster_title
+                        cluster_title=cluster_title,
+                        user_id=f.user_id,  # v5.1 — per-user index
                     )
                     indexed += 1
             if indexed:
@@ -118,6 +119,7 @@ async def api_me(current_user: User = Depends(get_current_user)):
         "id": current_user.id,
         "name": current_user.name,
         "email": current_user.email,
+        "mcp_secret": current_user.mcp_secret,  # v5.1 — per-user MCP URL
     }
 
 
@@ -170,10 +172,12 @@ async def upload_files(
         if ext not in allowed_types:
             continue
 
-        # Save raw file
+        # Save raw file — per-user directory (v5.1)
         file_id = gen_id()
+        user_upload_dir = os.path.join(UPLOAD_DIR, current_user.id)
+        os.makedirs(user_upload_dir, exist_ok=True)
         safe_filename = f"{file_id}_{upload_file.filename}"
-        raw_path = os.path.join(UPLOAD_DIR, safe_filename)
+        raw_path = os.path.join(user_upload_dir, safe_filename)
 
         contents = await upload_file.read()
 
@@ -922,23 +926,26 @@ async def api_mcp_logs(
     return {"logs": logs, "count": len(logs)}
 
 
-# ─── MCP TOOL PERMISSIONS ───
+# ─── MCP TOOL PERMISSIONS (v5.1 — per-user) ───
 
-# In-memory permissions store (persists until restart, saved per session)
-MCP_PERMISSIONS: dict = {}  # tool_name -> bool
+# In-memory permissions store — per user (persists until restart)
+MCP_PERMISSIONS: dict = {}  # user_id -> {tool_name -> bool}
 
 @app.get("/api/mcp/permissions")
 async def api_get_permissions(current_user: User = Depends(get_current_user)):
-    """Get current tool permissions."""
-    return {"permissions": MCP_PERMISSIONS}
+    """Get current tool permissions for this user."""
+    user_perms = MCP_PERMISSIONS.get(current_user.id, {})
+    return {"permissions": user_perms}
 
 @app.put("/api/mcp/permissions")
 async def api_set_permissions(request: Request, current_user: User = Depends(get_current_user)):
-    """Set tool permissions (enable/disable individual tools)."""
+    """Set tool permissions for this user."""
     body = await request.json()
     perms = body.get("permissions", {})
-    MCP_PERMISSIONS.update(perms)
-    return {"status": "ok", "permissions": MCP_PERMISSIONS}
+    if current_user.id not in MCP_PERMISSIONS:
+        MCP_PERMISSIONS[current_user.id] = {}
+    MCP_PERMISSIONS[current_user.id].update(perms)
+    return {"status": "ok", "permissions": MCP_PERMISSIONS[current_user.id]}
 
 
 # ─── HELPERS ───
@@ -1000,13 +1007,21 @@ def _build_mcp_tools_list():
 
 @app.post("/mcp/{secret}")
 async def mcp_streamable_http(secret: str, request: Request, db: AsyncSession = Depends(get_db)):
-    """MCP Streamable HTTP transport — JSON-RPC 2.0 endpoint for Claude Custom Connector."""
-    # Validate secret key
+    """MCP Streamable HTTP transport — JSON-RPC 2.0 endpoint for Claude Custom Connector.
+    
+    v5.1: Each user has their own secret URL. The secret maps to a specific user.
+    """
+    # Validate secret key — check both legacy global secret and per-user secrets
+    valid_user = None
     if secret != MCP_SECRET:
-        return JSONResponse(
-            {"jsonrpc": "2.0", "error": {"code": -32600, "message": "Unauthorized"}, "id": None},
-            status_code=401,
-        )
+        # Check per-user secret
+        user_result = await db.execute(select(User).where(User.mcp_secret == secret, User.is_active == True))
+        valid_user = user_result.scalar_one_or_none()
+        if not valid_user:
+            return JSONResponse(
+                {"jsonrpc": "2.0", "error": {"code": -32600, "message": "Unauthorized"}, "id": None},
+                status_code=401,
+            )
     try:
         body = await request.json()
     except Exception:
@@ -1064,9 +1079,20 @@ async def mcp_streamable_http(secret: str, request: Request, db: AsyncSession = 
                 "error": {"code": -32602, "message": f"Unknown tool: {tool_name}"},
             })
 
-        # Check if tool is disabled by permissions
-        # Admin key (password) can bypass disabled tools
-        if MCP_PERMISSIONS.get(tool_name) is False:
+        # v5.1 — Resolve user by per-user MCP secret
+        mcp_user_result = await db.execute(select(User).where(User.mcp_secret == secret, User.is_active == True))
+        mcp_user = mcp_user_result.scalar_one_or_none()
+        if not mcp_user:
+            return JSONResponse({
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "error": {"code": -32600, "message": "Invalid MCP secret — user not found"},
+            }, status_code=401)
+        mcp_user_id = mcp_user.id
+
+        # Check if tool is disabled by this user's permissions
+        user_perms = MCP_PERMISSIONS.get(mcp_user_id, {})
+        if user_perms.get(tool_name) is False:
             if arguments.get("admin_key") != ADMIN_PASSWORD:
                 return JSONResponse({
                     "jsonrpc": "2.0",
@@ -1076,11 +1102,6 @@ async def mcp_streamable_http(secret: str, request: Request, db: AsyncSession = 
                         "isError": True,
                     },
                 })
-
-        # Resolve user — MCP uses secret-key auth, find the token owner
-        mcp_user_result = await db.execute(select(User).where(User.is_active == True).limit(1))
-        mcp_user = mcp_user_result.scalar_one_or_none()
-        mcp_user_id = mcp_user.id if mcp_user else "unknown"
 
         # Call the tool using our existing dispatcher
         tool_result = await call_tool(db, mcp_user_id, "mcp-connector", tool_name, arguments)
