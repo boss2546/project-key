@@ -155,6 +155,8 @@ function initAuth() {
   document.getElementById('btn-show-login')?.addEventListener('click', () => showAuthModal('login'));
   document.getElementById('btn-show-register')?.addEventListener('click', () => showAuthModal('register'));
   document.getElementById('btn-hero-register')?.addEventListener('click', () => showAuthModal('register'));
+  document.getElementById('btn-hero-login')?.addEventListener('click', () => showAuthModal('login'));
+  document.getElementById('btn-cta-register')?.addEventListener('click', () => showAuthModal('register'));
 
   // Auth modal
   document.getElementById('auth-modal-close')?.addEventListener('click', () => {

@@ -16,49 +16,170 @@
   <!-- LANDING PAGE (shown when not logged in) -->
   <!-- ═══════════════════════════════════════════ -->
   <div id="landing-page" class="landing-page">
-    <div class="landing-header">
+
+    <!-- Animated background orbs -->
+    <div class="landing-bg">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <div class="orb orb-3"></div>
+    </div>
+
+    <!-- ─── HEADER ─── -->
+    <header class="landing-header">
       <div class="landing-logo">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.9"/><rect x="14" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/><rect x="3" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/><rect x="14" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.3"/></svg>
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.9"/><rect x="14" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/><rect x="3" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/><rect x="14" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.3"/></svg>
         <span>Project KEY</span>
       </div>
       <div class="landing-nav">
-        <button class="btn btn-outline" id="btn-show-login">เข้าสู่ระบบ</button>
-        <button class="btn btn-primary" id="btn-show-register">สมัครสมาชิก</button>
+        <button class="btn btn-ghost" id="btn-show-login">เข้าสู่ระบบ</button>
+        <button class="btn btn-primary btn-glow" id="btn-show-register">เริ่มต้นฟรี</button>
       </div>
-    </div>
+    </header>
 
-    <div class="landing-hero">
-      <h1 class="hero-title">พื้นที่ข้อมูลส่วนตัว<br><span class="hero-gradient">ที่ AI ช่วยจัดระเบียบ</span></h1>
-      <p class="hero-subtitle">อัปโหลดเอกสาร → AI วิเคราะห์และเชื่อมโยง → ถามตอบกับข้อมูลของคุณ<br>รองรับ Knowledge Graph, Context Packs และเชื่อมต่อ Claude ผ่าน MCP</p>
-      <button class="btn btn-primary btn-lg" id="btn-hero-register">เริ่มใช้งานฟรี →</button>
-    </div>
+    <!-- ─── HERO ─── -->
+    <section class="landing-hero">
+      <div class="hero-badge">✨ Knowledge Workspace ยุคใหม่</div>
+      <h1 class="hero-title">
+        เปลี่ยนเอกสารของคุณ<br>
+        เป็น <span class="hero-gradient">ความรู้ที่ AI เข้าใจ</span>
+      </h1>
+      <p class="hero-subtitle">
+        อัปโหลดไฟล์ → AI สรุป จัดกลุ่ม สร้าง Knowledge Graph อัตโนมัติ<br>
+        ถามตอบกับข้อมูลจริงของคุณ พร้อมเชื่อมต่อ Claude ผ่าน MCP
+      </p>
+      <div class="hero-actions">
+        <button class="btn btn-primary btn-lg btn-glow" id="btn-hero-register">
+          สมัครฟรี — เริ่มใช้ทันที
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </button>
+        <button class="btn btn-glass" id="btn-hero-login">ฉันมีบัญชีแล้ว</button>
+      </div>
 
-    <div class="landing-features">
-      <div class="feature-card">
-        <div class="feature-icon">📁</div>
-        <h3>จัดเก็บอัจฉริยะ</h3>
-        <p>อัปโหลดไฟล์ PDF, TXT, MD, DOCX — AI จัดกลุ่มและสรุปเนื้อหาอัตโนมัติ</p>
+      <!-- Pipeline visual -->
+      <div class="hero-pipeline">
+        <div class="pipeline-step">
+          <div class="pipeline-icon">📄</div>
+          <span>อัปโหลด</span>
+        </div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step">
+          <div class="pipeline-icon">🧠</div>
+          <span>AI วิเคราะห์</span>
+        </div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step">
+          <div class="pipeline-icon">🔗</div>
+          <span>Knowledge Graph</span>
+        </div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step">
+          <div class="pipeline-icon">💬</div>
+          <span>ถามตอบ AI</span>
+        </div>
       </div>
-      <div class="feature-card">
-        <div class="feature-icon">🔗</div>
-        <h3>Knowledge Graph</h3>
-        <p>เห็นความเชื่อมโยงระหว่างข้อมูลทั้งหมดเป็นภาพ แบบ Interactive</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">💬</div>
-        <h3>AI แชท 7 ชั้น</h3>
-        <p>ถามตอบกับข้อมูลจริง — AI อ้างอิงจากไฟล์, กราฟ และ Context Packs</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">🔌</div>
-        <h3>MCP Connector</h3>
-        <p>เชื่อมต่อ Claude Desktop ด้วย 21 เครื่องมือ — ใช้ข้อมูลของคุณจากทุกที่</p>
-      </div>
-    </div>
+    </section>
 
-    <div class="landing-footer">
-      <p>สร้างด้วย ❤️ โดยทีม Project KEY · v5.0</p>
-    </div>
+    <!-- ─── FEATURES ─── -->
+    <section class="landing-section">
+      <div class="section-center">
+        <h2 class="section-title">ทุกอย่างที่คุณต้องการ <span class="hero-gradient">ในที่เดียว</span></h2>
+        <p class="section-desc">ระบบจัดการความรู้ครบวงจร ตั้งแต่เก็บ วิเคราะห์ เชื่อมโยง ไปจนถึงใช้งานกับ AI</p>
+      </div>
+      <div class="landing-features">
+        <div class="feature-card">
+          <div class="feature-icon-wrap" style="--fc: 99, 102, 241">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+          </div>
+          <h3>จัดเก็บอัจฉริยะ</h3>
+          <p>รองรับ PDF, TXT, MD, DOCX — AI สรุปเนื้อหา จัดกลุ่ม ติดแท็ก และ Enrich metadata ให้อัตโนมัติ</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon-wrap" style="--fc: 79, 195, 247">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><circle cx="18" cy="6" r="3"/><line x1="8.6" y1="7.4" x2="15.4" y2="16.6"/><line x1="15.4" y1="7.4" x2="8.6" y2="16.6"/></svg>
+          </div>
+          <h3>Knowledge Graph</h3>
+          <p>AI สร้างกราฟความสัมพันธ์ระหว่างข้อมูลทั้งหมด — ค้นพบ insight ที่ซ่อนอยู่แบบ Interactive</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon-wrap" style="--fc: 129, 140, 248">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <h3>AI Chat 7 ชั้น</h3>
+          <p>ถามตอบกับข้อมูลจริง — AI อ้างอิงจาก Profile, Context Packs, Files และ Knowledge Graph</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon-wrap" style="--fc: 255, 138, 101">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          </div>
+          <h3>MCP — 21 เครื่องมือ</h3>
+          <p>เชื่อมต่อ Claude Desktop ผ่าน Remote MCP Server — ใช้ข้อมูลของคุณจากทุกที่ ทุกเวลา</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── STATS ─── -->
+    <section class="landing-stats">
+      <div class="stat-block">
+        <div class="stat-number">21</div>
+        <div class="stat-text">MCP Tools</div>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-block">
+        <div class="stat-number">7</div>
+        <div class="stat-text">AI Layers</div>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-block">
+        <div class="stat-number">∞</div>
+        <div class="stat-text">ไฟล์</div>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-block">
+        <div class="stat-number">100%</div>
+        <div class="stat-text">ข้อมูลเป็นของคุณ</div>
+      </div>
+    </section>
+
+    <!-- ─── HOW IT WORKS ─── -->
+    <section class="landing-section landing-section-dark">
+      <div class="section-center">
+        <h2 class="section-title">ทำงานอย่างไร?</h2>
+        <p class="section-desc">3 ขั้นตอนง่ายๆ จากเอกสารดิบ สู่ฐานความรู้ที่ AI เข้าใจ</p>
+      </div>
+      <div class="steps-grid">
+        <div class="step-card">
+          <div class="step-number">01</div>
+          <h3>อัปโหลดเอกสาร</h3>
+          <p>ลากไฟล์มาวาง — รองรับหลากหลายรูปแบบ ทั้ง PDF, DOCX, Markdown และ TXT</p>
+        </div>
+        <div class="step-card">
+          <div class="step-number">02</div>
+          <h3>AI จัดระเบียบ</h3>
+          <p>AI อ่านเนื้อหา สร้างสรุป จัดกลุ่ม สร้าง Knowledge Graph และ Context Packs อัตโนมัติ</p>
+        </div>
+        <div class="step-card">
+          <div class="step-number">03</div>
+          <h3>ถามตอบ & เชื่อมต่อ</h3>
+          <p>ถามคำถามกับ AI ที่เข้าใจข้อมูลของคุณ หรือเชื่อมต่อ Claude ผ่าน MCP Connector</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── CTA ─── -->
+    <section class="landing-cta">
+      <h2>พร้อมเปลี่ยนข้อมูลเป็นความรู้?</h2>
+      <p>เริ่มสร้างฐานความรู้ส่วนตัวของคุณวันนี้ — ฟรี ไม่มีบัตรเครดิต</p>
+      <button class="btn btn-primary btn-lg btn-glow" id="btn-cta-register">เริ่มใช้งาน Project KEY →</button>
+    </section>
+
+    <!-- ─── FOOTER ─── -->
+    <footer class="landing-footer">
+      <div class="landing-logo footer-logo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.9"/><rect x="14" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/><rect x="3" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/><rect x="14" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.3"/></svg>
+        <span>Project KEY</span>
+      </div>
+      <p>สร้างด้วย ❤️ · v5.0 — Multi-User Knowledge Workspace</p>
+    </footer>
   </div>
 
   <!-- ═══════════════════════════════════════════ -->
