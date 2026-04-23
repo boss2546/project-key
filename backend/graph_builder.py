@@ -87,7 +87,14 @@ async def build_full_graph(db: AsyncSession, user_id: str):
     tag_file_map = {}  # tag_label → set of file_ids that use this tag
     entity_nodes = {}  # entity_label → node_id
 
-    summaries = (await db.execute(select(FileSummary))).scalars().all()
+    # v5.1 — only get summaries for this user's files
+    user_file_ids = [f.id for f in files]
+    if user_file_ids:
+        summaries = (await db.execute(
+            select(FileSummary).where(FileSummary.file_id.in_(user_file_ids))
+        )).scalars().all()
+    else:
+        summaries = []
     for s in summaries:
         file_node_key = f"source_file:{s.file_id}"
         if file_node_key not in node_map:
@@ -246,8 +253,13 @@ Tags: {tag_list_str}
 
     # Phase 4: Create edges
 
-    # 4a. File → Cluster edges (contains)
-    file_cluster_maps = (await db.execute(select(FileClusterMap))).scalars().all()
+    # 4a. File → Cluster edges (contains) — v5.1: filter by user's files only
+    if user_file_ids:
+        file_cluster_maps = (await db.execute(
+            select(FileClusterMap).where(FileClusterMap.file_id.in_(user_file_ids))
+        )).scalars().all()
+    else:
+        file_cluster_maps = []
     for fcm in file_cluster_maps:
         src = node_map.get(f"source_file:{fcm.file_id}")
         tgt = node_map.get(f"cluster:{fcm.cluster_id}")

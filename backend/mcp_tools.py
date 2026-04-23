@@ -501,8 +501,14 @@ async def _tool_search_knowledge(db: AsyncSession, user_id: str, query: str, lim
         )
         all_files = files_res.scalars().all()
 
-        # Search in summaries
-        summaries_res = await db.execute(select(FileSummary))
+        # Search in summaries — v5.1: filter by user's files only
+        user_fids = [f.id for f in all_files]
+        if user_fids:
+            summaries_res = await db.execute(
+                select(FileSummary).where(FileSummary.file_id.in_(user_fids))
+            )
+        else:
+            summaries_res = await db.execute(select(FileSummary).where(False))
         all_summaries = {s.file_id: s for s in summaries_res.scalars().all()}
 
         for f in all_files:

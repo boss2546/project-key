@@ -142,6 +142,7 @@ async def login_user(db: AsyncSession, email: str, password: str) -> dict:
             "id": user.id,
             "name": user.name,
             "email": user.email,
+            "mcp_secret": user.mcp_secret,  # v5.1 — per-user MCP URL
         },
         "token": token,
     }
