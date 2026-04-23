@@ -1,49 +1,168 @@
 # 🔑 Project KEY — Personal Data Bank
 
-> Personal Knowledge Workspace ที่ใช้ AI จัดระเบียบ วิเคราะห์ และเชื่อมโยงข้อมูลของคุณ  
-> **v4.3** — MCP Connector + Permission System + Bilingual (TH/EN)
+> พื้นที่ข้อมูลส่วนตัวที่ใช้ AI จัดระเบียบ วิเคราะห์ และเชื่อมโยงข้อมูลของคุณ  
+> **v4.3** — MCP Connector + ระบบสิทธิ์ + สองภาษา (ไทย/อังกฤษ)
 
 [![Production](https://img.shields.io/badge/Production-project--key.fly.dev-blue)](https://project-key.fly.dev/)
 [![Version](https://img.shields.io/badge/version-4.3-green)]()
 [![MCP Tools](https://img.shields.io/badge/MCP_Tools-21-purple)]()
 
-## Quick Start
+---
+
+## 📖 สารบัญ
+
+- [เริ่มต้นใช้งาน](#-เริ่มต้นใช้งาน)
+- [คู่มือการใช้งาน](#-คู่มือการใช้งาน)
+- [ฟีเจอร์ทั้งหมด](#-ฟีเจอร์ทั้งหมด)
+- [เชื่อมต่อ MCP](#-เชื่อมต่อ-mcp-สำหรับ-claude)
+- [โครงสร้างโปรเจกต์](#-โครงสร้างโปรเจกต์)
+- [เทคโนโลยี](#-เทคโนโลยี)
+- [Deploy ขึ้น Production](#-deploy-ขึ้น-production)
+- [ประวัติเวอร์ชัน](#-ประวัติเวอร์ชัน)
+
+---
+
+## 🚀 เริ่มต้นใช้งาน
+
+### ติดตั้งบนเครื่อง (Local)
 
 ```bash
-# 1. Install dependencies
+# 1. ติดตั้ง dependencies
 pip install -r requirements.txt
 
-# 2. Set API key
-echo OPENROUTER_API_KEY=your_key > .env
+# 2. ตั้งค่า API key (ใช้ OpenRouter)
+echo OPENROUTER_API_KEY=your_api_key_here > .env
 
-# 3. Run
+# 3. รันเซิร์ฟเวอร์
 python -m uvicorn backend.main:app --port 8000
 ```
 
-Open [http://localhost:8000](http://localhost:8000)
+เปิดเบราว์เซอร์ไปที่ [http://localhost:8000](http://localhost:8000)
 
-## Production (Fly.io)
+### สมัคร API Key
 
-```bash
-flyctl deploy --remote-only
-# Live at: https://project-key.fly.dev/
-```
+1. ไปที่ [openrouter.ai](https://openrouter.ai/) → สมัครสมาชิก
+2. ไปที่ **Keys** → สร้าง key ใหม่
+3. คัดลอก key มาใส่ในไฟล์ `.env`
 
-## Features
+---
 
-- 📁 **My Data** — Upload & manage files (PDF, TXT, MD, DOCX) + File Detail Panel
-- 🧠 **AI Organization** — Auto-cluster, summarize, enrich metadata
-- 🔗 **Knowledge Graph** — Visual global/local graph with D3.js (38 nodes, 62 edges)
-- 💬 **AI Chat** — 7-layer RAG with graph-aware injection + evidence tracking
-- 👤 **Profile** — Personalized AI responses based on goals & working style
-- 📦 **Context Packs** — Distilled knowledge packs from multiple files
-- 🔌 **MCP Connector** — 21 tools for Claude AI integration
-- 🔐 **Permission System** — Toggle tools on/off + admin key bypass
-- 🌐 **Bilingual** — Thai/English toggle with 170+ translation keys
+## 📘 คู่มือการใช้งาน
 
-## MCP Integration
+### 1. 📁 ข้อมูลของฉัน (My Data)
 
-Connect Claude to your data via MCP Streamable HTTP:
+หน้าหลักสำหรับจัดการไฟล์ทั้งหมด
+
+**อัปโหลดไฟล์:**
+- กดปุ่ม **"อัปโหลด"** หรือลากไฟล์วางในพื้นที่
+- รองรับ: PDF, TXT, MD, DOCX
+- ขนาดสูงสุด: 10 MB ต่อไฟล์
+
+**ดูรายละเอียดไฟล์:**
+- คลิกที่ชื่อไฟล์ → แผงด้านขวาจะแสดง:
+  - สรุปเนื้อหา (AI สร้างให้อัตโนมัติ)
+  - แท็ก (tag) ที่เกี่ยวข้อง
+  - ความเชื่อมโยงกับไฟล์อื่น
+  - เมตาดาต้า (ขนาด, วันที่, ประเภท)
+
+**จัดระเบียบด้วย AI:**
+- กดปุ่ม **"จัดระเบียบด้วย AI"**
+- AI จะทำงาน 4 ขั้นตอน:
+  1. จัดกลุ่มไฟล์เป็นคอลเลกชันอัตโนมัติ
+  2. สร้างสรุปเนื้อหาทุกไฟล์
+  3. สร้าง Knowledge Graph
+  4. วิเคราะห์ความเชื่อมโยงระหว่างไฟล์
+
+### 2. 🔍 มุมมองความรู้ (Knowledge View)
+
+แสดงภาพรวมข้อมูลทั้งหมดที่จัดกลุ่มเรียบร้อย
+
+- ดูคอลเลกชัน (กลุ่มไฟล์ที่เนื้อหาคล้ายกัน)
+- คลิกคอลเลกชันเพื่อดูไฟล์ในกลุ่ม
+- AI ตั้งชื่อกลุ่มให้อัตโนมัติ
+
+### 3. 🕸️ กราฟ (Knowledge Graph)
+
+แสดงความเชื่อมโยงระหว่างข้อมูลทั้งหมดเป็นภาพ
+
+- **โหนด (จุดกลม)** = ไฟล์, หัวข้อ, แนวคิดสำคัญ
+- **เส้นเชื่อม** = ความสัมพันธ์ระหว่างข้อมูล
+- **วิธีใช้:**
+  - ลากเพื่อเลื่อนดู
+  - เลื่อนล้อเมาส์เพื่อซูม
+  - คลิกโหนดเพื่อดูรายละเอียด
+  - เลือก **Lens** ด้านบนเพื่อเปลี่ยนมุมมอง
+
+**สร้างกราฟ:**
+- กดปุ่ม **"สร้างกราฟ"** (ต้องจัดระเบียบข้อมูลก่อน)
+- AI จะวิเคราะห์และสร้างโหนด + ความสัมพันธ์อัตโนมัติ
+
+### 4. 💬 AI แชท (AI Chat)
+
+ถามคำถามเกี่ยวกับข้อมูลของคุณ — AI จะตอบโดยอ้างอิงจากข้อมูลจริง
+
+**วิธีใช้:**
+- พิมพ์คำถามแล้วกด Enter หรือกดปุ่มส่ง
+- AI จะค้นหาข้อมูลที่เกี่ยวข้องจาก:
+  - โปรไฟล์ส่วนตัว
+  - ไฟล์ทั้งหมด
+  - Knowledge Graph
+  - Context Packs
+- ด้านขวาจะแสดง **"หลักฐานที่ใช้"** ว่า AI อ้างอิงจากไฟล์ไหนบ้าง
+
+**ตัวอย่างคำถาม:**
+- *"สรุปข้อมูลทั้งหมดของฉันให้หน่อย"*
+- *"Project KEY เกี่ยวข้องกับอะไรบ้าง"*
+- *"หาความเชื่อมโยงระหว่าง [หัวข้อ A] กับ [หัวข้อ B]"*
+
+### 5. 👤 โปรไฟล์ (Profile)
+
+ตั้งค่าข้อมูลส่วนตัวเพื่อให้ AI ตอบตรงตามเป้าหมาย
+
+- ชื่อ, อาชีพ, เป้าหมาย, รูปแบบการทำงาน
+- เมื่อตั้งค่าแล้ว AI จะปรับคำตอบให้เหมาะกับคุณ
+- ตั้งค่าได้ที่ **AI แชท → Profile** หรือผ่าน Onboarding Quiz ตอนเริ่มใช้งาน
+
+### 6. 📦 Context Packs
+
+แพ็คความรู้ที่สกัดจากหลายไฟล์รวมกัน — เหมาะสำหรับส่งให้ AI อื่นใช้
+
+- สร้างได้ที่ **AI แชท → Packs**
+- ระบุหัวข้อ → AI สรุปข้อมูลจากทุกไฟล์ที่เกี่ยวข้องเป็น Pack เดียว
+
+### 7. 🌐 สลับภาษา
+
+- กดปุ่ม **TH | EN** ที่มุมซ้ายล่าง
+- ระบบมีคำแปล 170+ รายการ
+- ค่าเริ่มต้นเป็นภาษาไทย
+
+---
+
+## ✨ ฟีเจอร์ทั้งหมด
+
+| ฟีเจอร์ | รายละเอียด |
+|---------|-----------|
+| 📁 ข้อมูลของฉัน | อัปโหลด จัดการ ดูรายละเอียดไฟล์ (PDF, TXT, MD, DOCX) |
+| 🧠 จัดระเบียบด้วย AI | จัดกลุ่มอัตโนมัติ สร้างสรุป เพิ่ม metadata |
+| 🔗 Knowledge Graph | แสดงกราฟความสัมพันธ์ด้วย D3.js |
+| 💬 AI แชท | ถาม-ตอบอ้างอิงข้อมูลจริง 7 ชั้น (Graph-Aware RAG) |
+| 👤 โปรไฟล์ | ปรับ AI ให้ตรงตามเป้าหมายส่วนตัว |
+| 📦 Context Packs | สกัดความรู้จากหลายไฟล์เป็น Pack |
+| 🔌 MCP Connector | เชื่อมต่อ Claude AI ด้วย 21 เครื่องมือ |
+| 🔐 ระบบสิทธิ์ | เปิด/ปิดเครื่องมือ MCP + รหัสผ่าน Admin |
+| 🌐 สองภาษา | ไทย/อังกฤษ สลับได้ทันที |
+
+---
+
+## 🔌 เชื่อมต่อ MCP (สำหรับ Claude)
+
+ใช้ MCP (Model Context Protocol) ให้ Claude Desktop เข้าถึงข้อมูลของคุณ:
+
+### ขั้นตอนการเชื่อมต่อ
+
+1. ไปที่หน้า **ตั้งค่า MCP** ในแอป → สร้าง Token
+2. คัดลอก URL ที่ได้
+3. เปิดไฟล์ตั้งค่า Claude Desktop → เพิ่ม:
 
 ```json
 {
@@ -56,78 +175,128 @@ Connect Claude to your data via MCP Streamable HTTP:
 }
 ```
 
-**21 Tools** in 4 categories:
-| Category | Tools |
-|----------|-------|
-| 📖 Read & Search (10) | get_profile, list_files, get_file_content, get_file_summary, list_collections, list_context_packs, get_context_pack, search_knowledge, explore_graph, get_overview |
-| ✏️ Create & Edit (5) | create_context_pack, add_note, update_file_tags, upload_text, update_profile |
-| 🗑️ Delete (2) | delete_file, delete_pack |
-| ⚙️ AI Pipeline (4) | run_organize, build_graph, enrich_metadata, admin_login |
+### เครื่องมือ MCP ทั้ง 21 ตัว
 
-## Project Structure
+| หมวด | เครื่องมือ |
+|------|-----------|
+| 📖 **อ่านและค้นหา** (10) | ดูโปรไฟล์, รายการไฟล์, เนื้อหาไฟล์, สรุปไฟล์, รายการคอลเลกชัน, รายการ Context Pack, ดู Context Pack, ค้นหาความรู้, สำรวจกราฟ, ดูภาพรวม |
+| ✏️ **สร้างและแก้ไข** (5) | สร้าง Context Pack, เพิ่มโน้ต, แก้แท็ก, อัปโหลดข้อความ, แก้โปรไฟล์ |
+| 🗑️ **ลบ** (2) | ลบไฟล์, ลบ Pack |
+| ⚙️ **AI Pipeline** (4) | จัดระเบียบ, สร้างกราฟ, เพิ่ม metadata, เข้าสู่ระบบ Admin |
 
-```
-Project KEY/
-├── index.html              # Frontend (691 lines — 7 pages + i18n)
-├── app.js                  # Frontend logic (1,980 lines)
-├── styles.css              # Dark theme design system (2,116 lines)
-├── Dockerfile              # Production container (64 MB)
-├── fly.toml                # Fly.io deployment config
-│
-├── backend/                # FastAPI backend (17 modules)
-│   ├── main.py             # 40+ API endpoints + startup index rebuild
-│   ├── mcp_tools.py        # 21 MCP tools + dispatcher + permissions
-│   ├── mcp_tokens.py       # Bearer token management
-│   ├── graph_builder.py    # Knowledge graph + entity extraction
-│   ├── retriever.py        # 7-layer graph-aware RAG
-│   ├── vector_search.py    # TF-IDF hybrid search
-│   ├── database.py         # 18 SQLAlchemy models
-│   ├── organizer.py        # AI clustering + scoring
-│   ├── context_packs.py    # Context pack generation
-│   ├── relations.py        # Backlinks + suggested relations
-│   ├── metadata.py         # LLM metadata enrichment
-│   ├── extraction.py       # Text extraction (PDF/TXT/MD/DOCX)
-│   ├── markdown_store.py   # Summary file I/O
-│   ├── profile.py          # User profile CRUD
-│   ├── llm.py              # OpenRouter API wrapper
-│   └── config.py           # Environment config
-│
-├── docs/                   # Documentation
-│   ├── PROJECT_REPORT.md   # Full report (v0.1 → v4.3)
-│   ├── prd/                # PRD v1, v2, v3, v4
-│   ├── guides/             # User guides
-│   └── screenshots/        # UI screenshots
-│
-└── tests/                  # All tests
-    ├── e2e/                # End-to-end + MCP tests
-    ├── testsprite/         # TestSprite automated tests (29 TCs)
-    └── fixtures/           # Test data files
-```
+### ตัวอย่างการใช้ใน Claude
 
-## Tech Stack
+> *"ค้นหาข้อมูลเกี่ยวกับ Knowledge Graph จากไฟล์ของฉัน"*
 
-| Layer | Technology |
-|-------|-----------|
-| Frontend | HTML + Vanilla JS + CSS + D3.js v7 |
-| Backend | Python FastAPI + Uvicorn |
-| Database | SQLite (18 tables, async via aiosqlite) |
-| Search | TF-IDF hybrid (in-memory auto-rebuild) |
-| LLM | OpenRouter → Google Gemini 2.5 Flash |
-| Deploy | Docker + Fly.io (Singapore region) |
-| AI Integration | MCP Streamable HTTP (21 tools) |
-
-## Version History
-
-| Version | Highlights |
-|---------|-----------|
-| v0.1 | Upload, Organize, AI Chat |
-| v2.0 | Profile, Context Packs, Hybrid Search |
-| v3.0 | Knowledge Graph, i18n, Project Restructure |
-| v4.0 | Fly.io Deploy, MCP 5 tools |
-| v4.1 | 21 MCP tools, Data Management UX |
-| v4.2 | Permission System, 4 categories, Thai complete |
-| v4.3 | Search fix, add_note fix, startup index rebuild |
+Claude จะเรียก `search_knowledge` → ได้ข้อมูลจากไฟล์ที่เกี่ยวข้อง → ตอบพร้อมอ้างอิง
 
 ---
 
-*Built with ❤️ by the Project KEY team*
+## 📂 โครงสร้างโปรเจกต์
+
+```
+Project KEY/
+├── index.html              # หน้าเว็บ (691 บรรทัด — 7 หน้า + i18n)
+├── app.js                  # โค้ดฝั่ง Frontend (1,980 บรรทัด)
+├── styles.css              # ธีมสีเข้ม + ระบบดีไซน์ (2,116 บรรทัด)
+├── .env                    # API key (ไม่รวมใน git)
+├── Dockerfile              # สำหรับ build Docker image (64 MB)
+├── fly.toml                # ตั้งค่า Fly.io
+│
+├── backend/                # FastAPI backend (17 โมดูล)
+│   ├── main.py             # 40+ API endpoints
+│   ├── mcp_tools.py        # 21 เครื่องมือ MCP + ระบบสิทธิ์
+│   ├── graph_builder.py    # สร้าง Knowledge Graph
+│   ├── retriever.py        # ระบบ RAG 7 ชั้น
+│   ├── vector_search.py    # ค้นหาแบบ TF-IDF
+│   ├── database.py         # ฐานข้อมูล 18 ตาราง
+│   ├── organizer.py        # AI จัดกลุ่ม + ให้คะแนน
+│   ├── relations.py        # ความเชื่อมโยง + แนะนำ
+│   ├── llm.py              # เรียก OpenRouter API
+│   └── config.py           # ตั้งค่าระบบ
+│
+├── docs/                   # เอกสาร
+│   ├── PROJECT_REPORT.md   # รายงานฉบับเต็ม (v0.1 → v4.3)
+│   └── prd/                # เอกสาร PRD v1-v4
+│
+└── tests/                  # ชุดทดสอบ
+    ├── e2e/                # ทดสอบ End-to-End + MCP
+    └── testsprite/         # ทดสอบอัตโนมัติ (29 กรณี)
+```
+
+---
+
+## 🛠️ เทคโนโลยี
+
+| ส่วน | เทคโนโลยี |
+|------|-----------|
+| Frontend | HTML + Vanilla JS + CSS + D3.js v7 |
+| Backend | Python FastAPI + Uvicorn |
+| ฐานข้อมูล | SQLite (18 ตาราง, async ผ่าน aiosqlite) |
+| ค้นหา | TF-IDF hybrid (สร้างใหม่อัตโนมัติตอนเริ่มระบบ) |
+| AI/LLM | OpenRouter → Google Gemini 2.5 Flash |
+| Deploy | Docker + Fly.io (ภูมิภาค Singapore) |
+| AI Integration | MCP Streamable HTTP (21 เครื่องมือ) |
+
+---
+
+## 🚀 Deploy ขึ้น Production
+
+### Fly.io
+
+```bash
+# ติดตั้ง flyctl (ครั้งแรก)
+# ดูวิธีที่: https://fly.io/docs/flyctl/install/
+
+# ตั้งค่า API key บน Fly
+flyctl secrets set OPENROUTER_API_KEY=your_api_key_here
+
+# Deploy
+flyctl deploy
+
+# เว็บไซต์: https://project-key.fly.dev/
+```
+
+### ข้อควรรู้
+- ข้อมูลเก็บใน **Persistent Volume** (`/app/data`) ไม่หายเมื่อ deploy ใหม่
+- เซิร์ฟเวอร์อยู่ที่ **Singapore** (ใกล้ไทย, latency ต่ำ)
+- ระบบ **auto-stop** เมื่อไม่มีคนใช้ → ประหยัดค่าใช้จ่าย
+- เข้าใช้งานครั้งแรกอาจใช้เวลา 3-5 วินาทีในการ startup
+
+---
+
+## 📋 ประวัติเวอร์ชัน
+
+| เวอร์ชัน | สิ่งที่เพิ่ม |
+|----------|------------|
+| v0.1 | อัปโหลด, จัดระเบียบ, AI แชท |
+| v2.0 | โปรไฟล์, Context Packs, ค้นหาแบบ Hybrid |
+| v3.0 | Knowledge Graph, สองภาษา, ปรับโครงสร้างโปรเจกต์ |
+| v4.0 | Deploy Fly.io, MCP 5 เครื่องมือ |
+| v4.1 | MCP 21 เครื่องมือ, ปรับปรุง UX จัดการข้อมูล |
+| v4.2 | ระบบสิทธิ์, แบ่ง 4 หมวด, แปลไทยครบ |
+| v4.3 | แก้บัคค้นหา, แก้บัคเพิ่มโน้ต, สร้าง index ตอน startup |
+
+---
+
+## ❓ แก้ปัญหาที่พบบ่อย
+
+### แชท AI ไม่ตอบ
+- ตรวจสอบ API key ในไฟล์ `.env` ว่ายังใช้ได้
+- ไปที่ [openrouter.ai](https://openrouter.ai/) → ดูว่า key ยังใช้งานได้
+
+### หน้าเว็บโหลดช้าตอน deploy
+- ครั้งแรกอาจใช้เวลา 3-5 วินาที (auto-start)
+- หลังจากนั้นจะเร็วปกติ
+
+### กราฟไม่แสดง
+- ต้อง **จัดระเบียบด้วย AI** ก่อน (กดปุ่มที่หน้าข้อมูลของฉัน)
+- แล้วกด **สร้างกราฟ** ที่หน้ากราฟ
+
+### อัปโหลดไฟล์ไม่ได้
+- ตรวจสอบขนาดไฟล์ (สูงสุด 10 MB)
+- รองรับเฉพาะ: `.pdf`, `.txt`, `.md`, `.docx`
+
+---
+
+*สร้างด้วย ❤️ โดยทีม Project KEY*
