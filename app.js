@@ -45,6 +45,65 @@ async function authFetch(url, options = {}) {
   return res;
 }
 
+// ═══════════════════════════════════════════
+// LOADING OVERLAY — v5.1 Premium animations
+// ═══════════════════════════════════════════
+
+let _loadingOverlayEl = null;
+let _loadingTimer = null;
+let _loadingStartTime = 0;
+
+function showLoadingOverlay(message = 'Loading...', type = 'default') {
+  _loadingStartTime = Date.now();
+  
+  // Remove existing
+  if (_loadingOverlayEl) _loadingOverlayEl.remove();
+  
+  const icons = {
+    upload: `<svg class="loading-icon upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`,
+    ai: `<div class="loading-icon ai-brain">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M12 2a7 7 0 017 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 01-2 2h-4a2 2 0 01-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 017-7z"/>
+        <line x1="9" y1="22" x2="15" y2="22"/><line x1="10" y1="2" x2="10" y2="7"/><line x1="14" y1="2" x2="14" y2="7"/>
+      </svg>
+    </div>`,
+    default: `<div class="loading-icon default-spinner"></div>`,
+  };
+
+  const overlay = document.createElement('div');
+  overlay.className = 'loading-overlay';
+  overlay.innerHTML = `
+    <div class="loading-overlay-card">
+      ${icons[type] || icons.default}
+      <div class="loading-message">${message.replace(/\\n/g, '<br>')}</div>
+      <div class="loading-progress-bar"><div class="loading-progress-fill"></div></div>
+      <div class="loading-elapsed">0s</div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  _loadingOverlayEl = overlay;
+
+  // Animate in
+  requestAnimationFrame(() => overlay.classList.add('visible'));
+
+  // Update elapsed time
+  _loadingTimer = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - _loadingStartTime) / 1000);
+    const elapsedEl = overlay.querySelector('.loading-elapsed');
+    if (elapsedEl) elapsedEl.textContent = `${elapsed}s`;
+  }, 1000);
+}
+
+function hideLoadingOverlay() {
+  if (_loadingTimer) { clearInterval(_loadingTimer); _loadingTimer = null; }
+  if (_loadingOverlayEl) {
+    _loadingOverlayEl.classList.add('fade-out');
+    setTimeout(() => { _loadingOverlayEl?.remove(); _loadingOverlayEl = null; }, 300);
+  }
+}
+
+// ═══════════════════════════════════════════
+
 function showLanding() {
   document.getElementById('landing-page').classList.remove('hidden');
   document.getElementById('app').classList.add('hidden');
@@ -701,6 +760,8 @@ function initUpload() {
 async function uploadFiles(fileList) {
   const form = new FormData();
   for (const f of fileList) form.append('files', f);
+  const count = fileList.length;
+  showLoadingOverlay(getLang() === 'th' ? `กำลังอัปโหลด ${count} ไฟล์...` : `Uploading ${count} file(s)...`, 'upload');
   try {
     const res = await authFetch('/api/upload', { method: 'POST', body: form });
     const data = await res.json();
@@ -708,6 +769,7 @@ async function uploadFiles(fileList) {
     loadFiles();
     loadStats();
   } catch (e) { showToast(t('toast.error'), 'error'); }
+  hideLoadingOverlay();
 }
 
 async function loadFiles() {
@@ -910,6 +972,7 @@ async function runOrganize() {
   const btn = document.getElementById('btn-organize');
   btn.disabled = true;
   btn.innerHTML = `<span class="loading-spinner"></span> ${getLang() === 'th' ? 'กำลังจัดระเบียบ...' : 'Organizing...'}`;
+  showLoadingOverlay(getLang() === 'th' ? '🤖 AI กำลังวิเคราะห์และจัดกลุ่มไฟล์...\nอาจใช้เวลา 30-60 วินาที' : '🤖 AI is analyzing and organizing files...\nThis may take 30-60 seconds', 'ai');
   try {
     const res = await authFetch('/api/organize', { method: 'POST' });
     const data = await res.json();
@@ -917,6 +980,7 @@ async function runOrganize() {
     loadFiles();
     loadStats();
   } catch (e) { showToast(t('toast.error'), 'error'); }
+  hideLoadingOverlay();
   btn.disabled = false;
   btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg> <span data-i18n="myData.organize">${t('myData.organize')}</span>`;
 }
@@ -925,12 +989,14 @@ async function runEnrich() {
   const btn = document.getElementById('btn-enrich');
   btn.disabled = true;
   btn.innerHTML = `<span class="loading-spinner"></span> ${getLang() === 'th' ? 'กำลัง Enrich...' : 'Enriching...'}`;
+  showLoadingOverlay(getLang() === 'th' ? '🏷️ AI กำลังเพิ่ม metadata ให้ไฟล์...' : '🏷️ AI is enriching file metadata...', 'ai');
   try {
     const res = await authFetch('/api/metadata/enrich', { method: 'POST' });
     const data = await res.json();
     showToast(`${t('toast.enriched')} ${data.enriched}/${data.total}`, 'success');
     loadFiles();
   } catch (e) { showToast(t('toast.error'), 'error'); }
+  hideLoadingOverlay();
   btn.disabled = false;
   btn.innerHTML = `<span data-i18n="myData.enrich">${t('myData.enrich')}</span>`;
 }
@@ -1233,12 +1299,14 @@ function initGraphControls() {
     const btn = document.getElementById('btn-rebuild-graph');
     btn.disabled = true;
     btn.innerHTML = `<span class="loading-spinner"></span> ${getLang() === 'th' ? 'กำลังสร้าง...' : 'Building...'}`;
+    showLoadingOverlay(getLang() === 'th' ? '🕸️ AI กำลังสร้าง Knowledge Graph...\nวิเคราะห์ความสัมพันธ์ระหว่างไฟล์' : '🕸️ AI is building Knowledge Graph...\nAnalyzing relationships between files', 'ai');
     try {
       await authFetch('/api/graph/build', { method: 'POST' });
       showToast(t('toast.graphBuilt'), 'success');
       loadGraph();
       loadStats();
     } catch (e) { showToast(t('toast.error'), 'error'); }
+    hideLoadingOverlay();
     btn.disabled = false;
     btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> <span data-i18n="graph.rebuild">${t('graph.rebuild')}</span>`;
   });
@@ -1360,7 +1428,7 @@ async function loadGraph() {
   }
 
   try {
-    const res = await fetch(url);
+    const res = await authFetch(url);
     const data = await res.json();
     state.graphData = { nodes: data.nodes || [], edges: data.edges || [] };
 
@@ -2338,7 +2406,7 @@ async function loadMCPLogs() {
   if (statusFilter) url += `&status=${statusFilter}`;
 
   try {
-    const res = await fetch(url);
+    const res = await authFetch(url);
     const data = await res.json();
     renderMCPLogs(data.logs || []);
   } catch (e) {
