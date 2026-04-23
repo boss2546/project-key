@@ -1,4 +1,4 @@
-"""Project KEY — FastAPI Backend (MVP v4 — PDB Connector Layer)"""
+"""Project KEY — FastAPI Backend (v5.0 — Multi-User + Auth)"""
 import os
 import json
 import logging
@@ -27,16 +27,17 @@ from .context_packs import list_packs, get_pack, create_pack, delete_pack, regen
 from .graph_builder import build_full_graph, get_graph_data, get_node_detail, get_neighborhood
 from .relations import get_backlinks, get_outgoing, get_suggestions, accept_suggestion, dismiss_suggestion, generate_suggestions
 from .metadata import enrich_file_metadata, enrich_all_files, get_file_metadata, update_file_metadata
-from .config import UPLOAD_DIR, BASE_DIR, MAX_FILE_SIZE_MB, MCP_SECRET
+from .config import UPLOAD_DIR, BASE_DIR, MAX_FILE_SIZE_MB, MCP_SECRET, ADMIN_PASSWORD
 from .mcp_tokens import generate_token, validate_token, list_tokens, revoke_token, get_active_token_count
 from .mcp_tools import call_tool, get_usage_logs, TOOL_REGISTRY
+from .auth import register_user, login_user, get_current_user, get_optional_user
 
 # Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # App
-app = FastAPI(title="Project KEY", version="0.4.0")
+app = FastAPI(title="Project KEY", version="5.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -46,35 +47,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Default user ID for MVP (single user)
-DEFAULT_USER_ID = "default-user"
-
 
 @app.on_event("startup")
 async def startup():
     await init_db()
-    # Create default user if not exists
+    # Rebuild TF-IDF search index from existing data (survives restart)
     async for db in get_db():
-        result = await db.execute(select(User).where(User.id == DEFAULT_USER_ID))
-        user = result.scalar_one_or_none()
-        if not user:
-            db.add(User(id=DEFAULT_USER_ID, name="Personal Workspace"))
-            await db.commit()
-
-        # Rebuild TF-IDF search index from existing data (survives restart)
         try:
             from . import vector_search
             files_res = await db.execute(
-                select(File).where(
-                    File.user_id == DEFAULT_USER_ID,
-                    File.processing_status == "ready"
-                )
+                select(File).where(File.processing_status == "ready")
             )
             ready_files = files_res.scalars().all()
             indexed = 0
             for f in ready_files:
                 if f.extracted_text:
-                    # Find cluster title for this file
                     cluster_title = ""
                     cm_res = await db.execute(
                         select(FileClusterMap).where(FileClusterMap.file_id == f.id)
@@ -98,8 +85,40 @@ async def startup():
                 logger.info(f"Startup: rebuilt search index for {indexed} files")
         except Exception as e:
             logger.warning(f"Startup: search index rebuild failed: {e}")
-
         break
+
+
+# ═══════════════════════════════════════════
+# AUTH APIs (v5.0 — new)
+# ═══════════════════════════════════════════
+
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    name: str = "User"
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+@app.post("/api/auth/register")
+async def api_register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
+    """Register a new user account."""
+    return await register_user(db, req.email, req.password, req.name)
+
+@app.post("/api/auth/login")
+async def api_login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
+    """Login with email and password."""
+    return await login_user(db, req.email, req.password)
+
+@app.get("/api/auth/me")
+async def api_me(current_user: User = Depends(get_current_user)):
+    """Get current authenticated user info."""
+    return {
+        "id": current_user.id,
+        "name": current_user.name,
+        "email": current_user.email,
+    }
 
 
 # ─── REQUEST MODELS ───
@@ -137,6 +156,7 @@ class MetadataUpdateRequest(BaseModel):
 async def upload_files(
     files: list[UploadFile],
     background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Upload one or more files, extract text, save to database."""
@@ -170,7 +190,7 @@ async def upload_files(
         # Save to DB
         db_file = File(
             id=file_id,
-            user_id=DEFAULT_USER_ID,
+            user_id=current_user.id,
             filename=upload_file.filename,
             filetype=ext,
             raw_path=raw_path,
@@ -194,16 +214,16 @@ async def upload_files(
 
 
 @app.post("/api/organize")
-async def organize(db: AsyncSession = Depends(get_db)):
+async def organize(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Run the organization pipeline on all uploaded files, then build graph."""
     try:
-        await organize_files(db, DEFAULT_USER_ID)
+        await organize_files(db, current_user.id)
 
         # v3: Auto-build knowledge graph after organizing
         logger.info("Auto-building knowledge graph...")
-        await enrich_all_files(db, DEFAULT_USER_ID)
-        graph_result = await build_full_graph(db, DEFAULT_USER_ID)
-        await generate_suggestions(db, DEFAULT_USER_ID)
+        await enrich_all_files(db, current_user.id)
+        graph_result = await build_full_graph(db, current_user.id)
+        await generate_suggestions(db, current_user.id)
         logger.info(f"Graph built: {graph_result}")
 
         return {"status": "ok", "message": "Organization + graph build complete", "graph": graph_result}
@@ -213,10 +233,10 @@ async def organize(db: AsyncSession = Depends(get_db)):
 
 
 @app.get("/api/files")
-async def list_files(db: AsyncSession = Depends(get_db)):
+async def list_files(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """List all files for the user."""
     result = await db.execute(
-        select(File).where(File.user_id == DEFAULT_USER_ID)
+        select(File).where(File.user_id == current_user.id)
         .options(selectinload(File.insight), selectinload(File.summary))
         .order_by(File.uploaded_at.desc())
     )
@@ -226,15 +246,15 @@ async def list_files(db: AsyncSession = Depends(get_db)):
 
 
 @app.get("/api/clusters")
-async def list_clusters(db: AsyncSession = Depends(get_db)):
+async def list_clusters(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """List all clusters with their files."""
     clusters_result = await db.execute(
-        select(Cluster).where(Cluster.user_id == DEFAULT_USER_ID)
+        select(Cluster).where(Cluster.user_id == current_user.id)
     )
     clusters = clusters_result.scalars().all()
 
     files_result = await db.execute(
-        select(File).where(File.user_id == DEFAULT_USER_ID)
+        select(File).where(File.user_id == current_user.id)
         .options(
             selectinload(File.insight),
             selectinload(File.summary),
@@ -245,7 +265,7 @@ async def list_clusters(db: AsyncSession = Depends(get_db)):
 
     # Get context packs for each cluster
     packs_result = await db.execute(
-        select(ContextPack).where(ContextPack.user_id == DEFAULT_USER_ID)
+        select(ContextPack).where(ContextPack.user_id == current_user.id)
     )
     all_packs = packs_result.scalars().all()
 
@@ -291,10 +311,10 @@ class ClusterUpdateRequest(BaseModel):
     summary: str | None = None
 
 @app.put("/api/clusters/{cluster_id}")
-async def update_cluster(cluster_id: str, req: ClusterUpdateRequest, db: AsyncSession = Depends(get_db)):
+async def update_cluster(cluster_id: str, req: ClusterUpdateRequest, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Update a cluster title or summary."""
     result = await db.execute(
-        select(Cluster).where(Cluster.id == cluster_id, Cluster.user_id == DEFAULT_USER_ID)
+        select(Cluster).where(Cluster.id == cluster_id, Cluster.user_id == current_user.id)
     )
     cluster = result.scalar_one_or_none()
     if not cluster:
@@ -308,10 +328,10 @@ async def update_cluster(cluster_id: str, req: ClusterUpdateRequest, db: AsyncSe
 
 
 @app.get("/api/summary/{file_id}")
-async def get_summary(file_id: str, db: AsyncSession = Depends(get_db)):
+async def get_summary(file_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Get the full markdown summary for a file."""
     result = await db.execute(
-        select(File).where(File.id == file_id, File.user_id == DEFAULT_USER_ID)
+        select(File).where(File.id == file_id, File.user_id == current_user.id)
         .options(selectinload(File.summary), selectinload(File.insight), selectinload(File.cluster_maps))
     )
     file = result.scalar_one_or_none()
@@ -348,10 +368,10 @@ async def get_summary(file_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @app.get("/api/files/{file_id}/content")
-async def get_file_content(file_id: str, db: AsyncSession = Depends(get_db)):
+async def get_file_content(file_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Get file extracted text content for preview."""
     result = await db.execute(
-        select(File).where(File.id == file_id, File.user_id == DEFAULT_USER_ID)
+        select(File).where(File.id == file_id, File.user_id == current_user.id)
     )
     file = result.scalar_one_or_none()
     if not file:
@@ -373,10 +393,10 @@ class SummaryUpdateRequest(BaseModel):
     suggested_usage: str | None = None
 
 @app.put("/api/summary/{file_id}")
-async def update_summary(file_id: str, req: SummaryUpdateRequest, db: AsyncSession = Depends(get_db)):
+async def update_summary(file_id: str, req: SummaryUpdateRequest, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Update the summary for a file."""
     result = await db.execute(
-        select(File).where(File.id == file_id, File.user_id == DEFAULT_USER_ID)
+        select(File).where(File.id == file_id, File.user_id == current_user.id)
         .options(selectinload(File.summary))
     )
     file = result.scalar_one_or_none()
@@ -401,10 +421,10 @@ async def update_summary(file_id: str, req: SummaryUpdateRequest, db: AsyncSessi
 
 
 @app.delete("/api/files/{file_id}")
-async def delete_file(file_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_file(file_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Delete a file and its related data."""
     result = await db.execute(
-        select(File).where(File.id == file_id, File.user_id == DEFAULT_USER_ID)
+        select(File).where(File.id == file_id, File.user_id == current_user.id)
     )
     file = result.scalar_one_or_none()
     if not file:
@@ -423,13 +443,13 @@ async def delete_file(file_id: str, db: AsyncSession = Depends(get_db)):
 # ═══════════════════════════════════════════
 
 @app.post("/api/chat")
-async def chat(req: ChatRequest, db: AsyncSession = Depends(get_db)):
+async def chat(req: ChatRequest, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """AI Chat with automatic context injection from all layers."""
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty")
 
     try:
-        result = await chat_with_retrieval(db, DEFAULT_USER_ID, req.question)
+        result = await chat_with_retrieval(db, current_user.id, req.question)
         return result
     except Exception as e:
         logger.error(f"Chat failed: {e}")
@@ -441,15 +461,15 @@ async def chat(req: ChatRequest, db: AsyncSession = Depends(get_db)):
 # ═══════════════════════════════════════════
 
 @app.get("/api/profile")
-async def api_get_profile(db: AsyncSession = Depends(get_db)):
+async def api_get_profile(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Get user profile."""
-    return await get_profile(db, DEFAULT_USER_ID)
+    return await get_profile(db, current_user.id)
 
 @app.put("/api/profile")
-async def api_update_profile(req: ProfileRequest, db: AsyncSession = Depends(get_db)):
+async def api_update_profile(req: ProfileRequest, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Create or update user profile."""
     data = req.model_dump(exclude_none=True)
-    return await update_profile(db, DEFAULT_USER_ID, data)
+    return await update_profile(db, current_user.id, data)
 
 
 # ═══════════════════════════════════════════
@@ -457,13 +477,13 @@ async def api_update_profile(req: ProfileRequest, db: AsyncSession = Depends(get
 # ═══════════════════════════════════════════
 
 @app.get("/api/context-packs")
-async def api_list_packs(db: AsyncSession = Depends(get_db)):
+async def api_list_packs(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """List all context packs."""
-    packs = await list_packs(db, DEFAULT_USER_ID)
+    packs = await list_packs(db, current_user.id)
     return {"packs": packs, "count": len(packs)}
 
 @app.post("/api/context-packs")
-async def api_create_pack(req: ContextPackRequest, db: AsyncSession = Depends(get_db)):
+async def api_create_pack(req: ContextPackRequest, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Create a new context pack from source files/clusters."""
     valid_types = {"profile", "study", "work", "project"}
     if req.type not in valid_types:
@@ -471,7 +491,7 @@ async def api_create_pack(req: ContextPackRequest, db: AsyncSession = Depends(ge
     if not req.source_file_ids and not req.source_cluster_ids:
         raise HTTPException(status_code=400, detail="Must provide source_file_ids or source_cluster_ids")
     try:
-        pack = await create_pack(db, DEFAULT_USER_ID, req.type, req.title, req.source_file_ids, req.source_cluster_ids)
+        pack = await create_pack(db, current_user.id, req.type, req.title, req.source_file_ids, req.source_cluster_ids)
         return pack
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -480,26 +500,26 @@ async def api_create_pack(req: ContextPackRequest, db: AsyncSession = Depends(ge
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/context-packs/{pack_id}")
-async def api_get_pack(pack_id: str, db: AsyncSession = Depends(get_db)):
+async def api_get_pack(pack_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Get a single context pack."""
-    pack = await get_pack(db, pack_id, DEFAULT_USER_ID)
+    pack = await get_pack(db, pack_id, current_user.id)
     if not pack:
         raise HTTPException(status_code=404, detail="Context pack not found")
     return pack
 
 @app.delete("/api/context-packs/{pack_id}")
-async def api_delete_pack(pack_id: str, db: AsyncSession = Depends(get_db)):
+async def api_delete_pack(pack_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Delete a context pack."""
-    deleted = await delete_pack(db, pack_id, DEFAULT_USER_ID)
+    deleted = await delete_pack(db, pack_id, current_user.id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Context pack not found")
     return {"status": "ok"}
 
 @app.post("/api/context-packs/{pack_id}/regenerate")
-async def api_regenerate_pack(pack_id: str, db: AsyncSession = Depends(get_db)):
+async def api_regenerate_pack(pack_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Regenerate a context pack from its original sources."""
     try:
-        pack = await regenerate_pack(db, pack_id, DEFAULT_USER_ID)
+        pack = await regenerate_pack(db, pack_id, current_user.id)
         if not pack:
             raise HTTPException(status_code=404, detail="Context pack not found")
         return pack
@@ -513,11 +533,11 @@ async def api_regenerate_pack(pack_id: str, db: AsyncSession = Depends(get_db)):
 # ═══════════════════════════════════════════
 
 @app.post("/api/graph/build")
-async def api_build_graph(db: AsyncSession = Depends(get_db)):
+async def api_build_graph(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Build/rebuild the knowledge graph from all data."""
     try:
-        result = await build_full_graph(db, DEFAULT_USER_ID)
-        await generate_suggestions(db, DEFAULT_USER_ID)
+        result = await build_full_graph(db, current_user.id)
+        await generate_suggestions(db, current_user.id)
         return {"status": "ok", **result}
     except Exception as e:
         logger.error(f"Graph build failed: {e}")
@@ -525,19 +545,20 @@ async def api_build_graph(db: AsyncSession = Depends(get_db)):
 
 
 @app.get("/api/graph/global")
-async def api_global_graph(db: AsyncSession = Depends(get_db)):
+async def api_global_graph(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Get full graph data for global graph visualization."""
-    data = await get_graph_data(db, DEFAULT_USER_ID)
+    data = await get_graph_data(db, current_user.id)
     return data
 
 
 @app.get("/api/graph/nodes")
 async def api_list_nodes(
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     family: str | None = None
 ):
     """List all graph nodes, optionally filtered by family."""
-    query = select(GraphNode).where(GraphNode.user_id == DEFAULT_USER_ID)
+    query = select(GraphNode).where(GraphNode.user_id == current_user.id)
     if family:
         query = query.where(GraphNode.node_family == family)
     nodes = (await db.execute(query)).scalars().all()
@@ -556,7 +577,7 @@ async def api_list_nodes(
 
 
 @app.get("/api/graph/nodes/{node_id}")
-async def api_get_node(node_id: str, db: AsyncSession = Depends(get_db)):
+async def api_get_node(node_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Get detailed info about a single graph node."""
     detail = await get_node_detail(db, node_id)
     if not detail:
@@ -568,20 +589,22 @@ async def api_get_node(node_id: str, db: AsyncSession = Depends(get_db)):
 async def api_neighborhood(
     node_id: str,
     depth: int = Query(1, ge=1, le=3),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Get N-hop neighborhood around a node for local graph."""
-    data = await get_neighborhood(db, node_id, depth, DEFAULT_USER_ID)
+    data = await get_neighborhood(db, node_id, depth, current_user.id)
     return data
 
 
 @app.get("/api/graph/edges")
 async def api_list_edges(
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     edge_type: str | None = None
 ):
     """List all graph edges, optionally filtered by type."""
-    query = select(GraphEdge).where(GraphEdge.user_id == DEFAULT_USER_ID)
+    query = select(GraphEdge).where(GraphEdge.user_id == current_user.id)
     if edge_type:
         query = query.where(GraphEdge.edge_type == edge_type)
     edges = (await db.execute(query)).scalars().all()
@@ -604,37 +627,37 @@ async def api_list_edges(
 # ═══════════════════════════════════════════
 
 @app.get("/api/relations/backlinks/{node_id}")
-async def api_backlinks(node_id: str, db: AsyncSession = Depends(get_db)):
+async def api_backlinks(node_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Get all backlinks (nodes pointing TO this node)."""
     return {"backlinks": await get_backlinks(db, node_id)}
 
 
 @app.get("/api/relations/outgoing/{node_id}")
-async def api_outgoing(node_id: str, db: AsyncSession = Depends(get_db)):
+async def api_outgoing(node_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Get all outgoing links (nodes FROM this node)."""
     return {"outgoing": await get_outgoing(db, node_id)}
 
 
 @app.get("/api/suggestions")
-async def api_suggestions(db: AsyncSession = Depends(get_db)):
+async def api_suggestions(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Get pending suggested relations."""
-    suggestions = await get_suggestions(db, DEFAULT_USER_ID)
+    suggestions = await get_suggestions(db, current_user.id)
     return {"suggestions": suggestions, "count": len(suggestions)}
 
 
 @app.post("/api/suggestions/{suggestion_id}/accept")
-async def api_accept_suggestion(suggestion_id: str, db: AsyncSession = Depends(get_db)):
+async def api_accept_suggestion(suggestion_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Accept a suggested relation — creates real edge."""
-    result = await accept_suggestion(db, suggestion_id, DEFAULT_USER_ID)
+    result = await accept_suggestion(db, suggestion_id, current_user.id)
     if not result:
         raise HTTPException(status_code=404, detail="Suggestion not found")
     return result
 
 
 @app.post("/api/suggestions/{suggestion_id}/dismiss")
-async def api_dismiss_suggestion(suggestion_id: str, db: AsyncSession = Depends(get_db)):
+async def api_dismiss_suggestion(suggestion_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Dismiss a suggested relation."""
-    result = await dismiss_suggestion(db, suggestion_id, DEFAULT_USER_ID)
+    result = await dismiss_suggestion(db, suggestion_id, current_user.id)
     if not result:
         raise HTTPException(status_code=404, detail="Suggestion not found")
     return result
@@ -645,7 +668,7 @@ async def api_dismiss_suggestion(suggestion_id: str, db: AsyncSession = Depends(
 # ═══════════════════════════════════════════
 
 @app.get("/api/metadata/{file_id}")
-async def api_get_metadata(file_id: str, db: AsyncSession = Depends(get_db)):
+async def api_get_metadata(file_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Get enriched metadata for a file."""
     meta = await get_file_metadata(db, file_id)
     if not meta:
@@ -654,7 +677,7 @@ async def api_get_metadata(file_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @app.put("/api/metadata/{file_id}")
-async def api_update_metadata(file_id: str, req: MetadataUpdateRequest, db: AsyncSession = Depends(get_db)):
+async def api_update_metadata(file_id: str, req: MetadataUpdateRequest, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Update file metadata manually."""
     updates = req.model_dump(exclude_none=True)
     result = await update_file_metadata(db, file_id, updates)
@@ -664,10 +687,10 @@ async def api_update_metadata(file_id: str, req: MetadataUpdateRequest, db: Asyn
 
 
 @app.post("/api/metadata/enrich")
-async def api_enrich_metadata(db: AsyncSession = Depends(get_db)):
+async def api_enrich_metadata(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Enrich metadata for all files using LLM."""
     try:
-        result = await enrich_all_files(db, DEFAULT_USER_ID)
+        result = await enrich_all_files(db, current_user.id)
         return result
     except Exception as e:
         logger.error(f"Metadata enrichment failed: {e}")
@@ -679,10 +702,10 @@ async def api_enrich_metadata(db: AsyncSession = Depends(get_db)):
 # ═══════════════════════════════════════════
 
 @app.get("/api/lenses")
-async def api_list_lenses(db: AsyncSession = Depends(get_db)):
+async def api_list_lenses(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """List saved graph lenses."""
     lenses = (await db.execute(
-        select(GraphLens).where(GraphLens.user_id == DEFAULT_USER_ID)
+        select(GraphLens).where(GraphLens.user_id == current_user.id)
     )).scalars().all()
     return {"lenses": [
         {"id": l.id, "name": l.name, "type": l.type,
@@ -697,35 +720,35 @@ async def api_list_lenses(db: AsyncSession = Depends(get_db)):
 # ═══════════════════════════════════════════
 
 @app.get("/api/stats")
-async def get_stats(db: AsyncSession = Depends(get_db)):
+async def get_stats(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Get storage/processing stats including v3 graph data and v4 MCP data."""
-    files_result = await db.execute(select(File).where(File.user_id == DEFAULT_USER_ID))
+    files_result = await db.execute(select(File).where(File.user_id == current_user.id))
     files = files_result.scalars().all()
 
-    clusters_result = await db.execute(select(Cluster).where(Cluster.user_id == DEFAULT_USER_ID))
+    clusters_result = await db.execute(select(Cluster).where(Cluster.user_id == current_user.id))
     clusters = clusters_result.scalars().all()
 
-    packs_result = await db.execute(select(ContextPack).where(ContextPack.user_id == DEFAULT_USER_ID))
+    packs_result = await db.execute(select(ContextPack).where(ContextPack.user_id == current_user.id))
     packs = packs_result.scalars().all()
 
-    nodes_result = await db.execute(select(GraphNode).where(GraphNode.user_id == DEFAULT_USER_ID))
+    nodes_result = await db.execute(select(GraphNode).where(GraphNode.user_id == current_user.id))
     nodes = nodes_result.scalars().all()
 
-    edges_result = await db.execute(select(GraphEdge).where(GraphEdge.user_id == DEFAULT_USER_ID))
+    edges_result = await db.execute(select(GraphEdge).where(GraphEdge.user_id == current_user.id))
     edges = edges_result.scalars().all()
 
     suggestions_result = await db.execute(
         select(SuggestedRelation).where(
-            SuggestedRelation.user_id == DEFAULT_USER_ID,
+            SuggestedRelation.user_id == current_user.id,
             SuggestedRelation.status == "pending"
         )
     )
     suggestions = suggestions_result.scalars().all()
 
-    profile = await get_profile(db, DEFAULT_USER_ID)
+    profile = await get_profile(db, current_user.id)
 
     # v4 — MCP stats
-    active_tokens = await get_active_token_count(db, DEFAULT_USER_ID)
+    active_tokens = await get_active_token_count(db, current_user.id)
 
     return {
         "total_files": len(files),
@@ -746,28 +769,28 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
 
 
 @app.delete("/api/reset")
-async def reset_all(db: AsyncSession = Depends(get_db)):
+async def reset_all(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Delete all data for the user (for testing)."""
     from sqlalchemy import delete as sql_delete
 
     # Clear graph data first (FK dependencies)
-    await db.execute(sql_delete(SuggestedRelation).where(SuggestedRelation.user_id == DEFAULT_USER_ID))
-    await db.execute(sql_delete(GraphEdge).where(GraphEdge.user_id == DEFAULT_USER_ID))
-    await db.execute(sql_delete(GraphNode).where(GraphNode.user_id == DEFAULT_USER_ID))
-    await db.execute(sql_delete(NoteObject).where(NoteObject.user_id == DEFAULT_USER_ID))
-    await db.execute(sql_delete(GraphLens).where(GraphLens.user_id == DEFAULT_USER_ID))
+    await db.execute(sql_delete(SuggestedRelation).where(SuggestedRelation.user_id == current_user.id))
+    await db.execute(sql_delete(GraphEdge).where(GraphEdge.user_id == current_user.id))
+    await db.execute(sql_delete(GraphNode).where(GraphNode.user_id == current_user.id))
+    await db.execute(sql_delete(NoteObject).where(NoteObject.user_id == current_user.id))
+    await db.execute(sql_delete(GraphLens).where(GraphLens.user_id == current_user.id))
 
-    files_result = await db.execute(select(File).where(File.user_id == DEFAULT_USER_ID))
+    files_result = await db.execute(select(File).where(File.user_id == current_user.id))
     for f in files_result.scalars().all():
         if f.raw_path and os.path.exists(f.raw_path):
             os.remove(f.raw_path)
         await db.delete(f)
 
-    clusters_result = await db.execute(select(Cluster).where(Cluster.user_id == DEFAULT_USER_ID))
+    clusters_result = await db.execute(select(Cluster).where(Cluster.user_id == current_user.id))
     for c in clusters_result.scalars().all():
         await db.delete(c)
 
-    packs_result = await db.execute(select(ContextPack).where(ContextPack.user_id == DEFAULT_USER_ID))
+    packs_result = await db.execute(select(ContextPack).where(ContextPack.user_id == current_user.id))
     for p in packs_result.scalars().all():
         if p.md_path and os.path.exists(p.md_path):
             os.remove(p.md_path)
@@ -810,24 +833,25 @@ async def api_mcp_info(request: Request):
 @app.post("/api/mcp/tokens")
 async def api_generate_token(
     req: MCPTokenRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Generate a new MCP Bearer token."""
-    result = await generate_token(db, DEFAULT_USER_ID, req.label)
+    result = await generate_token(db, current_user.id, req.label)
     return result
 
 
 @app.get("/api/mcp/tokens")
-async def api_list_tokens(db: AsyncSession = Depends(get_db)):
+async def api_list_tokens(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """List all MCP tokens."""
-    tokens = await list_tokens(db, DEFAULT_USER_ID)
+    tokens = await list_tokens(db, current_user.id)
     return {"tokens": tokens, "count": len(tokens)}
 
 
 @app.delete("/api/mcp/tokens/{token_id}")
-async def api_revoke_token(token_id: str, db: AsyncSession = Depends(get_db)):
+async def api_revoke_token(token_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Revoke an MCP token."""
-    revoked = await revoke_token(db, token_id, DEFAULT_USER_ID)
+    revoked = await revoke_token(db, token_id, current_user.id)
     if not revoked:
         raise HTTPException(status_code=404, detail="Token not found")
     return {"status": "ok", "message": "Token revoked"}
@@ -890,10 +914,11 @@ async def api_mcp_logs(
     tool: str | None = None,
     status: str | None = None,
     limit: int = Query(50, ge=1, le=200),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get MCP usage logs."""
-    logs = await get_usage_logs(db, DEFAULT_USER_ID, tool, status, limit)
+    logs = await get_usage_logs(db, current_user.id, tool, status, limit)
     return {"logs": logs, "count": len(logs)}
 
 
@@ -903,12 +928,12 @@ async def api_mcp_logs(
 MCP_PERMISSIONS: dict = {}  # tool_name -> bool
 
 @app.get("/api/mcp/permissions")
-async def api_get_permissions():
+async def api_get_permissions(current_user: User = Depends(get_current_user)):
     """Get current tool permissions."""
     return {"permissions": MCP_PERMISSIONS}
 
 @app.put("/api/mcp/permissions")
-async def api_set_permissions(request: Request):
+async def api_set_permissions(request: Request, current_user: User = Depends(get_current_user)):
     """Set tool permissions (enable/disable individual tools)."""
     body = await request.json()
     perms = body.get("permissions", {})
@@ -1041,7 +1066,6 @@ async def mcp_streamable_http(secret: str, request: Request, db: AsyncSession = 
 
         # Check if tool is disabled by permissions
         # Admin key (password) can bypass disabled tools
-        from .mcp_tools import ADMIN_PASSWORD
         if MCP_PERMISSIONS.get(tool_name) is False:
             if arguments.get("admin_key") != ADMIN_PASSWORD:
                 return JSONResponse({
@@ -1053,8 +1077,13 @@ async def mcp_streamable_http(secret: str, request: Request, db: AsyncSession = 
                     },
                 })
 
+        # Resolve user — MCP uses secret-key auth, find the token owner
+        mcp_user_result = await db.execute(select(User).where(User.is_active == True).limit(1))
+        mcp_user = mcp_user_result.scalar_one_or_none()
+        mcp_user_id = mcp_user.id if mcp_user else "unknown"
+
         # Call the tool using our existing dispatcher
-        tool_result = await call_tool(db, DEFAULT_USER_ID, "mcp-connector", tool_name, arguments)
+        tool_result = await call_tool(db, mcp_user_id, "mcp-connector", tool_name, arguments)
 
         # Format result as MCP content
         if tool_result["status"] == "success":

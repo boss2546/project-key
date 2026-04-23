@@ -28,6 +28,25 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(CONTEXT_PACKS_DIR, exist_ok=True)
 os.makedirs(SUMMARIES_DIR, exist_ok=True)
 
+# ─── JWT Authentication (v5.0) ───
+def _generate_jwt_secret() -> str:
+    """Generate and persist a JWT secret key."""
+    jwt_file = os.path.join(DATA_DIR, ".jwt_secret")
+    if os.path.exists(jwt_file):
+        with open(jwt_file, "r") as f:
+            return f.read().strip()
+    secret = secrets.token_urlsafe(64)
+    with open(jwt_file, "w") as f:
+        f.write(secret)
+    return secret
+
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", _generate_jwt_secret())
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))  # 24 hours default
+
+# ─── Admin Password (from env, no longer hardcoded) ───
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "1234")
+
 # MCP Secret — persists across restarts
 _MCP_SECRET_FILE = os.path.join(DATA_DIR, ".mcp_secret")
 

@@ -18,9 +18,7 @@ from .database import (
 from .profile import get_profile, update_profile
 from .context_packs import list_packs, get_pack, create_pack, delete_pack
 from . import vector_search
-
-# Admin password — pass this to unlock all tools
-ADMIN_PASSWORD = "1234"
+from .config import ADMIN_PASSWORD
 
 logger = logging.getLogger(__name__)
 

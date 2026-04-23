@@ -18,7 +18,10 @@ def gen_id():
 class User(Base):
     __tablename__ = "users"
     id = Column(String, primary_key=True, default=gen_id)
-    name = Column(String, default="Personal Workspace")
+    name = Column(String, default="User")
+    email = Column(String, unique=True, nullable=True)         # v5.0 — nullable for legacy default-user
+    password_hash = Column(String, nullable=True)               # v5.0 — nullable for legacy
+    is_active = Column(Boolean, default=True)                   # v5.0
     created_at = Column(DateTime, default=datetime.utcnow)
     files = relationship("File", back_populates="owner")
     profile = relationship("UserProfile", uselist=False, back_populates="user", cascade="all, delete-orphan")

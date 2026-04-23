@@ -1,6 +1,6 @@
 /**
- * Project KEY v4 — Frontend Logic
- * Knowledge Workspace + PDB Connector Layer
+ * Project KEY v5.0 — Frontend Logic
+ * Multi-User Knowledge Workspace + PDB Connector Layer
  */
 
 // ═══════════════════════════════════════════
@@ -21,7 +21,175 @@ const state = {
   // v4 — MCP state
   mcpInfo: null,
   mcpLastToken: null,
+  // v5.0 — Auth state
+  authToken: localStorage.getItem('projectkey_token') || null,
+  currentUser: JSON.parse(localStorage.getItem('projectkey_user') || 'null'),
 };
+
+// ═══════════════════════════════════════════
+// AUTH — v5.0
+// ═══════════════════════════════════════════
+
+/** Wrapper for fetch() that adds JWT auth header */
+async function authFetch(url, options = {}) {
+  if (!options.headers) options.headers = {};
+  if (state.authToken) {
+    options.headers['Authorization'] = `Bearer ${state.authToken}`;
+  }
+  const res = await fetch(url, options);
+  if (res.status === 401) {
+    // Token expired or invalid — logout
+    doLogout();
+    throw new Error('Session expired');
+  }
+  return res;
+}
+
+function showLanding() {
+  document.getElementById('landing-page').classList.remove('hidden');
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('auth-modal').classList.add('hidden');
+}
+
+function showApp() {
+  document.getElementById('landing-page').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  // Update sidebar user info
+  const emailEl = document.getElementById('sidebar-user-email');
+  if (emailEl && state.currentUser) {
+    emailEl.textContent = state.currentUser.email || '';
+  }
+}
+
+function showAuthModal(mode) {
+  document.getElementById('auth-modal').classList.remove('hidden');
+  if (mode === 'register') {
+    document.getElementById('login-form').classList.add('hidden');
+    document.getElementById('register-form').classList.remove('hidden');
+    document.getElementById('auth-modal-title').textContent = 'สมัครสมาชิก';
+  } else {
+    document.getElementById('login-form').classList.remove('hidden');
+    document.getElementById('register-form').classList.add('hidden');
+    document.getElementById('auth-modal-title').textContent = 'เข้าสู่ระบบ';
+  }
+  // Clear errors
+  document.getElementById('login-error').classList.add('hidden');
+  document.getElementById('register-error').classList.add('hidden');
+}
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errorEl = document.getElementById('login-error');
+  errorEl.classList.add('hidden');
+
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errorEl.textContent = data.detail || 'Login failed';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+    // Save auth
+    state.authToken = data.token;
+    state.currentUser = data.user;
+    localStorage.setItem('projectkey_token', data.token);
+    localStorage.setItem('projectkey_user', JSON.stringify(data.user));
+    document.getElementById('auth-modal').classList.add('hidden');
+    showApp();
+    initAppData();
+  } catch (e) {
+    errorEl.textContent = 'Connection error';
+    errorEl.classList.remove('hidden');
+  }
+}
+
+async function doRegister() {
+  const name = document.getElementById('register-name').value.trim();
+  const email = document.getElementById('register-email').value.trim();
+  const password = document.getElementById('register-password').value;
+  const errorEl = document.getElementById('register-error');
+  errorEl.classList.add('hidden');
+
+  try {
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, name }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errorEl.textContent = data.detail || 'Registration failed';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+    // Save auth
+    state.authToken = data.token;
+    state.currentUser = data.user;
+    localStorage.setItem('projectkey_token', data.token);
+    localStorage.setItem('projectkey_user', JSON.stringify(data.user));
+    document.getElementById('auth-modal').classList.add('hidden');
+    showApp();
+    initAppData();
+  } catch (e) {
+    errorEl.textContent = 'Connection error';
+    errorEl.classList.remove('hidden');
+  }
+}
+
+function doLogout() {
+  state.authToken = null;
+  state.currentUser = null;
+  localStorage.removeItem('projectkey_token');
+  localStorage.removeItem('projectkey_user');
+  showLanding();
+}
+
+function initAuth() {
+  // Landing page buttons
+  document.getElementById('btn-show-login')?.addEventListener('click', () => showAuthModal('login'));
+  document.getElementById('btn-show-register')?.addEventListener('click', () => showAuthModal('register'));
+  document.getElementById('btn-hero-register')?.addEventListener('click', () => showAuthModal('register'));
+
+  // Auth modal
+  document.getElementById('auth-modal-close')?.addEventListener('click', () => {
+    document.getElementById('auth-modal').classList.add('hidden');
+  });
+  document.getElementById('switch-to-register')?.addEventListener('click', (e) => { e.preventDefault(); showAuthModal('register'); });
+  document.getElementById('switch-to-login')?.addEventListener('click', (e) => { e.preventDefault(); showAuthModal('login'); });
+  document.getElementById('btn-login')?.addEventListener('click', doLogin);
+  document.getElementById('btn-register')?.addEventListener('click', doRegister);
+
+  // Enter key for login/register
+  document.getElementById('login-password')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+  document.getElementById('register-password')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') doRegister(); });
+
+  // Logout
+  document.getElementById('btn-logout')?.addEventListener('click', doLogout);
+
+  // Check if already logged in
+  if (state.authToken && state.currentUser) {
+    // Verify token is still valid
+    fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${state.authToken}` } })
+      .then(r => {
+        if (r.ok) { showApp(); initAppData(); }
+        else { doLogout(); }
+      })
+      .catch(() => doLogout());
+  } else {
+    showLanding();
+  }
+}
+
+function initAppData() {
+  loadStats();
+  loadFiles();
+}
 
 // Node family color map
 const NODE_COLORS = {
@@ -443,10 +611,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const newLang = getLang() === 'th' ? 'en' : 'th';
     applyLanguage(newLang);
     // Re-render dynamic content with new language
-    loadFiles();
-    if (state.mcpInfo) renderMCPTools(state.mcpInfo.available_tools || []);
+    if (state.authToken) {
+      loadFiles();
+      if (state.mcpInfo) renderMCPTools(state.mcpInfo.available_tools || []);
+    }
   });
 
+  // Init all UI handlers (these don't need auth)
   initNavigation();
   initUpload();
   initProfile();
@@ -454,8 +625,9 @@ document.addEventListener('DOMContentLoaded', () => {
   initGraphControls();
   initKnowledgeTabs();
   initMCP();
-  loadStats();
-  loadFiles();
+
+  // Auth system — decides whether to show landing or app
+  initAuth();
 });
 
 // ═══════════════════════════════════════════
@@ -490,7 +662,7 @@ function switchPage(page) {
 // ═══════════════════════════════════════════
 async function loadStats() {
   try {
-    const res = await fetch('/api/stats');
+    const res = await authFetch('/api/stats');
     const data = await res.json();
     document.getElementById('stat-files').textContent = data.total_files;
     document.getElementById('stat-clusters').textContent = data.total_clusters;
@@ -528,7 +700,7 @@ async function uploadFiles(fileList) {
   const form = new FormData();
   for (const f of fileList) form.append('files', f);
   try {
-    const res = await fetch('/api/upload', { method: 'POST', body: form });
+    const res = await authFetch('/api/upload', { method: 'POST', body: form });
     const data = await res.json();
     showToast(`${t('toast.uploaded')} ${data.count} ${t('stat.files').toLowerCase()}`, 'success');
     loadFiles();
@@ -538,7 +710,7 @@ async function uploadFiles(fileList) {
 
 async function loadFiles() {
   try {
-    const res = await fetch('/api/files');
+    const res = await authFetch('/api/files');
     const data = await res.json();
     renderFileList(data.files);
     document.getElementById('file-count-badge').textContent = data.files.length;
@@ -577,7 +749,7 @@ function renderFileList(files) {
 async function deleteFile(id) {
   if (!await showConfirm(getLang() === 'th' ? 'ต้องการลบไฟล์นี้?' : 'Delete this file?')) return;
   try {
-    await fetch(`/api/files/${id}`, { method: 'DELETE' });
+    await authFetch(`/api/files/${id}`, { method: 'DELETE' });
     showToast(t('toast.deleted'), 'success');
     closeFileDetail();
     loadFiles();
@@ -619,7 +791,7 @@ async function openFileDetail(fileId) {
 
   try {
     // Fetch summary data
-    const res = await fetch(`/api/summary/${fileId}`);
+    const res = await authFetch(`/api/summary/${fileId}`);
     if (res.ok) {
       const d = await res.json();
       document.getElementById('fd-icon').textContent = d.filetype?.toUpperCase() || '?';
@@ -638,7 +810,7 @@ async function openFileDetail(fileId) {
     }
 
     // Fetch file content for preview
-    const contentRes = await fetch(`/api/files/${fileId}/content`);
+    const contentRes = await authFetch(`/api/files/${fileId}/content`);
     if (contentRes.ok) {
       const c = await contentRes.json();
       if (!document.getElementById('fd-filename').textContent || document.getElementById('fd-filename').textContent === 'Loading...') {
@@ -710,7 +882,7 @@ async function saveSummaryEdit() {
   saveBtn.textContent = '...';
 
   try {
-    const res = await fetch(`/api/summary/${_currentFileId}`, {
+    const res = await authFetch(`/api/summary/${_currentFileId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -737,7 +909,7 @@ async function runOrganize() {
   btn.disabled = true;
   btn.innerHTML = `<span class="loading-spinner"></span> ${getLang() === 'th' ? 'กำลังจัดระเบียบ...' : 'Organizing...'}`;
   try {
-    const res = await fetch('/api/organize', { method: 'POST' });
+    const res = await authFetch('/api/organize', { method: 'POST' });
     const data = await res.json();
     showToast(`${t('toast.organized')} (${data.graph?.nodes || 0} nodes, ${data.graph?.edges || 0} edges)`, 'success');
     loadFiles();
@@ -752,7 +924,7 @@ async function runEnrich() {
   btn.disabled = true;
   btn.innerHTML = `<span class="loading-spinner"></span> ${getLang() === 'th' ? 'กำลัง Enrich...' : 'Enriching...'}`;
   try {
-    const res = await fetch('/api/metadata/enrich', { method: 'POST' });
+    const res = await authFetch('/api/metadata/enrich', { method: 'POST' });
     const data = await res.json();
     showToast(`${t('toast.enriched')} ${data.enriched}/${data.total}`, 'success');
     loadFiles();
@@ -779,7 +951,7 @@ async function loadKnowledge() {
   const container = document.getElementById('knowledge-content');
   if (state.knowledgeTab === 'collections') {
     try {
-      const res = await fetch('/api/clusters');
+      const res = await authFetch('/api/clusters');
       const data = await res.json();
       if (!data.clusters.length) {
         container.innerHTML = `<div class="empty-state"><p>${t('knowledge.emptyCollections')}</p></div>`;
@@ -799,7 +971,7 @@ async function loadKnowledge() {
     } catch (e) { container.innerHTML = `<div class="empty-state"><p>${t('knowledge.loadFailed')}</p></div>`; }
   } else if (state.knowledgeTab === 'packs') {
     try {
-      const res = await fetch('/api/context-packs');
+      const res = await authFetch('/api/context-packs');
       const data = await res.json();
       const createBtnLabel = getLang() === 'th' ? '+ สร้าง Pack' : '+ Create Pack';
       const emptyMsg = getLang() === 'th' ? 'ยังไม่มี Context Pack — สร้างเพื่อจัดกลุ่มข้อมูลให้ AI' : 'No context packs yet — create one to bundle data for AI';
@@ -832,7 +1004,7 @@ async function loadKnowledge() {
     } catch (e) { container.innerHTML = `<div class="empty-state"><p>${t('knowledge.loadFailed')}</p></div>`; }
   } else if (state.knowledgeTab === 'notes') {
     try {
-      const res = await fetch('/api/graph/nodes?family=entity');
+      const res = await authFetch('/api/graph/nodes?family=entity');
       const data = await res.json();
       if (!data.nodes.length) {
         container.innerHTML = `<div class="empty-state"><p>${t('knowledge.emptyNotes')}</p></div>`;
@@ -906,7 +1078,7 @@ function editCluster(clusterId, currentTitle, currentSummary) {
 
 async function saveCluster(clusterId, newTitle, newSummary) {
   try {
-    const res = await fetch(`/api/clusters/${clusterId}`, {
+    const res = await authFetch(`/api/clusters/${clusterId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: newTitle.trim(), summary: newSummary.trim() })
@@ -931,7 +1103,7 @@ async function openCreatePackModal() {
 
   // Load files for selection
   try {
-    const res = await fetch('/api/files');
+    const res = await authFetch('/api/files');
     const data = await res.json();
     const fileList = document.getElementById('pack-file-list');
     if (!data.files.length) {
@@ -974,7 +1146,7 @@ async function submitCreatePack() {
   btn.textContent = getLang() === 'th' ? 'กำลังสร้าง...' : 'Creating...';
 
   try {
-    const res = await fetch('/api/context-packs', {
+    const res = await authFetch('/api/context-packs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, type, source_file_ids: fileIds, source_cluster_ids: [] })
@@ -997,7 +1169,7 @@ async function submitCreatePack() {
 async function deletePack(packId) {
   if (!await showConfirm(getLang() === 'th' ? 'ลบ Context Pack นี้?' : 'Delete this context pack?')) return;
   try {
-    await fetch(`/api/context-packs/${packId}`, { method: 'DELETE' });
+    await authFetch(`/api/context-packs/${packId}`, { method: 'DELETE' });
     showToast(getLang() === 'th' ? 'ลบ Pack แล้ว' : 'Pack deleted', 'success');
     loadKnowledge();
     loadStats();
@@ -1007,7 +1179,7 @@ async function deletePack(packId) {
 async function regeneratePack(packId) {
   try {
     showToast(getLang() === 'th' ? 'กำลัง regenerate...' : 'Regenerating...', 'info');
-    const res = await fetch(`/api/context-packs/${packId}/regenerate`, { method: 'POST' });
+    const res = await authFetch(`/api/context-packs/${packId}/regenerate`, { method: 'POST' });
     if (res.ok) {
       showToast(getLang() === 'th' ? 'Regenerate สำเร็จ!' : 'Pack regenerated!', 'success');
       loadKnowledge();
@@ -1060,7 +1232,7 @@ function initGraphControls() {
     btn.disabled = true;
     btn.innerHTML = `<span class="loading-spinner"></span> ${getLang() === 'th' ? 'กำลังสร้าง...' : 'Building...'}`;
     try {
-      await fetch('/api/graph/build', { method: 'POST' });
+      await authFetch('/api/graph/build', { method: 'POST' });
       showToast(t('toast.graphBuilt'), 'success');
       loadGraph();
       loadStats();
@@ -1467,7 +1639,7 @@ async function selectNode(d) {
 
   // Fetch detail
   try {
-    const res = await fetch(`/api/graph/nodes/${d.id}`);
+    const res = await authFetch(`/api/graph/nodes/${d.id}`);
     const detail = await res.json();
 
     document.getElementById('detail-summary').textContent = detail.summary || t('detail.noSummary');
@@ -1528,7 +1700,7 @@ async function sendMessage() {
   const loadingId = addMessage(`<span class="loading-spinner"></span> ${getLang() === 'th' ? 'กำลังคิด...' : 'Thinking...'}`, 'assistant', true);
 
   try {
-    const res = await fetch('/api/chat', {
+    const res = await authFetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ question }),
@@ -1690,7 +1862,7 @@ function initProfile() {
 
 async function loadProfile() {
   try {
-    const res = await fetch('/api/profile');
+    const res = await authFetch('/api/profile');
     const p = await res.json();
     document.getElementById('profile-identity').value = p.identity_summary || '';
     document.getElementById('profile-goals').value = p.goals || '';
@@ -1715,7 +1887,7 @@ async function saveProfile() {
     background_context: document.getElementById('profile-background').value,
   };
   try {
-    await fetch('/api/profile', {
+    await authFetch('/api/profile', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -1816,7 +1988,7 @@ function initMCP() {
 async function loadMCPSetup() {
   try {
     // Load MCP info
-    const res = await fetch('/api/mcp/info');
+    const res = await authFetch('/api/mcp/info');
     const info = await res.json();
     state.mcpInfo = info;
 
@@ -1841,7 +2013,7 @@ async function loadMCPSetup() {
     if (countEl) countEl.textContent = tools.length;
 
     // Check token status
-    const tokRes = await fetch('/api/mcp/tokens');
+    const tokRes = await authFetch('/api/mcp/tokens');
     const tokData = await tokRes.json();
     const activeTokens = (tokData.tokens || []).filter(t => t.is_active);
 
@@ -1944,7 +2116,7 @@ function toggleToolPermission(toolName, enabled) {
   localStorage.setItem('mcp_tool_permissions', JSON.stringify(perms));
 
   // Save to backend
-  fetch('/api/mcp/permissions', {
+  authFetch('/api/mcp/permissions', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ permissions: perms }),
@@ -1969,7 +2141,7 @@ async function generateMCPToken() {
   btn.innerHTML = `<span class="loading-spinner"></span> ${getLang() === 'th' ? 'กำลังสร้าง...' : 'Generating...'}`;
 
   try {
-    const res = await fetch('/api/mcp/tokens', {
+    const res = await authFetch('/api/mcp/tokens', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ label }),
@@ -2030,7 +2202,7 @@ async function testMCPConnection() {
   btn.innerHTML = `<span class="loading-spinner"></span> ${getLang() === 'th' ? 'ทดสอบ...' : 'Testing...'}`;
 
   try {
-    const res = await fetch('/api/mcp/test', {
+    const res = await authFetch('/api/mcp/test', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}` },
     });
@@ -2077,7 +2249,7 @@ function copyToClipboard(text) {
 
 async function loadTokens() {
   try {
-    const res = await fetch('/api/mcp/tokens');
+    const res = await authFetch('/api/mcp/tokens');
     const data = await res.json();
     renderTokenList(data.tokens || []);
   } catch (e) {
@@ -2143,7 +2315,7 @@ async function revokeTokenAction(tokenId) {
   if (!await showConfirm(t('tokens.confirmRevoke'))) return;
 
   try {
-    await fetch(`/api/mcp/tokens/${tokenId}`, { method: 'DELETE' });
+    await authFetch(`/api/mcp/tokens/${tokenId}`, { method: 'DELETE' });
     showToast(t('toast.tokenRevoked'), 'success');
     loadTokens();
     loadStats();
