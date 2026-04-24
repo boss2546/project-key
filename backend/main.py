@@ -838,18 +838,18 @@ class MCPToolCallRequest(BaseModel):
 
 
 @app.get("/api/mcp/info")
-async def api_mcp_info(request: Request):
-    """Get MCP server info and available tools."""
+async def api_mcp_info(request: Request, current_user: User = Depends(get_current_user)):
+    """Get MCP server info and available tools — per-user URL."""
     base_url = str(request.base_url).rstrip('/')
     # Fly.io reverse proxy sends X-Forwarded-Proto
     if request.headers.get("x-forwarded-proto") == "https":
         base_url = base_url.replace("http://", "https://", 1)
     return {
         "mcp_server_url": f"{base_url}/api/mcp/tools/call",
-        "mcp_connector_url": f"{base_url}/mcp/{MCP_SECRET}",
+        "mcp_connector_url": f"{base_url}/mcp/{current_user.mcp_secret}",
         "auth_type": "bearer",
         "scope": "read+write",
-        "version": "v4.1",
+        "version": "v5.1",
         "available_tools": list(TOOL_REGISTRY.values()),
         "tool_count": len(TOOL_REGISTRY),
     }
