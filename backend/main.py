@@ -464,6 +464,70 @@ async def download_file(file_id: str, current_user: User = Depends(get_current_u
     )
 
 
+# ─── SIGNED TEMPORARY LINKS (for MCP / AI access) ───
+
+from .shared_links import generate_share_token, get_share_link, build_share_url
+
+
+@app.post("/api/files/{file_id}/share")
+async def create_share_link(file_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Create a temporary public link for a file (30 min expiry).
+    
+    Use this to generate a URL that AI clients can access without authentication.
+    """
+    result = await db.execute(
+        select(File).where(File.id == file_id, File.user_id == current_user.id)
+    )
+    file = result.scalar_one_or_none()
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    if not file.raw_path or not os.path.exists(file.raw_path):
+        raise HTTPException(status_code=404, detail="Original file not available")
+    
+    token = generate_share_token(file.id, current_user.id, file.filename)
+    url = build_share_url(token)
+    
+    return {
+        "url": url,
+        "token": token,
+        "filename": file.filename,
+        "expires_in": "30 minutes",
+    }
+
+
+@app.get("/api/shared/{token}")
+async def download_shared_file(token: str, db: AsyncSession = Depends(get_db)):
+    """Download a file via temporary shared link — NO authentication required.
+    
+    AI clients (ChatGPT, Claude) can access this URL directly.
+    """
+    link = get_share_link(token)
+    if not link:
+        raise HTTPException(status_code=404, detail="Link not found or expired")
+    
+    result = await db.execute(
+        select(File).where(File.id == link["file_id"], File.user_id == link["user_id"])
+    )
+    file = result.scalar_one_or_none()
+    if not file or not file.raw_path or not os.path.exists(file.raw_path):
+        raise HTTPException(status_code=404, detail="File no longer available")
+    
+    media_types = {
+        "pdf": "application/pdf",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "txt": "text/plain; charset=utf-8",
+        "md": "text/markdown; charset=utf-8",
+    }
+    media_type = media_types.get(file.filetype, "application/octet-stream")
+    
+    return FileResponse(
+        path=file.raw_path,
+        filename=file.filename,
+        media_type=media_type,
+    )
+
+
 @app.post("/api/files/{file_id}/reprocess")
 async def reprocess_file(file_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """v5.2 — Re-extract text from original file (includes OCR + Thai fix).

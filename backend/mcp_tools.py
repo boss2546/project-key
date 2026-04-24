@@ -50,6 +50,14 @@ TOOL_REGISTRY = {
         ],
         "category": "read",
     },
+    "get_file_link": {
+        "name": "get_file_link",
+        "description": "Get a temporary public download URL for a file. The URL is valid for 30 minutes and requires no authentication. Use this when you need to access the original file (PDF, DOCX, etc.) directly.",
+        "params": [
+            {"name": "file_id", "type": "string", "required": True},
+        ],
+        "category": "read",
+    },
     "get_file_summary": {
         "name": "get_file_summary",
         "description": "Get the AI-generated summary, key topics, and key facts of a specific file",
@@ -233,6 +241,8 @@ async def call_tool(
             result = await _tool_list_files(db, user_id)
         elif tool_name == "get_file_content":
             result = await _tool_get_file_content(db, user_id, params.get("file_id"), params.get("offset", 0), params.get("limit", 5000))
+        elif tool_name == "get_file_link":
+            result = await _tool_get_file_link(db, user_id, params.get("file_id"))
         elif tool_name == "get_file_summary":
             result = await _tool_get_file_summary(db, user_id, params.get("file_id"))
         elif tool_name == "list_collections":
@@ -388,6 +398,35 @@ async def _tool_get_file_content(db: AsyncSession, user_id: str, file_id: str, o
         "returned_length": len(chunk),
         "has_more": has_more,
         "next_offset": offset + limit if has_more else None,
+    }
+
+
+async def _tool_get_file_link(db: AsyncSession, user_id: str, file_id: str) -> dict:
+    """Generate a temporary public download URL for a file."""
+    if not file_id:
+        raise ValueError("file_id is required")
+
+    result = await db.execute(
+        select(File).where(File.id == file_id, File.user_id == user_id)
+    )
+    file = result.scalar_one_or_none()
+    if not file:
+        return {"error": "File not found"}
+
+    if not file.raw_path or not os.path.exists(file.raw_path):
+        return {"error": "Original file not available on server"}
+
+    # Generate signed temporary link
+    from .shared_links import generate_share_token, build_share_url
+    token = generate_share_token(file.id, user_id, file.filename)
+    url = build_share_url(token)
+
+    return {
+        "filename": file.filename,
+        "filetype": file.filetype,
+        "download_url": url,
+        "expires_in": "30 minutes",
+        "note": "This URL can be accessed directly without authentication. Use it to download or view the original file.",
     }
 
 
