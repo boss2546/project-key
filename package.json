@@ -1,0 +1,20 @@
+{
+  "name": "project-key",
+  "version": "5.0.0",
+  "description": "Project KEY — Knowledge Workspace + AI Connector",
+  "private": true,
+  "scripts": {
+    "test": "npx playwright test",
+    "test:api": "python -m pytest tests/test_production.py -v",
+    "test:ui": "npx playwright test --reporter=list",
+    "test:all": "python -m pytest tests/test_production.py -v && npx playwright test --reporter=list"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/boss2546/project-key.git"
+  },
+  "license": "ISC",
+  "devDependencies": {
+    "@playwright/test": "^1.59.1"
+  }
+}

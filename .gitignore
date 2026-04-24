@@ -42,3 +42,7 @@ node_modules/
 
 # Test artifacts
 tests/testsprite/
+.pytest_cache/
+test-results/
+playwright-report/
+blob-report/

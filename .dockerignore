@@ -47,3 +47,11 @@ Thumbs.db
 
 # Node
 node_modules/
+package.json
+package-lock.json
+playwright.config.js
+
+# Test artifacts
+.pytest_cache/
+test-results/
+playwright-report/
