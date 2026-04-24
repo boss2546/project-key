@@ -1143,11 +1143,37 @@ async def mcp_streamable_http(secret: str, request: Request, db: AsyncSession = 
         })
 
 
-# ─── SERVE FRONTEND ───
+# ─── SERVE FRONTEND (with auto cache-busting) ───
+
+# Pre-compute content hashes on startup for cache busting
+import hashlib as _hashlib
+
+def _file_hash(filepath: str) -> str:
+    """Get short hash of file content for cache busting."""
+    try:
+        with open(filepath, 'rb') as f:
+            return _hashlib.md5(f.read()).hexdigest()[:8]
+    except Exception:
+        return "0"
+
+# Compute once at startup
+_app_js_hash = _file_hash(os.path.join(BASE_DIR, "app.js"))
+_styles_css_hash = _file_hash(os.path.join(BASE_DIR, "styles.css"))
+
 
 @app.get("/")
 async def serve_index():
-    resp = FileResponse(os.path.join(BASE_DIR, "index.html"))
+    """Serve index.html with auto-injected cache-busting hashes."""
+    index_path = os.path.join(BASE_DIR, "index.html")
+    with open(index_path, 'r', encoding='utf-8') as f:
+        html = f.read()
+
+    # Replace versioned URLs with current hashes
+    html = html.replace('app.js?v=5.1.3', f'app.js?v={_app_js_hash}')
+    html = html.replace('styles.css?v=5.1.3', f'styles.css?v={_styles_css_hash}')
+
+    from fastapi.responses import HTMLResponse
+    resp = HTMLResponse(content=html)
     resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return resp
 
