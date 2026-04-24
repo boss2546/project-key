@@ -190,36 +190,71 @@ def _extract_txt(filepath: str) -> str:
 def _postprocess_thai(text: str) -> str:
     """Fix common Thai text spacing issues from PDF extraction.
     
-    Many PDFs (especially from Canva, Figma, Illustrator) export Thai text
-    with individual character spacing, producing output like:
-        ร ัช ช า น น ท์
-    instead of:
-        รัชชานนท์
+    PDFs (especially from Canva, Figma, Illustrator, Word) often export
+    Thai text with broken character spacing:
+        ผ ่า น เ ข ้า ร อ บ  →  ผ่านเข้ารอบ
+        S u b s c r i p t i o n  →  Subscription
     
-    This function detects and fixes these patterns.
+    Strategy:
+    1. Remove ALL spaces before Thai combining characters (vowels above/below, tone marks)
+    2. Remove spaces between Thai consonants/vowels when in a Thai text block
+    3. Collapse single-char-spaced English words too
     """
     if not text:
         return text
     
-    # Thai character ranges
-    thai_chars = r'[\u0E00-\u0E7F]'
+    original = text
+    result = text
     
-    # Pattern: Thai char + space + Thai char (single spaces between Thai chars)
-    # This is a strong signal of broken extraction
-    thai_space_pattern = re.compile(f'({thai_chars}) ({thai_chars})')
+    # ── Step 1: ALWAYS remove spaces before Thai combining characters ──
+    # These characters MUST attach to the preceding consonant — a space before
+    # them is ALWAYS wrong. This includes:
+    #   \u0E31 (sara am shortener - mai han akat)
+    #   \u0E34-\u0E3A (sara i, sara ii, sara ue, sara uee, sara u, sara uu, phinthu)
+    #   \u0E47-\u0E4E (maitaikhu, mai ek, mai tho, mai tri, mai chattawa, thanthakhat, nikhahit, yamakkan)
+    #   \u0E32-\u0E33 (sara aa, sara am) — when preceded by Thai consonant + space
+    combining_pattern = re.compile(r'(\S) ([\u0E31\u0E34-\u0E3A\u0E47-\u0E4E])')
+    prev = None
+    while prev != result:
+        prev = result
+        result = combining_pattern.sub(r'\1\2', result)
     
-    # Count occurrences to decide if fix is needed
-    matches = thai_space_pattern.findall(text)
-    # Only apply fix if there's significant Thai char spacing issues
-    # (more than 10 instances in the text)
-    if len(matches) > 10:
+    # Sara aa (า) and sara am (ำ) after Thai consonant
+    result = re.sub(r'([\u0E01-\u0E2E]) ([\u0E32\u0E33])', r'\1\2', result)
+    
+    # ── Step 2: Remove spaces between Thai characters in text blocks ──
+    # Thai consonant range: \u0E01-\u0E2E
+    # Thai vowels (non-combining): \u0E30, \u0E32, \u0E33, \u0E40-\u0E46
+    thai_all = r'[\u0E01-\u0E4E]'
+    
+    # Pattern: any Thai char + single space + any Thai char
+    thai_space = re.compile(f'({thai_all}) ({thai_all})')
+    
+    # Count if this text has significant Thai spacing issues
+    matches = thai_space.findall(result)
+    if len(matches) > 3:
         logger.info(f"Thai post-processing: fixing {len(matches)} spacing issues")
-        # Repeatedly collapse Thai-space-Thai until no more matches
         prev = None
-        result = text
         while prev != result:
             prev = result
-            result = thai_space_pattern.sub(r'\1\2', result)
-        return result
+            result = thai_space.sub(r'\1\2', result)
     
-    return text
+    # ── Step 3: Fix spaced-out English/Latin characters ──
+    # Pattern like: S u b s c r i p t i o n → Subscription
+    # Detect: single letter + space + single letter, repeated 3+ times
+    def fix_spaced_latin(match):
+        return match.group(0).replace(' ', '')
+    
+    spaced_latin = re.compile(r'(?:[A-Za-z0-9] ){3,}[A-Za-z0-9]')
+    result = spaced_latin.sub(fix_spaced_latin, result)
+    
+    # ── Step 4: Clean up excessive whitespace ──
+    # Multiple spaces → single space (but preserve newlines)
+    result = re.sub(r'[^\S\n]{2,}', ' ', result)
+    
+    if result != original:
+        diff = len(original) - len(result)
+        logger.info(f"Thai post-processing: removed {diff} extra characters ({diff*100//len(original)}% reduction)")
+    
+    return result
+
