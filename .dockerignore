@@ -27,10 +27,8 @@ __pycache__
 venv/
 env/
 
-# Node.js — exclude local dev artifacts (Docker rebuilds from scratch)
-landing/node_modules/
-landing/.next/
-landing/out/
+# Landing page (not used in production)
+landing/
 
 # OS
 .DS_Store

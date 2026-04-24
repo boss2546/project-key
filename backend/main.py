@@ -1146,50 +1146,30 @@ async def mcp_streamable_http(secret: str, request: Request, db: AsyncSession = 
         })
 
 
-# ─── SERVE FRONTEND (Next.js static export from landing/out/) ───
+# ─── SERVE FRONTEND (legacy-frontend/) ───
 
-# Landing page is built as static export in landing/out/
-LANDING_DIR = os.path.join(BASE_DIR, "landing", "out")
-
-# Legacy frontend (preserved for rollback)
-LEGACY_DIR = os.path.join(BASE_DIR, "legacy-frontend")
+FRONTEND_DIR = os.path.join(BASE_DIR, "legacy-frontend")
 
 
 @app.get("/")
 async def serve_index():
-    """Serve the Next.js landing page."""
-    index_path = os.path.join(LANDING_DIR, "index.html")
-    if not os.path.exists(index_path):
-        # Fallback to legacy if Next.js build doesn't exist
-        legacy_path = os.path.join(LEGACY_DIR, "index.html")
-        if os.path.exists(legacy_path):
-            return FileResponse(legacy_path)
-        raise HTTPException(status_code=404, detail="No frontend found")
-    return FileResponse(index_path, media_type="text/html")
-
-
-@app.get("/_next/{path:path}")
-async def serve_next_static(path: str):
-    """Serve Next.js static assets (_next/static/...)."""
-    filepath = os.path.join(LANDING_DIR, "_next", path)
-    if os.path.exists(filepath) and not os.path.isdir(filepath):
-        return FileResponse(filepath)
-    raise HTTPException(status_code=404)
+    """Serve the main frontend."""
+    index_path = os.path.join(FRONTEND_DIR, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path, media_type="text/html")
+    raise HTTPException(status_code=404, detail="No frontend found")
 
 
 @app.get("/legacy")
 async def serve_legacy():
-    """Serve legacy frontend (for testing/comparison)."""
-    legacy_path = os.path.join(LEGACY_DIR, "index.html")
-    if os.path.exists(legacy_path):
-        return FileResponse(legacy_path, media_type="text/html")
-    raise HTTPException(status_code=404, detail="Legacy frontend not found")
+    """Alias — same as root (backward compatibility)."""
+    return await serve_index()
 
 
 @app.get("/legacy/{filename}")
 async def serve_legacy_static(filename: str):
-    """Serve legacy frontend static files."""
-    filepath = os.path.join(LEGACY_DIR, filename)
+    """Serve frontend static files via /legacy/ prefix."""
+    filepath = os.path.join(FRONTEND_DIR, filename)
     if os.path.exists(filepath) and not os.path.isdir(filepath):
         resp = FileResponse(filepath)
         if filename.endswith(('.js', '.css', '.html')):
@@ -1200,15 +1180,10 @@ async def serve_legacy_static(filename: str):
 
 @app.get("/{filename}")
 async def serve_static(filename: str):
-    """Serve static files — checks landing/out/ first, then root."""
-    # Check Next.js output first
-    landing_path = os.path.join(LANDING_DIR, filename)
-    if os.path.exists(landing_path) and not os.path.isdir(landing_path):
-        return FileResponse(landing_path)
-    # Fallback to root-level files
-    root_path = os.path.join(BASE_DIR, filename)
-    if os.path.exists(root_path) and not os.path.isdir(root_path):
-        resp = FileResponse(root_path)
+    """Serve static files from frontend directory."""
+    filepath = os.path.join(FRONTEND_DIR, filename)
+    if os.path.exists(filepath) and not os.path.isdir(filepath):
+        resp = FileResponse(filepath)
         if filename.endswith(('.js', '.css', '.html')):
             resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
         return resp
