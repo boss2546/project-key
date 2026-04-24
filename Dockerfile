@@ -1,14 +1,28 @@
+FROM node:20-slim AS frontend-builder
+
+WORKDIR /build
+COPY landing/package*.json ./
+RUN npm ci --no-audit
+COPY landing/ ./
+RUN npm run build
+
+# ─── Python backend ───
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Python deps only (no gcc needed without docling)
+# Python deps
 COPY requirements-fly.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy app code
+# Copy backend
 COPY backend/ ./backend/
-COPY index.html app.js styles.css ./
+
+# Copy Next.js static build output
+COPY --from=frontend-builder /build/out ./landing/out/
+
+# Copy legacy frontend (preserved for /legacy route)
+COPY legacy-frontend/ ./legacy-frontend/
 
 # Data dir — mounted as Fly volume at /app/data
 ENV DATA_DIR=/app/data

@@ -1146,48 +1146,71 @@ async def mcp_streamable_http(secret: str, request: Request, db: AsyncSession = 
         })
 
 
-# ─── SERVE FRONTEND (with auto cache-busting) ───
+# ─── SERVE FRONTEND (Next.js static export from landing/out/) ───
 
-# Pre-compute content hashes on startup for cache busting
-import hashlib as _hashlib
+# Landing page is built as static export in landing/out/
+LANDING_DIR = os.path.join(BASE_DIR, "landing", "out")
 
-def _file_hash(filepath: str) -> str:
-    """Get short hash of file content for cache busting."""
-    try:
-        with open(filepath, 'rb') as f:
-            return _hashlib.md5(f.read()).hexdigest()[:8]
-    except Exception:
-        return "0"
-
-# Compute once at startup
-_app_js_hash = _file_hash(os.path.join(BASE_DIR, "app.js"))
-_styles_css_hash = _file_hash(os.path.join(BASE_DIR, "styles.css"))
+# Legacy frontend (preserved for rollback)
+LEGACY_DIR = os.path.join(BASE_DIR, "legacy-frontend")
 
 
 @app.get("/")
 async def serve_index():
-    """Serve index.html with auto-injected cache-busting hashes."""
-    index_path = os.path.join(BASE_DIR, "index.html")
-    with open(index_path, 'r', encoding='utf-8') as f:
-        html = f.read()
-
-    # Replace versioned URLs with current hashes
-    html = html.replace('app.js?v=5.1.3', f'app.js?v={_app_js_hash}')
-    html = html.replace('styles.css?v=5.1.3', f'styles.css?v={_styles_css_hash}')
-
-    from fastapi.responses import HTMLResponse
-    resp = HTMLResponse(content=html)
-    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-    return resp
+    """Serve the Next.js landing page."""
+    index_path = os.path.join(LANDING_DIR, "index.html")
+    if not os.path.exists(index_path):
+        # Fallback to legacy if Next.js build doesn't exist
+        legacy_path = os.path.join(LEGACY_DIR, "index.html")
+        if os.path.exists(legacy_path):
+            return FileResponse(legacy_path)
+        raise HTTPException(status_code=404, detail="No frontend found")
+    return FileResponse(index_path, media_type="text/html")
 
 
-@app.get("/{filename}")
-async def serve_static(filename: str):
-    filepath = os.path.join(BASE_DIR, filename)
+@app.get("/_next/{path:path}")
+async def serve_next_static(path: str):
+    """Serve Next.js static assets (_next/static/...)."""
+    filepath = os.path.join(LANDING_DIR, "_next", path)
+    if os.path.exists(filepath) and not os.path.isdir(filepath):
+        return FileResponse(filepath)
+    raise HTTPException(status_code=404)
+
+
+@app.get("/legacy")
+async def serve_legacy():
+    """Serve legacy frontend (for testing/comparison)."""
+    legacy_path = os.path.join(LEGACY_DIR, "index.html")
+    if os.path.exists(legacy_path):
+        return FileResponse(legacy_path, media_type="text/html")
+    raise HTTPException(status_code=404, detail="Legacy frontend not found")
+
+
+@app.get("/legacy/{filename}")
+async def serve_legacy_static(filename: str):
+    """Serve legacy frontend static files."""
+    filepath = os.path.join(LEGACY_DIR, filename)
     if os.path.exists(filepath) and not os.path.isdir(filepath):
         resp = FileResponse(filepath)
-        # Prevent caching of JS/CSS so deploys take effect immediately
         if filename.endswith(('.js', '.css', '.html')):
             resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
         return resp
     raise HTTPException(status_code=404)
+
+
+@app.get("/{filename}")
+async def serve_static(filename: str):
+    """Serve static files — checks landing/out/ first, then root."""
+    # Check Next.js output first
+    landing_path = os.path.join(LANDING_DIR, filename)
+    if os.path.exists(landing_path) and not os.path.isdir(landing_path):
+        return FileResponse(landing_path)
+    # Fallback to root-level files
+    root_path = os.path.join(BASE_DIR, filename)
+    if os.path.exists(root_path) and not os.path.isdir(root_path):
+        resp = FileResponse(root_path)
+        if filename.endswith(('.js', '.css', '.html')):
+            resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return resp
+    raise HTTPException(status_code=404)
+
