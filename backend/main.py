@@ -27,7 +27,7 @@ from .context_packs import list_packs, get_pack, create_pack, delete_pack, regen
 from .graph_builder import build_full_graph, get_graph_data, get_node_detail, get_neighborhood
 from .relations import get_backlinks, get_outgoing, get_suggestions, accept_suggestion, dismiss_suggestion, generate_suggestions
 from .metadata import enrich_file_metadata, enrich_all_files, get_file_metadata, update_file_metadata
-from .config import UPLOAD_DIR, BASE_DIR, MAX_FILE_SIZE_MB, MCP_SECRET, ADMIN_PASSWORD
+from .config import UPLOAD_DIR, BASE_DIR, MAX_FILE_SIZE_MB, ADMIN_PASSWORD
 from .mcp_tokens import generate_token, validate_token, list_tokens, revoke_token, get_active_token_count
 from .mcp_tools import call_tool, get_usage_logs, TOOL_REGISTRY
 from .auth import register_user, login_user, get_current_user, get_optional_user, request_password_reset, reset_password
@@ -1031,18 +1031,20 @@ async def mcp_streamable_http(secret: str, request: Request, db: AsyncSession = 
     """MCP Streamable HTTP transport — JSON-RPC 2.0 endpoint for Claude Custom Connector.
     
     v5.1: Each user has their own secret URL. The secret maps to a specific user.
+    All data operations are scoped to that user only.
     """
-    # Validate secret key — check both legacy global secret and per-user secrets
-    valid_user = None
-    if secret != MCP_SECRET:
-        # Check per-user secret
-        user_result = await db.execute(select(User).where(User.mcp_secret == secret, User.is_active == True))
-        valid_user = user_result.scalar_one_or_none()
-        if not valid_user:
-            return JSONResponse(
-                {"jsonrpc": "2.0", "error": {"code": -32600, "message": "Unauthorized"}, "id": None},
-                status_code=401,
-            )
+    # v5.1 — Resolve user from per-user secret (no global fallback)
+    user_result = await db.execute(
+        select(User).where(User.mcp_secret == secret, User.is_active == True)
+    )
+    mcp_owner = user_result.scalar_one_or_none()
+    if not mcp_owner:
+        return JSONResponse(
+            {"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid MCP secret — user not found"}, "id": None},
+            status_code=401,
+        )
+    mcp_user_id = mcp_owner.id
+    
     try:
         body = await request.json()
     except Exception:
@@ -1055,7 +1057,7 @@ async def mcp_streamable_http(secret: str, request: Request, db: AsyncSession = 
     msg_id = body.get("id")
     params = body.get("params", {})
 
-    logger.info(f"MCP request: method={method}, id={msg_id}")
+    logger.info(f"MCP request: method={method}, id={msg_id}, user={mcp_owner.email}")
 
     # ── Notification (no id) — return 202 Accepted ──
     if msg_id is None:
@@ -1100,16 +1102,6 @@ async def mcp_streamable_http(secret: str, request: Request, db: AsyncSession = 
                 "error": {"code": -32602, "message": f"Unknown tool: {tool_name}"},
             })
 
-        # v5.1 — Resolve user by per-user MCP secret
-        mcp_user_result = await db.execute(select(User).where(User.mcp_secret == secret, User.is_active == True))
-        mcp_user = mcp_user_result.scalar_one_or_none()
-        if not mcp_user:
-            return JSONResponse({
-                "jsonrpc": "2.0",
-                "id": msg_id,
-                "error": {"code": -32600, "message": "Invalid MCP secret — user not found"},
-            }, status_code=401)
-        mcp_user_id = mcp_user.id
 
         # Check if tool is disabled by this user's permissions
         user_perms = MCP_PERMISSIONS.get(mcp_user_id, {})
