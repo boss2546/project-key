@@ -1,35 +1,49 @@
-.git
+# Git
+.git/
 .gitignore
-.gemini
-.testsprite
-.vscode
-.env
 
-# Data (persisted via volume)
-projectkey.db
-projectkey.db-shm
-projectkey.db-wal
+# Docker
+Dockerfile
+.dockerignore
+
+# Documentation
+docs/
+README.md
+*.md
+!backend/**/*.md
+
+# IDE & tools
+.gemini/
+.vscode/
+.testsprite/
+
+# Python dev
+__pycache__/
+*.pyc
+venv/
+env/
+
+# Local data (mounted as volume in production)
 uploads/
 summaries/
 context_packs/
 chroma_db/
 backups/
+projectkey.db*
 
-# Docs & tests (not needed in container)
-docs/
+# Secrets (set via environment)
+.env
+.jwt_secret
+.mcp_secret
+
+# Tests
 tests/
+test_api.py
 pre_deploy_test.py
-
-# Python
-__pycache__
-*.pyc
-*.pyo
-venv/
-env/
-
-# Landing page (not used in production)
-landing/
 
 # OS
 .DS_Store
 Thumbs.db
+
+# Node
+node_modules/
