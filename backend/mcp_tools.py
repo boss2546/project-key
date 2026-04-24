@@ -367,7 +367,7 @@ async def _tool_list_files(db: AsyncSession, user_id: str) -> dict:
             for f in files
         ],
         "count": len(files),
-        "tip": "Use get_file_content(file_id) to preview text, or get_file_link(file_id) to get a download URL.",
+        "tip": "Use get_file_content to preview text, or get_file_link to generate a download URL for any file.",
     }
 
 
@@ -391,13 +391,6 @@ async def _tool_get_file_content(db: AsyncSession, user_id: str, file_id: str, o
     chunk = text[offset:offset + limit]
     has_more = (offset + limit) < total
 
-    # Auto-generate download link if raw file exists
-    download_url = None
-    if file.raw_path and os.path.exists(file.raw_path):
-        from .shared_links import generate_share_token, build_share_url
-        token = generate_share_token(file.id, user_id, file.filename)
-        download_url = build_share_url(token)
-
     return {
         "filename": file.filename,
         "filetype": file.filetype,
@@ -407,7 +400,8 @@ async def _tool_get_file_content(db: AsyncSession, user_id: str, file_id: str, o
         "returned_length": len(chunk),
         "has_more": has_more,
         "next_offset": offset + limit if has_more else None,
-        "download_url": download_url,
+        "has_raw_file": bool(file.raw_path and os.path.exists(file.raw_path)),
+        "tip": "Use get_file_link to generate a download URL for the original file." if file.raw_path else None,
     }
 
 
