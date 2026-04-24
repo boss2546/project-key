@@ -348,23 +348,33 @@ async def _tool_list_files(db: AsyncSession, user_id: str) -> dict:
     )
     files = result.scalars().all()
 
+    from .shared_links import generate_share_token, build_share_url
+
+    file_list = []
+    for f in files:
+        # Generate download link if raw file exists
+        download_url = None
+        if f.raw_path and os.path.exists(f.raw_path):
+            token = generate_share_token(f.id, user_id, f.filename)
+            download_url = build_share_url(token)
+
+        file_list.append({
+            "file_id": f.id,
+            "filename": f.filename,
+            "filetype": f.filetype,
+            "text_length": len(f.extracted_text or ""),
+            "tags": json.loads(f.tags or "[]"),
+            "sensitivity": f.sensitivity or "normal",
+            "freshness": f.freshness or "current",
+            "source_of_truth": f.source_of_truth or False,
+            "importance": f.insight.importance_label if f.insight else "medium",
+            "summary_snippet": (f.summary.summary_text[:150] + "...") if f.summary and f.summary.summary_text else "",
+            "uploaded_at": f.uploaded_at.isoformat() if f.uploaded_at else "",
+            "download_url": download_url,
+        })
+
     return {
-        "files": [
-            {
-                "file_id": f.id,
-                "filename": f.filename,
-                "filetype": f.filetype,
-                "text_length": len(f.extracted_text or ""),
-                "tags": json.loads(f.tags or "[]"),
-                "sensitivity": f.sensitivity or "normal",
-                "freshness": f.freshness or "current",
-                "source_of_truth": f.source_of_truth or False,
-                "importance": f.insight.importance_label if f.insight else "medium",
-                "summary_snippet": (f.summary.summary_text[:150] + "...") if f.summary and f.summary.summary_text else "",
-                "uploaded_at": f.uploaded_at.isoformat() if f.uploaded_at else "",
-            }
-            for f in files
-        ],
+        "files": file_list,
         "count": len(files),
     }
 
@@ -389,6 +399,13 @@ async def _tool_get_file_content(db: AsyncSession, user_id: str, file_id: str, o
     chunk = text[offset:offset + limit]
     has_more = (offset + limit) < total
 
+    # Auto-generate download link if raw file exists
+    download_url = None
+    if file.raw_path and os.path.exists(file.raw_path):
+        from .shared_links import generate_share_token, build_share_url
+        token = generate_share_token(file.id, user_id, file.filename)
+        download_url = build_share_url(token)
+
     return {
         "filename": file.filename,
         "filetype": file.filetype,
@@ -398,6 +415,7 @@ async def _tool_get_file_content(db: AsyncSession, user_id: str, file_id: str, o
         "returned_length": len(chunk),
         "has_more": has_more,
         "next_offset": offset + limit if has_more else None,
+        "download_url": download_url,
     }
 
 
