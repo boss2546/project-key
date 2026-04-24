@@ -128,11 +128,13 @@ function showLanding() {
   document.getElementById('landing-page').classList.remove('hidden');
   document.getElementById('app').classList.add('hidden');
   document.getElementById('auth-modal').classList.add('hidden');
+  document.body.classList.add('show-landing');
 }
 
 function showApp() {
   document.getElementById('landing-page').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
+  document.body.classList.remove('show-landing');
   // Update sidebar user info
   const emailEl = document.getElementById('sidebar-user-email');
   if (emailEl && state.currentUser) {
