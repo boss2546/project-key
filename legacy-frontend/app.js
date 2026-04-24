@@ -2413,10 +2413,15 @@ async function testMCPConnection() {
   const btn = document.getElementById('btn-test-connection');
   const resultDiv = document.getElementById('mcp-test-result');
 
-  // Need a token to test
-  const token = state.mcpLastToken;
+  // Need a token to test — check state first, then fallback to displayed token
+  let token = state.mcpLastToken;
   if (!token) {
-    // Try to find hint
+    // Try to get from the token display element (if user just generated one)
+    const tokenEl = document.getElementById('mcp-token-display');
+    if (tokenEl) token = tokenEl.textContent.trim();
+  }
+
+  if (!token || !token.startsWith('pk_')) {
     resultDiv.classList.remove('hidden');
     resultDiv.className = 'mcp-test-result warning';
     resultDiv.innerHTML = `<span class="test-icon">⚠️</span> <span>${getLang() === 'th' ? 'กรุณาสร้าง token ก่อน (ขั้นตอนที่ 2)' : 'Please generate a token first (Step 2)'}</span>`;
@@ -2427,7 +2432,9 @@ async function testMCPConnection() {
   btn.innerHTML = `<span class="loading-spinner"></span> ${getLang() === 'th' ? 'ทดสอบ...' : 'Testing...'}`;
 
   try {
-    const res = await authFetch('/api/mcp/test', {
+    // IMPORTANT: Use fetch() NOT authFetch() — we need to send the MCP token
+    // as the Authorization header, not the user's JWT token
+    const res = await fetch('/api/mcp/test', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}` },
     });

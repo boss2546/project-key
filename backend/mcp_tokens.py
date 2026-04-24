@@ -32,7 +32,7 @@ async def generate_token(db: AsyncSession, user_id: str, label: str = "Default T
         user_id=user_id,
         token_hash=token_hash,
         label=label,
-        scope="read-only",
+        scope="read+write",
         is_active=True,
     )
     db.add(token)
