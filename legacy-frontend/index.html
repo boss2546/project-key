@@ -496,7 +496,13 @@
             </div>
             <!-- Content Preview -->
             <div class="fd-section">
-              <h3>📄 Content Preview</h3>
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+                <h3>📄 Content Preview</h3>
+                <div style="display:flex; gap:8px;">
+                  <button class="btn btn-outline btn-sm" id="fd-reprocess-btn" title="Re-extract text (OCR + Thai fix)">🔄 Re-extract</button>
+                  <button class="btn btn-primary btn-sm" id="fd-download-btn" title="Download original file">⬇️ Download</button>
+                </div>
+              </div>
               <pre id="fd-content" class="fd-content-preview">—</pre>
             </div>
           </div>

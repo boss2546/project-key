@@ -42,8 +42,12 @@ TOOL_REGISTRY = {
     },
     "get_file_content": {
         "name": "get_file_content",
-        "description": "Get the extracted text content of a specific file (max 5000 chars)",
-        "params": [{"name": "file_id", "type": "string", "required": True}],
+        "description": "Get the extracted text content of a specific file. Supports pagination with offset/limit for large files.",
+        "params": [
+            {"name": "file_id", "type": "string", "required": True},
+            {"name": "offset", "type": "integer", "required": False, "default": 0, "description": "Character offset to start from"},
+            {"name": "limit", "type": "integer", "required": False, "default": 5000, "description": "Max characters to return (max 10000)"},
+        ],
         "category": "read",
     },
     "get_file_summary": {
@@ -183,6 +187,12 @@ TOOL_REGISTRY = {
         "params": [],
         "category": "pipeline",
     },
+    "reprocess_file": {
+        "name": "reprocess_file",
+        "description": "Re-extract text from a file using the latest extraction pipeline (includes OCR fallback + Thai text fix). Use for PDFs that showed no text or had broken spacing.",
+        "params": [{"name": "file_id", "type": "string", "required": True}],
+        "category": "pipeline",
+    },
     "admin_login": {
         "name": "admin_login",
         "description": "Verify admin password to bypass disabled tools",
@@ -222,7 +232,7 @@ async def call_tool(
         elif tool_name == "list_files":
             result = await _tool_list_files(db, user_id)
         elif tool_name == "get_file_content":
-            result = await _tool_get_file_content(db, user_id, params.get("file_id"))
+            result = await _tool_get_file_content(db, user_id, params.get("file_id"), params.get("offset", 0), params.get("limit", 5000))
         elif tool_name == "get_file_summary":
             result = await _tool_get_file_summary(db, user_id, params.get("file_id"))
         elif tool_name == "list_collections":
@@ -267,6 +277,8 @@ async def call_tool(
             result = await _tool_update_profile(db, user_id, params)
         elif tool_name == "upload_text":
             result = await _tool_upload_text(db, user_id, params)
+        elif tool_name == "reprocess_file":
+            result = await _tool_reprocess_file(db, user_id, params.get("file_id"))
 
     except Exception as e:
         status = "error"
@@ -347,8 +359,8 @@ async def _tool_list_files(db: AsyncSession, user_id: str) -> dict:
     }
 
 
-async def _tool_get_file_content(db: AsyncSession, user_id: str, file_id: str) -> dict:
-    """Get file extracted text (max 5000 chars)."""
+async def _tool_get_file_content(db: AsyncSession, user_id: str, file_id: str, offset: int = 0, limit: int = 5000) -> dict:
+    """Get file extracted text with pagination support."""
     if not file_id:
         raise ValueError("file_id is required")
 
@@ -360,14 +372,22 @@ async def _tool_get_file_content(db: AsyncSession, user_id: str, file_id: str) -
         return {"error": "File not found"}
 
     text = file.extracted_text or ""
-    truncated = len(text) > 5000
+    total = len(text)
+    limit = min(max(limit, 100), 10000)  # clamp 100-10000
+    offset = max(offset, 0)
+    
+    chunk = text[offset:offset + limit]
+    has_more = (offset + limit) < total
 
     return {
         "filename": file.filename,
         "filetype": file.filetype,
-        "content": text[:5000],
-        "total_length": len(text),
-        "truncated": truncated,
+        "content": chunk,
+        "total_length": total,
+        "offset": offset,
+        "returned_length": len(chunk),
+        "has_more": has_more,
+        "next_offset": offset + limit if has_more else None,
     }
 
 
@@ -1055,3 +1075,53 @@ async def get_usage_logs(
         }
         for log in logs
     ]
+
+
+# ═══════════════════════════════════════════
+# REPROCESS Tool (v5.2)
+# ═══════════════════════════════════════════
+
+async def _tool_reprocess_file(db: AsyncSession, user_id: str, file_id: str) -> dict:
+    """Re-extract text from a file using the latest extraction pipeline.
+    
+    Includes:
+    - OCR fallback for image-only PDFs
+    - Thai text spacing fix
+    - Improved error reporting
+    """
+    import os
+    from .extraction import extract_text
+
+    if not file_id:
+        raise ValueError("file_id is required")
+
+    result = await db.execute(
+        select(File).where(File.id == file_id, File.user_id == user_id)
+    )
+    file = result.scalar_one_or_none()
+    if not file:
+        return {"error": "File not found"}
+
+    if not file.raw_path or not os.path.exists(file.raw_path):
+        return {"error": "Original file not available on server — cannot reprocess"}
+
+    old_text = file.extracted_text or ""
+    old_length = len(old_text)
+
+    # Re-extract with updated pipeline
+    new_text = extract_text(file.raw_path, file.filetype)
+    file.extracted_text = new_text
+    file.processing_status = "reprocessed"
+    await db.commit()
+
+    return {
+        "status": "reprocessed",
+        "file_id": file.id,
+        "filename": file.filename,
+        "old_text_length": old_length,
+        "new_text_length": len(new_text),
+        "improved": len(new_text) > old_length,
+        "extraction_method": "ocr" if "OCR" in new_text else "text_layer",
+        "preview": new_text[:500] if new_text else "",
+    }
+

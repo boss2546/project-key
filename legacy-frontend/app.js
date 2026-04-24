@@ -1030,6 +1030,38 @@ function closeFileDetail() {
 // Close button
 document.getElementById('fd-close')?.addEventListener('click', closeFileDetail);
 
+// v5.2 — Download original file
+document.getElementById('fd-download-btn')?.addEventListener('click', () => {
+  if (!_currentFileId) return;
+  // Direct download via browser — opens the file download
+  window.open(`/api/files/${_currentFileId}/download`, '_blank');
+});
+
+// v5.2 — Reprocess file (OCR + Thai fix)
+document.getElementById('fd-reprocess-btn')?.addEventListener('click', async () => {
+  if (!_currentFileId) return;
+  const btn = document.getElementById('fd-reprocess-btn');
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Processing...';
+  try {
+    const res = await authFetch(`/api/files/${_currentFileId}/reprocess`, { method: 'POST' });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      showToast(getLang() === 'th'
+        ? `✅ Re-extract สำเร็จ! ${data.old_text_length} → ${data.new_text_length} ตัวอักษร`
+        : `✅ Re-extracted! ${data.old_text_length} → ${data.new_text_length} chars`, 'success');
+      // Reload file detail to show new content
+      openFileDetail(_currentFileId);
+    } else {
+      showToast(data.detail || 'Reprocess failed', 'error');
+    }
+  } catch (e) {
+    showToast(getLang() === 'th' ? '❌ Re-extract ล้มเหลว' : '❌ Reprocess failed', 'error');
+  }
+  btn.disabled = false;
+  btn.innerHTML = '🔄 Re-extract';
+});
+
 // ─── Summary Edit Mode ───
 
 let _currentFileId = null;

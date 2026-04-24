@@ -37,7 +37,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # App
-app = FastAPI(title="Project KEY", version="5.1.0")
+app = FastAPI(title="Project KEY", version="5.2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -393,21 +393,114 @@ async def get_summary(file_id: str, current_user: User = Depends(get_current_use
 
 
 @app.get("/api/files/{file_id}/content")
-async def get_file_content(file_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    """Get file extracted text content for preview."""
+async def get_file_content(
+    file_id: str,
+    offset: int = Query(0, ge=0, description="Character offset to start from"),
+    limit: int = Query(0, ge=0, description="Max characters to return (0 = all)"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get file extracted text content — v5.2 with pagination support.
+    
+    - offset=0, limit=0: returns full text (backward-compatible)
+    - offset=0, limit=5000: returns first 5000 chars
+    - offset=5000, limit=5000: returns chars 5000-10000
+    """
     result = await db.execute(
         select(File).where(File.id == file_id, File.user_id == current_user.id)
     )
     file = result.scalar_one_or_none()
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
+    
+    text = file.extracted_text or ""
+    total = len(text)
+    
+    if limit > 0:
+        chunk = text[offset:offset + limit]
+        has_more = (offset + limit) < total
+    else:
+        chunk = text[offset:] if offset > 0 else text
+        has_more = False
+    
     return {
         "file_id": file.id,
         "filename": file.filename,
         "filetype": file.filetype,
-        "text": file.extracted_text or "",
+        "text": chunk,
+        "total_length": total,
+        "offset": offset,
+        "returned_length": len(chunk),
+        "has_more": has_more,
         "uploaded_at": file.uploaded_at.isoformat() if file.uploaded_at else ""
     }
+
+
+@app.get("/api/files/{file_id}/download")
+async def download_file(file_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """v5.2 — Download original raw file (PDF, DOCX, TXT, MD)."""
+    result = await db.execute(
+        select(File).where(File.id == file_id, File.user_id == current_user.id)
+    )
+    file = result.scalar_one_or_none()
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    if not file.raw_path or not os.path.exists(file.raw_path):
+        raise HTTPException(status_code=404, detail="Original file not available on server")
+    
+    media_types = {
+        "pdf": "application/pdf",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "txt": "text/plain; charset=utf-8",
+        "md": "text/markdown; charset=utf-8",
+    }
+    media_type = media_types.get(file.filetype, "application/octet-stream")
+    
+    return FileResponse(
+        path=file.raw_path,
+        filename=file.filename,
+        media_type=media_type,
+    )
+
+
+@app.post("/api/files/{file_id}/reprocess")
+async def reprocess_file(file_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """v5.2 — Re-extract text from original file (includes OCR + Thai fix).
+    
+    Use this to reprocess files that had extraction issues, e.g.:
+    - Image-only PDFs that returned no text
+    - PDFs with broken Thai spacing
+    """
+    result = await db.execute(
+        select(File).where(File.id == file_id, File.user_id == current_user.id)
+    )
+    file = result.scalar_one_or_none()
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    if not file.raw_path or not os.path.exists(file.raw_path):
+        raise HTTPException(status_code=404, detail="Original file not available — cannot reprocess")
+    
+    old_text = file.extracted_text or ""
+    old_length = len(old_text)
+    
+    # Re-extract with updated pipeline (includes OCR + Thai fix)
+    new_text = extract_text(file.raw_path, file.filetype)
+    file.extracted_text = new_text
+    file.processing_status = "reprocessed"
+    await db.commit()
+    
+    return {
+        "status": "ok",
+        "file_id": file.id,
+        "filename": file.filename,
+        "old_text_length": old_length,
+        "new_text_length": len(new_text),
+        "improved": len(new_text) > old_length,
+        "extraction_method": "ocr" if "OCR" in new_text else "text_layer",
+    }
+
 
 
 class SummaryUpdateRequest(BaseModel):
@@ -849,7 +942,7 @@ async def api_mcp_info(request: Request, current_user: User = Depends(get_curren
         "mcp_connector_url": f"{base_url}/mcp/{current_user.mcp_secret}",
         "auth_type": "bearer",
         "scope": "read+write",
-        "version": "v5.1",
+        "version": "v5.2",
         "available_tools": list(TOOL_REGISTRY.values()),
         "tool_count": len(TOOL_REGISTRY),
     }
@@ -1075,7 +1168,7 @@ async def mcp_streamable_http(secret: str, request: Request, db: AsyncSession = 
                 },
                 "serverInfo": {
                     "name": "project-key",
-                    "version": "0.4.1",
+                    "version": "5.2.0",
                 },
             },
         })

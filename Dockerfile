@@ -1,7 +1,15 @@
-# ─── Python backend + legacy frontend ───
+# ─── Python backend + legacy frontend (v5.2 — OCR support) ───
 FROM python:3.11-slim
 
 WORKDIR /app
+
+# System deps for OCR (Tesseract + poppler for pdf2image)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tesseract-ocr \
+    tesseract-ocr-tha \
+    tesseract-ocr-eng \
+    poppler-utils \
+    && rm -rf /var/lib/apt/lists/*
 
 # Python deps
 COPY requirements-fly.txt ./requirements.txt

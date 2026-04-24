@@ -1,17 +1,21 @@
 """
-Text extraction using Docling (IBM) for structured document understanding.
-Fallback to basic extraction if Docling fails.
+Text extraction — v5.2.
+
+Pipeline:
+1. Docling (IBM) for structured document understanding (if available)
+2. PyPDF2 basic text extraction for PDF
+3. pytesseract OCR fallback for image-only PDFs (if available)
+4. Thai text post-processing to fix spacing issues
 
 Reference: https://github.com/DS4SD/docling
-- Understands document layout, headings, tables, lists
-- Exports to structured Markdown preserving document hierarchy
 """
 import os
+import re
 import logging
 
 logger = logging.getLogger(__name__)
 
-# Try importing Docling
+# ─── Feature detection ───
 _HAS_DOCLING = False
 try:
     from docling.document_converter import DocumentConverter
@@ -20,18 +24,33 @@ try:
 except ImportError:
     logger.warning("Docling not available — falling back to basic extraction")
 
+_HAS_OCR = False
+try:
+    import pytesseract
+    from pdf2image import convert_from_path
+    _HAS_OCR = True
+    logger.info("OCR available (pytesseract + pdf2image)")
+except ImportError:
+    logger.warning("OCR not available — PDF image extraction disabled")
+
 
 def extract_text(filepath: str, filetype: str) -> str:
     """
     Extract text from a file.
     Uses Docling for PDF/DOCX (structured Markdown output).
-    Falls back to basic extraction if Docling unavailable.
+    Falls back to basic extraction + OCR if needed.
     """
     try:
         if filetype in ("pdf", "docx") and _HAS_DOCLING:
-            return _extract_with_docling(filepath)
+            text = _extract_with_docling(filepath)
+            if text and not text.startswith("["):
+                return _postprocess_thai(text) if filetype == "pdf" else text
+            # Docling returned nothing, try fallback
+            if filetype == "pdf":
+                return _extract_pdf_with_fallbacks(filepath)
+            return text
         elif filetype == "pdf":
-            return _extract_pdf_basic(filepath)
+            return _extract_pdf_with_fallbacks(filepath)
         elif filetype == "docx":
             return _extract_docx_basic(filepath)
         elif filetype in ("txt", "md"):
@@ -43,12 +62,30 @@ def extract_text(filepath: str, filetype: str) -> str:
         # Try fallback
         try:
             if filetype == "pdf":
-                return _extract_pdf_basic(filepath)
+                return _extract_pdf_with_fallbacks(filepath)
             elif filetype == "docx":
                 return _extract_docx_basic(filepath)
         except:
             pass
         return f"[Extraction error: {str(e)}]"
+
+
+def _extract_pdf_with_fallbacks(filepath: str) -> str:
+    """PDF extraction with full fallback chain: PyPDF2 → OCR."""
+    # Step 1: Try PyPDF2 text extraction
+    text = _extract_pdf_basic(filepath)
+    
+    if text and not text.startswith("[No text"):
+        return _postprocess_thai(text)
+    
+    # Step 2: Try OCR if text extraction failed
+    if _HAS_OCR:
+        logger.info(f"PyPDF2 found no text — trying OCR for {os.path.basename(filepath)}")
+        ocr_text = _extract_pdf_ocr(filepath)
+        if ocr_text and not ocr_text.startswith("["):
+            return _postprocess_thai(ocr_text)
+    
+    return "[No text content found in PDF — file may be image-only and OCR is not available]"
 
 
 def _extract_with_docling(filepath: str) -> str:
@@ -82,6 +119,27 @@ def _extract_pdf_basic(filepath: str) -> str:
         if text and text.strip():
             pages.append(f"--- Page {i+1} ---\n{text.strip()}")
     return "\n\n".join(pages) if pages else "[No text content found in PDF]"
+
+
+def _extract_pdf_ocr(filepath: str) -> str:
+    """OCR extraction using pytesseract for image-only PDFs."""
+    try:
+        images = convert_from_path(filepath, dpi=200, first_page=1, last_page=20)
+        pages = []
+        for i, img in enumerate(images):
+            # Use Thai + English language for OCR
+            text = pytesseract.image_to_string(img, lang='tha+eng')
+            if text and text.strip():
+                pages.append(f"--- Page {i+1} (OCR) ---\n{text.strip()}")
+        
+        if pages:
+            logger.info(f"OCR: extracted {sum(len(p) for p in pages)} chars from {os.path.basename(filepath)}")
+            return "\n\n".join(pages)
+        
+        return "[OCR found no text in PDF images]"
+    except Exception as e:
+        logger.error(f"OCR failed for {filepath}: {e}")
+        return f"[OCR error: {str(e)}]"
 
 
 def _extract_docx_basic(filepath: str) -> str:
@@ -125,3 +183,43 @@ def _extract_txt(filepath: str) -> str:
         except (UnicodeDecodeError, UnicodeError):
             continue
     return "[Could not decode file]"
+
+
+# ─── THAI TEXT POST-PROCESSING ───
+
+def _postprocess_thai(text: str) -> str:
+    """Fix common Thai text spacing issues from PDF extraction.
+    
+    Many PDFs (especially from Canva, Figma, Illustrator) export Thai text
+    with individual character spacing, producing output like:
+        ร ัช ช า น น ท์
+    instead of:
+        รัชชานนท์
+    
+    This function detects and fixes these patterns.
+    """
+    if not text:
+        return text
+    
+    # Thai character ranges
+    thai_chars = r'[\u0E00-\u0E7F]'
+    
+    # Pattern: Thai char + space + Thai char (single spaces between Thai chars)
+    # This is a strong signal of broken extraction
+    thai_space_pattern = re.compile(f'({thai_chars}) ({thai_chars})')
+    
+    # Count occurrences to decide if fix is needed
+    matches = thai_space_pattern.findall(text)
+    # Only apply fix if there's significant Thai char spacing issues
+    # (more than 10 instances in the text)
+    if len(matches) > 10:
+        logger.info(f"Thai post-processing: fixing {len(matches)} spacing issues")
+        # Repeatedly collapse Thai-space-Thai until no more matches
+        prev = None
+        result = text
+        while prev != result:
+            prev = result
+            result = thai_space_pattern.sub(r'\1\2', result)
+        return result
+    
+    return text
