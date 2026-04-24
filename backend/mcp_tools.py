@@ -1109,7 +1109,12 @@ async def _tool_reprocess_file(db: AsyncSession, user_id: str, file_id: str) -> 
     old_length = len(old_text)
 
     # Re-extract with updated pipeline
-    new_text = extract_text(file.raw_path, file.filetype)
+    raw_text = extract_text(file.raw_path, file.filetype)
+    
+    # LLM cleanup — fix Thai spacing, Private Use chars
+    from .extraction import cleanup_extracted_text
+    new_text = await cleanup_extracted_text(raw_text, file.filename)
+    
     file.extracted_text = new_text
     file.processing_status = "reprocessed"
     await db.commit()
@@ -1120,8 +1125,8 @@ async def _tool_reprocess_file(db: AsyncSession, user_id: str, file_id: str) -> 
         "filename": file.filename,
         "old_text_length": old_length,
         "new_text_length": len(new_text),
-        "improved": len(new_text) > old_length,
-        "extraction_method": "ocr" if "OCR" in new_text else "text_layer",
+        "improved": len(new_text) != old_length,
+        "extraction_method": "llm_cleanup",
         "preview": new_text[:500] if new_text else "",
     }
 

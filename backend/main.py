@@ -19,7 +19,7 @@ from .database import (
     ContextPack, GraphNode, GraphEdge, NoteObject, SuggestedRelation, GraphLens,
     MCPToken, MCPUsageLog
 )
-from .extraction import extract_text
+from .extraction import extract_text, cleanup_extracted_text
 from .organizer import organize_files
 from .retriever import chat_with_retrieval
 from .profile import get_profile, update_profile, is_profile_complete
@@ -485,8 +485,12 @@ async def reprocess_file(file_id: str, current_user: User = Depends(get_current_
     old_text = file.extracted_text or ""
     old_length = len(old_text)
     
-    # Re-extract with updated pipeline (includes OCR + Thai fix)
-    new_text = extract_text(file.raw_path, file.filetype)
+    # Re-extract with updated pipeline (PyPDF2/OCR)
+    raw_text = extract_text(file.raw_path, file.filetype)
+    
+    # LLM cleanup — fix Thai spacing, Private Use chars, etc.
+    new_text = await cleanup_extracted_text(raw_text, file.filename)
+    
     file.extracted_text = new_text
     file.processing_status = "reprocessed"
     await db.commit()
@@ -497,8 +501,8 @@ async def reprocess_file(file_id: str, current_user: User = Depends(get_current_
         "filename": file.filename,
         "old_text_length": old_length,
         "new_text_length": len(new_text),
-        "improved": len(new_text) > old_length,
-        "extraction_method": "ocr" if "OCR" in new_text else "text_layer",
+        "improved": len(new_text) != old_length,
+        "extraction_method": "llm_cleanup",
     }
 
 

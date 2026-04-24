@@ -185,76 +185,91 @@ def _extract_txt(filepath: str) -> str:
     return "[Could not decode file]"
 
 
-# ─── THAI TEXT POST-PROCESSING ───
+# ─── TEXT POST-PROCESSING (LLM-powered) ───
+
+async def cleanup_extracted_text(text: str, filename: str) -> str:
+    """Use LLM to clean up broken PDF text extraction.
+    
+    PDF extractors often produce broken Thai text with:
+    - Character spacing: ผ ่า น เ ข ้า ร อ บ
+    - Private Use chars: \\uf70a instead of ่
+    - Spaced Latin: S u b s c r i p t i o n
+    
+    LLM understands language context and fixes everything in one pass.
+    """
+    from .llm import call_llm
+    
+    if not text or len(text) < 50:
+        return text
+    
+    # Check if text needs cleanup
+    space_ratio = text.count(' ') / max(len(text), 1)
+    has_private_use = any(0xF700 <= ord(c) <= 0xF7FF for c in text[:1000])
+    
+    if space_ratio < 0.25 and not has_private_use:
+        logger.info(f"Text looks clean (space ratio {space_ratio:.1%}), skipping LLM cleanup")
+        return text
+    
+    logger.info(f"LLM cleanup: {filename} ({len(text)} chars, space ratio {space_ratio:.1%})")
+    
+    # Process in chunks if text is very long
+    max_chunk = 6000
+    if len(text) > max_chunk:
+        chunks = []
+        for i in range(0, len(text), max_chunk):
+            chunk = text[i:i + max_chunk]
+            cleaned = await _llm_fix_chunk(chunk, filename)
+            chunks.append(cleaned)
+        result = "\n".join(chunks)
+    else:
+        result = await _llm_fix_chunk(text, filename)
+    
+    logger.info(f"LLM cleanup done: {len(text)} → {len(result)} chars")
+    return result
+
+
+async def _llm_fix_chunk(text: str, filename: str) -> str:
+    """Send a chunk of broken text to LLM for cleanup."""
+    from .llm import call_llm
+    
+    system_prompt = """คุณเป็นผู้เชี่ยวชาญในการแก้ไขข้อความที่ extract จาก PDF
+
+กฎ:
+1. แก้ไขข้อความที่ตัวอักษรถูกเว้นวรรคผิด เช่น "ผ ่า น เ ข ้า" → "ผ่านเข้า"
+2. แก้ไขตัวอักษร Unicode Private Use Area (\\uf70a, \\uf70b ฯลฯ) ให้เป็นสระ/วรรณยุกต์ไทยที่ถูกต้อง
+3. แก้ไขตัวอักษรภาษาอังกฤษที่ถูกเว้น เช่น "S u b s c r i p t i o n" → "Subscription"  
+4. รักษาเนื้อหาและความหมายเดิมทั้งหมด ห้ามเพิ่ม/ลบ/แต่งเนื้อหา
+5. รักษา line breaks และ formatting เดิม (เช่น --- Page 1 ---)
+6. ถ้าข้อความปกติอยู่แล้ว ให้คืนตามเดิม
+7. ตอบเฉพาะข้อความที่แก้ไขแล้วเท่านั้น ไม่ต้องมีคำอธิบาย"""
+
+    user_prompt = f"แก้ไขข้อความที่ extract จาก {filename}:\n\n{text}"
+    
+    try:
+        result = await call_llm(system_prompt, user_prompt, temperature=0.1, max_tokens=16384)
+        return result.strip()
+    except Exception as e:
+        logger.error(f"LLM cleanup failed for {filename}: {e}")
+        return text
+
 
 def _postprocess_thai(text: str) -> str:
-    """Fix common Thai text spacing issues from PDF extraction.
-    
-    PDFs (especially from Canva, Figma, Illustrator, Word) often export
-    Thai text with broken character spacing:
-        ผ ่า น เ ข ้า ร อ บ  →  ผ่านเข้ารอบ
-        S u b s c r i p t i o n  →  Subscription
-    
-    Strategy:
-    1. Remove ALL spaces before Thai combining characters (vowels above/below, tone marks)
-    2. Remove spaces between Thai consonants/vowels when in a Thai text block
-    3. Collapse single-char-spaced English words too
+    """Legacy sync wrapper — basic regex cleanup only.
+    For full cleanup, use async cleanup_extracted_text() instead.
     """
     if not text:
         return text
-    
-    original = text
-    result = text
-    
-    # ── Step 1: ALWAYS remove spaces before Thai combining characters ──
-    # These characters MUST attach to the preceding consonant — a space before
-    # them is ALWAYS wrong. This includes:
-    #   \u0E31 (sara am shortener - mai han akat)
-    #   \u0E34-\u0E3A (sara i, sara ii, sara ue, sara uee, sara u, sara uu, phinthu)
-    #   \u0E47-\u0E4E (maitaikhu, mai ek, mai tho, mai tri, mai chattawa, thanthakhat, nikhahit, yamakkan)
-    #   \u0E32-\u0E33 (sara aa, sara am) — when preceded by Thai consonant + space
-    combining_pattern = re.compile(r'(\S) ([\u0E31\u0E34-\u0E3A\u0E47-\u0E4E])')
+    # Basic: just remove spaces before Thai combining characters
+    combining = re.compile(r'(\S) ([\u0E31\u0E34-\u0E3A\u0E47-\u0E4E])')
     prev = None
+    result = text
     while prev != result:
         prev = result
-        result = combining_pattern.sub(r'\1\2', result)
-    
-    # Sara aa (า) and sara am (ำ) after Thai consonant
-    result = re.sub(r'([\u0E01-\u0E2E]) ([\u0E32\u0E33])', r'\1\2', result)
-    
-    # ── Step 2: Remove spaces between Thai characters in text blocks ──
-    # Thai consonant range: \u0E01-\u0E2E
-    # Thai vowels (non-combining): \u0E30, \u0E32, \u0E33, \u0E40-\u0E46
-    thai_all = r'[\u0E01-\u0E4E]'
-    
-    # Pattern: any Thai char + single space + any Thai char
-    thai_space = re.compile(f'({thai_all}) ({thai_all})')
-    
-    # Count if this text has significant Thai spacing issues
-    matches = thai_space.findall(result)
-    if len(matches) > 3:
-        logger.info(f"Thai post-processing: fixing {len(matches)} spacing issues")
-        prev = None
-        while prev != result:
-            prev = result
-            result = thai_space.sub(r'\1\2', result)
-    
-    # ── Step 3: Fix spaced-out English/Latin characters ──
-    # Pattern like: S u b s c r i p t i o n → Subscription
-    # Detect: single letter + space + single letter, repeated 3+ times
-    def fix_spaced_latin(match):
-        return match.group(0).replace(' ', '')
-    
-    spaced_latin = re.compile(r'(?:[A-Za-z0-9] ){3,}[A-Za-z0-9]')
-    result = spaced_latin.sub(fix_spaced_latin, result)
-    
-    # ── Step 4: Clean up excessive whitespace ──
-    # Multiple spaces → single space (but preserve newlines)
+        result = combining.sub(r'\1\2', result)
+    # Collapse spaced Latin
+    def fix_latin(m):
+        return m.group(0).replace(' ', '')
+    result = re.compile(r'(?:[A-Za-z0-9] ){3,}[A-Za-z0-9]').sub(fix_latin, result)
     result = re.sub(r'[^\S\n]{2,}', ' ', result)
-    
-    if result != original:
-        diff = len(original) - len(result)
-        logger.info(f"Thai post-processing: removed {diff} extra characters ({diff*100//len(original)}% reduction)")
-    
     return result
 
