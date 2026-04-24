@@ -1471,12 +1471,27 @@ async function loadGraph() {
 }
 
 function renderGraph() {
+  // Wait for DOM layout to complete (page may have just switched from display:none)
+  requestAnimationFrame(() => _doRenderGraph());
+}
+
+function _doRenderGraph() {
   const svg = d3.select('#graph-svg');
   svg.selectAll('*').remove();
 
   const container = document.getElementById('graph-canvas');
-  const width = container.clientWidth;
-  const height = container.clientHeight;
+  let width = container.clientWidth;
+  let height = container.clientHeight;
+  
+  // Fallback: if container hasn't laid out yet, use parent or default
+  if (width < 100 || height < 100) {
+    const parent = container.parentElement;
+    width = parent?.clientWidth || window.innerWidth - 240;
+    height = parent?.clientHeight || window.innerHeight - 120;
+  }
+  // Final safety fallback
+  if (width < 100) width = 800;
+  if (height < 100) height = 500;
 
   // ── Filter nodes by family
   const visibleFamilies = Object.keys(state.filters).filter(k => state.filters[k]);
