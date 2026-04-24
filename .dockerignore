@@ -13,12 +13,12 @@ uploads/
 summaries/
 context_packs/
 chroma_db/
+backups/
 
 # Docs & tests (not needed in container)
 docs/
 tests/
-*.md
-!README.md
+pre_deploy_test.py
 
 # Python
 __pycache__
@@ -26,6 +26,11 @@ __pycache__
 *.pyo
 venv/
 env/
+
+# Node.js — exclude local dev artifacts (Docker rebuilds from scratch)
+landing/node_modules/
+landing/.next/
+landing/out/
 
 # OS
 .DS_Store
