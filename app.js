@@ -36,10 +36,20 @@ async function authFetch(url, options = {}) {
   if (state.authToken) {
     options.headers['Authorization'] = `Bearer ${state.authToken}`;
   }
-  const res = await fetch(url, options);
+  let res;
+  try {
+    res = await fetch(url, options);
+  } catch (err) {
+    // Network error — server down or no internet
+    hideLoadingOverlay();
+    showToast(getLang() === 'th' ? '⚠️ ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่' : '⚠️ Cannot connect to server. Please try again.', 'error');
+    throw err;
+  }
   if (res.status === 401) {
-    // Token expired or invalid — logout
+    // Token expired or invalid — logout with message
+    hideLoadingOverlay();
     doLogout();
+    showToast(getLang() === 'th' ? '🔒 เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่' : '🔒 Session expired. Please log in again.', 'error');
     throw new Error('Session expired');
   }
   return res;
@@ -766,9 +776,14 @@ async function uploadFiles(fileList) {
     const res = await authFetch('/api/upload', { method: 'POST', body: form });
     const data = await res.json();
     showToast(`${t('toast.uploaded')} ${data.count} ${t('stat.files').toLowerCase()}`, 'success');
+    // Show skipped files if any
+    if (data.skipped && data.skipped.length > 0) {
+      const names = data.skipped.map(s => `${s.filename}: ${s.reason}`).join(', ');
+      setTimeout(() => showToast(`⚠️ ${getLang() === 'th' ? 'ข้ามไฟล์' : 'Skipped'}: ${names}`, 'error'), 500);
+    }
     loadFiles();
     loadStats();
-  } catch (e) { showToast(t('toast.error'), 'error'); }
+  } catch (e) { /* authFetch handles toast */ }
   hideLoadingOverlay();
 }
 

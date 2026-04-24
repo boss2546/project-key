@@ -163,6 +163,7 @@ async def upload_files(
 ):
     """Upload one or more files, extract text, save to database."""
     uploaded = []
+    skipped = []
     allowed_types = {"pdf", "txt", "md", "docx"}
     max_bytes = MAX_FILE_SIZE_MB * 1024 * 1024
 
@@ -170,6 +171,7 @@ async def upload_files(
         # Validate type
         ext = upload_file.filename.rsplit(".", 1)[-1].lower() if "." in upload_file.filename else ""
         if ext not in allowed_types:
+            skipped.append({"filename": upload_file.filename, "reason": f"ไม่รองรับไฟล์ .{ext}"})
             continue
 
         # Save raw file — per-user directory (v5.1)
@@ -183,6 +185,7 @@ async def upload_files(
 
         # Validate size
         if len(contents) > max_bytes:
+            skipped.append({"filename": upload_file.filename, "reason": f"ไฟล์ใหญ่เกิน {MAX_FILE_SIZE_MB}MB"})
             continue
 
         with open(raw_path, "wb") as f:
@@ -214,7 +217,7 @@ async def upload_files(
 
     await db.commit()
 
-    return {"uploaded": uploaded, "count": len(uploaded)}
+    return {"uploaded": uploaded, "count": len(uploaded), "skipped": skipped}
 
 
 @app.post("/api/organize")
