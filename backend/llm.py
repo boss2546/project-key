@@ -1,20 +1,19 @@
-"""LLM integration via OpenRouter API — optimized for Gemini 3 Flash."""
+"""LLM integration via OpenRouter API — dual model support.
+
+Models:
+- Flash (LLM_MODEL): Fast & cheap — used for chat, lightweight queries
+- Pro (LLM_MODEL_PRO): Smart & powerful — used for organize, summarize, text cleanup
+"""
 import httpx
 import json
 import logging
-from .config import OPENROUTER_API_KEY, OPENROUTER_BASE_URL, LLM_MODEL
+from .config import OPENROUTER_API_KEY, OPENROUTER_BASE_URL, LLM_MODEL, LLM_MODEL_PRO
 
 logger = logging.getLogger(__name__)
 
 
-async def call_llm(system_prompt: str, user_prompt: str, temperature: float = 0.3, max_tokens: int = 8192) -> str:
-    """Call OpenRouter LLM and return the response text.
-    
-    Optimized for google/gemini-3-flash-preview:
-    - 1M context window — can process massive documents
-    - 65K max completion — supports detailed analysis
-    - Internal reasoning — better structured output
-    """
+async def _call_openrouter(model: str, system_prompt: str, user_prompt: str, temperature: float = 0.3, max_tokens: int = 8192) -> str:
+    """Internal: call OpenRouter with specified model."""
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
@@ -23,19 +22,20 @@ async def call_llm(system_prompt: str, user_prompt: str, temperature: float = 0.
     }
 
     payload = {
-        "model": LLM_MODEL,
+        "model": model,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
         ],
         "temperature": temperature,
         "max_tokens": max_tokens,
-        # Gemini 3 — leverage provider-specific optimizations
         "provider": {
             "order": ["Google"],
             "allow_fallbacks": True
         }
     }
+
+    logger.info(f"LLM call → {model} (temp={temperature}, max_tokens={max_tokens})")
 
     async with httpx.AsyncClient(timeout=180.0) as client:
         response = await client.post(OPENROUTER_BASE_URL, headers=headers, json=payload)
@@ -49,10 +49,9 @@ async def call_llm(system_prompt: str, user_prompt: str, temperature: float = 0.
 
         if "choices" in data and len(data["choices"]) > 0:
             content = data["choices"][0]["message"]["content"]
-            # Log token usage for monitoring
             usage = data.get("usage", {})
             if usage:
-                logger.info(f"LLM tokens — prompt: {usage.get('prompt_tokens', '?')}, "
+                logger.info(f"LLM [{model}] tokens — prompt: {usage.get('prompt_tokens', '?')}, "
                           f"completion: {usage.get('completion_tokens', '?')}, "
                           f"total: {usage.get('total_tokens', '?')}")
             return content
@@ -61,13 +60,24 @@ async def call_llm(system_prompt: str, user_prompt: str, temperature: float = 0.
             raise Exception(f"Unexpected LLM response format")
 
 
-async def call_llm_json(system_prompt: str, user_prompt: str, temperature: float = 0.2) -> dict:
-    """Call LLM and parse the response as JSON.
-    
-    Uses 16K max_tokens for structured data extraction — Gemini 3 Flash
-    excels at producing clean JSON with its internal reasoning.
+async def call_llm(system_prompt: str, user_prompt: str, temperature: float = 0.3, max_tokens: int = 8192) -> str:
+    """Call Flash model — fast & cheap. Used for chat, lightweight queries."""
+    return await _call_openrouter(LLM_MODEL, system_prompt, user_prompt, temperature, max_tokens)
+
+
+async def call_llm_pro(system_prompt: str, user_prompt: str, temperature: float = 0.3, max_tokens: int = 8192) -> str:
+    """Call Pro model (Gemini 3.1 Pro) — smart & powerful.
+    Used for: organize, summarize, text cleanup, knowledge graph, metadata enrichment.
     """
-    raw = await call_llm(system_prompt, user_prompt, temperature, max_tokens=16384)
+    return await _call_openrouter(LLM_MODEL_PRO, system_prompt, user_prompt, temperature, max_tokens)
+
+
+async def call_llm_json(system_prompt: str, user_prompt: str, temperature: float = 0.2) -> dict:
+    """Call Pro model and parse the response as JSON.
+    
+    Uses Gemini 3.1 Pro for structured data extraction — organize, summarize, etc.
+    """
+    raw = await call_llm_pro(system_prompt, user_prompt, temperature, max_tokens=16384)
 
     # Try to extract JSON from response
     # LLMs sometimes wrap JSON in ```json ... ```

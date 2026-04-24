@@ -197,7 +197,7 @@ async def cleanup_extracted_text(text: str, filename: str) -> str:
     
     LLM understands language context and fixes everything in one pass.
     """
-    from .llm import call_llm
+    from .llm import call_llm_pro
     
     if not text or len(text) < 50:
         return text
@@ -230,7 +230,7 @@ async def cleanup_extracted_text(text: str, filename: str) -> str:
 
 async def _llm_fix_chunk(text: str, filename: str) -> str:
     """Send a chunk of broken text to LLM for cleanup."""
-    from .llm import call_llm
+    from .llm import call_llm_pro
     
     system_prompt = """คุณเป็นผู้เชี่ยวชาญในการแก้ไขข้อความที่ extract จาก PDF
 
@@ -246,7 +246,7 @@ async def _llm_fix_chunk(text: str, filename: str) -> str:
     user_prompt = f"แก้ไขข้อความที่ extract จาก {filename}:\n\n{text}"
     
     try:
-        result = await call_llm(system_prompt, user_prompt, temperature=0.1, max_tokens=16384)
+        result = await call_llm_pro(system_prompt, user_prompt, temperature=0.1, max_tokens=16384)
         return result.strip()
     except Exception as e:
         logger.error(f"LLM cleanup failed for {filename}: {e}")

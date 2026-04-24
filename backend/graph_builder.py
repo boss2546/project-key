@@ -13,7 +13,7 @@ from .database import (
     gen_id, File, Cluster, FileClusterMap, FileInsight, FileSummary,
     ContextPack, GraphNode, GraphEdge, NoteObject
 )
-from .llm import call_llm
+from .llm import call_llm_pro
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +136,7 @@ Tags: {tag_list_str}
 
 ตอบ JSON เท่านั้น ไม่ต้องอธิบายเพิ่ม:"""
 
-            desc_response = await call_llm("คุณเป็นผู้เชี่ยวชาญด้าน knowledge management ตอบเป็น JSON เท่านั้น", desc_prompt, temperature=0.2)
+            desc_response = await call_llm_pro("คุณเป็นผู้เชี่ยวชาญด้าน knowledge management ตอบเป็น JSON เท่านั้น", desc_prompt, temperature=0.2)
             desc_json = desc_response.strip()
             if desc_json.startswith("```"):
                 desc_json = desc_json.split("\n", 1)[1].rsplit("```", 1)[0]
@@ -194,7 +194,7 @@ Tags: {tag_list_str}
 
 ตอบ JSON เท่านั้น ไม่ต้องอธิบาย:"""
 
-            entity_response = await call_llm("คุณเป็นผู้เชี่ยวชาญด้าน entity extraction ตอบเป็น JSON เท่านั้น", entity_prompt, temperature=0.1)
+            entity_response = await call_llm_pro("คุณเป็นผู้เชี่ยวชาญด้าน entity extraction ตอบเป็น JSON เท่านั้น", entity_prompt, temperature=0.1)
             # Parse JSON from response
             entity_json = entity_response.strip()
             if entity_json.startswith("```"):

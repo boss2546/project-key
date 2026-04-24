@@ -9,7 +9,8 @@ load_dotenv()
 # OpenRouter API
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
-LLM_MODEL = "google/gemini-3-flash-preview"
+LLM_MODEL = "google/gemini-3-flash-preview"            # Chat & lightweight tasks (fast, cheap)
+LLM_MODEL_PRO = "google/gemini-3.1-pro-preview"         # Data management: organize, summarize, text cleanup (smart)
 
 # Limits
 MAX_FILE_SIZE_MB = 10

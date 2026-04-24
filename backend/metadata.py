@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .database import File, FileSummary
-from .llm import call_llm
+from .llm import call_llm_pro
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ async def enrich_file_metadata(db: AsyncSession, file_id: str):
 ตอบ JSON เท่านั้น:"""
 
     try:
-        response = await call_llm(prompt, temperature=0.1)
+        response = await call_llm_pro("คุณเป็นผู้เชี่ยวชาญด้าน metadata analysis ตอบเป็น JSON เท่านั้น", prompt, temperature=0.1)
         result = response.strip()
         if result.startswith("```"):
             result = result.split("\n", 1)[1].rsplit("```", 1)[0]

@@ -147,7 +147,7 @@ async def dismiss_suggestion(db: AsyncSession, suggestion_id: str, user_id: str)
 
 async def generate_suggestions(db: AsyncSession, user_id: str):
     """Generate suggested relations using heuristics and LLM analysis."""
-    from .llm import call_llm
+    from .llm import call_llm_pro
 
     # Get all nodes
     nodes = (await db.execute(

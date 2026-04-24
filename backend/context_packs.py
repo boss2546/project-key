@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from .database import ContextPack, File, Cluster, FileClusterMap, gen_id
-from .llm import call_llm_json, call_llm
+from .llm import call_llm_json, call_llm_pro
 from .config import CONTEXT_PACKS_DIR
 from . import vector_search
 
@@ -236,7 +236,7 @@ Rules:
 
     user_prompt = f"Distill the following source documents into a cohesive {type_label} context:\n\n{source_content[:8000]}"
 
-    return await call_llm(system_prompt, user_prompt, temperature=0.3, max_tokens=8192)
+    return await call_llm_pro(system_prompt, user_prompt, temperature=0.3, max_tokens=8192)
 
 
 def get_pack_context_text(packs: list[dict]) -> str:
