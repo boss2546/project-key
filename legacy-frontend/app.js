@@ -1,5 +1,5 @@
 /**
- * Project KEY v5.0 — Frontend Logic
+ * Project KEY v5.1 — Frontend Logic
  * Multi-User Knowledge Workspace + PDB Connector Layer
  */
 
@@ -144,18 +144,30 @@ function showApp() {
 
 function showAuthModal(mode) {
   document.getElementById('auth-modal').classList.remove('hidden');
+  // Hide all forms first
+  document.getElementById('login-form').classList.add('hidden');
+  document.getElementById('register-form').classList.add('hidden');
+  document.getElementById('forgot-form').classList.add('hidden');
+  document.getElementById('reset-form').classList.add('hidden');
+
   if (mode === 'register') {
-    document.getElementById('login-form').classList.add('hidden');
     document.getElementById('register-form').classList.remove('hidden');
     document.getElementById('auth-modal-title').textContent = 'สมัครสมาชิก';
+  } else if (mode === 'forgot') {
+    document.getElementById('forgot-form').classList.remove('hidden');
+    document.getElementById('auth-modal-title').textContent = 'ลืมรหัสผ่าน';
+  } else if (mode === 'reset') {
+    document.getElementById('reset-form').classList.remove('hidden');
+    document.getElementById('auth-modal-title').textContent = 'ตั้งรหัสผ่านใหม่';
   } else {
     document.getElementById('login-form').classList.remove('hidden');
-    document.getElementById('register-form').classList.add('hidden');
     document.getElementById('auth-modal-title').textContent = 'เข้าสู่ระบบ';
   }
   // Clear errors
   document.getElementById('login-error').classList.add('hidden');
   document.getElementById('register-error').classList.add('hidden');
+  document.getElementById('forgot-error').classList.add('hidden');
+  document.getElementById('reset-error').classList.add('hidden');
 }
 
 async function doLogin() {
@@ -231,6 +243,88 @@ function doLogout() {
   showLanding();
 }
 
+// v5.1 — Password Reset
+let _resetToken = null;
+
+async function doForgotPassword() {
+  const email = document.getElementById('forgot-email').value.trim();
+  const errorEl = document.getElementById('forgot-error');
+  errorEl.classList.add('hidden');
+
+  if (!email) {
+    errorEl.textContent = 'กรุณากรอกอีเมล';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/auth/request-reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errorEl.textContent = data.detail || 'ไม่พบบัญชีนี้';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+    // Save reset token and move to reset form
+    _resetToken = data.reset_token;
+    document.getElementById('reset-email-display').textContent = data.email;
+    showAuthModal('reset');
+  } catch (e) {
+    errorEl.textContent = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์';
+    errorEl.classList.remove('hidden');
+  }
+}
+
+async function doResetPassword() {
+  const newPassword = document.getElementById('reset-new-password').value;
+  const confirmPassword = document.getElementById('reset-confirm-password').value;
+  const errorEl = document.getElementById('reset-error');
+  errorEl.classList.add('hidden');
+
+  if (newPassword.length < 6) {
+    errorEl.textContent = 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  if (newPassword !== confirmPassword) {
+    errorEl.textContent = 'รหัสผ่านไม่ตรงกัน';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/auth/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: _resetToken, new_password: newPassword }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errorEl.textContent = data.detail || 'เปลี่ยนรหัสผ่านไม่สำเร็จ';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+    // Auto-login
+    state.authToken = data.token;
+    state.currentUser = data.user;
+    localStorage.setItem('projectkey_token', data.token);
+    localStorage.setItem('projectkey_user', JSON.stringify(data.user));
+    document.getElementById('auth-modal').classList.add('hidden');
+    showToast('🔒 เปลี่ยนรหัสผ่านสำเร็จ!', 'success');
+    _resetToken = null;
+    showApp();
+    initAppData();
+  } catch (e) {
+    errorEl.textContent = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์';
+    errorEl.classList.remove('hidden');
+  }
+}
+
 function initAuth() {
   // Landing page buttons
   document.getElementById('btn-show-login')?.addEventListener('click', () => showAuthModal('login'));
@@ -245,12 +339,19 @@ function initAuth() {
   });
   document.getElementById('switch-to-register')?.addEventListener('click', (e) => { e.preventDefault(); showAuthModal('register'); });
   document.getElementById('switch-to-login')?.addEventListener('click', (e) => { e.preventDefault(); showAuthModal('login'); });
+  document.getElementById('switch-to-forgot')?.addEventListener('click', (e) => { e.preventDefault(); showAuthModal('forgot'); });
+  document.getElementById('switch-forgot-to-login')?.addEventListener('click', (e) => { e.preventDefault(); showAuthModal('login'); });
+  document.getElementById('switch-reset-to-login')?.addEventListener('click', (e) => { e.preventDefault(); showAuthModal('login'); });
   document.getElementById('btn-login')?.addEventListener('click', doLogin);
   document.getElementById('btn-register')?.addEventListener('click', doRegister);
+  document.getElementById('btn-forgot-submit')?.addEventListener('click', doForgotPassword);
+  document.getElementById('btn-reset-submit')?.addEventListener('click', doResetPassword);
 
-  // Enter key for login/register
+  // Enter key for login/register/reset
   document.getElementById('login-password')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
   document.getElementById('register-password')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') doRegister(); });
+  document.getElementById('forgot-email')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') doForgotPassword(); });
+  document.getElementById('reset-confirm-password')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') doResetPassword(); });
 
   // Logout
   document.getElementById('btn-logout')?.addEventListener('click', doLogout);

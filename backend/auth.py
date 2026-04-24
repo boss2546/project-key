@@ -216,3 +216,111 @@ async def get_optional_user(
         return None
 
     return user
+
+
+# ═══════════════════════════════════════════
+# PASSWORD RESET — v5.1
+# ═══════════════════════════════════════════
+
+def create_reset_token(user_id: str, email: str) -> str:
+    """Create a short-lived JWT token for password reset (15 min)."""
+    expire = datetime.utcnow() + timedelta(minutes=15)
+    payload = {
+        "sub": user_id,
+        "email": email,
+        "type": "reset",
+        "exp": expire,
+        "iat": datetime.utcnow(),
+    }
+    return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+
+
+def decode_reset_token(token: str) -> dict | None:
+    """Decode and validate a password reset token."""
+    try:
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        if payload.get("type") != "reset":
+            return None
+        return payload
+    except JWTError:
+        return None
+
+
+async def request_password_reset(db: AsyncSession, email: str) -> dict:
+    """Request a password reset. Returns reset token if email exists.
+    
+    In production, this would send an email. For this deployment,
+    we return the token directly for the frontend flow.
+    """
+    email = email.lower().strip()
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="ไม่พบบัญชีที่ใช้อีเมลนี้"
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="บัญชีนี้ถูกปิดใช้งาน"
+        )
+
+    token = create_reset_token(user.id, user.email)
+    logger.info(f"Password reset requested for: {user.email}")
+
+    return {
+        "message": "ยืนยันตัวตนสำเร็จ — ตั้งรหัสผ่านใหม่ได้เลย",
+        "reset_token": token,
+        "email": user.email,
+    }
+
+
+async def reset_password(db: AsyncSession, token: str, new_password: str) -> dict:
+    """Reset password using a valid reset token."""
+    # Validate token
+    payload = decode_reset_token(token)
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="ลิงก์รีเซ็ตหมดอายุหรือไม่ถูกต้อง"
+        )
+
+    # Validate new password
+    if len(new_password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร"
+        )
+
+    # Find user
+    user_id = payload.get("sub")
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="ไม่พบบัญชีผู้ใช้"
+        )
+
+    # Update password
+    user.password_hash = hash_password(new_password)
+    await db.commit()
+
+    logger.info(f"Password reset completed for: {user.email}")
+
+    # Auto-login after reset
+    access_token = create_access_token(user.id, user.email, user.name)
+    return {
+        "message": "เปลี่ยนรหัสผ่านสำเร็จ",
+        "user": {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "mcp_secret": user.mcp_secret,
+        },
+        "token": access_token,
+    }

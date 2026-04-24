@@ -30,14 +30,14 @@ from .metadata import enrich_file_metadata, enrich_all_files, get_file_metadata,
 from .config import UPLOAD_DIR, BASE_DIR, MAX_FILE_SIZE_MB, MCP_SECRET, ADMIN_PASSWORD
 from .mcp_tokens import generate_token, validate_token, list_tokens, revoke_token, get_active_token_count
 from .mcp_tools import call_tool, get_usage_logs, TOOL_REGISTRY
-from .auth import register_user, login_user, get_current_user, get_optional_user
+from .auth import register_user, login_user, get_current_user, get_optional_user, request_password_reset, reset_password
 
 # Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # App
-app = FastAPI(title="Project KEY", version="5.0.0")
+app = FastAPI(title="Project KEY", version="5.1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -90,7 +90,7 @@ async def startup():
 
 
 # ═══════════════════════════════════════════
-# AUTH APIs (v5.0 — new)
+# AUTH APIs (v5.0 + v5.1 Password Reset)
 # ═══════════════════════════════════════════
 
 class RegisterRequest(BaseModel):
@@ -101,6 +101,13 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+class ResetRequestModel(BaseModel):
+    email: str
+
+class ResetPasswordModel(BaseModel):
+    token: str
+    new_password: str
 
 @app.post("/api/auth/register")
 async def api_register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
@@ -119,8 +126,19 @@ async def api_me(current_user: User = Depends(get_current_user)):
         "id": current_user.id,
         "name": current_user.name,
         "email": current_user.email,
-        "mcp_secret": current_user.mcp_secret,  # v5.1 — per-user MCP URL
+        "mcp_secret": current_user.mcp_secret,
     }
+
+# v5.1 — Password Reset
+@app.post("/api/auth/request-reset")
+async def api_request_reset(req: ResetRequestModel, db: AsyncSession = Depends(get_db)):
+    """Step 1: Verify email and get reset token."""
+    return await request_password_reset(db, req.email)
+
+@app.post("/api/auth/reset-password")
+async def api_reset_password(req: ResetPasswordModel, db: AsyncSession = Depends(get_db)):
+    """Step 2: Reset password with token."""
+    return await reset_password(db, req.token, req.new_password)
 
 
 # ─── REQUEST MODELS ───
