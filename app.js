@@ -62,12 +62,15 @@ async function authFetch(url, options = {}) {
 let _loadingOverlayEl = null;
 let _loadingTimer = null;
 let _loadingStartTime = 0;
+let _loadingSafetyTimeout = null;
 
 function showLoadingOverlay(message = 'Loading...', type = 'default') {
   _loadingStartTime = Date.now();
   
   // Remove existing
   if (_loadingOverlayEl) _loadingOverlayEl.remove();
+  if (_loadingTimer) clearInterval(_loadingTimer);
+  if (_loadingSafetyTimeout) clearTimeout(_loadingSafetyTimeout);
   
   const icons = {
     upload: `<svg class="loading-icon upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`,
@@ -102,10 +105,17 @@ function showLoadingOverlay(message = 'Loading...', type = 'default') {
     const elapsedEl = overlay.querySelector('.loading-elapsed');
     if (elapsedEl) elapsedEl.textContent = `${elapsed}s`;
   }, 1000);
+
+  // Safety timeout — auto-dismiss after 3 minutes to prevent stuck overlay
+  _loadingSafetyTimeout = setTimeout(() => {
+    hideLoadingOverlay();
+    showToast(getLang() === 'th' ? '⏱️ หมดเวลา — กรุณาลองใหม่' : '⏱️ Timed out — please try again', 'error');
+  }, 180000);
 }
 
 function hideLoadingOverlay() {
   if (_loadingTimer) { clearInterval(_loadingTimer); _loadingTimer = null; }
+  if (_loadingSafetyTimeout) { clearTimeout(_loadingSafetyTimeout); _loadingSafetyTimeout = null; }
   if (_loadingOverlayEl) {
     _loadingOverlayEl.classList.add('fade-out');
     setTimeout(() => { _loadingOverlayEl?.remove(); _loadingOverlayEl = null; }, 300);
@@ -1772,11 +1782,18 @@ function initChat() {
   });
 }
 
+let _chatBusy = false;
 async function sendMessage() {
+  if (_chatBusy) return; // Prevent double-send
   const input = document.getElementById('chat-input');
+  const sendBtn = document.getElementById('btn-send');
   const question = input.value.trim();
   if (!question) return;
+  
+  _chatBusy = true;
   input.value = '';
+  input.disabled = true;
+  if (sendBtn) sendBtn.disabled = true;
 
   // Add user message
   addMessage(question, 'user');
@@ -1803,6 +1820,11 @@ async function sendMessage() {
   } catch (e) {
     removeMessage(loadingId);
     addMessage(getLang() === 'th' ? 'เกิดข้อผิดพลาดในการเชื่อมต่อ AI' : 'Error connecting to AI', 'assistant', true);
+  } finally {
+    _chatBusy = false;
+    input.disabled = false;
+    if (sendBtn) sendBtn.disabled = false;
+    input.focus();
   }
 }
 
