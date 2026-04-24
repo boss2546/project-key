@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from .database import File, Cluster, FileClusterMap, FileInsight, FileSummary, gen_id
-from .llm import call_llm_json, call_llm
+from .llm import call_llm_json
 from .markdown_store import write_summary_md
 from . import vector_search
 

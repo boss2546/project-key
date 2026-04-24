@@ -1,11 +1,11 @@
 # 🔑 Project KEY — Personal Data Bank
 
 > พื้นที่ข้อมูลส่วนตัวที่ใช้ AI จัดระเบียบ วิเคราะห์ และเชื่อมโยงข้อมูลของคุณ  
-> **v4.3** — MCP Connector + ระบบสิทธิ์ + สองภาษา (ไทย/อังกฤษ)
+> **v5.2** — Multi-User Auth + Dual AI (Gemini 3.1 Pro/Flash) + File Sharing + LLM Text Cleanup
 
 [![Production](https://img.shields.io/badge/Production-project--key.fly.dev-blue)](https://project-key.fly.dev/)
-[![Version](https://img.shields.io/badge/version-4.3-green)]()
-[![MCP Tools](https://img.shields.io/badge/MCP_Tools-21-purple)]()
+[![Version](https://img.shields.io/badge/version-5.2-green)]()
+[![MCP Tools](https://img.shields.io/badge/MCP_Tools-22-purple)]()
 
 ---
 
@@ -148,8 +148,10 @@ python -m uvicorn backend.main:app --port 8000
 | 💬 AI แชท | ถาม-ตอบอ้างอิงข้อมูลจริง 7 ชั้น (Graph-Aware RAG) |
 | 👤 โปรไฟล์ | ปรับ AI ให้ตรงตามเป้าหมายส่วนตัว |
 | 📦 Context Packs | สกัดความรู้จากหลายไฟล์เป็น Pack |
-| 🔌 MCP Connector | เชื่อมต่อ Claude AI ด้วย 21 เครื่องมือ |
+| 🔌 MCP Connector | เชื่อมต่อ Claude AI ด้วย 22 เครื่องมือ + File Sharing |
 | 🔐 ระบบสิทธิ์ | เปิด/ปิดเครื่องมือ MCP + รหัสผ่าน Admin |
+| 👥 Multi-User | สมัคร/ล็อกอิน + ข้อมูลแยกรายบุคคล |
+| 🔄 LLM Text Cleanup | แก้ข้อความ PDF ที่เพี้ยนด้วย AI อัตโนมัติ |
 | 🌐 สองภาษา | ไทย/อังกฤษ สลับได้ทันที |
 
 ---
@@ -175,11 +177,11 @@ python -m uvicorn backend.main:app --port 8000
 }
 ```
 
-### เครื่องมือ MCP ทั้ง 21 ตัว
+### เครื่องมือ MCP ทั้ง 22 ตัว
 
 | หมวด | เครื่องมือ |
 |------|-----------|
-| 📖 **อ่านและค้นหา** (10) | ดูโปรไฟล์, รายการไฟล์, เนื้อหาไฟล์, สรุปไฟล์, รายการคอลเลกชัน, รายการ Context Pack, ดู Context Pack, ค้นหาความรู้, สำรวจกราฟ, ดูภาพรวม |
+| 📖 **อ่านและค้นหา** (11) | ดูโปรไฟล์, รายการไฟล์, เนื้อหาไฟล์, **ลิงก์ดาวน์โหลดไฟล์**, สรุปไฟล์, รายการคอลเลกชัน, รายการ Context Pack, ดู Context Pack, ค้นหาความรู้, สำรวจกราฟ, ดูภาพรวม |
 | ✏️ **สร้างและแก้ไข** (5) | สร้าง Context Pack, เพิ่มโน้ต, แก้แท็ก, อัปโหลดข้อความ, แก้โปรไฟล์ |
 | 🗑️ **ลบ** (2) | ลบไฟล์, ลบ Pack |
 | ⚙️ **AI Pipeline** (4) | จัดระเบียบ, สร้างกราฟ, เพิ่ม metadata, เข้าสู่ระบบ Admin |
@@ -205,14 +207,16 @@ Project KEY/
 │
 ├── backend/                # FastAPI backend (17 โมดูล)
 │   ├── main.py             # 40+ API endpoints
-│   ├── mcp_tools.py        # 21 เครื่องมือ MCP + ระบบสิทธิ์
+│   ├── mcp_tools.py        # 22 เครื่องมือ MCP + ระบบสิทธิ์ + File Sharing
 │   ├── graph_builder.py    # สร้าง Knowledge Graph
 │   ├── retriever.py        # ระบบ RAG 7 ชั้น
 │   ├── vector_search.py    # ค้นหาแบบ TF-IDF
 │   ├── database.py         # ฐานข้อมูล 18 ตาราง
 │   ├── organizer.py        # AI จัดกลุ่ม + ให้คะแนน
 │   ├── relations.py        # ความเชื่อมโยง + แนะนำ
-│   ├── llm.py              # เรียก OpenRouter API
+│   ├── llm.py              # Dual model: Gemini 3.1 Pro + Flash
+│   ├── shared_links.py     # ลิงก์ดาวน์โหลดชั่วคราว (30 นาที)
+│   ├── auth.py             # สมัคร/ล็อกอิน/รีเซ็ตรหัสผ่าน (JWT)
 │   └── config.py           # ตั้งค่าระบบ
 │
 ├── docs/                   # เอกสาร
@@ -234,9 +238,10 @@ Project KEY/
 | Backend | Python FastAPI + Uvicorn |
 | ฐานข้อมูล | SQLite (18 ตาราง, async ผ่าน aiosqlite) |
 | ค้นหา | TF-IDF hybrid (สร้างใหม่อัตโนมัติตอนเริ่มระบบ) |
-| AI/LLM | OpenRouter → Google Gemini 2.5 Flash |
+| AI/LLM | OpenRouter → Gemini 3.1 Pro (จัดการข้อมูล) + Gemini 3 Flash (แชท) |
+| Auth | JWT + bcrypt (Multi-User) |
 | Deploy | Docker + Fly.io (ภูมิภาค Singapore) |
-| AI Integration | MCP Streamable HTTP (21 เครื่องมือ) |
+| AI Integration | MCP Streamable HTTP (22 เครื่องมือ) |
 
 ---
 
@@ -276,6 +281,9 @@ flyctl deploy
 | v4.1 | MCP 21 เครื่องมือ, ปรับปรุง UX จัดการข้อมูล |
 | v4.2 | ระบบสิทธิ์, แบ่ง 4 หมวด, แปลไทยครบ |
 | v4.3 | แก้บัคค้นหา, แก้บัคเพิ่มโน้ต, สร้าง index ตอน startup |
+| v5.0 | Multi-User Auth (สมัคร/ล็อกอิน/JWT), ข้อมูลแยกรายบุคคล |
+| v5.1 | รีเซ็ตรหัสผ่าน, Token ส่วนตัว, URL แยกผู้ใช้ |
+| v5.2 | Dual AI (Gemini 3.1 Pro/Flash), LLM Text Cleanup, File Sharing Link, MCP 22 เครื่องมือ |
 
 ---
 
