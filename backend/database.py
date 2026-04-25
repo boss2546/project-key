@@ -263,6 +263,45 @@ class CanvasObject(Base):
 
 
 # ═══════════════════════════════════════════
+# v5.5 — Context Memory (Cross-Platform)
+# ═══════════════════════════════════════════
+
+class ContextMemory(Base):
+    """Persistent context that follows the user across AI platforms.
+    
+    Enables cross-platform continuity: save context on Claude,
+    load it on Antigravity or ChatGPT. Supports smart merge,
+    auto-archive, and pinning.
+    """
+    __tablename__ = "context_memories"
+    id = Column(String, primary_key=True, default=gen_id)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+
+    # Content
+    title = Column(String, nullable=False)
+    summary = Column(Text, default="")              # Auto-generated from AI
+    content = Column(Text, nullable=False)
+
+    # Classification
+    context_type = Column(String, default="conversation")  # conversation, project, task, note
+    platform = Column(String, default="unknown")           # claude, antigravity, chatgpt, web, unknown
+    tags = Column(Text, default="[]")                      # JSON array
+
+    # State
+    is_active = Column(Boolean, default=True)       # False = archived
+    is_pinned = Column(Boolean, default=False)      # Max 3 per user
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_used_at = Column(DateTime, nullable=True)
+
+    # Relations
+    related_file_ids = Column(Text, default="[]")   # JSON array of file_id
+    parent_id = Column(String, nullable=True)       # Chain contexts together
+
+
+# ═══════════════════════════════════════════
 # MVP v4 — PDB Connector Layer Models
 # ═══════════════════════════════════════════
 

@@ -1240,7 +1240,7 @@ async def mcp_streamable_http(secret: str, request: Request, db: AsyncSession = 
                 },
                 "serverInfo": {
                     "name": "project-key",
-                    "version": "5.4.0",
+                    "version": "5.5.0",
                 },
             },
         })

@@ -21,11 +21,12 @@ from .profile import get_profile, update_profile
 from .context_packs import list_packs, get_pack, create_pack, delete_pack
 from . import vector_search
 from .config import ADMIN_PASSWORD
+from . import context_memory
 
 logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════
-# TOOL REGISTRY — 21 tools in 4 categories
+# TOOL REGISTRY — 30 tools in 5 categories
 # ═══════════════════════════════════════════
 
 TOOL_REGISTRY = {
@@ -239,6 +240,76 @@ TOOL_REGISTRY = {
         "category": "read",
         "annotations": {"title": "Export File", "readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
     },
+
+    # ─── 🧠 CONTEXT MEMORY (6) — v5.5 Cross-Platform Context ───
+    "save_context": {
+        "name": "save_context",
+        "description": "Save conversation context to your personal memory bank. AI SHOULD proactively suggest saving context when: 1) conversation is ending, 2) significant work is completed, 3) user switches topics. Smart Merge: if same title exists within 2 hours, updates existing instead of creating new. User only needs to confirm.",
+        "params": [
+            {"name": "title", "type": "string", "required": True, "description": "Context title (e.g. 'Project KEY v5.4 progress')"},
+            {"name": "content", "type": "string", "required": True, "description": "Full context content (markdown)"},
+            {"name": "context_type", "type": "string", "required": False, "default": "conversation", "description": "Type: conversation, project, task, note"},
+            {"name": "tags", "type": "array", "required": False, "description": "Tags for categorization"},
+            {"name": "related_file_ids", "type": "array", "required": False, "description": "Related file IDs from knowledge base"},
+            {"name": "is_pinned", "type": "boolean", "required": False, "default": False, "description": "Pin for auto-load (max 3)"},
+        ],
+        "category": "context",
+        "annotations": {"title": "Save Context", "readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False},
+    },
+    "load_context": {
+        "name": "load_context",
+        "description": "Load context from memory. Without context_id, returns latest context + all pinned contexts automatically. Call this at the start of every new conversation for best UX.",
+        "params": [
+            {"name": "context_id", "type": "string", "required": False, "description": "Specific context ID (optional — default: latest + pinned)"},
+            {"name": "include_pinned", "type": "boolean", "required": False, "default": True, "description": "Include pinned contexts"},
+        ],
+        "category": "context",
+        "annotations": {"title": "Load Context", "readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
+    },
+    "list_contexts": {
+        "name": "list_contexts",
+        "description": "List all saved contexts with optional filters by type, pin status, or keyword search.",
+        "params": [
+            {"name": "limit", "type": "integer", "required": False, "default": 10},
+            {"name": "context_type", "type": "string", "required": False},
+            {"name": "is_pinned", "type": "boolean", "required": False},
+            {"name": "search", "type": "string", "required": False},
+        ],
+        "category": "context",
+        "annotations": {"title": "List Contexts", "readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
+    },
+    "update_context": {
+        "name": "update_context",
+        "description": "Update an existing context (title, content, tags, pin status). Max 3 pinned contexts.",
+        "params": [
+            {"name": "context_id", "type": "string", "required": True},
+            {"name": "title", "type": "string", "required": False},
+            {"name": "content", "type": "string", "required": False},
+            {"name": "summary", "type": "string", "required": False},
+            {"name": "tags", "type": "array", "required": False},
+            {"name": "is_pinned", "type": "boolean", "required": False},
+            {"name": "is_active", "type": "boolean", "required": False},
+        ],
+        "category": "edit",
+        "annotations": {"title": "Update Context", "readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
+    },
+    "delete_context": {
+        "name": "delete_context",
+        "description": "Permanently delete a saved context from memory.",
+        "params": [{"name": "context_id", "type": "string", "required": True}],
+        "category": "delete",
+        "annotations": {"title": "Delete Context", "readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": False},
+    },
+    "auto_context": {
+        "name": "auto_context",
+        "description": "Search and recommend relevant contexts matching a query. Uses keyword matching on title, summary, content, and tags.",
+        "params": [
+            {"name": "query", "type": "string", "required": True},
+            {"name": "limit", "type": "integer", "required": False, "default": 3},
+        ],
+        "category": "context",
+        "annotations": {"title": "Auto Context", "readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
+    },
 }
 
 
@@ -324,6 +395,50 @@ async def call_tool(
         elif tool_name == "export_file_to_chat":
             result = await _tool_export_file_to_chat(db, user_id, params.get("file_id"))
 
+        # ─── CONTEXT MEMORY (v5.5) ───
+        elif tool_name == "save_context":
+            result = await context_memory.save_context(
+                db, user_id, params.get("title"), params.get("content"),
+                summary=params.get("summary", ""),
+                context_type=params.get("context_type", "conversation"),
+                platform=params.get("platform", "unknown"),
+                tags=params.get("tags"),
+                related_file_ids=params.get("related_file_ids"),
+                is_pinned=params.get("is_pinned", False),
+            )
+        elif tool_name == "load_context":
+            result = await context_memory.load_context(
+                db, user_id,
+                context_id=params.get("context_id"),
+                include_pinned=params.get("include_pinned", True),
+            )
+        elif tool_name == "list_contexts":
+            result = await context_memory.list_contexts(
+                db, user_id,
+                limit=params.get("limit", 10),
+                context_type=params.get("context_type"),
+                is_pinned=params.get("is_pinned"),
+                search=params.get("search"),
+            )
+        elif tool_name == "update_context":
+            result = await context_memory.update_context(
+                db, user_id, params.get("context_id"),
+                title=params.get("title"),
+                content=params.get("content"),
+                summary=params.get("summary"),
+                tags=params.get("tags"),
+                is_pinned=params.get("is_pinned"),
+                is_active=params.get("is_active"),
+            )
+        elif tool_name == "delete_context":
+            result = await context_memory.delete_context(
+                db, user_id, params.get("context_id"),
+            )
+        elif tool_name == "auto_context":
+            result = await context_memory.auto_context(
+                db, user_id, params.get("query"), params.get("limit", 3),
+            )
+
     except Exception as e:
         status = "error"
         error_msg = str(e)
@@ -360,18 +475,28 @@ async def call_tool(
 # ═══════════════════════════════════════════
 
 async def _tool_get_profile(db: AsyncSession, user_id: str) -> dict:
-    """Get user profile data."""
+    """Get user profile data + active contexts (v5.5 bundling)."""
     profile = await get_profile(db, user_id)
     if not profile.get("exists"):
         return {"message": "Profile not set up yet"}
 
-    return {
+    # v5.5 — Bundle active contexts for zero-effort UX
+    active_contexts = await context_memory.get_active_contexts_for_profile(db, user_id)
+
+    result = {
         "identity_summary": profile.get("identity_summary", ""),
         "goals": profile.get("goals", ""),
         "working_style": profile.get("working_style", ""),
         "preferred_output_style": profile.get("preferred_output_style", ""),
         "background_context": profile.get("background_context", ""),
     }
+
+    if active_contexts:
+        result["active_contexts"] = active_contexts
+        result["active_contexts_count"] = len(active_contexts)
+        result["tip"] = "Active contexts are included. Use load_context(context_id) to get full content."
+
+    return result
 
 
 async def _tool_list_files(db: AsyncSession, user_id: str) -> dict:
