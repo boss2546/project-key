@@ -49,7 +49,34 @@
 - ผู้ใช้จัดการ Context ได้ทั้งผ่าน **MCP (สั่ง AI)** และ **Web UI (หน้าเว็บ)**
 - ระบบ **แนะนำ Context ที่เกี่ยวข้อง** อัตโนมัติจาก query
 
-### 3.3 ไม่อยู่ในขอบเขต (Out of Scope)
+### 3.3 พฤติกรรม Default Context (สำคัญ)
+
+> **หลักการ:** ผู้ใช้ไม่ต้องเลือก Context เอง — ระบบจะโหลด Context ล่าสุดให้อัตโนมัติ
+
+| สถานการณ์ | พฤติกรรม |
+|-----------|----------|
+| เปิดแพลตฟอร์มใหม่ (Claude/Antigravity/ChatGPT) | AI เรียก `load_context()` → **ได้ context ล่าสุด + pinned ทันที** |
+| มี context ล่าสุด + pinned หลายอัน | ส่ง **context ล่าสุด 1 อัน + pinned ทั้งหมด** รวมกัน |
+| ไม่มี context เลย | ตอบ `{"contexts": [], "count": 0}` → AI เริ่มต้นใหม่ปกติ |
+| ผู้ใช้ระบุ `context_id` | ดึง context ที่ระบุเท่านั้น (ไม่ auto) |
+| ผู้ใช้ save context ใหม่ | context ใหม่จะกลายเป็น "ล่าสุด" ทันที |
+
+**ลำดับการโหลด Default Context:**
+```
+1. Pinned contexts (is_pinned=true) → โหลดทั้งหมด เรียงตาม updated_at DESC
+2. Latest context (ล่าสุด 1 อัน) → โหลดอัตโนมัติถ้าไม่ซ้ำกับ pinned
+3. รวมส่งให้ AI เป็น array → AI ได้ข้อมูลครบโดยไม่ต้องถามผู้ใช้
+```
+
+**Flow ตัวอย่าง:**
+```
+ผู้ใช้คุย Claude → save_context("งาน v5.4") → เปิด Antigravity
+→ AI เรียก load_context() อัตโนมัติ
+→ ได้ "งาน v5.4" ทันที ไม่ต้องถามว่าจะโหลดอะไร
+→ AI: "เมื่อกี้คุณทำ v5.4 ค้างไว้ ต่อเลยไหม?"
+```
+
+### 3.4 ไม่อยู่ในขอบเขต (Out of Scope)
 - Real-time sync ระหว่าง platforms (ไม่ทำ WebSocket)
 - Auto-capture ทุก conversation โดยไม่ถาม (privacy concern)
 - Shared context ข้ามผู้ใช้ (ยังไม่ทำ collaboration)
@@ -163,15 +190,22 @@ CREATE TABLE context_memories (
 ```
 **Annotations:** `readOnlyHint: false, destructiveHint: false`
 
-### 7.2 `load_context`
+### 7.2 `load_context` (Default = ล่าสุดเสมอ)
 
 **Input:**
 ```json
 {
-  "context_id": "string (optional — ถ้าไม่ใส่ = ดึงล่าสุด + pinned)",
+  "context_id": "string (optional — ถ้าไม่ใส่ = ดึงล่าสุดอัตโนมัติ)",
   "include_pinned": "boolean (optional, default: true)"
 }
 ```
+
+**Logic (สำคัญ):**
+- **ไม่ใส่ context_id** → ดึง context ที่ `updated_at` ล่าสุด 1 อัน + pinned ทั้งหมด
+- **ใส่ context_id** → ดึง context นั้นตัวเดียว
+- ทุกครั้งที่ load → อัปเดต `last_used_at` อัตโนมัติ
+- AI client ควรเรียก tool นี้ตอนเริ่มสนทนาใหม่เสมอ
+
 **Annotations:** `readOnlyHint: true`
 
 ### 7.3 `list_contexts`
