@@ -349,13 +349,30 @@ async def get_active_contexts_for_profile(
 # ── Private helpers ─────────────────────────
 
 def _auto_summary(content: str) -> str:
-    """Generate a simple summary from content (first 200 chars).
-    For MVP — can be enhanced with LLM later.
+    """Generate a structured, high-quality summary from content.
+    Inspired by OpenClaw's MEMORY.md pattern — extracts key facts.
     """
     if not content:
         return ""
-    clean = content.strip().replace("\n", " ")
-    return clean[:200] + ("..." if len(clean) > 200 else "")
+    clean = content.strip()
+    lines = [l.strip() for l in clean.split("\n") if l.strip()]
+    
+    # Strategy: pick key lines (headings, bullet points, numbered items)
+    key_lines = []
+    for line in lines:
+        # Prioritize structured content
+        if any(line.startswith(p) for p in ('# ', '## ', '### ', '- ', '* ', '1.', '2.', '3.', '4.', '5.')):
+            key_lines.append(line.lstrip('#-*0123456789. ').strip())
+        elif any(kw in line.lower() for kw in ('สถานะ', 'status', 'เสร็จ', 'done', 'ค้าง', 'pending', 'next', 'ต่อไป', 'สรุป', 'summary')):
+            key_lines.append(line)
+    
+    if key_lines:
+        result = ' | '.join(key_lines[:5])
+        return result[:300] + ('...' if len(result) > 300 else '')
+    
+    # Fallback: first meaningful sentence
+    fallback = ' '.join(lines[:3])
+    return fallback[:300] + ('...' if len(fallback) > 300 else '')
 
 
 async def _auto_archive(db: AsyncSession, user_id: str):

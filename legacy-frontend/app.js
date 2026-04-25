@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Project KEY v5.1 — Frontend Logic
  * Multi-User Knowledge Workspace + PDB Connector Layer
  */
@@ -2722,7 +2722,7 @@ function formatTimeAgo(isoStr) {
 
 
 // ═══════════════════════════════════════════
-// CONTEXT MEMORY — v5.5
+// CONTEXT MEMORY — v5.5 (OpenClaw-inspired)
 // ═══════════════════════════════════════════
 
 let _ctxCache = [];
@@ -2730,7 +2730,6 @@ let _ctxViewId = null;
 
 async function loadContexts() {
   const grid = document.getElementById('ctx-grid');
-  const empty = document.getElementById('ctx-empty');
   if (!grid) return;
 
   const search = document.getElementById('ctx-search')?.value || '';
@@ -2741,89 +2740,90 @@ async function loadContexts() {
   if (ctxType) url += `&context_type=${encodeURIComponent(ctxType)}`;
 
   try {
-    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${state.authToken}` } });
-    if (!res.ok) throw new Error('API error');
+    const res = await authFetch(url);
     const data = await res.json();
     _ctxCache = data.contexts || [];
 
     if (_ctxCache.length === 0) {
-      grid.innerHTML = '';
-      if (empty) { empty.style.display = ''; grid.appendChild(empty); }
+      grid.innerHTML = `<div class="empty-state"><p>🧠 ยังไม่มี Context — AI จะเริ่มบันทึกให้อัตโนมัติเมื่อคุณใช้งาน</p></div>`;
       return;
     }
 
-    grid.innerHTML = _ctxCache.map(c => _renderCtxCard(c)).join('');
+    // Sort: pinned first, then by updated_at
+    const sorted = [..._ctxCache].sort((a, b) => {
+      if (a.is_pinned && !b.is_pinned) return -1;
+      if (!a.is_pinned && b.is_pinned) return 1;
+      return new Date(b.updated_at) - new Date(a.updated_at);
+    });
+
+    grid.innerHTML = sorted.map(c => _renderCtxCard(c)).join('');
   } catch (err) {
     console.error('loadContexts error:', err);
-    grid.innerHTML = '<div class="empty-state"><p>โหลด context ไม่ได้ — ลองอีกครั้ง</p></div>';
   }
 }
 
 function _renderCtxCard(c) {
-  const typeEmoji = { conversation: '💬', project: '📁', task: '✅', note: '📝' };
-  const emoji = typeEmoji[c.context_type] || '🧠';
-  const pin = c.is_pinned ? '<span class="ctx-pin-badge">📌</span>' : '';
+  const typeLabels = { conversation: '💬 สนทนา', project: '📁 โปรเจกต์', task: '✅ งาน', note: '📝 บันทึก' };
+  const label = typeLabels[c.context_type] || '🧠 อื่นๆ';
   const pinnedClass = c.is_pinned ? ' pinned' : '';
-  const tags = (c.tags || []).slice(0, 3).map(t => `<span class="ctx-tag">${_esc(t)}</span>`).join('');
-  const time = c.updated_at ? _timeAgo(c.updated_at) : '';
-  const summary = _esc(c.summary || '').substring(0, 150);
+  const pinIcon = c.is_pinned ? '📌' : '';
+  const tags = (c.tags || []).slice(0, 4).map(t => `<span class="ctx-tag">${escapeHtml(t)}</span>`).join('');
+  const time = c.updated_at ? formatTimeAgo(c.updated_at) : '';
+  const summary = escapeHtml(c.summary || '').substring(0, 180);
+  const cid = c.context_id;
 
-  return `<div class="ctx-card${pinnedClass}" data-ctx-id="${c.context_id}" onclick="viewContext('${c.context_id}')">
+  return `<div class="ctx-card${pinnedClass}" onclick="viewContext('${cid}')">
     <div class="ctx-card-actions">
-      <button onclick="event.stopPropagation();editContext('${c.context_id}')" title="แก้ไข">✏️</button>
-      <button onclick="event.stopPropagation();togglePin('${c.context_id}',${!c.is_pinned})" title="${c.is_pinned ? 'Unpin' : 'Pin'}">${c.is_pinned ? '📌' : '📍'}</button>
-      <button onclick="event.stopPropagation();deleteCtx('${c.context_id}')" title="ลบ">🗑️</button>
+      <button onclick="event.stopPropagation();editContext('${cid}')" title="แก้ไข">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      </button>
+      <button onclick="event.stopPropagation();togglePin('${cid}',${!c.is_pinned})" title="${c.is_pinned ? 'ถอดหมุด' : 'ปักหมุด'}">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="${c.is_pinned ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><path d="M12 2l3 9h9l-7 5 3 9-8-6-8 6 3-9-7-5h9z"/></svg>
+      </button>
+      <button onclick="event.stopPropagation();deleteCtx('${cid}')" title="ลบ">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+      </button>
     </div>
     <div class="ctx-card-header">
-      <span class="ctx-card-title">${_esc(c.title)}</span>
-      ${pin}
+      <span class="ctx-card-title">${escapeHtml(c.title)}</span>
+      ${pinIcon ? `<span class="ctx-pin-badge">${pinIcon}</span>` : ''}
     </div>
     <div class="ctx-card-summary">${summary}</div>
     <div class="ctx-card-meta">
-      <span class="ctx-type-badge ${c.context_type}">${emoji} ${c.context_type}</span>
+      <span class="ctx-type-badge ${c.context_type}">${label}</span>
       ${tags}
       <span class="ctx-card-time">${time}</span>
     </div>
   </div>`;
 }
 
-function _esc(s) { return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
-function _timeAgo(iso) {
-  const d = new Date(iso);
-  const now = new Date();
-  const s = Math.floor((now - d) / 1000);
-  if (s < 60) return 'เมื่อสักครู่';
-  if (s < 3600) return Math.floor(s/60) + ' นาทีที่แล้ว';
-  if (s < 86400) return Math.floor(s/3600) + ' ชม.ที่แล้ว';
-  return Math.floor(s/86400) + ' วันที่แล้ว';
-}
-
-// ─── View Context ───
+// ─── View Context (full content) ───
 async function viewContext(id) {
   const c = _ctxCache.find(x => x.context_id === id);
   if (!c) return;
   _ctxViewId = id;
 
-  try {
-    const res = await fetch(`/api/contexts/${id}`, { headers: { 'Authorization': `Bearer ${state.authToken}` } });
-    const data = await res.json();
-    const full = data.contexts?.[0] || c;
+  const titleEl = document.getElementById('ctx-view-title');
+  const bodyEl = document.getElementById('ctx-view-body');
 
-    document.getElementById('ctx-view-title').textContent = full.title || c.title;
-    document.getElementById('ctx-view-body').textContent = full.content || c.summary || 'ไม่มีเนื้อหา';
-    document.getElementById('ctx-view-modal').classList.remove('hidden');
+  titleEl.textContent = c.title || 'Context';
+
+  try {
+    const res = await authFetch(`/api/contexts/${id}`);
+    const data = await res.json();
+    // API returns full context object directly (not wrapped in contexts[])
+    const content = data.content || data.contexts?.[0]?.content || c.summary || 'ไม่มีเนื้อหา';
+    bodyEl.textContent = content;
   } catch (e) {
-    document.getElementById('ctx-view-title').textContent = c.title;
-    document.getElementById('ctx-view-body').textContent = c.summary || 'ไม่มีเนื้อหา';
-    document.getElementById('ctx-view-modal').classList.remove('hidden');
+    bodyEl.textContent = c.summary || 'ไม่มีเนื้อหา';
   }
+
+  document.getElementById('ctx-view-modal').classList.remove('hidden');
 }
 
 // ─── Create / Edit Modal ───
 function openCtxModal(editId) {
   const modal = document.getElementById('ctx-modal');
-  const titleEl = document.getElementById('ctx-modal-title');
   document.getElementById('ctx-edit-id').value = editId || '';
   document.getElementById('ctx-input-title').value = '';
   document.getElementById('ctx-input-content').value = '';
@@ -2832,7 +2832,7 @@ function openCtxModal(editId) {
   document.getElementById('ctx-input-pinned').checked = false;
 
   if (editId) {
-    titleEl.textContent = '✏️ แก้ไข Context';
+    document.getElementById('ctx-modal-title').textContent = '✏️ แก้ไข Context';
     const c = _ctxCache.find(x => x.context_id === editId);
     if (c) {
       document.getElementById('ctx-input-title').value = c.title || '';
@@ -2840,15 +2840,16 @@ function openCtxModal(editId) {
       document.getElementById('ctx-input-tags').value = (c.tags || []).join(', ');
       document.getElementById('ctx-input-pinned').checked = c.is_pinned || false;
       // Load full content
-      fetch(`/api/contexts/${editId}`, { headers: { 'Authorization': `Bearer ${state.authToken}` } })
+      authFetch(`/api/contexts/${editId}`)
         .then(r => r.json())
         .then(data => {
-          const full = data.contexts?.[0];
-          if (full) document.getElementById('ctx-input-content').value = full.content || '';
-        });
+          const content = data.content || data.contexts?.[0]?.content || '';
+          document.getElementById('ctx-input-content').value = content;
+        })
+        .catch(() => {});
     }
   } else {
-    titleEl.textContent = '🧠 สร้าง Context ใหม่';
+    document.getElementById('ctx-modal-title').textContent = '🧠 สร้าง Context ใหม่';
   }
 
   modal.classList.remove('hidden');
@@ -2865,63 +2866,80 @@ async function saveCtxModal() {
   const isPinned = document.getElementById('ctx-input-pinned').checked;
   const tags = tagsStr ? tagsStr.split(',').map(t => t.trim()).filter(Boolean) : [];
 
-  if (!title) { alert('กรุณาใส่ชื่อ Context'); return; }
+  if (!title) {
+    showToast('กรุณาใส่ชื่อ Context', 'error');
+    return;
+  }
 
-  const token = state.authToken;
   try {
     let res;
     if (editId) {
-      res = await fetch(`/api/contexts/${editId}`, {
+      res = await authFetch(`/api/contexts/${editId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, content, context_type: ctxType, tags, is_pinned: isPinned }),
       });
     } else {
-      res = await fetch('/api/contexts', {
+      res = await authFetch('/api/contexts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, content, context_type: ctxType, tags, is_pinned: isPinned }),
       });
     }
-    if (!res.ok) { const err = await res.json(); alert(err.detail || 'เกิดข้อผิดพลาด'); return; }
+    if (!res.ok) {
+      const err = await res.json();
+      showToast(err.detail || 'เกิดข้อผิดพลาด', 'error');
+      return;
+    }
     document.getElementById('ctx-modal').classList.add('hidden');
+    showToast(editId ? '✅ อัปเดต Context แล้ว' : '✅ สร้าง Context ใหม่แล้ว', 'success');
     loadContexts();
   } catch (e) {
-    alert('เกิดข้อผิดพลาด: ' + e.message);
+    showToast('เกิดข้อผิดพลาด: ' + e.message, 'error');
   }
 }
 
 async function togglePin(id, pinState) {
-  const token = state.authToken;
   try {
-    const res = await fetch(`/api/contexts/${id}`, {
+    const res = await authFetch(`/api/contexts/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ is_pinned: pinState }),
     });
-    if (!res.ok) { const err = await res.json(); alert(err.detail || err.message || 'เกิดข้อผิดพลาด'); return; }
+    if (!res.ok) {
+      const err = await res.json();
+      showToast(err.detail || err.message || 'Pin ไม่สำเร็จ — สูงสุด 3 อัน', 'error');
+      return;
+    }
+    showToast(pinState ? '📌 ปักหมุดแล้ว' : '📌 ถอดหมุดแล้ว', 'success');
     loadContexts();
-  } catch (e) { alert('เกิดข้อผิดพลาด: ' + e.message); }
+  } catch (e) {
+    showToast('เกิดข้อผิดพลาด', 'error');
+  }
 }
 
 async function deleteCtx(id) {
-  if (!confirm('ลบ Context นี้ถาวร?')) return;
-  const token = state.authToken;
+  const ok = await showConfirm(getLang() === 'th' ? 'ลบ Context นี้ถาวร?' : 'Delete this context permanently?');
+  if (!ok) return;
+
   try {
-    await fetch(`/api/contexts/${id}`, {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${token}` },
-    });
-    // Close view modal if open
+    await authFetch(`/api/contexts/${id}`, { method: 'DELETE' });
     document.getElementById('ctx-view-modal')?.classList.add('hidden');
+    showToast('🗑️ ลบ Context แล้ว', 'success');
     loadContexts();
-  } catch (e) { alert('ลบไม่ได้: ' + e.message); }
+  } catch (e) {
+    showToast('ลบไม่สำเร็จ', 'error');
+  }
 }
 
 // ─── Event Listeners ───
 document.addEventListener('DOMContentLoaded', () => {
-  // Search & filter
-  document.getElementById('ctx-search')?.addEventListener('input', _debounceCtx(loadContexts, 400));
+  // Search & filter with debounce
+  let _ctxSearchTimer;
+  document.getElementById('ctx-search')?.addEventListener('input', () => {
+    clearTimeout(_ctxSearchTimer);
+    _ctxSearchTimer = setTimeout(loadContexts, 400);
+  });
   document.getElementById('ctx-filter-type')?.addEventListener('change', loadContexts);
 
   // Create button
@@ -2943,15 +2961,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Close modals on overlay click
-  document.getElementById('ctx-modal')?.addEventListener('click', (e) => {
-    if (e.target.classList.contains('modal-overlay')) document.getElementById('ctx-modal').classList.add('hidden');
-  });
-  document.getElementById('ctx-view-modal')?.addEventListener('click', (e) => {
-    if (e.target.classList.contains('modal-overlay')) document.getElementById('ctx-view-modal').classList.add('hidden');
+  ['ctx-modal', 'ctx-view-modal'].forEach(mid => {
+    document.getElementById(mid)?.addEventListener('click', (e) => {
+      if (e.target.classList.contains('modal-overlay')) e.target.classList.add('hidden');
+    });
   });
 });
 
-function _debounceCtx(fn, ms) {
-  let t;
-  return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
-}

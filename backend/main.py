@@ -768,11 +768,15 @@ async def api_delete_context(context_id: str, current_user: User = Depends(get_c
 
 @app.get("/api/contexts/{context_id}")
 async def api_get_context(context_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    """Load a specific context."""
+    """Load a specific context — returns flat object."""
     from .context_memory import load_context
     result = await load_context(db, current_user.id, context_id=context_id)
     if result.get("error") == "context_not_found":
         raise HTTPException(status_code=404, detail="Context not found")
+    # Unwrap for REST API convenience (frontend expects flat object)
+    contexts = result.get("contexts", [])
+    if contexts:
+        return contexts[0]
     return result
 
 
