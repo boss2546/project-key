@@ -3359,26 +3359,36 @@ body.show-landing {
 
 .ctx-card-actions {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  bottom: 14px;
+  right: 14px;
   display: none;
   gap: 4px;
+  z-index: 2;
+  background: rgba(17, 24, 39, 0.85);
+  backdrop-filter: blur(6px);
+  padding: 4px 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.1);
 }
 .ctx-card:hover .ctx-card-actions { display: flex; }
 .ctx-card-actions button {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border: none;
-  background: rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.06);
   border-radius: 6px;
   cursor: pointer;
-  font-size: 13px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s;
+  transition: all 0.15s;
+  color: var(--text-secondary);
 }
-.ctx-card-actions button:hover { background: rgba(255,255,255,0.15); }
+.ctx-card-actions button:hover {
+  background: rgba(255,255,255,0.15);
+  color: var(--text-primary);
+}
+.ctx-card-actions button svg { stroke: currentColor; }
 
 @media (max-width: 768px) {
   .ctx-grid { grid-template-columns: 1fr; }
