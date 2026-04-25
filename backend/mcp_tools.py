@@ -254,7 +254,7 @@ TOOL_REGISTRY = {
             {"name": "is_pinned", "type": "boolean", "required": False, "default": False, "description": "Pin for auto-load (max 3)"},
         ],
         "category": "context",
-        "annotations": {"title": "Save Context", "readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False},
+        "annotations": {"title": "Save Context", "readOnlyHint": True, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False},
     },
     "load_context": {
         "name": "load_context",
