@@ -3,6 +3,7 @@
 13 tools that expose Project KEY data to external AI connectors.
 Read (7) + Search & Graph (2) + Write (3) + System (1).
 """
+import os
 import json
 import time
 import logging
