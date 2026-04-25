@@ -5,7 +5,7 @@
 > **Version:** v5.5  
 > **Author:** Antigravity AI + ทีมพัฒนา  
 > **วันที่:** 25 เมษายน 2569  
-> **สถานะ:** 📝 Draft v2 — User-Centric Design
+> **สถานะ:** ✅ Complete — ทดสอบผ่านทั้ง 14/14 test cases (25/04/2569)
 > **Design Principle:** 🎯 Zero-Effort Context — ผู้ใช้ไม่ต้องทำอะไรเลย ระบบจัดการให้หมด
 
 ---
@@ -397,19 +397,19 @@ The user only needs to confirm — AI handles the rest.
 
 ## 11. Acceptance Criteria
 
-- [ ] save/load/list/update/delete/auto_context ทำงานผ่าน MCP
-- [ ] **save_context ไม่ต้องยืนยัน** (auto-approve) — ลด friction
-- [ ] **Smart Merge** — ไม่สร้าง context ซ้ำซ้อน
-- [ ] **Auto-Summary** — สรุปสร้างจาก AI อัตโนมัติ
-- [ ] **Auto-Archive** — เกิน 20 → archive เอง
-- [ ] **Max 3 Pin** — จำกัด pin
-- [ ] **get_profile แนบ context** — Profile + Context รวมกัน 1 call
-- [ ] Web UI สร้าง/แก้/ลบ/pin ได้
-- [ ] Annotations ถูกต้อง (save=auto, update=confirm, delete=destructive)
-- [ ] ข้อมูลแยก user_id ไม่ข้ามผู้ใช้
-- [ ] ทดสอบผ่าน Antigravity MCP จริง
-- [ ] Deploy production สำเร็จ
-- [ ] **14/14 test cases ผ่าน**
+- [x] save/load/list/update/delete/auto_context ทำงานผ่าน MCP
+- [x] **save_context ไม่ต้องยืนยัน** (auto-approve) — ลด friction
+- [x] **Smart Merge** — ไม่สร้าง context ซ้ำซ้อน ✅ ทดสอบ 25/04/2569
+- [x] **Auto-Summary** — สรุปสร้างจาก AI อัตโนมัติ (OpenClaw-inspired)
+- [x] **Auto-Archive** — เกิน 20 → archive เอง ✅ ทดสอบ 25/04/2569
+- [x] **Max 3 Pin** — จำกัด pin
+- [x] **get_profile แนบ context** — Profile + Context รวมกัน 1 call
+- [x] Web UI สร้าง/แก้/ลบ/pin ได้
+- [x] Annotations ถูกต้อง (save=auto, update=confirm, delete=destructive)
+- [x] ข้อมูลแยก user_id ไม่ข้ามผู้ใช้
+- [x] ทดสอบผ่าน Antigravity MCP จริง
+- [x] Deploy production สำเร็จ
+- [x] **14/14 test cases ผ่าน**
 
 ---
 
