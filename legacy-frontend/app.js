@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Project KEY v5.1 — Frontend Logic
  * Multi-User Knowledge Workspace + PDB Connector Layer
  */
@@ -2741,7 +2741,7 @@ async function loadContexts() {
   if (ctxType) url += `&context_type=${encodeURIComponent(ctxType)}`;
 
   try {
-    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${state.authToken}` } });
     if (!res.ok) throw new Error('API error');
     const data = await res.json();
     _ctxCache = data.contexts || [];
@@ -2806,7 +2806,7 @@ async function viewContext(id) {
   _ctxViewId = id;
 
   try {
-    const res = await fetch(`/api/contexts/${id}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+    const res = await fetch(`/api/contexts/${id}`, { headers: { 'Authorization': `Bearer ${state.authToken}` } });
     const data = await res.json();
     const full = data.contexts?.[0] || c;
 
@@ -2840,7 +2840,7 @@ function openCtxModal(editId) {
       document.getElementById('ctx-input-tags').value = (c.tags || []).join(', ');
       document.getElementById('ctx-input-pinned').checked = c.is_pinned || false;
       // Load full content
-      fetch(`/api/contexts/${editId}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } })
+      fetch(`/api/contexts/${editId}`, { headers: { 'Authorization': `Bearer ${state.authToken}` } })
         .then(r => r.json())
         .then(data => {
           const full = data.contexts?.[0];
@@ -2867,7 +2867,7 @@ async function saveCtxModal() {
 
   if (!title) { alert('กรุณาใส่ชื่อ Context'); return; }
 
-  const token = localStorage.getItem('token');
+  const token = state.authToken;
   try {
     let res;
     if (editId) {
@@ -2892,7 +2892,7 @@ async function saveCtxModal() {
 }
 
 async function togglePin(id, pinState) {
-  const token = localStorage.getItem('token');
+  const token = state.authToken;
   try {
     const res = await fetch(`/api/contexts/${id}`, {
       method: 'PUT',
@@ -2906,7 +2906,7 @@ async function togglePin(id, pinState) {
 
 async function deleteCtx(id) {
   if (!confirm('ลบ Context นี้ถาวร?')) return;
-  const token = localStorage.getItem('token');
+  const token = state.authToken;
   try {
     await fetch(`/api/contexts/${id}`, {
       method: 'DELETE',
