@@ -1,8 +1,8 @@
-# 📋 Project KEY — รายงานสรุปโปรเจกต์ (v0.1 → v5.4)
+# 📋 Project KEY — รายงานสรุปโปรเจกต์ (v0.1 → v5.5)
 
 > **วันที่จัดทำ:** 19 เมษายน 2569  
 > **อัพเดทล่าสุด:** 25 เมษายน 2569  
-> **เวอร์ชันปัจจุบัน:** v5.4 — File Attachment + MCP Annotations + 24 Tools  
+> **เวอร์ชันปัจจุบัน:** v5.5 — Context Memory System (ระบบจำบริบทข้ามแพลตฟอร์ม) + 30 Tools  
 > **Git Tags:** `MVPV1` → `v3.0` → `v4.2`  
 > **สถานะ:** ✅ Production (https://project-key.fly.dev/)  
 > **จัดทำโดย:** Antigravity AI + ทีมพัฒนา  
@@ -25,6 +25,7 @@ v5.1  → Token Security — รีเซ็ตรหัสผ่าน + Token 
 v5.2  → Dual AI — Gemini 3.1 Pro/Flash + LLM Text Cleanup + File Sharing
 v5.3  → Multi-Platform MCP — Antigravity bridge + import os fix + 23 tools
 v5.4  → File Attachment — export_file_to_chat + MCP Annotations + 24 tools
+v5.5  → Context Memory — ระบบจำบริบทข้ามแพลตฟอร์ม + Smart Merge + 30 tools
 ```
 
 ---
@@ -649,21 +650,22 @@ primary_region = "sin"  # Singapore
 
 ## 13. สถิติโปรเจกต์ — เปรียบเทียบทุก Version (อัปเดต v5.4)
 
-| รายการ | v0.1 | v2.0 | v3.0 | v4.2 | **v5.4** |
+| รายการ | v0.1 | v2.0 | v3.0 | v4.2 | **v5.5** |
 |--------|------|------|------|------|----------|
 | **Backend modules** | 8 | 10 | 15 | 17 | **19** |
 | **Frontend files** | 3 | 3 | 3 | 3 | **3** |
-| **Database tables** | 7 | 10 | 16 | 18 | **18** |
-| **API endpoints** | 8 | 16 | ~30 | 40+ | **40+** |
-| **Backend code** | ~1,200 | ~2,100 | ~3,660 | ~4,360 | **~5,500 lines** |
-| **Frontend code** | ~1,350 | ~2,000 | ~3,113 | ~4,787 | **~7,008 lines** |
-| **Total code** | ~2,550 | ~4,100 | ~6,773 | ~9,147 | **~12,508 lines** |
-| **MCP Tools** | — | — | — | 21 | **24** |
+| **Database tables** | 7 | 10 | 16 | 18 | **19** |
+| **API endpoints** | 8 | 16 | ~30 | 40+ | **45+** |
+| **Backend code** | ~1,200 | ~2,100 | ~3,660 | ~4,360 | **~6,138 lines** |
+| **Frontend code** | ~1,350 | ~2,000 | ~3,113 | ~4,787 | **~6,651 lines** |
+| **Total code** | ~2,550 | ~4,100 | ~6,773 | ~9,147 | **~12,789 lines** |
+| **MCP Tools** | — | — | — | 21 | **30** |
 | **i18n keys** | — | — | 120+ | 170+ | **170+** |
 | **Auth** | — | — | — | — | **JWT + bcrypt** |
 | **AI Models** | 1 | 1 | 1 | 1 | **2 (Pro + Flash)** |
 | **Deployment** | Local | Local | Local | Fly.io | **Fly.io** |
 | **MCP Platforms** | — | — | — | Claude | **Claude + Antigravity** |
+| **Context Memory** | — | — | — | — | **✅ Smart Merge + Auto-Archive** |
 
 ---
 
@@ -683,6 +685,7 @@ primary_region = "sin"  # Singapore
 | v5.2 | — | 22-23 เม.ย. 69 | Dual AI + LLM Cleanup + File Sharing + 22 tools |
 | **v5.3** | — | **25 เม.ย. 69** | **Multi-Platform MCP + Antigravity bridge + 23 tools** |
 | **v5.4** | — | **25 เม.ย. 69** | **export_file_to_chat + MCP Annotations + 24 tools** |
+| **v5.5** | — | **25 เม.ย. 69** | **Context Memory System — ระบบจำบริบทข้ามแพลตฟอร์ม + Smart Merge + 30 tools** |
 
 ---
 
@@ -740,4 +743,4 @@ flyctl ssh console
 
 ---
 
-*รายงานจัดทำโดย Antigravity AI · Project KEY v5.4 · 25 เมษายน 2569*
+*รายงานจัดทำโดย Antigravity AI · Project KEY v5.5 · 25 เมษายน 2569*
