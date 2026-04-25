@@ -1236,7 +1236,7 @@ async def mcp_streamable_http(secret: str, request: Request, db: AsyncSession = 
                 },
                 "serverInfo": {
                     "name": "project-key",
-                    "version": "5.2.0",
+                    "version": "5.4.0",
                 },
             },
         })
@@ -1282,12 +1282,21 @@ async def mcp_streamable_http(secret: str, request: Request, db: AsyncSession = 
 
         # Format result as MCP content
         if tool_result["status"] == "success":
-            text_content = json.dumps(tool_result["result"], ensure_ascii=False, indent=2)
+            result_data = tool_result["result"]
+            
+            # v5.4: Check for special __mcp_content key (used by export_file_to_chat)
+            # This allows tools to return rich MCP content (EmbeddedResource, etc.)
+            if isinstance(result_data, dict) and "__mcp_content" in result_data:
+                content = result_data["__mcp_content"]
+            else:
+                text_content = json.dumps(result_data, ensure_ascii=False, indent=2)
+                content = [{"type": "text", "text": text_content}]
+            
             return JSONResponse({
                 "jsonrpc": "2.0",
                 "id": msg_id,
                 "result": {
-                    "content": [{"type": "text", "text": text_content}],
+                    "content": content,
                 },
             })
         else:

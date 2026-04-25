@@ -6,6 +6,7 @@ Read (7) + Search & Graph (2) + Write (3) + System (1).
 import os
 import json
 import time
+import base64
 import logging
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,7 +29,7 @@ logger = logging.getLogger(__name__)
 # ═══════════════════════════════════════════
 
 TOOL_REGISTRY = {
-    # ─── 📖 READ & SEARCH (11) ───
+    # ─── 📖 READ & SEARCH (12) ───
     "get_profile": {
         "name": "get_profile",
         "description": "Get the user's profile including identity, goals, working style, and preferences",
@@ -208,6 +209,12 @@ TOOL_REGISTRY = {
         "params": [{"name": "admin_key", "type": "string", "required": True}],
         "category": "pipeline",
     },
+    "export_file_to_chat": {
+        "name": "export_file_to_chat",
+        "description": "Export the original raw file from the knowledge base as a real file attachment in the chat. Returns the file as a downloadable attachment (PDF, TXT, MD, DOCX). If the platform does not support attachments, falls back to a signed 30-minute download URL.",
+        "params": [{"name": "file_id", "type": "string", "required": True}],
+        "category": "read",
+    },
 }
 
 
@@ -290,6 +297,8 @@ async def call_tool(
             result = await _tool_upload_text(db, user_id, params)
         elif tool_name == "reprocess_file":
             result = await _tool_reprocess_file(db, user_id, params.get("file_id"))
+        elif tool_name == "export_file_to_chat":
+            result = await _tool_export_file_to_chat(db, user_id, params.get("file_id"))
 
     except Exception as e:
         status = "error"
@@ -1174,3 +1183,111 @@ async def _tool_reprocess_file(db: AsyncSession, user_id: str, file_id: str) -> 
         "preview": new_text[:500] if new_text else "",
     }
 
+
+# ═══════════════════════════════════════════
+# EXPORT FILE TO CHAT Tool (v5.4)
+# ═══════════════════════════════════════════
+
+# MIME type mapping
+_MIME_MAP = {
+    "pdf": "application/pdf",
+    "txt": "text/plain",
+    "md": "text/markdown",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "doc": "application/msword",
+    "png": "image/png",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+}
+
+# Max file size for inline embedding (10 MB)
+_MAX_INLINE_SIZE = 10 * 1024 * 1024
+
+
+async def _tool_export_file_to_chat(db: AsyncSession, user_id: str, file_id: str) -> dict:
+    """Export the original raw file as an MCP EmbeddedResource (base64 blob).
+    
+    Returns a special dict with __mcp_content key that the MCP handler
+    in main.py will detect and format as proper MCP content array
+    (EmbeddedResource + text metadata).
+    
+    Falls back to a signed download URL if the file is too large
+    or if the platform doesn't support attachments.
+    """
+    if not file_id:
+        raise ValueError("file_id is required")
+
+    result = await db.execute(
+        select(File).where(File.id == file_id, File.user_id == user_id)
+    )
+    file = result.scalar_one_or_none()
+    if not file:
+        return {"status": "error", "error": "file_not_found"}
+
+    if not file.raw_path or not os.path.exists(file.raw_path):
+        return {"status": "error", "error": "raw_file_not_found"}
+
+    # File metadata
+    file_size = os.path.getsize(file.raw_path)
+    mime_type = _MIME_MAP.get(file.filetype, "application/octet-stream")
+
+    # Log access for sensitive files
+    if file.sensitivity in ("sensitive", "confidential"):
+        logger.info(f"SECURITY: export_file_to_chat accessed sensitive file '{file.filename}' "
+                     f"(sensitivity={file.sensitivity}) by user={user_id}")
+
+    # Check file size — if too large, fallback to URL
+    if file_size > _MAX_INLINE_SIZE:
+        from .shared_links import generate_share_token, build_share_url
+        token = generate_share_token(file.id, user_id, file.filename)
+        url = build_share_url(token)
+        return {
+            "status": "fallback_url",
+            "filename": file.filename,
+            "mime_type": mime_type,
+            "size_bytes": file_size,
+            "download_url": url,
+            "expires_in": "30 minutes",
+            "reason": "file_too_large_for_inline",
+        }
+
+    # Read and encode the file
+    try:
+        with open(file.raw_path, "rb") as f:
+            raw_bytes = f.read()
+        blob_b64 = base64.b64encode(raw_bytes).decode("ascii")
+    except Exception as e:
+        logger.error(f"Failed to read file '{file.filename}': {e}")
+        return {"status": "error", "error": "file_read_failed", "detail": str(e)}
+
+    # Also generate a fallback URL (always useful)
+    from .shared_links import generate_share_token, build_share_url
+    token = generate_share_token(file.id, user_id, file.filename)
+    fallback_url = build_share_url(token)
+
+    # Return special __mcp_content format that main.py will detect
+    # and convert to MCP EmbeddedResource + text metadata
+    return {
+        "__mcp_content": [
+            {
+                "type": "resource",
+                "resource": {
+                    "uri": f"pdb://files/{file.id}/{file.filename}",
+                    "mimeType": mime_type,
+                    "blob": blob_b64,
+                },
+            },
+            {
+                "type": "text",
+                "text": json.dumps({
+                    "status": "attached",
+                    "filename": file.filename,
+                    "mime_type": mime_type,
+                    "size_bytes": file_size,
+                    "fallback_url": fallback_url,
+                    "fallback_expires_in": "30 minutes",
+                    "note": "The file has been attached above. If your platform cannot display it, use the fallback_url to download.",
+                }, ensure_ascii=False, indent=2),
+            },
+        ],
+    }
