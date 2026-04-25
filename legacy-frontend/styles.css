@@ -1660,6 +1660,49 @@ body.show-landing {
   margin-bottom: 12px;
 }
 
+/* Platform Tabs (v5.3) */
+.mcp-platform-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0;
+}
+
+.mcp-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: -1px;
+}
+
+.mcp-tab:hover {
+  color: var(--text-primary);
+  background: rgba(255,255,255,0.03);
+}
+
+.mcp-tab.active {
+  color: var(--color-mcp);
+  border-bottom-color: var(--color-mcp);
+}
+
+.mcp-tab-content {
+  display: none;
+}
+
+.mcp-tab-content.active {
+  display: block;
+}
+
 /* Code Block */
 .code-block {
   display: flex;

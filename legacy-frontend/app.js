@@ -509,8 +509,9 @@ const I18N = {
     'mcp.step1Desc': 'คัดลอก URL นี้ไปวางใน Claude — URL มี Secret Key ฝังอยู่แล้ว',
     'mcp.step2Title': 'สร้าง Access Token',
     'mcp.step2Desc': 'สร้าง Bearer token สำหรับ REST API',
-    'mcp.step3Title': 'ตั้งค่าใน Claude',
-    'mcp.step3Desc': 'ไป Customize > Connectors > Add custom connector แล้ววาง URL',
+    'mcp.step3Title': 'ตั้งค่าใน AI Client',
+    'mcp.step3Desc': 'เลือกแพลตฟอร์มแล้วคัดลอก config',
+    'mcp.antigravityDesc': 'เพิ่มในไฟล์ mcp_config.json (ใช้ mcp-remote bridge)',
     'mcp.step4Title': 'ทดสอบการเชื่อมต่อ',
     'mcp.step4Desc': 'ตรวจสอบว่า connector ทำงานถูกต้อง',
     'mcp.generateToken': 'สร้าง Token',
@@ -693,8 +694,9 @@ const I18N = {
     'mcp.step1Desc': 'Copy this URL to Claude — it contains your Secret Key',
     'mcp.step2Title': 'Generate Access Token',
     'mcp.step2Desc': 'Create a Bearer token for REST API access',
-    'mcp.step3Title': 'Add to Claude',
-    'mcp.step3Desc': 'Go to Customize > Connectors > Add custom connector, paste URL',
+    'mcp.step3Title': 'Configure AI Client',
+    'mcp.step3Desc': 'Choose your platform and copy the config',
+    'mcp.antigravityDesc': 'Add to mcp_config.json (uses mcp-remote bridge)',
     'mcp.step4Title': 'Test Connection',
     'mcp.step4Desc': 'Verify your connector setup is working',
     'mcp.generateToken': 'Generate Token',
@@ -2242,6 +2244,16 @@ function initMCP() {
 
 // ─── MCP SETUP PAGE ───
 
+// Platform tab switcher (v5.3)
+function switchMcpTab(platform) {
+  // Toggle tab buttons
+  document.querySelectorAll('.mcp-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(`tab-${platform}`)?.classList.add('active');
+  // Toggle panels
+  document.querySelectorAll('.mcp-tab-content').forEach(p => p.classList.remove('active'));
+  document.getElementById(`panel-${platform}`)?.classList.add('active');
+}
+
 async function loadMCPSetup() {
   try {
     // Load MCP info
@@ -2262,6 +2274,25 @@ async function loadMCPSetup() {
       }
     };
     document.getElementById('mcp-config-json').textContent = JSON.stringify(configObj, null, 2);
+
+    // Build Antigravity config — uses mcp-remote bridge (v5.3)
+    const agConfigObj = {
+      "mcpServers": {
+        "project-key": {
+          "command": "npx",
+          "args": ["-y", "mcp-remote@latest", connectorUrl]
+        }
+      }
+    };
+    const agEl = document.getElementById('mcp-config-antigravity');
+    if (agEl) agEl.textContent = JSON.stringify(agConfigObj, null, 2);
+
+    // Copy button for Antigravity config
+    document.getElementById('btn-copy-config-ag')?.addEventListener('click', () => {
+      const config = document.getElementById('mcp-config-antigravity')?.textContent;
+      if (config) navigator.clipboard.writeText(config);
+      showToast(t('toast.copied'));
+    });
 
     // Render available tools
     const tools = info.available_tools || [];

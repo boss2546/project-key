@@ -1,0 +1,2 @@
+MCP Proxy: → project-key.fly.dev/mcp/qVs_qlhjnV-U2Bfqqh3x7PXVRyv2uzkbljJbUAzFMNY
+MCP Proxy: → tools/list
