@@ -76,6 +76,42 @@
 → AI: "เมื่อกี้คุณทำ v5.4 ค้างไว้ ต่อเลยไหม?"
 ```
 
+**🔑 UX ที่ดีที่สุด — Profile + Context รวมกัน:**
+
+ปัจจุบัน AI เรียก `get_profile` เป็นอันดับแรกเมื่อเริ่มสนทนา → ใน v5.5 จะ **แนบ Context ล่าสุดไปด้วยทันที** ไม่ต้องเรียก 2 รอบ
+
+```
+เดิม (v5.4):                    ใหม่ (v5.5):
+1. get_profile → ได้โปรไฟล์      1. get_profile → ได้โปรไฟล์ + Context ล่าสุด + Pinned
+2. (ไม่มี context)               → AI พร้อมทำงานต่อทันที!
+```
+
+**แก้ไข `get_profile` response:**
+```json
+{
+  "identity_summary": "...",
+  "goals": "...",
+  "working_style": "...",
+  "preferred_output_style": "...",
+  "background_context": "...",
+  
+  "active_contexts": [
+    {
+      "context_id": "ctx_abc123",
+      "title": "สรุปงาน v5.4",
+      "summary": "ทำ export_file_to_chat + MCP annotations",
+      "is_pinned": true,
+      "updated_at": "2026-04-25T10:00:00"
+    }
+  ],
+  "active_contexts_count": 1,
+  "tip": "Active contexts are included. Use load_context(id) to get full content."
+}
+```
+
+> **หมายเหตุ:** `active_contexts` ส่งแค่ title + summary (ไม่ส่ง content เต็ม) เพื่อประหยัด token  
+> ถ้า AI ต้องการ content เต็ม → เรียก `load_context(context_id)` ต่อ
+
 ### 3.4 ไม่อยู่ในขอบเขต (Out of Scope)
 - Real-time sync ระหว่าง platforms (ไม่ทำ WebSocket)
 - Auto-capture ทุก conversation โดยไม่ถาม (privacy concern)
