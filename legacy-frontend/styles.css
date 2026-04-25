@@ -317,6 +317,22 @@ body.show-landing {
 
 .btn-primary:hover { background: var(--accent-hover); }
 
+.badge-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: #ef4444;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin-left: 6px;
+  line-height: 1;
+}
+
 .btn-outline {
   background: transparent;
   border: 1px solid var(--border);

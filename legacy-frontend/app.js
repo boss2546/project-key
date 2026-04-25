@@ -409,8 +409,8 @@ const I18N = {
     // My Data page
     'myData.title': 'ข้อมูลของฉัน',
     'myData.subtitle': 'พื้นที่ข้อมูลส่วนตัวของคุณ',
-    'myData.enrich': 'เพิ่มข้อมูลเมตา',
-    'myData.organize': 'จัดระเบียบด้วย AI',
+    'myData.organizeAll': 'จัดระเบียบทั้งหมด',
+    'myData.organizeNew': 'จัดระเบียบไฟล์ใหม่',
     'myData.uploadText': 'ลากไฟล์มาวาง หรือ คลิกเพื่อเลือกไฟล์',
     'myData.uploadHint': 'รองรับ PDF, TXT, MD, DOCX (สูงสุด 20 MB)',
     'myData.allFiles': 'ไฟล์ทั้งหมด',
@@ -490,7 +490,8 @@ const I18N = {
     'toast.deleted': 'ลบเรียบร้อย',
     'toast.profileSaved': 'บันทึกโปรไฟล์เรียบร้อย',
     'toast.organized': 'จัดระเบียบเรียบร้อย',
-    'toast.enriched': 'Enrich metadata เรียบร้อย',
+    'toast.organizedNew': 'จัดระเบียบไฟล์ใหม่เรียบร้อย',
+    'toast.noNewFiles': 'ไม่มีไฟล์ใหม่ที่ต้องจัดระเบียบ',
     'toast.graphBuilt': 'สร้างกราฟเรียบร้อย',
     'toast.error': 'เกิดข้อผิดพลาด',
     'toast.tokenGenerated': 'สร้าง Token เรียบร้อย',
@@ -594,8 +595,8 @@ const I18N = {
     // My Data page
     'myData.title': 'My Data',
     'myData.subtitle': 'Your personal data space',
-    'myData.enrich': 'Enrich Metadata',
-    'myData.organize': 'Organize with AI',
+    'myData.organizeAll': 'Organize All',
+    'myData.organizeNew': 'Organize New Files',
     'myData.uploadText': 'Drag files here or click to select',
     'myData.uploadHint': 'Supports PDF, TXT, MD, DOCX (max 20 MB)',
     'myData.allFiles': 'All Files',
@@ -675,7 +676,8 @@ const I18N = {
     'toast.deleted': 'Deleted successfully',
     'toast.profileSaved': 'Profile saved',
     'toast.organized': 'Organization complete',
-    'toast.enriched': 'Metadata enriched',
+    'toast.organizedNew': 'New files organized',
+    'toast.noNewFiles': 'No new files to organize',
     'toast.graphBuilt': 'Graph built successfully',
     'toast.error': 'An error occurred',
     'toast.tokenGenerated': 'Token generated successfully',
@@ -879,8 +881,9 @@ function initUpload() {
   });
   input.addEventListener('change', () => { uploadFiles(input.files); input.value = ''; });
 
-  document.getElementById('btn-organize')?.addEventListener('click', runOrganize);
-  document.getElementById('btn-enrich')?.addEventListener('click', runEnrich);
+  document.getElementById('btn-organize-all')?.addEventListener('click', runOrganizeAll);
+  document.getElementById('btn-organize-new')?.addEventListener('click', runOrganizeNew);
+  loadUnprocessedCount();
 }
 
 async function uploadFiles(fileList) {
@@ -899,6 +902,7 @@ async function uploadFiles(fileList) {
     }
     loadFiles();
     loadStats();
+    loadUnprocessedCount();
   } catch (e) { /* authFetch handles toast */ }
   hideLoadingOverlay();
 }
@@ -1131,37 +1135,62 @@ async function saveSummaryEdit() {
   saveBtn.textContent = '💾 Save';
 }
 
-async function runOrganize() {
-  const btn = document.getElementById('btn-organize');
+async function loadUnprocessedCount() {
+  try {
+    const res = await authFetch('/api/unprocessed-count');
+    if (!res.ok) return;
+    const data = await res.json();
+    const badge = document.getElementById('unprocessed-badge');
+    if (badge) {
+      if (data.unprocessed > 0) {
+        badge.textContent = data.unprocessed;
+        badge.style.display = 'inline-flex';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+  } catch (e) { /* silent */ }
+}
+
+async function runOrganizeAll() {
+  const btn = document.getElementById('btn-organize-all');
   btn.disabled = true;
   btn.innerHTML = `<span class="loading-spinner"></span> ${getLang() === 'th' ? 'กำลังจัดระเบียบ...' : 'Organizing...'}`;
-  showLoadingOverlay(getLang() === 'th' ? '🤖 AI กำลังวิเคราะห์และจัดกลุ่มไฟล์...\nอาจใช้เวลา 30-60 วินาที' : '🤖 AI is analyzing and organizing files...\nThis may take 30-60 seconds', 'ai');
+  showLoadingOverlay(getLang() === 'th' ? '🤖 AI กำลังวิเคราะห์และจัดกลุ่มไฟล์ทั้งหมด...\nอาจใช้เวลา 30-60 วินาที' : '🤖 AI is analyzing and organizing ALL files...\nThis may take 30-60 seconds', 'ai');
   try {
     const res = await authFetch('/api/organize', { method: 'POST' });
     const data = await res.json();
     showToast(`${t('toast.organized')} (${data.graph?.nodes || 0} nodes, ${data.graph?.edges || 0} edges)`, 'success');
     loadFiles();
     loadStats();
+    loadUnprocessedCount();
   } catch (e) { showToast(t('toast.error'), 'error'); }
   hideLoadingOverlay();
   btn.disabled = false;
-  btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg> <span data-i18n="myData.organize">${t('myData.organize')}</span>`;
+  btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg> <span data-i18n="myData.organizeAll">${t('myData.organizeAll')}</span>`;
 }
 
-async function runEnrich() {
-  const btn = document.getElementById('btn-enrich');
+async function runOrganizeNew() {
+  const btn = document.getElementById('btn-organize-new');
   btn.disabled = true;
-  btn.innerHTML = `<span class="loading-spinner"></span> ${getLang() === 'th' ? 'กำลัง Enrich...' : 'Enriching...'}`;
-  showLoadingOverlay(getLang() === 'th' ? '🏷️ AI กำลังเพิ่ม metadata ให้ไฟล์...' : '🏷️ AI is enriching file metadata...', 'ai');
+  btn.innerHTML = `<span class="loading-spinner"></span> ${getLang() === 'th' ? 'กำลังจัดระเบียบไฟล์ใหม่...' : 'Organizing new files...'}`;
+  showLoadingOverlay(getLang() === 'th' ? '✨ AI กำลังจัดระเบียบไฟล์ที่อัปโหลดใหม่...' : '✨ AI is organizing new files...', 'ai');
   try {
-    const res = await authFetch('/api/metadata/enrich', { method: 'POST' });
+    const res = await authFetch('/api/organize-new', { method: 'POST' });
     const data = await res.json();
-    showToast(`${t('toast.enriched')} ${data.enriched}/${data.total}`, 'success');
-    loadFiles();
+    if (data.new_files === 0) {
+      showToast(t('toast.noNewFiles'), 'info');
+    } else {
+      showToast(`${t('toast.organizedNew')} (${data.new_files} ไฟล์)`, 'success');
+      loadFiles();
+      loadStats();
+    }
+    loadUnprocessedCount();
   } catch (e) { showToast(t('toast.error'), 'error'); }
   hideLoadingOverlay();
   btn.disabled = false;
-  btn.innerHTML = `<span data-i18n="myData.enrich">${t('myData.enrich')}</span>`;
+  btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> <span data-i18n="myData.organizeNew">${t('myData.organizeNew')}</span><span class="badge-count" id="unprocessed-badge" style="display:none;">0</span>`;
+  loadUnprocessedCount();
 }
 
 // ═══════════════════════════════════════════

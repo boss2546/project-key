@@ -257,6 +257,48 @@ async def organize(current_user: User = Depends(get_current_user), db: AsyncSess
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/unprocessed-count")
+async def unprocessed_count(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Count files that haven't been organized yet (no summary)."""
+    from sqlalchemy import func, and_
+    # Files that have extracted_text but no summary record
+    all_files = await db.execute(
+        select(func.count(File.id)).where(File.user_id == current_user.id, File.extracted_text != "")
+    )
+    total = all_files.scalar() or 0
+
+    summarized = await db.execute(
+        select(func.count(FileSummary.file_id)).join(File, File.id == FileSummary.file_id).where(File.user_id == current_user.id)
+    )
+    done = summarized.scalar() or 0
+
+    return {"unprocessed": total - done, "total": total, "processed": done}
+
+
+@app.post("/api/organize-new")
+async def organize_new(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Run the organization pipeline only on NEW files that don't have summaries yet."""
+    from .organizer import organize_new_files
+    try:
+        result = await organize_new_files(db, current_user.id)
+        if result.get("skipped"):
+            return {"status": "ok", "message": "ไม่มีไฟล์ใหม่ที่ต้องจัดระเบียบ", "new_files": 0}
+
+        # Enrich + graph for new files
+        await enrich_all_files(db, current_user.id)
+        graph_result = await build_full_graph(db, current_user.id)
+        await generate_suggestions(db, current_user.id)
+
+        return {
+            "status": "ok",
+            "message": f"จัดระเบียบไฟล์ใหม่ {result.get('count', 0)} ไฟล์เรียบร้อย",
+            "new_files": result.get("count", 0),
+            "graph": graph_result
+        }
+    except Exception as e:
+        logger.error(f"Organize new files failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/files")
 async def list_files(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """List all files for the user."""

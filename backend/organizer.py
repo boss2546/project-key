@@ -283,3 +283,137 @@ def _find_importance(clusters_data: dict, file_id: str) -> dict:
                     "why": f.get("why_important", "")
                 }
     return {"score": 50, "label": "medium", "is_primary": False, "why": ""}
+
+
+async def organize_new_files(db: AsyncSession, user_id: str) -> dict:
+    """Organize only NEW files that don't have summaries yet. Much faster than full organize."""
+
+    # Find files without summaries
+    from sqlalchemy import not_, exists
+    result = await db.execute(
+        select(File).where(
+            File.user_id == user_id,
+            File.extracted_text != "",
+            ~exists(select(FileSummary.file_id).where(FileSummary.file_id == File.id))
+        ).options(selectinload(File.insight), selectinload(File.summary), selectinload(File.cluster_maps))
+    )
+    new_files = result.scalars().all()
+
+    if not new_files:
+        logger.info(f"No new unprocessed files for user {user_id}")
+        return {"skipped": True, "count": 0}
+
+    logger.info(f"Processing {len(new_files)} new files for user {user_id}")
+
+    # Mark as processing
+    for f in new_files:
+        f.processing_status = "processing"
+    await db.commit()
+
+    try:
+        # 1. Cluster just the new files
+        clusters_data = await _cluster_files(new_files)
+
+        # 2. Create new clusters for the new files (don't delete existing clusters)
+        for c_data in clusters_data.get("clusters", []):
+            cluster = Cluster(
+                id=gen_id(),
+                user_id=user_id,
+                title=c_data.get("title", "Untitled Group"),
+                summary=c_data.get("summary", "")
+            )
+            db.add(cluster)
+
+            for file_ref in c_data.get("files", []):
+                file_id = file_ref.get("file_id", "")
+                matching_file = next((f for f in new_files if f.id == file_id), None)
+                if matching_file:
+                    fcm = FileClusterMap(
+                        file_id=matching_file.id,
+                        cluster_id=cluster.id,
+                        relevance_score=file_ref.get("relevance", 1.0)
+                    )
+                    db.add(fcm)
+
+        await db.commit()
+
+        # 3. Create insights for new files
+        for f in new_files:
+            importance = _find_importance(clusters_data, f.id)
+            insight = FileInsight(
+                file_id=f.id,
+                importance_score=importance.get("score", 50),
+                importance_label=importance.get("label", "medium"),
+                is_primary_candidate=importance.get("is_primary", False),
+                why_important=importance.get("why", "")
+            )
+            db.add(insight)
+
+        for f in new_files:
+            f.processing_status = "organized"
+        await db.commit()
+
+        # 4. Generate summaries for new files
+        for f in new_files:
+            try:
+                cluster_title = "Unclustered"
+                for c_data in clusters_data.get("clusters", []):
+                    for file_ref in c_data.get("files", []):
+                        if file_ref.get("file_id") == f.id:
+                            cluster_title = c_data.get("title", "Unclustered")
+                            break
+
+                importance_data = _find_importance(clusters_data, f.id)
+                summary_data = await _generate_summary(f, cluster_title, importance_data)
+
+                file_summary = FileSummary(
+                    file_id=f.id,
+                    summary_text=summary_data.get("summary", ""),
+                    key_topics=json.dumps(summary_data.get("key_topics", []), ensure_ascii=False),
+                    key_facts=json.dumps(summary_data.get("key_facts", []), ensure_ascii=False),
+                    why_important=summary_data.get("why_important", ""),
+                    suggested_usage=summary_data.get("suggested_usage", "")
+                )
+                db.add(file_summary)
+
+                md_path = write_summary_md(
+                    file_id=f.id,
+                    filename=f.filename,
+                    filetype=f.filetype,
+                    cluster_title=cluster_title,
+                    importance_score=importance_data.get("score", 50),
+                    importance_label=importance_data.get("label", "medium"),
+                    is_primary=importance_data.get("is_primary", False),
+                    summary_text=summary_data.get("summary", ""),
+                    key_topics=summary_data.get("key_topics", []),
+                    key_facts=summary_data.get("key_facts", []),
+                    why_important=summary_data.get("why_important", ""),
+                    suggested_usage=summary_data.get("suggested_usage", ""),
+                    uploaded_at=f.uploaded_at.isoformat() + "Z" if f.uploaded_at else ""
+                )
+                file_summary.md_path = md_path
+
+                vector_search.index_file(
+                    file_id=f.id,
+                    filename=f.filename,
+                    text=f.extracted_text or "",
+                    cluster_title=cluster_title,
+                    user_id=user_id,
+                )
+
+                f.processing_status = "ready"
+            except Exception as e:
+                logger.error(f"Summary generation failed for {f.filename}: {e}")
+                f.processing_status = "error"
+
+        await db.commit()
+        logger.info(f"New files organized: {len(new_files)} files for user {user_id}")
+        return {"skipped": False, "count": len(new_files)}
+
+    except Exception as e:
+        logger.error(f"Organize new files failed: {e}")
+        for f in new_files:
+            f.processing_status = "error"
+        await db.commit()
+        raise
+
