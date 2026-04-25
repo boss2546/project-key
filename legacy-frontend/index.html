@@ -1124,6 +1124,33 @@
 
   </div>
 
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- GUIDE SYSTEM (FAB + Drawer) -->
+  <!-- ═══════════════════════════════════════════ -->
+  <button id="guide-fab" class="guide-fab" title="คู่มือการใช้งาน" style="display:none;">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+    <span>คู่มือ</span>
+  </button>
+
+  <div id="guide-overlay" class="guide-overlay" style="display:none;"></div>
+  <div id="guide-drawer" class="guide-drawer" style="display:none;">
+    <div class="guide-header">
+      <h2>📖 คู่มือ Project KEY</h2>
+      <button id="guide-close" class="guide-close">✕</button>
+    </div>
+    <div class="guide-search">
+      <input type="text" id="guide-search-input" placeholder="🔍 ค้นหา...">
+    </div>
+    <div class="guide-tabs">
+      <button class="guide-tab active" data-tab="usage">📄 วิธีใช้</button>
+      <button class="guide-tab" data-tab="connect">🔌 เชื่อมต่อ</button>
+      <button class="guide-tab" data-tab="examples">💡 ตัวอย่าง</button>
+    </div>
+    <div class="guide-content" id="guide-content">
+      <!-- Content injected by JS -->
+    </div>
+  </div>
+
   <script src="/legacy/app.js?v=5.1.3"></script>
 </body>
 </html>

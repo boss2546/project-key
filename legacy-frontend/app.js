@@ -373,6 +373,8 @@ function initAuth() {
 function initAppData() {
   loadStats();
   loadFiles();
+  initGuideSystem();
+  setTimeout(detectOnboardingProgress, 3000);
 }
 
 // Node family color map
@@ -2986,3 +2988,352 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+
+// ═══════════════════════════════════════════
+// GUIDE SYSTEM — In-App Help
+// ═══════════════════════════════════════════
+
+const GUIDE_DATA = {
+  pages: {
+    'my-data': {
+      title: '📁 ข้อมูลของฉัน',
+      features: [
+        { icon: '📤', title: 'อัปโหลดไฟล์', desc: 'ลากไฟล์มาวางในกรอบ หรือคลิกเพื่อเลือกไฟล์ รองรับ PDF, TXT, MD, DOCX (สูงสุด 20 MB)', tryAction: 'my-data' },
+        { icon: '✨', title: 'จัดระเบียบไฟล์ใหม่', desc: 'AI จะวิเคราะห์เฉพาะไฟล์ที่เพิ่งอัปโหลดใหม่ สร้างสรุป แท็ก และจัดกลุ่มอัตโนมัติ เร็วกว่าจัดระเบียบทั้งหมด', tryAction: 'my-data' },
+        { icon: '🔄', title: 'จัดระเบียบทั้งหมด', desc: 'รีเซ็ตและจัดกลุ่มไฟล์ทั้งหมดใหม่ตั้งแต่ต้น ใช้เมื่อต้องการอัปเดตโครงสร้างทั้งระบบ', tryAction: 'my-data' },
+        { icon: '📝', title: 'ดูรายละเอียด/แก้สรุป', desc: 'คลิกที่ไฟล์เพื่อดูสรุป AI, key topics, key facts และแก้ไขได้', tryAction: 'my-data' },
+      ]
+    },
+    'knowledge': {
+      title: '🔍 มุมมองความรู้',
+      features: [
+        { icon: '📂', title: 'คอลเลกชัน', desc: 'ดูกลุ่มเอกสารที่ AI จัดให้อัตโนมัติ แต่ละกลุ่มมีชื่อและสรุปเนื้อหา', tryAction: 'knowledge' },
+        { icon: '📝', title: 'โน้ต', desc: 'เพิ่มโน้ตส่วนตัว แก้ไขสรุปของไฟล์ให้ตรงกับที่คุณต้องการ', tryAction: 'knowledge' },
+        { icon: '📦', title: 'Context Packs', desc: 'สร้างชุดความรู้สำหรับแชร์หรือใช้กับ AI หลายแพลตฟอร์ม', tryAction: 'knowledge' },
+      ]
+    },
+    'graph': {
+      title: '🕸️ กราฟความรู้',
+      features: [
+        { icon: '🌐', title: 'มุมมอง Global', desc: 'เห็นภาพรวมความเชื่อมโยงของเอกสารทั้งหมด ซูมเข้า-ออกได้', tryAction: 'graph' },
+        { icon: '🔍', title: 'มุมมอง Local', desc: 'คลิกโหนดเพื่อดูเฉพาะเอกสารที่เชื่อมโยงกัน', tryAction: 'graph' },
+      ]
+    },
+    'chat': {
+      title: '💬 AI แชท',
+      features: [
+        { icon: '🤖', title: 'ถาม-ตอบ AI', desc: 'ถามคำถามเกี่ยวกับเอกสารของคุณ AI จะตอบพร้อมอ้างอิงแหล่งที่มา', tryAction: 'chat' },
+        { icon: '📎', title: 'หลักฐานอ้างอิง', desc: 'ทุกคำตอบมีลิงก์ไปยังเอกสารต้นฉบับ ตรวจสอบได้', tryAction: 'chat' },
+      ]
+    },
+    'profile': {
+      title: '👤 โปรไฟล์',
+      features: [
+        { icon: '🎯', title: 'ตั้งค่าตัวตน', desc: 'บอก AI ว่าคุณเป็นใคร เป้าหมายอะไร AI จะปรับคำตอบให้เหมาะกับคุณ', tryAction: 'profile' },
+      ]
+    },
+    'context-memory': {
+      title: '🧠 Context Memory',
+      features: [
+        { icon: '💾', title: 'บันทึกบริบท', desc: 'บันทึกสิ่งที่คุยกับ AI ไว้ ใช้ต่อได้ทุกแพลตฟอร์ม', tryAction: 'context-memory' },
+        { icon: '📌', title: 'ปักหมุด', desc: 'ปักหมุดบริบทสำคัญ AI จะเห็นเสมอ', tryAction: 'context-memory' },
+      ]
+    },
+    'mcp': {
+      title: '🔌 MCP ตั้งค่า',
+      features: [
+        { icon: '🔑', title: 'Token', desc: 'สร้าง/จัดการ Token สำหรับเชื่อมต่อแพลตฟอร์มภายนอก', tryAction: 'mcp' },
+        { icon: '🛠️', title: 'เครื่องมือ 30 ตัว', desc: 'ดูรายการเครื่องมือ MCP ทั้งหมดพร้อมคำอธิบาย', tryAction: 'mcp' },
+      ]
+    }
+  },
+  platforms: [
+    {
+      name: 'Claude Desktop',
+      icon: '🟣',
+      steps: [
+        'กด "คัดลอก Config" ด้านล่าง',
+        'เปิด Claude Desktop → Settings → Developer → Edit Config',
+        'วางข้อความที่คัดลอก แล้วบันทึก',
+        'รีสตาร์ท Claude Desktop → พิมพ์ "ดูไฟล์ทั้งหมด" ทดสอบ'
+      ],
+    },
+    {
+      name: 'Antigravity',
+      icon: '🚀',
+      steps: [
+        'เปิด Antigravity → Settings → MCP Servers',
+        'กด + Add Server → ใส่ชื่อ "Project KEY"',
+        'กด "คัดลอก Config" แล้ววาง URL ของ server',
+        'กด Save → ทดสอบโดยพิมพ์ "list_files"'
+      ],
+    },
+    {
+      name: 'ChatGPT (เร็วๆ นี้)',
+      icon: '🟢',
+      steps: [
+        'รอการสนับสนุนจาก OpenAI',
+        'จะอัปเดตเมื่อพร้อมใช้งาน'
+      ],
+    }
+  ],
+  useCases: [
+    { tag: '🚀 เริ่มต้น', title: 'อัปโหลดเอกสารชุดแรก', desc: 'ลากไฟล์มาวางในหน้า "ข้อมูลของฉัน"', cmd: 'ลากไฟล์ → กด ✨ จัดระเบียบไฟล์ใหม่' },
+    { tag: '🚀 เริ่มต้น', title: 'ตั้งค่าโปรไฟล์', desc: 'บอก AI ว่าคุณเป็นใคร', cmd: 'ไปที่โปรไฟล์ → กรอกข้อมูล → กด Save' },
+    { tag: '📁 จัดการ', title: 'หาเอกสารที่เกี่ยวข้อง', desc: 'ใช้ AI ค้นหาข้อมูลในไฟล์ทั้งหมด', cmd: 'หาข้อมูลเกี่ยวกับ [หัวข้อ]' },
+    { tag: '📁 จัดการ', title: 'ดูความสัมพันธ์', desc: 'เปิดกราฟดูว่าเอกสารไหนเชื่อมกัน', cmd: 'ไปหน้ากราฟ → คลิกโหนด → ดูเส้นเชื่อม' },
+    { tag: '📁 จัดการ', title: 'แก้สรุปที่ AI ทำ', desc: 'คลิกไฟล์ → แก้ Summary → กด Save', cmd: 'คลิกไฟล์ → แก้ไข → บันทึก' },
+    { tag: '🤖 AI', title: 'สรุปข้อมูลทั้งหมด', desc: 'ให้ AI สรุปเอกสารทั้งหมดของคุณ', cmd: 'สรุปข้อมูลทั้งหมดของฉันให้หน่อย' },
+    { tag: '🤖 AI', title: 'เปรียบเทียบเอกสาร', desc: 'ให้ AI เปรียบเทียบ 2 ไฟล์', cmd: 'เปรียบเทียบ [ไฟล์ A] กับ [ไฟล์ B]' },
+    { tag: '🤖 AI', title: 'สร้าง Context Pack', desc: 'สร้างชุดความรู้สำหรับแชร์', cmd: 'สร้างแพ็คความรู้เรื่อง [หัวข้อ]' },
+    { tag: '🤖 AI', title: 'บันทึกบริบท', desc: 'บันทึกสิ่งที่คุยไว้ใช้ต่อ', cmd: 'บันทึก context สรุปงานวันนี้' },
+    { tag: '🔌 MCP', title: 'ค้นไฟล์จาก Claude', desc: 'สั่ง Claude ค้นในข้อมูลของคุณ', cmd: 'ค้นหาข้อมูลเกี่ยวกับ [หัวข้อ] จากไฟล์ของฉัน' },
+    { tag: '🔌 MCP', title: 'อ่านไฟล์เต็มจาก Claude', desc: 'ดึงเนื้อหาไฟล์ทั้งหมด', cmd: 'อ่านเนื้อหาไฟล์ [ชื่อไฟล์] ให้หน่อย' },
+    { tag: '🔌 MCP', title: 'สร้างไฟล์ใหม่จาก Claude', desc: 'สร้างไฟล์ใหม่ผ่าน MCP', cmd: 'สร้างไฟล์ชื่อ [ชื่อ] เนื้อหาคือ [...]' },
+    { tag: '🔌 MCP', title: 'ดูโปรไฟล์จาก Claude', desc: 'ตรวจสอบโปรไฟล์ผ่าน MCP', cmd: 'ดูโปรไฟล์ของฉัน' },
+  ]
+};
+
+// --- Guide System Init ---
+function initGuideSystem() {
+  const fab = document.getElementById('guide-fab');
+  const drawer = document.getElementById('guide-drawer');
+  const overlay = document.getElementById('guide-overlay');
+  const closeBtn = document.getElementById('guide-close');
+  const searchInput = document.getElementById('guide-search-input');
+  if (!fab || !drawer) return;
+
+  fab.style.display = 'flex';
+
+  // First visit pulse
+  if (!localStorage.getItem('pk_guide_seen')) {
+    fab.classList.add('pulse');
+    setTimeout(() => fab.classList.remove('pulse'), 6000);
+  }
+
+  // Auto-open for new users
+  if (!localStorage.getItem('pk_guide_seen')) {
+    setTimeout(() => openGuide(), 1500);
+    localStorage.setItem('pk_guide_seen', '1');
+  }
+
+  fab.addEventListener('click', openGuide);
+  closeBtn?.addEventListener('click', closeGuide);
+  overlay?.addEventListener('click', closeGuide);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeGuide(); });
+
+  // Tab switching
+  document.querySelectorAll('.guide-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.guide-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      renderGuideTab(tab.dataset.tab, searchInput?.value || '');
+    });
+  });
+
+  // Search
+  searchInput?.addEventListener('input', () => {
+    const activeTab = document.querySelector('.guide-tab.active')?.dataset.tab || 'usage';
+    renderGuideTab(activeTab, searchInput.value);
+  });
+
+  renderGuideTab('usage', '');
+}
+
+function openGuide() {
+  const drawer = document.getElementById('guide-drawer');
+  const overlay = document.getElementById('guide-overlay');
+  if (!drawer) return;
+  overlay.style.display = 'block';
+  drawer.style.display = 'flex';
+  requestAnimationFrame(() => { drawer.classList.add('open'); });
+}
+
+function closeGuide() {
+  const drawer = document.getElementById('guide-drawer');
+  const overlay = document.getElementById('guide-overlay');
+  if (!drawer) return;
+  drawer.classList.remove('open');
+  setTimeout(() => { drawer.style.display = 'none'; overlay.style.display = 'none'; }, 300);
+}
+
+function getCurrentPage() {
+  const hash = location.hash.replace('#', '') || 'my-data';
+  for (const key of Object.keys(GUIDE_DATA.pages)) {
+    if (hash.includes(key)) return key;
+  }
+  return 'my-data';
+}
+
+function renderGuideTab(tab, search) {
+  const el = document.getElementById('guide-content');
+  if (!el) return;
+  const q = (search || '').toLowerCase();
+
+  if (tab === 'usage') {
+    const page = getCurrentPage();
+    const data = GUIDE_DATA.pages[page] || GUIDE_DATA.pages['my-data'];
+    const features = data.features.filter(f => !q || f.title.toLowerCase().includes(q) || f.desc.toLowerCase().includes(q));
+
+    // Checklist
+    let checklistHTML = renderChecklist();
+
+    // Page selector
+    let selectorHTML = '<select id="guide-page-select" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border,#2a2a4a);background:var(--bg-secondary,#1a1a2e);color:var(--text-primary,#e5e7eb);font-size:0.83rem;margin-bottom:12px;font-family:inherit;">';
+    for (const [key, val] of Object.entries(GUIDE_DATA.pages)) {
+      selectorHTML += `<option value="${key}" ${key === page ? 'selected' : ''}>${val.title}</option>`;
+    }
+    selectorHTML += '</select>';
+
+    // Features accordion
+    let featHTML = features.map((f, i) => `
+      <div class="guide-accordion${i === 0 ? ' open' : ''}" data-idx="${i}">
+        <button class="guide-accordion-header">
+          <span class="arrow">▶</span> ${f.icon} ${f.title}
+        </button>
+        <div class="guide-accordion-body">
+          <div class="guide-feature-card">
+            <p>${f.desc}</p>
+            <button class="guide-try-btn" data-nav="${f.tryAction}">🎯 ลองเลย</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+    el.innerHTML = checklistHTML + selectorHTML + featHTML;
+
+    // Page selector event
+    document.getElementById('guide-page-select')?.addEventListener('change', (e) => {
+      renderGuideTab('usage', q);
+    });
+
+    // Accordion events
+    el.querySelectorAll('.guide-accordion-header').forEach(h => {
+      h.addEventListener('click', () => {
+        const acc = h.closest('.guide-accordion');
+        acc.classList.toggle('open');
+      });
+    });
+
+    // Try button events
+    el.querySelectorAll('.guide-try-btn').forEach(b => {
+      b.addEventListener('click', () => {
+        const nav = b.dataset.nav;
+        closeGuide();
+        if (nav) location.hash = nav;
+      });
+    });
+
+  } else if (tab === 'connect') {
+    const platforms = GUIDE_DATA.platforms.filter(p => !q || p.name.toLowerCase().includes(q));
+    el.innerHTML = platforms.map(p => `
+      <div class="guide-platform">
+        <h3>${p.icon} ${p.name}</h3>
+        ${p.steps.map((s, i) => `<div class="guide-step"><span class="guide-step-num">${i+1}</span><span>${s}</span></div>`).join('')}
+        <button class="guide-copy-btn" data-platform="${p.name}">📋 คัดลอก Config</button>
+      </div>
+    `).join('');
+
+    el.querySelectorAll('.guide-copy-btn').forEach(b => {
+      b.addEventListener('click', async () => {
+        const mcpUrl = location.origin + '/mcp';
+        const config = JSON.stringify({ "mcpServers": { "project-key": { "url": mcpUrl } } }, null, 2);
+        try {
+          await navigator.clipboard.writeText(config);
+          b.textContent = '✅ คัดลอกแล้ว!';
+          setTimeout(() => { b.textContent = '📋 คัดลอก Config'; }, 2000);
+        } catch(e) { b.textContent = '❌ คัดลอกไม่ได้'; }
+      });
+    });
+
+  } else if (tab === 'examples') {
+    const cases = GUIDE_DATA.useCases.filter(c => !q || c.title.toLowerCase().includes(q) || c.cmd.toLowerCase().includes(q) || c.tag.toLowerCase().includes(q));
+    // Tag filter
+    const tags = [...new Set(GUIDE_DATA.useCases.map(c => c.tag))];
+    let tagHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">';
+    tagHTML += `<button class="guide-tag-filter active" data-tag="" style="cursor:pointer;padding:4px 10px;border-radius:6px;border:1px solid var(--border,#2a2a4a);background:var(--accent,#7c3aed);color:white;font-size:0.75rem;font-family:inherit;">ทั้งหมด</button>`;
+    tags.forEach(t => { tagHTML += `<button class="guide-tag-filter" data-tag="${t}" style="cursor:pointer;padding:4px 10px;border-radius:6px;border:1px solid var(--border,#2a2a4a);background:transparent;color:var(--text-secondary,#9ca3af);font-size:0.75rem;font-family:inherit;">${t}</button>`; });
+    tagHTML += '</div>';
+
+    let casesHTML = cases.map(c => `
+      <div class="guide-usecase" data-tag="${c.tag}">
+        <span class="guide-tag">${c.tag}</span>
+        <h4>${c.title}</h4>
+        <p>${c.desc}</p>
+        <div class="guide-usecase-cmd">
+          <span>${c.cmd}</span>
+          <span class="copy-icon" data-cmd="${c.cmd}" title="คัดลอก">📋</span>
+        </div>
+      </div>
+    `).join('');
+
+    el.innerHTML = tagHTML + casesHTML;
+
+    // Tag filter events
+    el.querySelectorAll('.guide-tag-filter').forEach(b => {
+      b.addEventListener('click', () => {
+        el.querySelectorAll('.guide-tag-filter').forEach(x => { x.style.background = 'transparent'; x.style.color = 'var(--text-secondary,#9ca3af)'; x.classList.remove('active'); });
+        b.style.background = 'var(--accent,#7c3aed)'; b.style.color = 'white'; b.classList.add('active');
+        const tag = b.dataset.tag;
+        el.querySelectorAll('.guide-usecase').forEach(card => {
+          card.style.display = (!tag || card.dataset.tag === tag) ? 'block' : 'none';
+        });
+      });
+    });
+
+    // Copy cmd events
+    el.querySelectorAll('.copy-icon').forEach(c => {
+      c.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(c.dataset.cmd);
+          c.textContent = '✅';
+          setTimeout(() => { c.textContent = '📋'; }, 1500);
+        } catch(e) {}
+      });
+    });
+  }
+}
+
+function renderChecklist() {
+  const items = [
+    { id: 'upload', label: 'อัปโหลดไฟล์แรก', nav: 'my-data' },
+    { id: 'organize', label: 'จัดระเบียบด้วย AI', nav: 'my-data' },
+    { id: 'chat', label: 'ลองถาม AI แชท', nav: 'chat' },
+    { id: 'mcp', label: 'เชื่อมต่อแพลตฟอร์ม', nav: 'mcp' },
+  ];
+  const done = JSON.parse(localStorage.getItem('pk_onboarding') || '{}');
+  const doneCount = items.filter(i => done[i.id]).length;
+  if (doneCount >= items.length) return '';
+
+  let html = '<div class="guide-checklist"><h3>🎯 เริ่มต้นใช้งาน</h3>';
+  items.forEach(item => {
+    const isDone = done[item.id];
+    html += `<div class="guide-checklist-item${isDone ? ' done' : ''}">
+      <span class="check">${isDone ? '✅' : '☐'}</span>
+      <span>${item.label}</span>
+      ${!isDone ? `<button class="go-btn" data-nav="${item.nav}">→</button>` : ''}
+    </div>`;
+  });
+  html += `<div class="guide-progress"><div class="guide-progress-bar"><div class="guide-progress-fill" style="width:${(doneCount/items.length)*100}%"></div></div>`;
+  html += `<div class="guide-progress-text">${doneCount}/${items.length} สำเร็จ</div></div></div>`;
+
+  return html;
+}
+
+function markOnboardingDone(key) {
+  const done = JSON.parse(localStorage.getItem('pk_onboarding') || '{}');
+  done[key] = true;
+  localStorage.setItem('pk_onboarding', JSON.stringify(done));
+}
+
+// Auto-detect onboarding progress
+function detectOnboardingProgress() {
+  // Will be called after loadFiles, loadStats etc.
+  try {
+    const fileCount = parseInt(document.querySelector('[data-stat="files"]')?.textContent || '0');
+    if (fileCount > 0) markOnboardingDone('upload');
+    if (document.querySelector('.collection-card')) markOnboardingDone('organize');
+    if (localStorage.getItem('pk_chat_used')) markOnboardingDone('chat');
+    if (localStorage.getItem('pk_mcp_tested')) markOnboardingDone('mcp');
+  } catch(e) {}
+}
