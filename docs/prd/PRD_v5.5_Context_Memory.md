@@ -5,7 +5,8 @@
 > **Version:** v5.5  
 > **Author:** Antigravity AI + ทีมพัฒนา  
 > **วันที่:** 25 เมษายน 2569  
-> **สถานะ:** 📝 Draft — รอ Review
+> **สถานะ:** 📝 Draft v2 — User-Centric Design
+> **Design Principle:** 🎯 Zero-Effort Context — ผู้ใช้ไม่ต้องทำอะไรเลย ระบบจัดการให้หมด
 
 ---
 
@@ -14,6 +15,19 @@
 ปัจจุบัน Project KEY รองรับการเชื่อมต่อ AI ผ่าน MCP หลายแพลตฟอร์ม (Claude Desktop, Antigravity, ChatGPT) แต่ทุกครั้งที่ผู้ใช้เปิดแพลตฟอร์มใหม่หรือเริ่มสนทนาใหม่ **AI ไม่รู้ว่าก่อนหน้านี้ผู้ใช้ทำอะไรอยู่** ทำให้ต้องอธิบายซ้ำทุกครั้ง
 
 **Context Memory** จะทำให้ PDB.ME เป็น **"สมองกลาง"** ที่เก็บบริบทการทำงานไว้ เมื่อผู้ใช้เปลี่ยนแพลตฟอร์มหรือเริ่มสนทนาใหม่ AI สามารถดึง context กลับมาใช้ต่อได้ทันที
+
+### หลักการออกแบบ: Zero-Effort Context
+
+> **ผู้ใช้ไม่ต้อง "ทำ" อะไรเลย** — ระบบจัดการทุกอย่างให้อัตโนมัติ
+
+| หลักการ | สิ่งที่ระบบทำแทนผู้ใช้ |
+|---------|---------------------|
+| 🔄 **Auto-Load** | เปิดแพลตฟอร์มใหม่ → context ล่าสุดพร้อมใช้ทันที |
+| 💾 **Auto-Suggest Save** | AI แนะนำให้บันทึกก่อนจบสนทนา ผู้ใช้ไม่ต้องจำ |
+| 🧹 **Auto-Cleanup** | context เก่าถูก archive อัตโนมัติ ไม่ต้องลบเอง |
+| 🔀 **Smart Merge** | ไม่สร้าง context ซ้ำ — อัปเดตตัวเดิมถ้าเรื่องเดียวกัน |
+| 📝 **Auto-Summary** | สรุปย่อสร้างอัตโนมัติจาก AI ไม่ต้องเขียนเอง |
+| 📌 **Pin สำคัญ** | ผู้ใช้เลือก pin เฉพาะอันสำคัญ (สูงสุด 3 อัน) |
 
 ---
 
@@ -60,6 +74,10 @@
 | ไม่มี context เลย | ตอบ `{"contexts": [], "count": 0}` → AI เริ่มต้นใหม่ปกติ |
 | ผู้ใช้ระบุ `context_id` | ดึง context ที่ระบุเท่านั้น (ไม่ auto) |
 | ผู้ใช้ save context ใหม่ | context ใหม่จะกลายเป็น "ล่าสุด" ทันที |
+| AI จะจบสนทนา | AI **แนะนำ save อัตโนมัติ** → ผู้ใช้แค่ยืนยัน |
+| save เรื่องซ้ำกัน (< 2 ชม.) | **Smart Merge** — อัปเดตตัวเดิมแทนสร้างใหม่ |
+| context เกิน 20 อัน | **Auto-Archive** — อันเก่าสุดถูก archive อัตโนมัติ |
+| pin เกิน 3 อัน | แจ้งเตือนให้ถอด pin อันเก่าก่อน (สูงสุด 3) |
 
 **ลำดับการโหลด Default Context:**
 ```
@@ -140,10 +158,10 @@
 
 | FR# | ชื่อ Tool | ประเภท | ต้องยืนยัน | คำอธิบาย |
 |-----|----------|--------|-----------|---------|
-| FR-1 | `save_context` | Write | ⚠️ ใช่ | บันทึก context ใหม่ (title, content, type, tags) |
+| FR-1 | `save_context` | Write | ✅ ไม่ต้อง | บันทึก context ใหม่ (สรุปอัตโนมัติ + Smart Merge) — AI แนะนำ save ก่อนจบสนทนา |
 | FR-2 | `load_context` | Read | ❌ ไม่ | ดึง context ตาม ID หรือดึงล่าสุด + pinned |
 | FR-3 | `list_contexts` | Read | ❌ ไม่ | แสดงรายการ contexts ทั้งหมด (filter ได้) |
-| FR-4 | `update_context` | Write | ⚠️ ใช่ | แก้ไข title/content/tags/pin ของ context |
+| FR-4 | `update_context` | Write | ⚠️ ใช่ | แก้ไข title/content/tags/pin (เฉพาะแก้ข้อมูลเดิม) |
 | FR-5 | `delete_context` | Delete | ⛔ ใช่ | ลบ context ถาวร |
 | FR-6 | `auto_context` | Read | ❌ ไม่ | ค้นหาและแนะนำ context ที่เกี่ยวข้อง |
 
@@ -199,11 +217,13 @@ CREATE TABLE context_memories (
 | Field | ข้อจำกัด |
 |-------|---------|
 | `title` | 1–200 ตัวอักษร |
-| `summary` | 1–500 ตัวอักษร |
+| `summary` | auto-generated จาก AI (ไม่ต้องเขียนเอง) — สูงสุด 500 chars |
 | `content` | 1–50,000 ตัวอักษร |
 | `context_type` | enum: `conversation`, `project`, `task`, `note` |
 | `platform` | enum: `claude`, `antigravity`, `chatgpt`, `web`, `unknown` |
 | `tags` | สูงสุด 20 tags |
+| `is_pinned` | สูงสุด **3** contexts ต่อ user |
+| `max_active` | สูงสุด **20** active contexts ต่อ user (เกิน → auto-archive) |
 
 ---
 
@@ -216,7 +236,7 @@ CREATE TABLE context_memories (
 {
   "title": "string (required)",
   "content": "string (required)",
-  "summary": "string (optional — auto-generate if empty)",
+  "summary": "string (optional — auto-generate จาก AI ถ้าไม่ใส่)",
   "context_type": "string (optional, default: conversation)",
   "platform": "string (optional, default: auto-detect)",
   "tags": "array (optional)",
@@ -224,7 +244,24 @@ CREATE TABLE context_memories (
   "is_pinned": "boolean (optional, default: false)"
 }
 ```
-**Annotations:** `readOnlyHint: false, destructiveHint: false`
+
+**Smart Merge Logic:**
+- ถ้ามี context ที่ title คล้ายกัน + `updated_at` < 2 ชั่วโมง → **อัปเดตตัวเดิม** แทนสร้างใหม่
+- ถ้าไม่มี หรือ title ต่างกัน → สร้าง context ใหม่ตามปกติ
+- ถ้า active contexts เกิน 20 → auto-archive อันเก่าสุด (`is_active=false`)
+
+**AI Behavior Instruction (ใส่ใน tool description):**
+```
+AI SHOULD proactively suggest saving context when:
+1. The conversation is about to end
+2. Significant work has been completed
+3. The user switches topics
+The user only needs to confirm — AI handles the rest.
+```
+
+**Annotations:** `readOnlyHint: false, destructiveHint: false, idempotentHint: false`
+
+> ✅ `save_context` ไม่ต้องยืนยันแบบเข้มงวด เพราะเป็นการ "save" ไม่ใช่ "delete" — ลด friction ให้ AI ทำงานได้ลื่น
 
 ### 7.2 `load_context` (Default = ล่าสุดเสมอ)
 
@@ -331,7 +368,7 @@ CREATE TABLE context_memories (
 | `load_context` | ✅ ทำได้เลย | readOnly: true |
 | `list_contexts` | ✅ ทำได้เลย | readOnly: true |
 | `auto_context` | ✅ ทำได้เลย | readOnly: true |
-| `save_context` | ⚠️ ต้องยืนยัน | readOnly: false |
+| `save_context` | ✅ ทำได้เลย | readOnly: false, destructive: false |
 | `update_context` | ⚠️ ต้องยืนยัน | readOnly: false |
 | `delete_context` | ⛔ ยืนยันเข้มงวด | destructive: true |
 
@@ -341,28 +378,38 @@ CREATE TABLE context_memories (
 
 | TC# | กรณีทดสอบ | Expected |
 |-----|----------|----------|
-| TC-1 | save_context ปกติ | สร้างสำเร็จ + return context_id |
+| TC-1 | save_context ปกติ | สร้างสำเร็จ + auto-generate summary |
 | TC-2 | load_context() ไม่ใส่ ID | ได้ context ล่าสุด + pinned |
 | TC-3 | load_context(id) | ได้ context นั้น + อัปเดต last_used_at |
 | TC-4 | load_context("invalid") | error: context_not_found |
 | TC-5 | list_contexts + filter | ได้เฉพาะ type ที่ระบุ |
 | TC-6 | update_context | แก้ไขสำเร็จ + updated_at เปลี่ยน |
-| TC-7 | pin context | is_pinned = true |
+| TC-7 | pin context (อันที่ 4) | แจ้งเตือน: "สูงสุด 3 กรุณาถอด pin อันเก่าก่อน" |
 | TC-8 | delete_context | ลบสำเร็จ |
 | TC-9 | auto_context("MCP") | แนะนำ context ที่ match |
 | TC-10 | สร้างผ่าน Web UI | context ปรากฏในรายการ |
+| TC-11 | **Smart Merge** — save ซ้ำ title เดิม < 2 ชม. | อัปเดตตัวเดิม ไม่สร้างใหม่ |
+| TC-12 | **Auto-Archive** — active เกิน 20 | อันเก่าสุด archive อัตโนมัติ |
+| TC-13 | **Auto-Summary** — save โดยไม่ใส่ summary | ได้ summary อัตโนมัติจาก AI |
+| TC-14 | **get_profile + context** | get_profile ส่ง active_contexts มาด้วย |
 
 ---
 
 ## 11. Acceptance Criteria
 
 - [ ] save/load/list/update/delete/auto_context ทำงานผ่าน MCP
+- [ ] **save_context ไม่ต้องยืนยัน** (auto-approve) — ลด friction
+- [ ] **Smart Merge** — ไม่สร้าง context ซ้ำซ้อน
+- [ ] **Auto-Summary** — สรุปสร้างจาก AI อัตโนมัติ
+- [ ] **Auto-Archive** — เกิน 20 → archive เอง
+- [ ] **Max 3 Pin** — จำกัด pin
+- [ ] **get_profile แนบ context** — Profile + Context รวมกัน 1 call
 - [ ] Web UI สร้าง/แก้/ลบ/pin ได้
-- [ ] Annotations ถูกต้อง (read=auto, write=confirm, delete=destructive)
+- [ ] Annotations ถูกต้อง (save=auto, update=confirm, delete=destructive)
 - [ ] ข้อมูลแยก user_id ไม่ข้ามผู้ใช้
 - [ ] ทดสอบผ่าน Antigravity MCP จริง
 - [ ] Deploy production สำเร็จ
-- [ ] 10/10 test cases ผ่าน
+- [ ] **14/14 test cases ผ่าน**
 
 ---
 
