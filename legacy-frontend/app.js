@@ -841,6 +841,7 @@ function switchPage(page) {
   if (page === 'mcp-setup') loadMCPSetup();
   if (page === 'tokens') loadTokens();
   if (page === 'mcp-logs') loadMCPLogs();
+  if (page === 'context-memory') loadContexts();
 }
 
 // ═══════════════════════════════════════════
@@ -2717,4 +2718,240 @@ function formatTimeAgo(isoStr) {
     if (diffDays < 7) return `${diffDays}d ago`;
     return formatDate(isoStr);
   } catch { return isoStr; }
+}
+
+
+// ═══════════════════════════════════════════
+// CONTEXT MEMORY — v5.5
+// ═══════════════════════════════════════════
+
+let _ctxCache = [];
+let _ctxViewId = null;
+
+async function loadContexts() {
+  const grid = document.getElementById('ctx-grid');
+  const empty = document.getElementById('ctx-empty');
+  if (!grid) return;
+
+  const search = document.getElementById('ctx-search')?.value || '';
+  const ctxType = document.getElementById('ctx-filter-type')?.value || '';
+
+  let url = `/api/contexts?limit=50`;
+  if (search) url += `&search=${encodeURIComponent(search)}`;
+  if (ctxType) url += `&context_type=${encodeURIComponent(ctxType)}`;
+
+  try {
+    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+    if (!res.ok) throw new Error('API error');
+    const data = await res.json();
+    _ctxCache = data.contexts || [];
+
+    if (_ctxCache.length === 0) {
+      grid.innerHTML = '';
+      if (empty) { empty.style.display = ''; grid.appendChild(empty); }
+      return;
+    }
+
+    grid.innerHTML = _ctxCache.map(c => _renderCtxCard(c)).join('');
+  } catch (err) {
+    console.error('loadContexts error:', err);
+    grid.innerHTML = '<div class="empty-state"><p>โหลด context ไม่ได้ — ลองอีกครั้ง</p></div>';
+  }
+}
+
+function _renderCtxCard(c) {
+  const typeEmoji = { conversation: '💬', project: '📁', task: '✅', note: '📝' };
+  const emoji = typeEmoji[c.context_type] || '🧠';
+  const pin = c.is_pinned ? '<span class="ctx-pin-badge">📌</span>' : '';
+  const pinnedClass = c.is_pinned ? ' pinned' : '';
+  const tags = (c.tags || []).slice(0, 3).map(t => `<span class="ctx-tag">${_esc(t)}</span>`).join('');
+  const time = c.updated_at ? _timeAgo(c.updated_at) : '';
+  const summary = _esc(c.summary || '').substring(0, 150);
+
+  return `<div class="ctx-card${pinnedClass}" data-ctx-id="${c.context_id}" onclick="viewContext('${c.context_id}')">
+    <div class="ctx-card-actions">
+      <button onclick="event.stopPropagation();editContext('${c.context_id}')" title="แก้ไข">✏️</button>
+      <button onclick="event.stopPropagation();togglePin('${c.context_id}',${!c.is_pinned})" title="${c.is_pinned ? 'Unpin' : 'Pin'}">${c.is_pinned ? '📌' : '📍'}</button>
+      <button onclick="event.stopPropagation();deleteCtx('${c.context_id}')" title="ลบ">🗑️</button>
+    </div>
+    <div class="ctx-card-header">
+      <span class="ctx-card-title">${_esc(c.title)}</span>
+      ${pin}
+    </div>
+    <div class="ctx-card-summary">${summary}</div>
+    <div class="ctx-card-meta">
+      <span class="ctx-type-badge ${c.context_type}">${emoji} ${c.context_type}</span>
+      ${tags}
+      <span class="ctx-card-time">${time}</span>
+    </div>
+  </div>`;
+}
+
+function _esc(s) { return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function _timeAgo(iso) {
+  const d = new Date(iso);
+  const now = new Date();
+  const s = Math.floor((now - d) / 1000);
+  if (s < 60) return 'เมื่อสักครู่';
+  if (s < 3600) return Math.floor(s/60) + ' นาทีที่แล้ว';
+  if (s < 86400) return Math.floor(s/3600) + ' ชม.ที่แล้ว';
+  return Math.floor(s/86400) + ' วันที่แล้ว';
+}
+
+// ─── View Context ───
+async function viewContext(id) {
+  const c = _ctxCache.find(x => x.context_id === id);
+  if (!c) return;
+  _ctxViewId = id;
+
+  try {
+    const res = await fetch(`/api/contexts/${id}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+    const data = await res.json();
+    const full = data.contexts?.[0] || c;
+
+    document.getElementById('ctx-view-title').textContent = full.title || c.title;
+    document.getElementById('ctx-view-body').textContent = full.content || c.summary || 'ไม่มีเนื้อหา';
+    document.getElementById('ctx-view-modal').classList.remove('hidden');
+  } catch (e) {
+    document.getElementById('ctx-view-title').textContent = c.title;
+    document.getElementById('ctx-view-body').textContent = c.summary || 'ไม่มีเนื้อหา';
+    document.getElementById('ctx-view-modal').classList.remove('hidden');
+  }
+}
+
+// ─── Create / Edit Modal ───
+function openCtxModal(editId) {
+  const modal = document.getElementById('ctx-modal');
+  const titleEl = document.getElementById('ctx-modal-title');
+  document.getElementById('ctx-edit-id').value = editId || '';
+  document.getElementById('ctx-input-title').value = '';
+  document.getElementById('ctx-input-content').value = '';
+  document.getElementById('ctx-input-type').value = 'conversation';
+  document.getElementById('ctx-input-tags').value = '';
+  document.getElementById('ctx-input-pinned').checked = false;
+
+  if (editId) {
+    titleEl.textContent = '✏️ แก้ไข Context';
+    const c = _ctxCache.find(x => x.context_id === editId);
+    if (c) {
+      document.getElementById('ctx-input-title').value = c.title || '';
+      document.getElementById('ctx-input-type').value = c.context_type || 'conversation';
+      document.getElementById('ctx-input-tags').value = (c.tags || []).join(', ');
+      document.getElementById('ctx-input-pinned').checked = c.is_pinned || false;
+      // Load full content
+      fetch(`/api/contexts/${editId}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } })
+        .then(r => r.json())
+        .then(data => {
+          const full = data.contexts?.[0];
+          if (full) document.getElementById('ctx-input-content').value = full.content || '';
+        });
+    }
+  } else {
+    titleEl.textContent = '🧠 สร้าง Context ใหม่';
+  }
+
+  modal.classList.remove('hidden');
+}
+
+function editContext(id) { openCtxModal(id); }
+
+async function saveCtxModal() {
+  const editId = document.getElementById('ctx-edit-id').value;
+  const title = document.getElementById('ctx-input-title').value.trim();
+  const content = document.getElementById('ctx-input-content').value.trim();
+  const ctxType = document.getElementById('ctx-input-type').value;
+  const tagsStr = document.getElementById('ctx-input-tags').value;
+  const isPinned = document.getElementById('ctx-input-pinned').checked;
+  const tags = tagsStr ? tagsStr.split(',').map(t => t.trim()).filter(Boolean) : [];
+
+  if (!title) { alert('กรุณาใส่ชื่อ Context'); return; }
+
+  const token = localStorage.getItem('token');
+  try {
+    let res;
+    if (editId) {
+      res = await fetch(`/api/contexts/${editId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ title, content, context_type: ctxType, tags, is_pinned: isPinned }),
+      });
+    } else {
+      res = await fetch('/api/contexts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ title, content, context_type: ctxType, tags, is_pinned: isPinned }),
+      });
+    }
+    if (!res.ok) { const err = await res.json(); alert(err.detail || 'เกิดข้อผิดพลาด'); return; }
+    document.getElementById('ctx-modal').classList.add('hidden');
+    loadContexts();
+  } catch (e) {
+    alert('เกิดข้อผิดพลาด: ' + e.message);
+  }
+}
+
+async function togglePin(id, pinState) {
+  const token = localStorage.getItem('token');
+  try {
+    const res = await fetch(`/api/contexts/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ is_pinned: pinState }),
+    });
+    if (!res.ok) { const err = await res.json(); alert(err.detail || err.message || 'เกิดข้อผิดพลาด'); return; }
+    loadContexts();
+  } catch (e) { alert('เกิดข้อผิดพลาด: ' + e.message); }
+}
+
+async function deleteCtx(id) {
+  if (!confirm('ลบ Context นี้ถาวร?')) return;
+  const token = localStorage.getItem('token');
+  try {
+    await fetch(`/api/contexts/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+    // Close view modal if open
+    document.getElementById('ctx-view-modal')?.classList.add('hidden');
+    loadContexts();
+  } catch (e) { alert('ลบไม่ได้: ' + e.message); }
+}
+
+// ─── Event Listeners ───
+document.addEventListener('DOMContentLoaded', () => {
+  // Search & filter
+  document.getElementById('ctx-search')?.addEventListener('input', _debounceCtx(loadContexts, 400));
+  document.getElementById('ctx-filter-type')?.addEventListener('change', loadContexts);
+
+  // Create button
+  document.getElementById('btn-new-context')?.addEventListener('click', () => openCtxModal());
+
+  // Modal controls
+  document.getElementById('ctx-modal-close')?.addEventListener('click', () => document.getElementById('ctx-modal').classList.add('hidden'));
+  document.getElementById('ctx-modal-cancel')?.addEventListener('click', () => document.getElementById('ctx-modal').classList.add('hidden'));
+  document.getElementById('ctx-modal-save')?.addEventListener('click', saveCtxModal);
+
+  // View modal controls
+  document.getElementById('ctx-view-close')?.addEventListener('click', () => document.getElementById('ctx-view-modal').classList.add('hidden'));
+  document.getElementById('ctx-view-edit')?.addEventListener('click', () => {
+    document.getElementById('ctx-view-modal').classList.add('hidden');
+    if (_ctxViewId) editContext(_ctxViewId);
+  });
+  document.getElementById('ctx-view-delete')?.addEventListener('click', () => {
+    if (_ctxViewId) deleteCtx(_ctxViewId);
+  });
+
+  // Close modals on overlay click
+  document.getElementById('ctx-modal')?.addEventListener('click', (e) => {
+    if (e.target.classList.contains('modal-overlay')) document.getElementById('ctx-modal').classList.add('hidden');
+  });
+  document.getElementById('ctx-view-modal')?.addEventListener('click', (e) => {
+    if (e.target.classList.contains('modal-overlay')) document.getElementById('ctx-view-modal').classList.add('hidden');
+  });
+});
+
+function _debounceCtx(fn, ms) {
+  let t;
+  return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
 }

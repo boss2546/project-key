@@ -331,6 +331,18 @@
           </span>
           <span class="nav-label" data-i18n="nav.chat">AI Chat</span>
         </a>
+        <a href="#" class="nav-item" data-page="context-memory" id="nav-context-memory">
+          <span class="nav-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a4 4 0 0 1 4 4c0 1.95-1.4 3.58-3.25 3.93"/>
+              <path d="M8.56 13.44A6 6 0 0 0 6 18h12a6 6 0 0 0-2.56-4.56"/>
+              <circle cx="12" cy="10" r="1"/>
+              <path d="M12 14v3"/>
+              <path d="M9 20h6"/>
+            </svg>
+          </span>
+          <span class="nav-label">Context Memory</span>
+        </a>
 
         <!-- v4 — Connector Layer -->
         <div class="nav-divider"></div>
@@ -764,6 +776,97 @@
       </section>
 
       <!-- ─── PAGE: MCP SETUP (v4) ─── -->
+      <!-- ─── PAGE: CONTEXT MEMORY (v5.5) ─── -->
+      <section class="page" id="page-context-memory">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">🧠 Context Memory</h1>
+            <p class="page-subtitle">บริบทการทำงานข้ามแพลตฟอร์ม — AI จำได้ต่อเนื่อง</p>
+          </div>
+          <div class="header-actions">
+            <input type="text" class="search-input" id="ctx-search" placeholder="🔍 ค้นหา context..." style="width:200px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:0.85rem;">
+            <select id="ctx-filter-type" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:0.85rem;">
+              <option value="">ทุกประเภท</option>
+              <option value="conversation">💬 Conversation</option>
+              <option value="project">📁 Project</option>
+              <option value="task">✅ Task</option>
+              <option value="note">📝 Note</option>
+            </select>
+            <button class="btn btn-primary" id="btn-new-context">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              <span>สร้าง Context</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Context Cards Grid -->
+        <div class="ctx-grid" id="ctx-grid">
+          <div class="empty-state" id="ctx-empty">
+            <p>🧠 ยังไม่มี Context — AI จะเริ่มบันทึกให้อัตโนมัติเมื่อคุณใช้งาน</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Context Memory: Create/Edit Modal -->
+      <div class="modal-overlay hidden" id="ctx-modal">
+        <div class="modal" style="max-width:600px;">
+          <div class="modal-header">
+            <h2 id="ctx-modal-title">🧠 สร้าง Context ใหม่</h2>
+            <button class="btn-close" id="ctx-modal-close">✕</button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="ctx-edit-id">
+            <div class="form-group">
+              <label>ชื่อ Context</label>
+              <input type="text" id="ctx-input-title" placeholder="เช่น Project KEY v5.5 progress" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);">
+            </div>
+            <div class="form-group">
+              <label>เนื้อหา (Markdown)</label>
+              <textarea id="ctx-input-content" rows="8" placeholder="บันทึกบริบท สรุปงาน สิ่งที่ทำค้างไว้..." style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-family:inherit;resize:vertical;"></textarea>
+            </div>
+            <div style="display:flex;gap:12px;">
+              <div class="form-group" style="flex:1;">
+                <label>ประเภท</label>
+                <select id="ctx-input-type" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);">
+                  <option value="conversation">💬 Conversation</option>
+                  <option value="project">📁 Project</option>
+                  <option value="task">✅ Task</option>
+                  <option value="note">📝 Note</option>
+                </select>
+              </div>
+              <div class="form-group" style="flex:1;">
+                <label>Tags (คั่นด้วย ,)</label>
+                <input type="text" id="ctx-input-tags" placeholder="tag1, tag2" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);">
+              </div>
+            </div>
+            <div class="form-group" style="display:flex;align-items:center;gap:8px;">
+              <input type="checkbox" id="ctx-input-pinned">
+              <label for="ctx-input-pinned" style="margin:0;">📌 ปักหมุด (Pin) — แนบไปทุกแพลตฟอร์มเสมอ</label>
+            </div>
+          </div>
+          <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:8px;padding:16px 24px;border-top:1px solid var(--border);">
+            <button class="btn btn-outline" id="ctx-modal-cancel">ยกเลิก</button>
+            <button class="btn btn-primary" id="ctx-modal-save">💾 บันทึก</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Context Memory: View Modal -->
+      <div class="modal-overlay hidden" id="ctx-view-modal">
+        <div class="modal" style="max-width:700px;">
+          <div class="modal-header">
+            <h2 id="ctx-view-title">Context</h2>
+            <button class="btn-close" id="ctx-view-close">✕</button>
+          </div>
+          <div class="modal-body" id="ctx-view-body" style="white-space:pre-wrap;font-size:0.9rem;line-height:1.7;max-height:60vh;overflow-y:auto;">
+          </div>
+          <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:8px;padding:16px 24px;border-top:1px solid var(--border);">
+            <button class="btn btn-outline" id="ctx-view-edit">✏️ แก้ไข</button>
+            <button class="btn btn-danger" id="ctx-view-delete" style="background:#ef4444;color:#fff;">🗑️ ลบ</button>
+          </div>
+        </div>
+      </div>
+
       <section class="page" id="page-mcp-setup">
         <div class="page-header">
           <div>

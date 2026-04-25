@@ -713,6 +713,68 @@ async def api_regenerate_pack(pack_id: str, current_user: User = Depends(get_cur
         logger.error(f"Pack regeneration failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# ═══════════════════════════════════════════
+# CONTEXT MEMORY APIs (v5.5)
+# ═══════════════════════════════════════════
+
+@app.get("/api/contexts")
+async def api_list_contexts(
+    limit: int = 20,
+    context_type: str = None,
+    is_pinned: bool = None,
+    search: str = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all contexts for this user."""
+    from .context_memory import list_contexts
+    return await list_contexts(db, current_user.id, limit=limit, context_type=context_type, is_pinned=is_pinned, search=search)
+
+@app.post("/api/contexts")
+async def api_save_context(request: Request, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Save a new context."""
+    from .context_memory import save_context
+    body = await request.json()
+    return await save_context(
+        db, current_user.id,
+        title=body.get("title", ""),
+        content=body.get("content", ""),
+        summary=body.get("summary", ""),
+        context_type=body.get("context_type", "conversation"),
+        platform=body.get("platform", "web"),
+        tags=body.get("tags", []),
+        related_file_ids=body.get("related_file_ids", []),
+        is_pinned=body.get("is_pinned", False),
+    )
+
+@app.put("/api/contexts/{context_id}")
+async def api_update_context(context_id: str, request: Request, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Update a context."""
+    from .context_memory import update_context
+    body = await request.json()
+    result = await update_context(db, current_user.id, context_id, **body)
+    if result.get("error") == "context_not_found":
+        raise HTTPException(status_code=404, detail="Context not found")
+    return result
+
+@app.delete("/api/contexts/{context_id}")
+async def api_delete_context(context_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Delete a context."""
+    from .context_memory import delete_context
+    result = await delete_context(db, current_user.id, context_id)
+    if result.get("error") == "context_not_found":
+        raise HTTPException(status_code=404, detail="Context not found")
+    return result
+
+@app.get("/api/contexts/{context_id}")
+async def api_get_context(context_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Load a specific context."""
+    from .context_memory import load_context
+    result = await load_context(db, current_user.id, context_id=context_id)
+    if result.get("error") == "context_not_found":
+        raise HTTPException(status_code=404, detail="Context not found")
+    return result
+
 
 # ═══════════════════════════════════════════
 # GRAPH APIs (v3 — new)
