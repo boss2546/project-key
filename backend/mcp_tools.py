@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 # ═══════════════════════════════════════════
 
 TOOL_REGISTRY = {
-    # ─── 📖 READ & SEARCH (10) ───
+    # ─── 📖 READ & SEARCH (11) ───
     "get_profile": {
         "name": "get_profile",
         "description": "Get the user's profile including identity, goals, working style, and preferences",
@@ -177,7 +177,7 @@ TOOL_REGISTRY = {
         "category": "delete",
     },
 
-    # ─── ⚙️ AI PIPELINE (4) ───
+    # ─── ⚙️ AI PIPELINE (5) ───
     "run_organize": {
         "name": "run_organize",
         "description": "Run the full AI organization pipeline: summarize, cluster, build graph",
