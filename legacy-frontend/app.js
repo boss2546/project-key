@@ -409,7 +409,7 @@ const I18N = {
     // My Data page
     'myData.title': 'ข้อมูลของฉัน',
     'myData.subtitle': 'พื้นที่ข้อมูลส่วนตัวของคุณ',
-    'myData.enrich': 'Enrich Metadata',
+    'myData.enrich': 'เพิ่มข้อมูลเมตา',
     'myData.organize': 'จัดระเบียบด้วย AI',
     'myData.uploadText': 'ลากไฟล์มาวาง หรือ คลิกเพื่อเลือกไฟล์',
     'myData.uploadHint': 'รองรับ PDF, TXT, MD, DOCX (สูงสุด 20 MB)',
