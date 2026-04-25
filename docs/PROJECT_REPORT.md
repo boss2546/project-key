@@ -1,8 +1,8 @@
-# 📋 Project KEY — รายงานสรุปโปรเจกต์ (v0.1 → v5.3)
+# 📋 Project KEY — รายงานสรุปโปรเจกต์ (v0.1 → v5.4)
 
 > **วันที่จัดทำ:** 19 เมษายน 2569  
 > **อัพเดทล่าสุด:** 25 เมษายน 2569  
-> **เวอร์ชันปัจจุบัน:** v5.3 — Multi-Platform MCP + Bug Fixes + 23 Tools  
+> **เวอร์ชันปัจจุบัน:** v5.4 — File Attachment + MCP Annotations + 24 Tools  
 > **Git Tags:** `MVPV1` → `v3.0` → `v4.2`  
 > **สถานะ:** ✅ Production (https://project-key.fly.dev/)  
 > **จัดทำโดย:** Antigravity AI + ทีมพัฒนา  
@@ -24,6 +24,7 @@ v5.0  → Multi-User Auth — สมัคร/ล็อกอิน/JWT + ข้
 v5.1  → Token Security — รีเซ็ตรหัสผ่าน + Token ส่วนตัว + URL แยกผู้ใช้
 v5.2  → Dual AI — Gemini 3.1 Pro/Flash + LLM Text Cleanup + File Sharing
 v5.3  → Multi-Platform MCP — Antigravity bridge + import os fix + 23 tools
+v5.4  → File Attachment — export_file_to_chat + MCP Annotations + 24 tools
 ```
 
 ---
@@ -612,7 +613,27 @@ primary_region = "sin"  # Singapore
 
 ---
 
-## 12. ข้อจำกัดที่ยังมี (Known Limitations) — อัปเดต v5.3
+### 📦 v5.4 — File Attachment + MCP Tool Annotations
+> **Commit:** `898ab55` | **วันที่:** 25 เม.ย. 2569
+
+| ฟีเจอร์ใหม่ | รายละเอียด |
+|-------------|----------|
+| 📎 `export_file_to_chat` | ส่งไฟล์ต้นฉบับกลับแชทเป็น MCP EmbeddedResource (base64 blob) + fallback signed URL 30 นาที |
+| 🏷️ MCP Tool Annotations | ทุก tool มี `readOnlyHint`, `destructiveHint`, `idempotentHint` บอก AI client ว่าต้องขออนุญาตหรือไม่ |
+| ✅ 17 tools auto-approve | Read/Search/Export/Pipeline ทำได้เลยไม่ต้องถาม |
+| ⚠️ 5 tools confirm | Edit/Write ต้องยืนยันก่อน |
+| ⛔ 2 tools destructive | Delete ต้องยืนยันเข้มงวด |
+| 📊 MCP 24 เครื่องมือ | เพิ่ม export_file_to_chat |
+| 🚀 Server v5.4.0 | อัปเดท MCP server version |
+
+**นโยบายสิทธิ์ v5.4:**
+- อ่าน/ค้นหา/Export/Pipeline → **ทำได้เลยไม่ต้องถาม**
+- แก้ไข/เขียน/เพิ่มข้อมูล → **ต้องยืนยันก่อน**
+- ลบไฟล์/ลบ Pack → **ต้องยืนยันเข้มงวด**
+
+---
+
+## 12. ข้อจำกัดที่ยังมี (Known Limitations) — อัปเดต v5.4
 
 | # | ข้อจำกัด | ความเสี่ยง | แนวทาง |
 |---|---------|-----------|--------|
@@ -626,9 +647,9 @@ primary_region = "sin"  # Singapore
 
 ---
 
-## 13. สถิติโปรเจกต์ — เปรียบเทียบทุก Version (อัปเดต v5.3)
+## 13. สถิติโปรเจกต์ — เปรียบเทียบทุก Version (อัปเดต v5.4)
 
-| รายการ | v0.1 | v2.0 | v3.0 | v4.2 | **v5.3** |
+| รายการ | v0.1 | v2.0 | v3.0 | v4.2 | **v5.4** |
 |--------|------|------|------|------|----------|
 | **Backend modules** | 8 | 10 | 15 | 17 | **19** |
 | **Frontend files** | 3 | 3 | 3 | 3 | **3** |
@@ -637,7 +658,7 @@ primary_region = "sin"  # Singapore
 | **Backend code** | ~1,200 | ~2,100 | ~3,660 | ~4,360 | **~5,500 lines** |
 | **Frontend code** | ~1,350 | ~2,000 | ~3,113 | ~4,787 | **~7,008 lines** |
 | **Total code** | ~2,550 | ~4,100 | ~6,773 | ~9,147 | **~12,508 lines** |
-| **MCP Tools** | — | — | — | 21 | **23** |
+| **MCP Tools** | — | — | — | 21 | **24** |
 | **i18n keys** | — | — | 120+ | 170+ | **170+** |
 | **Auth** | — | — | — | — | **JWT + bcrypt** |
 | **AI Models** | 1 | 1 | 1 | 1 | **2 (Pro + Flash)** |
@@ -661,6 +682,7 @@ primary_region = "sin"  # Singapore
 | v5.1 | — | 21 เม.ย. 69 | Token Security — Password reset + Per-user MCP URL |
 | v5.2 | — | 22-23 เม.ย. 69 | Dual AI + LLM Cleanup + File Sharing + 22 tools |
 | **v5.3** | — | **25 เม.ย. 69** | **Multi-Platform MCP + Antigravity bridge + 23 tools** |
+| **v5.4** | — | **25 เม.ย. 69** | **export_file_to_chat + MCP Annotations + 24 tools** |
 
 ---
 
@@ -718,4 +740,4 @@ flyctl ssh console
 
 ---
 
-*รายงานจัดทำโดย Antigravity AI · Project KEY v5.3 · 25 เมษายน 2569*
+*รายงานจัดทำโดย Antigravity AI · Project KEY v5.4 · 25 เมษายน 2569*

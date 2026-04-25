@@ -1,11 +1,11 @@
 # 🔑 Project KEY — Personal Data Bank
 
 > พื้นที่ข้อมูลส่วนตัวที่ใช้ AI จัดระเบียบ วิเคราะห์ และเชื่อมโยงข้อมูลของคุณ  
-> **v5.3** — Multi-Platform MCP + Bug Fixes + Dual AI (Gemini 3.1 Pro/Flash)
+> **v5.4** — File Attachment (EmbeddedResource) + MCP Tool Annotations + 24 Tools
 
 [![Production](https://img.shields.io/badge/Production-project--key.fly.dev-blue)](https://project-key.fly.dev/)
-[![Version](https://img.shields.io/badge/version-5.3-green)]()
-[![MCP Tools](https://img.shields.io/badge/MCP_Tools-23-purple)]()
+[![Version](https://img.shields.io/badge/version-5.4-green)]()
+[![MCP Tools](https://img.shields.io/badge/MCP_Tools-24-purple)]()
 
 ---
 
@@ -220,7 +220,7 @@ Project KEY/
 │
 ├── backend/                  # FastAPI backend (19 โมดูล)
 │   ├── main.py               # 40+ API endpoints (1,362 บรรทัด)
-│   ├── mcp_tools.py          # 23 เครื่องมือ MCP + ระบบสิทธิ์ + File Sharing (1,176 บรรทัด)
+│   ├── mcp_tools.py          # 24 เครื่องมือ MCP + ระบบสิทธิ์ + File Sharing + Annotations (1,318 บรรทัด)
 │   ├── graph_builder.py      # สร้าง Knowledge Graph
 │   ├── retriever.py          # ระบบ RAG 7 ชั้น
 │   ├── vector_search.py      # ค้นหาแบบ TF-IDF
@@ -309,6 +309,7 @@ flyctl deploy
 | v5.1 | รีเซ็ตรหัสผ่าน, Token ส่วนตัว, URL แยกผู้ใช้ |
 | v5.2 | Dual AI (Gemini 3.1 Pro/Flash), LLM Text Cleanup, File Sharing Link, MCP 22 เครื่องมือ |
 | **v5.3** | **แก้บัค `import os`, เพิ่ม Antigravity MCP tab (mcp-remote bridge), MCP 23 เครื่องมือ, Multi-Platform MCP Setup** |
+| **v5.4** | **export_file_to_chat (ส่งไฟล์จริงกลับแชท), MCP Tool Annotations (auto-approve/confirm policy), 24 เครื่องมือ** |
 
 ---
 
