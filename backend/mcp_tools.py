@@ -35,12 +35,14 @@ TOOL_REGISTRY = {
         "description": "Get the user's profile including identity, goals, working style, and preferences",
         "params": [],
         "category": "read",
+        "annotations": {"title": "View Profile", "readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
     },
     "list_files": {
         "name": "list_files",
         "description": "List all files in the knowledge base with their metadata, tags, and summary snippets",
         "params": [],
         "category": "read",
+        "annotations": {"title": "List Files", "readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
     },
     "get_file_content": {
         "name": "get_file_content",
@@ -51,6 +53,7 @@ TOOL_REGISTRY = {
             {"name": "limit", "type": "integer", "required": False, "default": 5000, "description": "Max characters to return (max 10000)"},
         ],
         "category": "read",
+        "annotations": {"title": "Read File Content", "readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
     },
     "get_file_link": {
         "name": "get_file_link",
@@ -59,30 +62,35 @@ TOOL_REGISTRY = {
             {"name": "file_id", "type": "string", "required": True},
         ],
         "category": "read",
+        "annotations": {"title": "Get Download Link", "readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
     },
     "get_file_summary": {
         "name": "get_file_summary",
         "description": "Get the AI-generated summary, key topics, and key facts of a specific file",
         "params": [{"name": "file_id", "type": "string", "required": True}],
         "category": "read",
+        "annotations": {"title": "View Summary", "readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
     },
     "list_collections": {
         "name": "list_collections",
         "description": "List all AI-organized collections (clusters) with their files and summaries",
         "params": [],
         "category": "read",
+        "annotations": {"title": "List Collections", "readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
     },
     "list_context_packs": {
         "name": "list_context_packs",
         "description": "List all context packs (distilled knowledge bundles) available",
         "params": [],
         "category": "read",
+        "annotations": {"title": "List Packs", "readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
     },
     "get_context_pack": {
         "name": "get_context_pack",
         "description": "Get a specific context pack by ID with full content",
         "params": [{"name": "pack_id", "type": "string", "required": True}],
         "category": "read",
+        "annotations": {"title": "View Pack", "readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
     },
     "search_knowledge": {
         "name": "search_knowledge",
@@ -92,6 +100,7 @@ TOOL_REGISTRY = {
             {"name": "limit", "type": "integer", "required": False, "default": 5},
         ],
         "category": "read",
+        "annotations": {"title": "Search Knowledge", "readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
     },
     "explore_graph": {
         "name": "explore_graph",
@@ -101,12 +110,14 @@ TOOL_REGISTRY = {
             {"name": "depth", "type": "integer", "required": False, "default": 1},
         ],
         "category": "read",
+        "annotations": {"title": "Explore Graph", "readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
     },
     "get_overview": {
         "name": "get_overview",
         "description": "Get system overview with counts of files, collections, packs, graph nodes, and edges",
         "params": [],
         "category": "read",
+        "annotations": {"title": "System Overview", "readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
     },
 
     # ─── ✏️ CREATE & EDIT (5) ───
@@ -119,6 +130,7 @@ TOOL_REGISTRY = {
             {"name": "file_ids", "type": "array", "required": True},
         ],
         "category": "edit",
+        "annotations": {"title": "Create Pack", "readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False},
     },
     "add_note": {
         "name": "add_note",
@@ -128,6 +140,7 @@ TOOL_REGISTRY = {
             {"name": "summary_text", "type": "string", "required": True},
         ],
         "category": "edit",
+        "annotations": {"title": "Edit Note", "readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
     },
     "update_file_tags": {
         "name": "update_file_tags",
@@ -137,6 +150,7 @@ TOOL_REGISTRY = {
             {"name": "tags", "type": "array", "required": True},
         ],
         "category": "edit",
+        "annotations": {"title": "Update Tags", "readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
     },
     "upload_text": {
         "name": "upload_text",
@@ -146,6 +160,7 @@ TOOL_REGISTRY = {
             {"name": "content", "type": "string", "required": True},
         ],
         "category": "edit",
+        "annotations": {"title": "Upload Text", "readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False},
     },
     "update_profile": {
         "name": "update_profile",
@@ -158,9 +173,10 @@ TOOL_REGISTRY = {
             {"name": "background_context", "type": "string", "required": False},
         ],
         "category": "edit",
+        "annotations": {"title": "Edit Profile", "readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
     },
 
-    # ─── 🗑️ DELETE (2) ───
+    # ─── 🗑️ DELETE (2) — ต้องขออนุญาตก่อน (ลบข้อมูลถาวร) ───
     "delete_file": {
         "name": "delete_file",
         "description": "Delete a file and all its related data (summary, insights, clusters)",
@@ -168,6 +184,7 @@ TOOL_REGISTRY = {
             {"name": "file_id", "type": "string", "required": True},
         ],
         "category": "delete",
+        "annotations": {"title": "Delete File", "readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": False},
     },
     "delete_pack": {
         "name": "delete_pack",
@@ -176,44 +193,51 @@ TOOL_REGISTRY = {
             {"name": "pack_id", "type": "string", "required": True},
         ],
         "category": "delete",
+        "annotations": {"title": "Delete Pack", "readOnlyHint": False, "destructiveHint": True, "idempotentHint": True, "openWorldHint": False},
     },
 
-    # ─── ⚙️ AI PIPELINE (5) ───
+    # ─── ⚙️ AI PIPELINE (5) — ไม่ต้องขออนุญาต (ประมวลผลซ้ำได้) ───
     "run_organize": {
         "name": "run_organize",
         "description": "Run the full AI organization pipeline: summarize, cluster, build graph",
         "params": [],
         "category": "pipeline",
+        "annotations": {"title": "Organize Data", "readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
     },
     "build_graph": {
         "name": "build_graph",
         "description": "Rebuild the knowledge graph from all data",
         "params": [],
         "category": "pipeline",
+        "annotations": {"title": "Build Graph", "readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
     },
     "enrich_metadata": {
         "name": "enrich_metadata",
         "description": "Run AI metadata enrichment on all files (tags, sensitivity, freshness)",
         "params": [],
         "category": "pipeline",
+        "annotations": {"title": "Enrich Metadata", "readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
     },
     "reprocess_file": {
         "name": "reprocess_file",
         "description": "Re-extract text from a file using the latest extraction pipeline (includes OCR fallback + Thai text fix). Use for PDFs that showed no text or had broken spacing.",
         "params": [{"name": "file_id", "type": "string", "required": True}],
         "category": "pipeline",
+        "annotations": {"title": "Reprocess File", "readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
     },
     "admin_login": {
         "name": "admin_login",
         "description": "Verify admin password to bypass disabled tools",
         "params": [{"name": "admin_key", "type": "string", "required": True}],
         "category": "pipeline",
+        "annotations": {"title": "Admin Login", "readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
     },
     "export_file_to_chat": {
         "name": "export_file_to_chat",
         "description": "Export the original raw file from the knowledge base as a real file attachment in the chat. Returns the file as a downloadable attachment (PDF, TXT, MD, DOCX). If the platform does not support attachments, falls back to a signed 30-minute download URL.",
         "params": [{"name": "file_id", "type": "string", "required": True}],
         "category": "read",
+        "annotations": {"title": "Export File", "readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
     },
 }
 

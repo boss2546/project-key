@@ -1175,7 +1175,7 @@ def _build_mcp_tools_list():
             if p.get("required"):
                 required.append(p["name"])
 
-        tools.append({
+        tool_def = {
             "name": tool["name"],
             "description": tool["description"],
             "inputSchema": {
@@ -1183,7 +1183,11 @@ def _build_mcp_tools_list():
                 "properties": properties,
                 "required": required,
             },
-        })
+        }
+        # v5.4: Add MCP annotations for AI client behavior hints
+        if "annotations" in tool:
+            tool_def["annotations"] = tool["annotations"]
+        tools.append(tool_def)
     return tools
 
 
