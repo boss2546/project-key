@@ -1,8 +1,8 @@
-# 📋 Project KEY — รายงานสรุปโปรเจกต์ (v0.1 → v4.3)
+# 📋 Project KEY — รายงานสรุปโปรเจกต์ (v0.1 → v5.3)
 
 > **วันที่จัดทำ:** 19 เมษายน 2569  
-> **อัพเดทล่าสุด:** 19 เมษายน 2569 (14:50 น.)  
-> **เวอร์ชันปัจจุบัน:** v4.3 — MCP Bugfix + Search Rebuild  
+> **อัพเดทล่าสุด:** 25 เมษายน 2569  
+> **เวอร์ชันปัจจุบัน:** v5.3 — Multi-Platform MCP + Bug Fixes + 23 Tools  
 > **Git Tags:** `MVPV1` → `v3.0` → `v4.2`  
 > **สถานะ:** ✅ Production (https://project-key.fly.dev/)  
 > **จัดทำโดย:** Antigravity AI + ทีมพัฒนา  
@@ -20,6 +20,10 @@ v4.0  → Production Deploy — Fly.io + MCP Connector (5 tools)
 v4.1  → Full MCP — 21 tools + Data Management UX
 v4.2  → Permission System — 4 categories + Admin bypass + Thai bilingual complete
 v4.3  → Bugfix — Search index auto-rebuild + DB fallback + add_note fix
+v5.0  → Multi-User Auth — สมัคร/ล็อกอิน/JWT + ข้อมูลแยกรายบุคคล
+v5.1  → Token Security — รีเซ็ตรหัสผ่าน + Token ส่วนตัว + URL แยกผู้ใช้
+v5.2  → Dual AI — Gemini 3.1 Pro/Flash + LLM Text Cleanup + File Sharing
+v5.3  → Multi-Platform MCP — Antigravity bridge + import os fix + 23 tools
 ```
 
 ---
@@ -553,20 +557,114 @@ primary_region = "sin"  # Singapore
 
 ---
 
-## 12. ข้อจำกัดที่ยังมี (Known Limitations)
+### 📦 v5.0 — Multi-User Auth
+> **วันที่:** 20 เม.ย. 2569
 
-| # | ข้อจำกัด | ความเสี่ยง | แนวทาง |
-|---|---------|-----------|--------|
-| 1 | ไม่มีระบบ Auth — DEFAULT_USER_ID | High (multi-user) | JWT / OAuth2 |
-| 2 | ~~Vector index ใน RAM — restart rebuild~~ | ~~Medium~~ | ✅ **แก้แล้ว v4.3** — startup auto-rebuild |
-| 3 | Graph rebuild = ล้างทั้งหมด | Medium | Incremental update |
-| 4 | Admin password hardcoded | Medium | Environment variable |
-| 5 | Permissions ใน memory (reset on restart) | Low | Persist to DB |
-| 6 | Canvas Beta ยังไม่ implement | Low | v5 |
+| ฟีเจอร์ใหม่ | รายละเอียด |
+|-------------|-----------|
+| 🔐 สมัครสมาชิก/ล็อกอิน | Email + Password (bcrypt hash) |
+| 🪙 JWT Authentication | Bearer token + refresh token |
+| 👥 ข้อมูลแยกรายบุคคล | ทุกไฟล์, กราฟ, แชท, profile แยก user_id |
+| 🏠 Landing Page | หน้าแรกแนะนำระบบ + ปุ่ม sign up/login |
+| 🧩 Onboarding Quiz | ตั้งค่าโปรไฟล์ตอนสมัครครั้งแรก |
+
+**ไฟล์ใหม่:** `backend/auth.py` — JWT + bcrypt auth system
 
 ---
 
-## 13. วิธีรัน
+### 📦 v5.1 — Token Security
+> **วันที่:** 21 เม.ย. 2569
+
+| ฟีเจอร์ใหม่ | รายละเอียด |
+|-------------|-----------|
+| 🔄 รีเซ็ตรหัสผ่าน | Self-service password reset |
+| 🔑 MCP Token ส่วนตัว | Token แยกรายผู้ใช้ (ไม่ใช่ shared) |
+| 🌐 MCP URL แยกผู้ใช้ | `/mcp/{user_secret}` — secret key เฉพาะคน |
+
+---
+
+### 📦 v5.2 — Dual AI + File Sharing
+> **วันที่:** 22-23 เม.ย. 2569
+
+| ฟีเจอร์ใหม่ | รายละเอียด |
+|-------------|-----------|
+| 🤖 Dual AI Model | Gemini 3.1 Pro (จัดการข้อมูล) + Gemini 3 Flash (แชท) |
+| 🧹 LLM Text Cleanup | แก้ข้อความ PDF ที่เพี้ยนด้วย AI แทน regex |
+| 📎 File Sharing Link | `get_file_link` → ลิงก์ดาวน์โหลดชั่วคราว 30 นาที |
+| 📄 Paginated Content | `get_file_content(offset, limit)` — อ่านไฟล์ใหญ่ได้ |
+| 🔄 Reprocess File | `reprocess_file` — แปลงไฟล์ใหม่ด้วย OCR + LLM fix |
+| 📊 MCP 22 → 23 tools | เพิ่ม get_file_link, get_file_content(v2), reprocess_file |
+
+**ไฟล์ใหม่:** `backend/shared_links.py` — Signed temp download URLs
+
+---
+
+### 📦 v5.3 — Multi-Platform MCP + Bug Fixes
+> **Commit:** `e18aac2` | **วันที่:** 25 เม.ย. 2569
+
+| ฟีเจอร์/แก้ไข | รายละเอียด |
+|---------------|-----------|
+| 🔧 แก้บัค `import os` | `mcp_tools.py` ขาด `import os` ทำให้ list_files, get_file_link, get_file_content ล้ม |
+| 🆕 Antigravity MCP Tab | หน้า MCP Setup มี 2 tab: Claude Desktop + Antigravity |
+| 🌉 mcp-remote Bridge | config สำหรับ Antigravity ใช้ `npx -y mcp-remote@latest` เป็น stdio ↔ HTTP bridge |
+| 📊 MCP 23 เครื่องมือ | อัปเดตจำนวนทั้ง frontend + backend + README |
+| 🏗️ Project Cleanup | อัปเดต README v5.3, โครงสร้างไฟล์, line counts ทุกส่วน |
+
+---
+
+## 12. ข้อจำกัดที่ยังมี (Known Limitations) — อัปเดต v5.3
+
+| # | ข้อจำกัด | ความเสี่ยง | แนวทาง |
+|---|---------|-----------|--------|
+| 1 | ~~ไม่มีระบบ Auth — DEFAULT_USER_ID~~ | ~~High~~ | ✅ **แก้แล้ว v5.0** — JWT + bcrypt Multi-User |
+| 2 | ~~Vector index ใน RAM — restart rebuild~~ | ~~Medium~~ | ✅ **แก้แล้ว v4.3** — startup auto-rebuild |
+| 3 | Graph rebuild = ล้างทั้งหมด | Medium | Incremental update |
+| 4 | ~~Admin password hardcoded~~ | ~~Medium~~ | ✅ **แก้แล้ว v5.0** — Per-user MCP secret |
+| 5 | Permissions ใน memory (reset on restart) | Low | Persist to DB |
+| 6 | Canvas Beta ยังไม่ implement | Low | v6 |
+| 7 | Antigravity ต้องใช้ mcp-remote bridge | Low | รอ native remote MCP support |
+
+---
+
+## 13. สถิติโปรเจกต์ — เปรียบเทียบทุก Version (อัปเดต v5.3)
+
+| รายการ | v0.1 | v2.0 | v3.0 | v4.2 | **v5.3** |
+|--------|------|------|------|------|----------|
+| **Backend modules** | 8 | 10 | 15 | 17 | **19** |
+| **Frontend files** | 3 | 3 | 3 | 3 | **3** |
+| **Database tables** | 7 | 10 | 16 | 18 | **18** |
+| **API endpoints** | 8 | 16 | ~30 | 40+ | **40+** |
+| **Backend code** | ~1,200 | ~2,100 | ~3,660 | ~4,360 | **~5,500 lines** |
+| **Frontend code** | ~1,350 | ~2,000 | ~3,113 | ~4,787 | **~7,008 lines** |
+| **Total code** | ~2,550 | ~4,100 | ~6,773 | ~9,147 | **~12,508 lines** |
+| **MCP Tools** | — | — | — | 21 | **23** |
+| **i18n keys** | — | — | 120+ | 170+ | **170+** |
+| **Auth** | — | — | — | — | **JWT + bcrypt** |
+| **AI Models** | 1 | 1 | 1 | 1 | **2 (Pro + Flash)** |
+| **Deployment** | Local | Local | Local | Fly.io | **Fly.io** |
+| **MCP Platforms** | — | — | — | Claude | **Claude + Antigravity** |
+
+---
+
+## 14. Version History
+
+| Version | Tag | วันที่ | สรุป |
+|---------|-----|-------|------|
+| v0.1 | `MVPV1` | 15 เม.ย. 69 | Stable Foundation — Upload, Organize, AI Chat |
+| v2.0 | — | 17 เม.ย. 69 | Second Brain — Profile, Packs, Hybrid Search |
+| v3.0 | `v3.0` | 18 เม.ย. 69 | Knowledge Workspace — Graph, i18n, Restructure |
+| v4.0 | — | 18 เม.ย. 69 | Production Deploy — Fly.io + MCP 5 tools |
+| v4.1 | — | 19 เม.ย. 69 | Full MCP — 21 tools + Data Management UX |
+| v4.2 | `v4.2` | 19 เม.ย. 69 | Permission System — 4 categories + Admin + Thai |
+| v4.3 | — | 19 เม.ย. 69 | Bugfix — Search rebuild + add_note fix |
+| v5.0 | — | 20 เม.ย. 69 | Multi-User Auth — JWT + bcrypt + Per-user data |
+| v5.1 | — | 21 เม.ย. 69 | Token Security — Password reset + Per-user MCP URL |
+| v5.2 | — | 22-23 เม.ย. 69 | Dual AI + LLM Cleanup + File Sharing + 22 tools |
+| **v5.3** | — | **25 เม.ย. 69** | **Multi-Platform MCP + Antigravity bridge + 23 tools** |
+
+---
+
+## 15. วิธีรัน
 
 ### Local Development
 ```bash
@@ -595,6 +693,29 @@ flyctl logs
 flyctl ssh console
 ```
 
+### เชื่อมต่อ MCP (Claude Desktop)
+```json
+{
+  "mcpServers": {
+    "project-key": {
+      "url": "https://project-key.fly.dev/mcp/{YOUR_SECRET_KEY}"
+    }
+  }
+}
+```
+
+### เชื่อมต่อ MCP (Antigravity — ใช้ mcp-remote bridge)
+```json
+{
+  "mcpServers": {
+    "project-key": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote@latest", "https://project-key.fly.dev/mcp/{YOUR_SECRET_KEY}"]
+    }
+  }
+}
+```
+
 ---
 
-*รายงานจัดทำโดย Antigravity AI · Project KEY v4.3 · 19 เมษายน 2569*
+*รายงานจัดทำโดย Antigravity AI · Project KEY v5.3 · 25 เมษายน 2569*
