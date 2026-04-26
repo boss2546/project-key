@@ -1,10 +1,10 @@
 # 🔑 Project KEY — Personal Data Bank
 
 > พื้นที่ข้อมูลส่วนตัวที่ใช้ AI จัดระเบียบ วิเคราะห์ และเชื่อมโยงข้อมูลของคุณ  
-> **v5.5.1** — Context Memory + Smart Organize (จัดระเบียบไฟล์ใหม่/ทั้งหมด) + 30 MCP Tools
+> **v5.6** — In-App Guide System (คู่มือในเว็บ) + Smart Organize + 30 MCP Tools
 
 [![Production](https://img.shields.io/badge/Production-project--key.fly.dev-blue)](https://project-key.fly.dev/)
-[![Version](https://img.shields.io/badge/version-5.5.1-green)]()
+[![Version](https://img.shields.io/badge/version-5.6-green)]()
 [![MCP Tools](https://img.shields.io/badge/MCP_Tools-30-purple)]()
 
 ---
@@ -313,6 +313,7 @@ flyctl deploy
 | **v5.4** | **export_file_to_chat (ส่งไฟล์จริงกลับแชท), MCP Tool Annotations (auto-approve/confirm policy), 24 เครื่องมือ** |
 | **v5.5** | **Context Memory System — ระบบจำบริบทข้ามแพลตฟอร์ม, Smart Merge, Auto-Archive, Auto-Summary, 30 เครื่องมือ** |
 | **v5.5.1** | **Smart Organize — ปุ่มจัดระเบียบทั้งหมด/ไฟล์ใหม่ + badge จำนวนไฟล์รอ, i18n ไทย 100%** |
+| **v5.6** | **In-App Guide — คู่มือในเว็บ 3 แท็บ (วิธีใช้/เชื่อมต่อ/ตัวอย่าง) + Onboarding Checklist + Search** |
 
 ---
 

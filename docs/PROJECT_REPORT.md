@@ -2,7 +2,7 @@
 
 > **วันที่จัดทำ:** 19 เมษายน 2569  
 > **อัพเดทล่าสุด:** 25 เมษายน 2569  
-> **เวอร์ชันปัจจุบัน:** v5.5.1 — Context Memory + Smart Organize + 30 Tools  
+> **เวอร์ชันปัจจุบัน:** v5.6 — In-App Guide System + Smart Organize + 30 Tools  
 > **Git Tags:** `MVPV1` → `v3.0` → `v4.2`  
 > **สถานะ:** ✅ Production (https://project-key.fly.dev/)  
 > **จัดทำโดย:** Antigravity AI + ทีมพัฒนา  
@@ -27,6 +27,7 @@ v5.3  → Multi-Platform MCP — Antigravity bridge + import os fix + 23 tools
 v5.4  → File Attachment — export_file_to_chat + MCP Annotations + 24 tools
 v5.5  → Context Memory — ระบบจำบริบทข้ามแพลตฟอร์ม + Smart Merge + 30 tools
 v5.5.1→ Smart Organize — ปุ่มจัดระเบียบทั้งหมด/ไฟล์ใหม่ + badge + i18n 100%
+v5.6  → In-App Guide — คู่มือในเว็บ 3 แท็บ + Onboarding Checklist + Search
 ```
 
 ---
@@ -688,6 +689,7 @@ primary_region = "sin"  # Singapore
 | **v5.4** | — | **25 เม.ย. 69** | **export_file_to_chat + MCP Annotations + 24 tools** |
 | **v5.5** | — | **25 เม.ย. 69** | **Context Memory System — ระบบจำบริบทข้ามแพลตฟอร์ม + Smart Merge + 30 tools** |
 | **v5.5.1** | — | **25 เม.ย. 69** | **Smart Organize — ปุ่มจัดระเบียบทั้งหมด/ไฟล์ใหม่ + badge + i18n 100%** |
+| **v5.6** | — | **26 เม.ย. 69** | **In-App Guide — คู่มือในเว็บ 3 แท็บ + Onboarding Checklist + Search** |
 
 ---
 
@@ -745,4 +747,4 @@ flyctl ssh console
 
 ---
 
-*รายงานจัดทำโดย Antigravity AI · Project KEY v5.5.1 · 25 เมษายน 2569*
+*รายงานจัดทำโดย Antigravity AI · Project KEY v5.6 · 26 เมษายน 2569*

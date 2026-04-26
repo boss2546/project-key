@@ -1976,6 +1976,7 @@ async function sendMessage() {
   
   _chatBusy = true;
   input.value = '';
+  localStorage.setItem('pk_chat_used', '1');
   input.disabled = true;
   if (sendBtn) sendBtn.disabled = true;
 
@@ -3328,11 +3329,11 @@ function markOnboardingDone(key) {
 
 // Auto-detect onboarding progress
 function detectOnboardingProgress() {
-  // Will be called after loadFiles, loadStats etc.
   try {
-    const fileCount = parseInt(document.querySelector('[data-stat="files"]')?.textContent || '0');
+    const fileCount = parseInt(document.getElementById('stat-files')?.textContent || '0');
     if (fileCount > 0) markOnboardingDone('upload');
-    if (document.querySelector('.collection-card')) markOnboardingDone('organize');
+    const colCount = parseInt(document.getElementById('stat-collections')?.textContent || '0');
+    if (colCount > 0) markOnboardingDone('organize');
     if (localStorage.getItem('pk_chat_used')) markOnboardingDone('chat');
     if (localStorage.getItem('pk_mcp_tested')) markOnboardingDone('mcp');
   } catch(e) {}
