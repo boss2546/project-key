@@ -3025,12 +3025,7 @@ const GUIDE_DATA = {
       features: [
         { icon: '🤖', title: 'ถาม-ตอบ AI', desc: 'ถามคำถามเกี่ยวกับเอกสารของคุณ AI จะตอบพร้อมอ้างอิงแหล่งที่มา', tryAction: 'chat' },
         { icon: '📎', title: 'หลักฐานอ้างอิง', desc: 'ทุกคำตอบมีลิงก์ไปยังเอกสารต้นฉบับ ตรวจสอบได้', tryAction: 'chat' },
-      ]
-    },
-    'profile': {
-      title: '👤 โปรไฟล์',
-      features: [
-        { icon: '🎯', title: 'ตั้งค่าตัวตน', desc: 'บอก AI ว่าคุณเป็นใคร เป้าหมายอะไร AI จะปรับคำตอบให้เหมาะกับคุณ', tryAction: 'profile' },
+        { icon: '🎯', title: 'ตั้งค่าโปรไฟล์', desc: 'บอก AI ว่าคุณเป็นใคร เป้าหมายอะไร AI จะปรับคำตอบให้เหมาะกับคุณ (คลิก "โปรไฟล์" ที่ sidebar ซ้ายล่าง)', tryAction: 'chat' },
       ]
     },
     'context-memory': {
@@ -3040,11 +3035,24 @@ const GUIDE_DATA = {
         { icon: '📌', title: 'ปักหมุด', desc: 'ปักหมุดบริบทสำคัญ AI จะเห็นเสมอ', tryAction: 'context-memory' },
       ]
     },
-    'mcp': {
-      title: '🔌 MCP ตั้งค่า',
+    'mcp-setup': {
+      title: '🔌 ตั้งค่า MCP',
       features: [
-        { icon: '🔑', title: 'Token', desc: 'สร้าง/จัดการ Token สำหรับเชื่อมต่อแพลตฟอร์มภายนอก', tryAction: 'mcp' },
-        { icon: '🛠️', title: 'เครื่องมือ 30 ตัว', desc: 'ดูรายการเครื่องมือ MCP ทั้งหมดพร้อมคำอธิบาย', tryAction: 'mcp' },
+        { icon: '🔑', title: 'Token', desc: 'สร้าง/จัดการ Token สำหรับเชื่อมต่อแพลตฟอร์มภายนอก', tryAction: 'tokens' },
+        { icon: '🛠️', title: 'เครื่องมือ 30 ตัว', desc: 'ดูรายการเครื่องมือ MCP ทั้งหมดพร้อมคำอธิบาย', tryAction: 'mcp-setup' },
+      ]
+    },
+    'tokens': {
+      title: '🔑 โทเค็น',
+      features: [
+        { icon: '➕', title: 'สร้างโทเค็น', desc: 'สร้าง Token ใหม่สำหรับเชื่อมต่อ Claude, Antigravity หรือแพลตฟอร์มอื่น', tryAction: 'tokens' },
+        { icon: '🗑️', title: 'ลบโทเค็น', desc: 'ลบ Token ที่ไม่ใช้แล้วเพื่อความปลอดภัย', tryAction: 'tokens' },
+      ]
+    },
+    'mcp-logs': {
+      title: '📋 บันทึกการใช้งาน',
+      features: [
+        { icon: '📊', title: 'ดูบันทึก', desc: 'ดูประวัติการเรียกใช้เครื่องมือ MCP ทั้งหมด เช็คว่าใครเรียกอะไร เมื่อไหร่', tryAction: 'mcp-logs' },
       ]
     }
   },
@@ -3158,12 +3166,12 @@ function closeGuide() {
   setTimeout(() => { drawer.style.display = 'none'; overlay.style.display = 'none'; }, 300);
 }
 
+let _guideSelectedPage = null;
+
 function getCurrentPage() {
-  const hash = location.hash.replace('#', '') || 'my-data';
-  for (const key of Object.keys(GUIDE_DATA.pages)) {
-    if (hash.includes(key)) return key;
-  }
-  return 'my-data';
+  if (_guideSelectedPage) return _guideSelectedPage;
+  const page = state?.currentPage || 'my-data';
+  return GUIDE_DATA.pages[page] ? page : 'my-data';
 }
 
 function renderGuideTab(tab, search) {
@@ -3203,8 +3211,19 @@ function renderGuideTab(tab, search) {
 
     el.innerHTML = checklistHTML + selectorHTML + featHTML;
 
+    // Checklist go-btn events
+    el.querySelectorAll('.go-btn').forEach(b => {
+      b.addEventListener('click', () => {
+        const nav = b.dataset.nav;
+        closeGuide();
+        _guideSelectedPage = null;
+        if (nav && typeof switchPage === 'function') switchPage(nav);
+      });
+    });
+
     // Page selector event
     document.getElementById('guide-page-select')?.addEventListener('change', (e) => {
+      _guideSelectedPage = e.target.value;
       renderGuideTab('usage', q);
     });
 
@@ -3221,7 +3240,8 @@ function renderGuideTab(tab, search) {
       b.addEventListener('click', () => {
         const nav = b.dataset.nav;
         closeGuide();
-        if (nav) location.hash = nav;
+        _guideSelectedPage = null;
+        if (nav && typeof switchPage === 'function') switchPage(nav);
       });
     });
 
@@ -3300,7 +3320,7 @@ function renderChecklist() {
     { id: 'upload', label: 'อัปโหลดไฟล์แรก', nav: 'my-data' },
     { id: 'organize', label: 'จัดระเบียบด้วย AI', nav: 'my-data' },
     { id: 'chat', label: 'ลองถาม AI แชท', nav: 'chat' },
-    { id: 'mcp', label: 'เชื่อมต่อแพลตฟอร์ม', nav: 'mcp' },
+    { id: 'mcp', label: 'เชื่อมต่อแพลตฟอร์ม', nav: 'mcp-setup' },
   ];
   const done = JSON.parse(localStorage.getItem('pk_onboarding') || '{}');
   const doneCount = items.filter(i => done[i.id]).length;
@@ -3332,7 +3352,7 @@ function detectOnboardingProgress() {
   try {
     const fileCount = parseInt(document.getElementById('stat-files')?.textContent || '0');
     if (fileCount > 0) markOnboardingDone('upload');
-    const colCount = parseInt(document.getElementById('stat-collections')?.textContent || '0');
+    const colCount = parseInt(document.getElementById('stat-clusters')?.textContent || '0');
     if (colCount > 0) markOnboardingDone('organize');
     if (localStorage.getItem('pk_chat_used')) markOnboardingDone('chat');
     if (localStorage.getItem('pk_mcp_tested')) markOnboardingDone('mcp');
