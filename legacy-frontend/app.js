@@ -3164,7 +3164,8 @@ function renderGuideTab(tab) {
           <p><strong>ขั้นตอนที่ 4:</strong> ตั้งชื่อ เช่น "Project KEY" แล้วใส่ MCP Server URL ด้านล่าง</p>
           <p><strong>ขั้นตอนที่ 5:</strong> การพิสูจน์ตัวตน → เลือก "ไม่พิสูจน์ตัวตน"</p>
           <p><strong>ขั้นตอนที่ 6:</strong> กดปุ่ม "ฉันเข้าใจและฉันต้องการดำเนินการต่อ" → สร้างเสร็จ!</p>
-          <p><strong>วิธีใช้:</strong> เปิดแชทใหม่ → กดปุ่ม "เพิ่มเติม" → เลือก "Project KEY" ที่สร้างไว้</p>
+          <p><strong>วิธีใช้:</strong> เปิดแชทใหม่ → กด "เพิ่มเติม" → เลือกแอปที่สร้างไว้</p>
+          <img src="/guide/chatgpt-6-use.png" alt="กดเพิ่มเติม เลือกแอป" loading="lazy">
           <button class="guide-copy-btn" id="copy-chatgpt">📋 คัดลอก MCP URL (ChatGPT)</button>
         </div>
       </div>
