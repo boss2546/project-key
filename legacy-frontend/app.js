@@ -3153,7 +3153,15 @@ function renderGuideTab(tab) {
       <div class="guide-section">
         <h3>🟢 ChatGPT</h3>
         <div class="guide-item">
-          <p>รอการสนับสนุนจาก OpenAI — จะอัปเดตเมื่อพร้อมใช้งาน</p>
+          <p><strong>ก่อนเริ่ม:</strong> ต้องเปิดโหมดนักพัฒนาก่อน (Developer Mode)</p>
+          <p><strong>ขั้นตอนที่ 1:</strong> กดที่ชื่อบัญชีผู้ใช้ (มุมบนขวา) → เลือก "การตั้งค่า"</p>
+          <p><strong>ขั้นตอนที่ 2:</strong> เลือก "แอป" → กด "การตั้งค่าขั้นสูง"</p>
+          <p><strong>ขั้นตอนที่ 3:</strong> กดปุ่ม "สร้างแอป"</p>
+          <p><strong>ขั้นตอนที่ 4:</strong> ตั้งชื่อ เช่น "Project KEY" แล้วใส่ MCP Server URL ด้านล่าง</p>
+          <p><strong>ขั้นตอนที่ 5:</strong> การพิสูจน์ตัวตน → เลือก "ไม่พิสูจน์ตัวตน"</p>
+          <p><strong>ขั้นตอนที่ 6:</strong> กดปุ่ม "ฉันเข้าใจและฉันต้องการดำเนินการต่อ" → สร้างเสร็จ!</p>
+          <p><strong>วิธีใช้:</strong> เปิดแชทใหม่ → กดปุ่ม "เพิ่มเติม" → เลือก "Project KEY" ที่สร้างไว้</p>
+          <button class="guide-copy-btn" id="copy-chatgpt">📋 คัดลอก MCP URL (ChatGPT)</button>
         </div>
       </div>
     `;
@@ -3162,11 +3170,17 @@ function renderGuideTab(tab) {
     document.querySelectorAll('.guide-copy-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
         const mcpUrl = location.origin + '/mcp';
-        const config = JSON.stringify({ "mcpServers": { "project-key": { "url": mcpUrl } } }, null, 2);
+        let text;
+        if (btn.id === 'copy-chatgpt') {
+          text = mcpUrl;
+        } else {
+          text = JSON.stringify({ "mcpServers": { "project-key": { "url": mcpUrl } } }, null, 2);
+        }
+        const origLabel = btn.textContent;
         try {
-          await navigator.clipboard.writeText(config);
+          await navigator.clipboard.writeText(text);
           btn.textContent = '✅ คัดลอกแล้ว!';
-          setTimeout(() => { btn.textContent = btn.id === 'copy-claude' ? '📋 คัดลอก Config (Claude)' : '📋 คัดลอก Config (Antigravity)'; }, 2000);
+          setTimeout(() => { btn.textContent = origLabel; }, 2000);
         } catch(e) { btn.textContent = '❌ คัดลอกไม่ได้'; }
       });
     });
