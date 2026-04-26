@@ -3045,6 +3045,7 @@ function renderGuideTab(tab) {
       <div class="guide-section">
         <h3>📁 ข้อมูลของฉัน</h3>
         <div class="guide-item">
+          <img src="/guide/upload.png" alt="อัปโหลดไฟล์" loading="lazy">
           <strong>📤 อัปโหลดไฟล์</strong>
           <p>ลากไฟล์มาวางในกรอบ หรือคลิกเพื่อเลือกไฟล์ รองรับ PDF, TXT, MD, DOCX (สูงสุด 20 MB)</p>
         </div>
@@ -3077,6 +3078,7 @@ function renderGuideTab(tab) {
       <div class="guide-section">
         <h3>🕸️ กราฟความรู้</h3>
         <div class="guide-item">
+          <img src="/guide/graph.png" alt="กราฟความรู้" loading="lazy">
           <strong>🌐 มุมมอง Global</strong>
           <p>เห็นภาพรวมความเชื่อมโยงของเอกสารทั้งหมด ซูมเข้า-ออก ลากจัดตำแหน่งได้</p>
         </div>
@@ -3089,6 +3091,7 @@ function renderGuideTab(tab) {
       <div class="guide-section">
         <h3>💬 AI แชท</h3>
         <div class="guide-item">
+          <img src="/guide/chat.png" alt="AI แชท" loading="lazy">
           <strong>🤖 ถาม-ตอบ AI</strong>
           <p>ถามคำถามเกี่ยวกับเอกสารของคุณ AI จะตอบพร้อมอ้างอิงแหล่งที่มาจากไฟล์จริง</p>
         </div>
@@ -3131,6 +3134,7 @@ function renderGuideTab(tab) {
       <div class="guide-section">
         <h3>🟣 Claude Desktop</h3>
         <div class="guide-item">
+          <img src="/guide/claude-setup.png" alt="Claude Desktop Setup" loading="lazy">
           <p><strong>ขั้นตอนที่ 1:</strong> กดปุ่ม "คัดลอก Config" ด้านล่าง</p>
           <p><strong>ขั้นตอนที่ 2:</strong> เปิด Claude Desktop → Settings → Developer → Edit Config</p>
           <p><strong>ขั้นตอนที่ 3:</strong> วางข้อความที่คัดลอก แล้วบันทึก</p>
@@ -3153,6 +3157,7 @@ function renderGuideTab(tab) {
       <div class="guide-section">
         <h3>🟢 ChatGPT</h3>
         <div class="guide-item">
+          <img src="/guide/chatgpt-step2.png" alt="ChatGPT App Settings" loading="lazy">
           <p><strong>ก่อนเริ่ม:</strong> ต้องเปิดโหมดนักพัฒนาก่อน (Developer Mode)</p>
           <p><strong>ขั้นตอนที่ 1:</strong> กดที่ชื่อบัญชีผู้ใช้ (มุมบนขวา) → เลือก "การตั้งค่า"</p>
           <p><strong>ขั้นตอนที่ 2:</strong> เลือก "แอป" → กด "การตั้งค่าขั้นสูง"</p>

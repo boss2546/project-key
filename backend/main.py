@@ -1470,6 +1470,15 @@ async def serve_legacy_static(filename: str):
     raise HTTPException(status_code=404)
 
 
+@app.get("/guide/{filename}")
+async def serve_guide_static(filename: str):
+    """Serve guide images."""
+    filepath = os.path.join(FRONTEND_DIR, "guide", filename)
+    if os.path.exists(filepath) and not os.path.isdir(filepath):
+        return FileResponse(filepath)
+    raise HTTPException(status_code=404)
+
+
 @app.get("/{filename}")
 async def serve_static(filename: str):
     """Serve static files from frontend directory."""
