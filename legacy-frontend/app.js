@@ -3045,7 +3045,6 @@ function renderGuideTab(tab) {
       <div class="guide-section">
         <h3>📁 ข้อมูลของฉัน</h3>
         <div class="guide-item">
-          <img src="/guide/upload.png" alt="อัปโหลดไฟล์" loading="lazy">
           <strong>📤 อัปโหลดไฟล์</strong>
           <p>ลากไฟล์มาวางในกรอบ หรือคลิกเพื่อเลือกไฟล์ รองรับ PDF, TXT, MD, DOCX (สูงสุด 20 MB)</p>
         </div>
@@ -3078,7 +3077,6 @@ function renderGuideTab(tab) {
       <div class="guide-section">
         <h3>🕸️ กราฟความรู้</h3>
         <div class="guide-item">
-          <img src="/guide/graph.png" alt="กราฟความรู้" loading="lazy">
           <strong>🌐 มุมมอง Global</strong>
           <p>เห็นภาพรวมความเชื่อมโยงของเอกสารทั้งหมด ซูมเข้า-ออก ลากจัดตำแหน่งได้</p>
         </div>
@@ -3091,7 +3089,6 @@ function renderGuideTab(tab) {
       <div class="guide-section">
         <h3>💬 AI แชท</h3>
         <div class="guide-item">
-          <img src="/guide/chat.png" alt="AI แชท" loading="lazy">
           <strong>🤖 ถาม-ตอบ AI</strong>
           <p>ถามคำถามเกี่ยวกับเอกสารของคุณ AI จะตอบพร้อมอ้างอิงแหล่งที่มาจากไฟล์จริง</p>
         </div>
@@ -3134,7 +3131,6 @@ function renderGuideTab(tab) {
       <div class="guide-section">
         <h3>🟣 Claude Desktop</h3>
         <div class="guide-item">
-          <img src="/guide/claude-setup.png" alt="Claude Desktop Setup" loading="lazy">
           <p><strong>ขั้นตอนที่ 1:</strong> กดปุ่ม "คัดลอก Config" ด้านล่าง</p>
           <p><strong>ขั้นตอนที่ 2:</strong> เปิด Claude Desktop → Settings → Developer → Edit Config</p>
           <p><strong>ขั้นตอนที่ 3:</strong> วางข้อความที่คัดลอก แล้วบันทึก</p>
@@ -3157,11 +3153,14 @@ function renderGuideTab(tab) {
       <div class="guide-section">
         <h3>🟢 ChatGPT</h3>
         <div class="guide-item">
-          <img src="/guide/chatgpt-step2.png" alt="ChatGPT App Settings" loading="lazy">
+          <img src="/guide/chatgpt-2-settings.png" alt="กดชื่อบัญชี เลือกการตั้งค่า" loading="lazy">
           <p><strong>ก่อนเริ่ม:</strong> ต้องเปิดโหมดนักพัฒนาก่อน (Developer Mode)</p>
           <p><strong>ขั้นตอนที่ 1:</strong> กดที่ชื่อบัญชีผู้ใช้ (มุมบนขวา) → เลือก "การตั้งค่า"</p>
-          <p><strong>ขั้นตอนที่ 2:</strong> เลือก "แอป" → กด "การตั้งค่าขั้นสูง"</p>
-          <p><strong>ขั้นตอนที่ 3:</strong> กดปุ่ม "สร้างแอป"</p>
+          <img src="/guide/chatgpt-3-apps.png" alt="เลือกแอป" loading="lazy">
+          <p><strong>ขั้นตอนที่ 2:</strong> เลือก "แอป" ในเมนูซ้าย</p>
+          <img src="/guide/chatgpt-4-applist.png" alt="กดสร้างแอป" loading="lazy">
+          <p><strong>ขั้นตอนที่ 3:</strong> กด "การตั้งค่าขั้นสูง" → กดปุ่ม "สร้างแอป"</p>
+          <img src="/guide/chatgpt-5-create.png" alt="สร้างแอปใหม่" loading="lazy">
           <p><strong>ขั้นตอนที่ 4:</strong> ตั้งชื่อ เช่น "Project KEY" แล้วใส่ MCP Server URL ด้านล่าง</p>
           <p><strong>ขั้นตอนที่ 5:</strong> การพิสูจน์ตัวตน → เลือก "ไม่พิสูจน์ตัวตน"</p>
           <p><strong>ขั้นตอนที่ 6:</strong> กดปุ่ม "ฉันเข้าใจและฉันต้องการดำเนินการต่อ" → สร้างเสร็จ!</p>
