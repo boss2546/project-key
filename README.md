@@ -1,10 +1,10 @@
 # 🔑 Project KEY — Personal Data Bank
 
 > พื้นที่ข้อมูลส่วนตัวที่ใช้ AI จัดระเบียบ วิเคราะห์ และเชื่อมโยงข้อมูลของคุณ  
-> **v5.6** — In-App Guide System (คู่มือในเว็บ) + Smart Organize + 30 MCP Tools
+> **v5.7** — Simple Guide + ChatGPT MCP Support + Real Screenshots
 
 [![Production](https://img.shields.io/badge/Production-project--key.fly.dev-blue)](https://project-key.fly.dev/)
-[![Version](https://img.shields.io/badge/version-5.6-green)]()
+[![Version](https://img.shields.io/badge/version-5.7-green)]()
 [![MCP Tools](https://img.shields.io/badge/MCP_Tools-30-purple)]()
 
 ---
@@ -245,8 +245,8 @@ Project KEY/
 ├── .env                      # API key (ไม่รวมใน git)
 │
 ├── docs/                     # เอกสาร
-│   ├── PROJECT_REPORT.md     # รายงานฉบับเต็ม (v0.1 → v5.5)
-│   └── prd/                  # PRD ทุกเวอร์ชัน (v1-v5.5)
+│   ├── PROJECT_REPORT.md     # รายงานฉบับเต็ม (v0.1 → v5.7)
+│   └── prd/                  # PRD ทุกเวอร์ชัน (v1-v5.7)
 │
 └── tests/                    # ชุดทดสอบ
     ├── e2e/                  # ทดสอบ End-to-End + MCP
@@ -313,7 +313,8 @@ flyctl deploy
 | **v5.4** | **export_file_to_chat (ส่งไฟล์จริงกลับแชท), MCP Tool Annotations (auto-approve/confirm policy), 24 เครื่องมือ** |
 | **v5.5** | **Context Memory System — ระบบจำบริบทข้ามแพลตฟอร์ม, Smart Merge, Auto-Archive, Auto-Summary, 30 เครื่องมือ** |
 | **v5.5.1** | **Smart Organize — ปุ่มจัดระเบียบทั้งหมด/ไฟล์ใหม่ + badge จำนวนไฟล์รอ, i18n ไทย 100%** |
-| **v5.6** | **In-App Guide — คู่มือในเว็บ 3 แท็บ (วิธีใช้/เชื่อมต่อ/ตัวอย่าง) + Onboarding Checklist + Search** |
+| **v5.6** | **In-App Guide — คู่มือในเว็บ 3 แท็บ (วิธีใช้/เชื่อมต่อ/ตัวอย่าง)** |
+| **v5.7** | **Simple Guide — ลดความซับซ้อน เป็นข้อความ+รูปจริง, ChatGPT MCP เชื่อมต่อได้แล้ว, รูป Screenshot จริง** |
 
 ---
 
