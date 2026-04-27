@@ -38,18 +38,18 @@
 
     <!-- ─── HERO ─── -->
     <section class="landing-hero">
-      <div class="hero-badge">✨ Knowledge Workspace ยุคใหม่</div>
+      <div class="hero-badge">🔑 Personal Data Bank</div>
       <h1 class="hero-title">
-        เปลี่ยนเอกสารของคุณ<br>
-        เป็น <span class="hero-gradient">ความรู้ที่ AI เข้าใจ</span>
+        Start with context.<br>
+        Grow into your <span class="hero-gradient">Digital Twin</span>
       </h1>
       <p class="hero-subtitle">
-        อัปโหลดไฟล์ → AI สรุป จัดกลุ่ม สร้าง Knowledge Graph อัตโนมัติ<br>
-        ถามตอบกับข้อมูลจริงของคุณ พร้อมเชื่อมต่อ Claude ผ่าน MCP
+        เริ่มจากบริบทส่วนตัว แล้วเติบโตสู่ Digital Twin ของคุณ<br>
+        ให้ AI เข้าใจคุณจริงๆ — ไม่ต้องเริ่มใหม่ทุกครั้ง
       </p>
       <div class="hero-actions">
         <button class="btn btn-primary btn-lg btn-glow" id="btn-hero-register">
-          สมัครฟรี — เริ่มใช้ทันที
+          เริ่มใช้ฟรี
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
         </button>
         <button class="btn btn-glass" id="btn-hero-login">ฉันมีบัญชีแล้ว</button>
@@ -140,45 +140,222 @@
       </div>
     </section>
 
-    <!-- ─── HOW IT WORKS ─── -->
-    <section class="landing-section landing-section-dark">
+    <!-- ─── PROBLEM ─── -->
+    <section class="landing-section landing-section-dark" id="problem-section">
       <div class="section-center">
-        <h2 class="section-title">ทำงานอย่างไร?</h2>
-        <p class="section-desc">3 ขั้นตอนง่ายๆ จากเอกสารดิบ สู่ฐานความรู้ที่ AI เข้าใจ</p>
+        <h2 class="section-title">ปัญหาที่ AI ยังแก้ไม่ได้</h2>
+        <p class="section-desc">AI ฉลาดขึ้นทุกวัน แต่ยังไม่รู้จักคุณ</p>
       </div>
       <div class="steps-grid">
         <div class="step-card">
-          <div class="step-number">01</div>
-          <h3>อัปโหลดเอกสาร</h3>
-          <p>ลากไฟล์มาวาง — รองรับหลากหลายรูปแบบ ทั้ง PDF, DOCX, Markdown และ TXT</p>
+          <div class="step-number">😩</div>
+          <h3>เริ่มใหม่ทุกครั้ง</h3>
+          <p>ทุกครั้งที่เปิดแชท AI คุณต้องอธิบายตัวเอง เป้าหมาย และบริบทซ้ำแล้วซ้ำเล่า</p>
         </div>
         <div class="step-card">
-          <div class="step-number">02</div>
-          <h3>AI จัดระเบียบ</h3>
-          <p>AI อ่านเนื้อหา สร้างสรุป จัดกลุ่ม สร้าง Knowledge Graph และ Context Packs อัตโนมัติ</p>
+          <div class="step-number">🤷</div>
+          <h3>AI ไม่รู้จักคุณ</h3>
+          <p>AI ตอบแบบกลางๆ ไม่มีบริบทเฉพาะตัว ไม่เข้าใจสไตล์ วิธีคิด หรือเป้าหมายของคุณ</p>
         </div>
         <div class="step-card">
-          <div class="step-number">03</div>
-          <h3>ถามตอบ & เชื่อมต่อ</h3>
-          <p>ถามคำถามกับ AI ที่เข้าใจข้อมูลของคุณ หรือเชื่อมต่อ Claude ผ่าน MCP Connector</p>
+          <div class="step-number">📂</div>
+          <h3>ข้อมูลกระจัดกระจาย</h3>
+          <p>Resume, บันทึก, ไอเดีย อยู่คนละที่ ไม่ถูกเชื่อมโยง ใช้ประโยชน์ไม่เต็มที่</p>
         </div>
       </div>
     </section>
 
-    <!-- ─── CTA ─── -->
+    <!-- ─── SOLUTION ─── -->
+    <section class="landing-section" id="solution-section">
+      <div class="section-center">
+        <h2 class="section-title">Personal Data Bank <span class="hero-gradient">คือคำตอบ</span></h2>
+        <p class="section-desc">สร้างบริบทส่วนตัวให้ AI รู้จักคุณ — ไม่ต้องเริ่มใหม่อีกต่อไป</p>
+      </div>
+      <div class="steps-grid">
+        <div class="step-card">
+          <div class="step-number">01</div>
+          <h3>สร้าง Context ของคุณ</h3>
+          <p>อัปโหลดเอกสาร ข้อมูลส่วนตัว — AI สรุป จัดกลุ่ม สร้าง Knowledge Graph อัตโนมัติ</p>
+        </div>
+        <div class="step-card">
+          <div class="step-number">02</div>
+          <h3>เชื่อมต่อกับ AI ทุกที่</h3>
+          <p>Export context ไปใช้กับ ChatGPT, Claude หรือเชื่อมผ่าน MCP — AI เข้าใจคุณทันที</p>
+        </div>
+        <div class="step-card">
+          <div class="step-number">03</div>
+          <h3>เติบโตเป็น Digital Twin</h3>
+          <p>ยิ่งใช้ยิ่งฉลาด — ผู้บริหารสามารถอัปเกรดสู่ Digital Twin ที่เข้าใจวิธีคิดของคุณ</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── PRICING ─── -->
+    <section class="landing-section landing-section-dark" id="pricing-section">
+      <div class="section-center">
+        <h2 class="section-title">เลือกแผนที่เหมาะกับคุณ</h2>
+        <p class="section-desc">เริ่มจากบริบทส่วนตัว แล้วเติบโตสู่ Digital Twin ของคุณ</p>
+      </div>
+
+      <!-- Personal AI Context -->
+      <div class="pricing-group">
+        <div class="pricing-group-label pricing-label-personal">🧠 Personal AI Context</div>
+        <p class="pricing-group-desc">สำหรับนักศึกษา ครีเอเตอร์ และคนใช้ AI ทั่วไป</p>
+        <div class="pricing-cards">
+          <div class="pricing-card pricing-personal">
+            <h3>Free</h3>
+            <div class="pricing-price">฿0<span>/เดือน</span></div>
+            <p class="pricing-tagline">Try your first AI-ready context.</p>
+            <ul class="pricing-features">
+              <li>1 Personal Context Pack</li>
+              <li>Basic profile summary</li>
+              <li>อัปโหลดไฟล์ได้จำกัด</li>
+              <li>AI-ready summary</li>
+              <li>Export ไปใช้กับ ChatGPT / Claude</li>
+            </ul>
+            <button class="btn btn-ghost btn-block" id="btn-pricing-free">Start Free</button>
+          </div>
+          <div class="pricing-card pricing-personal">
+            <h3>Starter</h3>
+            <div class="pricing-price">฿99<span>/เดือน</span></div>
+            <p class="pricing-tagline">For students and everyday AI users.</p>
+            <ul class="pricing-features">
+              <li>5 Context Packs</li>
+              <li>Study / Work / Creator context</li>
+              <li>Writing style เบื้องต้น</li>
+              <li>อัปโหลดไฟล์ได้มากขึ้น</li>
+              <li>Basic search</li>
+              <li>Monthly context refresh</li>
+              <li>Export prompt/context ไปใช้กับ AI</li>
+            </ul>
+            <button class="btn btn-primary btn-block" id="btn-pricing-starter">Get Starter</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Executive Digital Twin -->
+      <div class="pricing-group" style="margin-top:48px">
+        <div class="pricing-group-label pricing-label-exec">👑 Executive Digital Twin</div>
+        <p class="pricing-group-desc">สำหรับ Founder ผู้บริหาร และผู้นำที่ต้องการ AI ที่เข้าใจวิธีคิดของตัวเอง</p>
+        <div class="pricing-cards pricing-cards-exec">
+          <div class="pricing-card pricing-exec">
+            <h3>Core</h3>
+            <div class="pricing-price pricing-price-gold">฿12,000<span>/เดือน</span></div>
+            <p class="pricing-tagline">Start your private Digital Twin.</p>
+            <ul class="pricing-features">
+              <li>Private Identity Vault</li>
+              <li>Basic Decision Matrix</li>
+              <li>Text-based Digital Twin</li>
+              <li>MCP connection</li>
+              <li>50,000 API calls / month</li>
+            </ul>
+            <button class="btn btn-gold btn-block">Book Private Demo</button>
+          </div>
+          <div class="pricing-card pricing-exec pricing-recommended">
+            <div class="pricing-badge">Recommended</div>
+            <h3>Pro</h3>
+            <div class="pricing-price pricing-price-gold">฿25,000<span>/เดือน</span></div>
+            <p class="pricing-tagline">Most recommended for leaders.</p>
+            <ul class="pricing-features">
+              <li>ทุกอย่างใน Core</li>
+              <li>Advanced Decision Matrix</li>
+              <li>Voice Clone</li>
+              <li>Priority Support</li>
+              <li>3 Delegated Users</li>
+              <li>Monthly Twin Calibration</li>
+              <li>200,000 API calls / month</li>
+            </ul>
+            <button class="btn btn-gold btn-block">Book Private Demo</button>
+          </div>
+          <div class="pricing-card pricing-exec">
+            <h3>Elite</h3>
+            <div class="pricing-price pricing-price-gold">฿45,000<span>/เดือน</span></div>
+            <p class="pricing-tagline">A private digital twin experience.</p>
+            <ul class="pricing-features">
+              <li>ทุกอย่างใน Pro</li>
+              <li>Avatar UI</li>
+              <li>Dedicated CSM</li>
+              <li>Deep Decision Calibration</li>
+              <li>Annual Deep Review</li>
+              <li>500,000 API calls / month</li>
+            </ul>
+            <button class="btn btn-gold btn-block">Request Elite Access</button>
+          </div>
+          <div class="pricing-card pricing-exec">
+            <h3>Legacy</h3>
+            <div class="pricing-price pricing-price-gold">฿8,000<span>/เดือน</span></div>
+            <p class="pricing-tagline">Preserve wisdom. Pass on judgment.</p>
+            <ul class="pricing-features">
+              <li>Read-only Digital Twin</li>
+              <li>Knowledge Preservation Mode</li>
+              <li>Consultation Mode</li>
+              <li>Access control สำหรับผู้รับสิทธิ์</li>
+              <li>Legacy archive</li>
+            </ul>
+            <button class="btn btn-gold btn-block">Explore Legacy</button>
+          </div>
+        </div>
+        <p class="pricing-note">แพ็กเกจ Executive ต้องมี private onboarding ก่อนเริ่มใช้งาน</p>
+      </div>
+    </section>
+
+    <!-- ─── TRUST ─── -->
+    <section class="landing-section" id="trust-section">
+      <div class="section-center">
+        <h2 class="section-title">Built around <span class="hero-gradient">user control</span></h2>
+        <p class="section-desc">ออกแบบบนหลักการที่ผู้ใช้ควบคุมข้อมูลของตัวเอง</p>
+      </div>
+      <div class="trust-grid">
+        <div class="trust-item"><span class="trust-icon">🔒</span><span>Private by default</span></div>
+        <div class="trust-item"><span class="trust-icon">🎛️</span><span>User-controlled context</span></div>
+        <div class="trust-item"><span class="trust-icon">📤</span><span>Export anytime</span></div>
+        <div class="trust-item"><span class="trust-icon">🗑️</span><span>Delete anytime</span></div>
+        <div class="trust-item"><span class="trust-icon">🚫</span><span>Revoke access</span></div>
+        <div class="trust-item"><span class="trust-icon">🧬</span><span>No training without consent</span></div>
+        <div class="trust-item"><span class="trust-icon">✅</span><span>Only selected data is used</span></div>
+        <div class="trust-item"><span class="trust-icon">📚</span><span>Start with low-risk data</span></div>
+      </div>
+    </section>
+
+    <!-- ─── FAQ ─── -->
+    <section class="landing-section landing-section-dark" id="faq-section">
+      <div class="section-center">
+        <h2 class="section-title">คำถามที่พบบ่อย</h2>
+      </div>
+      <div class="faq-list">
+        <div class="faq-item" onclick="this.classList.toggle('open')">
+          <div class="faq-q">Free กับ Starter ต่างจาก Digital Twin ยังไง?</div>
+          <div class="faq-a">Free และ Starter คือแผนสำหรับสร้าง AI-ready context เบื้องต้น ส่วน Digital Twin คือระบบเชิงลึกสำหรับผู้บริหารที่รวม Identity Vault, Decision Matrix และ MCP connection</div>
+        </div>
+        <div class="faq-item" onclick="this.classList.toggle('open')">
+          <div class="faq-q">ทำไมราคา Executive สูงกว่า Starter มาก?</div>
+          <div class="faq-a">เพราะ Executive Digital Twin มี onboarding ส่วนตัว การสกัดวิธีคิด การเชื่อม AI และการปรับแต่งตามสไตล์ของเจ้าของข้อมูล</div>
+        </div>
+        <div class="faq-item" onclick="this.classList.toggle('open')">
+          <div class="faq-q">ข้อมูลจะถูกเอาไป train AI ไหม?</div>
+          <div class="faq-a">ไม่ ข้อมูลจะไม่ถูกนำไป train โดยไม่มี consent ที่ชัดเจนจากเจ้าของข้อมูล</div>
+        </div>
+        <div class="faq-item" onclick="this.classList.toggle('open')">
+          <div class="faq-q">Legacy คืออะไร?</div>
+          <div class="faq-a">Legacy คือโหมด read-only สำหรับเก็บรักษาวิธีคิด ความรู้ และบทเรียนของเจ้าของข้อมูลในระยะยาว เพื่อส่งต่อให้คนรุ่นถัดไป</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── FINAL CTA ─── -->
     <section class="landing-cta">
-      <h2>พร้อมเปลี่ยนข้อมูลเป็นความรู้?</h2>
-      <p>เริ่มสร้างฐานความรู้ส่วนตัวของคุณวันนี้ — ฟรี ไม่มีบัตรเครดิต</p>
-      <button class="btn btn-primary btn-lg btn-glow" id="btn-cta-register">เริ่มใช้งาน Project KEY →</button>
+      <h2>พร้อมให้ AI เข้าใจคุณแล้วหรือยัง?</h2>
+      <p>เริ่มสร้างบริบทส่วนตัวของคุณวันนี้ — ฟรี ไม่มีบัตรเครดิต</p>
+      <button class="btn btn-primary btn-lg btn-glow" id="btn-cta-register">เริ่มใช้งานฟรี →</button>
     </section>
 
     <!-- ─── FOOTER ─── -->
     <footer class="landing-footer">
       <div class="landing-logo footer-logo">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.9"/><rect x="14" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/><rect x="3" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/><rect x="14" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.3"/></svg>
-        <span>Project KEY</span>
+        <span>Personal Data Bank</span>
       </div>
-      <p>สร้างด้วย ❤️ · v5.0 — Multi-User Knowledge Workspace</p>
+      <p>สร้างด้วย ❤️ · v5.8 — Start with context. Grow into your Digital Twin.</p>
     </footer>
   </div>
 

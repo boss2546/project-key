@@ -3109,6 +3109,109 @@ body.show-landing {
 
 /* ─── AUTH MODAL ─── */
 
+/* ─── PRICING ─── */
+.pricing-group { max-width: 1000px; margin: 0 auto 0; position: relative; z-index: 1; }
+.pricing-group-label { font-size: 20px; font-weight: 600; text-align: center; margin-bottom: 4px; }
+.pricing-label-personal { color: #818cf8; }
+.pricing-label-exec { color: #d4a853; }
+.pricing-group-desc { text-align: center; color: #8a8f98; font-size: 14px; margin-bottom: 24px; }
+
+.pricing-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.pricing-cards-exec { grid-template-columns: repeat(2, 1fr); }
+
+.pricing-card {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+  padding: 28px 24px;
+  display: flex; flex-direction: column;
+  transition: all 0.2s ease;
+  position: relative;
+}
+.pricing-card:hover {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.12);
+  transform: translateY(-2px);
+}
+.pricing-card h3 { font-size: 20px; font-weight: 600; margin-bottom: 8px; color: #f7f8f8; }
+.pricing-price { font-size: 36px; font-weight: 700; color: #f7f8f8; margin-bottom: 4px; }
+.pricing-price span { font-size: 14px; font-weight: 400; color: #8a8f98; }
+.pricing-price-gold { color: #d4a853; }
+.pricing-tagline { font-size: 13px; color: #8a8f98; margin-bottom: 16px; font-style: italic; }
+
+.pricing-features { list-style: none; padding: 0; margin-bottom: 24px; flex: 1; }
+.pricing-features li { padding: 6px 0; font-size: 14px; color: #d0d6e0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.pricing-features li::before { content: "✓ "; color: #22c55e; font-weight: 600; }
+
+.pricing-personal { border-color: rgba(94,106,210,0.12); }
+.pricing-personal:hover { border-color: rgba(94,106,210,0.3); box-shadow: 0 0 20px rgba(94,106,210,0.06); }
+.pricing-exec { border-color: rgba(212,168,83,0.12); }
+.pricing-exec:hover { border-color: rgba(212,168,83,0.3); box-shadow: 0 0 20px rgba(212,168,83,0.06); }
+
+.pricing-recommended {
+  border-color: rgba(212,168,83,0.4);
+  box-shadow: 0 0 30px rgba(212,168,83,0.08);
+  transform: scale(1.02);
+}
+.pricing-recommended:hover { transform: scale(1.03) translateY(-2px); }
+.pricing-badge {
+  position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+  background: #d4a853; color: #0a0a0a; font-size: 11px; font-weight: 700;
+  padding: 4px 14px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.5px;
+}
+
+.btn-block { width: 100%; }
+.btn-gold {
+  background: linear-gradient(135deg, #d4a853, #b8902e);
+  color: #0a0a0a; border: none; border-radius: 6px; padding: 10px 20px;
+  font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.15s ease;
+}
+.btn-gold:hover { filter: brightness(1.12); transform: translateY(-1px); }
+
+.pricing-note { text-align: center; color: #62666d; font-size: 13px; margin-top: 20px; font-style: italic; }
+
+/* ─── TRUST ─── */
+.trust-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+  max-width: 900px; margin: 0 auto; position: relative; z-index: 1;
+}
+.trust-item {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 20px 12px; border-radius: 12px;
+  background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05);
+  font-size: 14px; color: #d0d6e0; text-align: center; transition: all 0.2s ease;
+}
+.trust-item:hover { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.1); }
+.trust-icon { font-size: 28px; }
+
+/* ─── FAQ ─── */
+.faq-list { max-width: 700px; margin: 0 auto; position: relative; z-index: 1; }
+.faq-item {
+  border-bottom: 1px solid rgba(255,255,255,0.06); cursor: pointer;
+  transition: all 0.2s ease;
+}
+.faq-q {
+  padding: 18px 0; font-size: 16px; font-weight: 510; color: #f7f8f8;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.faq-q::after { content: "+"; font-size: 20px; color: #8a8f98; transition: transform 0.2s; }
+.faq-item.open .faq-q::after { content: "−"; }
+.faq-a {
+  max-height: 0; overflow: hidden; font-size: 15px; color: #8a8f98;
+  line-height: 1.6; transition: max-height 0.3s ease, padding 0.3s ease; padding: 0;
+}
+.faq-item.open .faq-a { max-height: 200px; padding-bottom: 18px; }
+
+/* ─── RESPONSIVE PRICING ─── */
+@media (max-width: 768px) {
+  .pricing-cards, .pricing-cards-exec { grid-template-columns: 1fr; }
+  .trust-grid { grid-template-columns: repeat(2, 1fr); }
+  .pricing-recommended { transform: none; }
+  .pricing-recommended:hover { transform: translateY(-2px); }
+}
+
+
+
 .auth-modal {
   max-width: 420px;
   width: 90%;
