@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>เลือกแพลน — Project KEY</title>
+  <meta name="description" content="เลือกแพลนที่เหมาะกับคุณ — Personal AI Context หรือ Executive Digital Twin">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: #0a0a1a;
+      color: #e5e7eb;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ─── BG glow ─── */
+    body::before {
+      content: '';
+      position: fixed; top: -40%; left: -20%;
+      width: 80vw; height: 80vw;
+      background: radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%);
+      pointer-events: none; z-index: 0;
+    }
+
+    /* ─── HEADER ─── */
+    .pricing-header {
+      text-align: center;
+      padding: 48px 20px 16px;
+      position: relative; z-index: 1;
+    }
+    .pricing-header .logo {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 18px; font-weight: 600; color: #f7f8f8;
+      text-decoration: none; margin-bottom: 24px;
+    }
+    .pricing-header .logo span {
+      background: linear-gradient(135deg, #818cf8, #6366f1);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .pricing-header h1 {
+      font-size: 32px; font-weight: 700; color: #f7f8f8;
+      margin-bottom: 8px;
+    }
+    .pricing-header p {
+      font-size: 15px; color: #8a8f98; max-width: 500px; margin: 0 auto;
+    }
+
+    /* ─── CONTAINER ─── */
+    .pricing-container {
+      max-width: 960px; margin: 0 auto; padding: 0 20px 60px;
+      position: relative; z-index: 1;
+    }
+
+    /* ─── PLAN GROUP ─── */
+    .plan-group { margin-bottom: 40px; }
+    .plan-group-label {
+      font-size: 20px; font-weight: 600; text-align: center; margin-bottom: 4px;
+    }
+    .plan-group-personal { color: #818cf8; }
+    .plan-group-exec { color: #d4a853; }
+    .plan-group-desc {
+      text-align: center; color: #6b7280; font-size: 13px; margin-bottom: 20px;
+    }
+
+    /* ─── CARDS GRID ─── */
+    .plan-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .plan-cards-exec { grid-template-columns: repeat(3, 1fr); }
+
+    /* ─── CARD ─── */
+    .plan-card {
+      background: rgba(255,255,255,0.025);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 16px;
+      padding: 28px 22px;
+      display: flex; flex-direction: column;
+      position: relative;
+      transition: border-color 0.3s, transform 0.25s, box-shadow 0.3s;
+    }
+    .plan-card:hover {
+      border-color: rgba(255,255,255,0.15);
+      transform: translateY(-4px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+    }
+
+    /* Highlight — Starter */
+    .plan-card-highlight {
+      border-color: rgba(129,140,248,0.3);
+      background: rgba(129,140,248,0.035);
+    }
+    .plan-card-highlight:hover {
+      border-color: rgba(129,140,248,0.55);
+      box-shadow: 0 12px 40px rgba(99,102,241,0.1);
+    }
+
+    /* Executive cards */
+    .plan-card-exec { border-color: rgba(212,168,83,0.12); }
+    .plan-card-exec:hover {
+      border-color: rgba(212,168,83,0.3);
+      box-shadow: 0 12px 40px rgba(212,168,83,0.06);
+    }
+    .plan-card-exec-highlight {
+      border-color: rgba(212,168,83,0.25);
+      transform: scale(1.02);
+    }
+    .plan-card-exec-highlight:hover {
+      transform: scale(1.04) translateY(-4px);
+    }
+
+    /* Badge */
+    .plan-card-badge {
+      position: absolute; top: -11px; right: 18px;
+      background: linear-gradient(135deg, #818cf8, #6366f1);
+      color: #fff; font-size: 11px; font-weight: 600;
+      padding: 4px 14px; border-radius: 20px;
+      letter-spacing: 0.3px;
+    }
+
+    /* Header */
+    .plan-card-header h3 {
+      font-size: 22px; font-weight: 700; color: #f7f8f8; margin-bottom: 2px;
+    }
+    .plan-card-price {
+      font-size: 36px; font-weight: 700; color: #e5e7eb; margin-bottom: 4px;
+    }
+    .plan-card-price span { font-size: 14px; font-weight: 400; color: #6b7280; }
+    .plan-card-price-accent { color: #818cf8; }
+    .plan-card-price-gold { color: #d4a853; }
+
+    /* Tagline */
+    .plan-card-tagline {
+      font-size: 13px; color: #6b7280; margin-bottom: 18px; font-style: italic;
+    }
+
+    /* Features */
+    .plan-card-features {
+      list-style: none; padding: 0; margin-bottom: 22px; flex: 1;
+    }
+    .plan-card-features li {
+      padding: 6px 0; font-size: 13.5px; color: #d0d6e0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .plan-card-features li::before {
+      content: "✓ "; color: #22c55e; font-weight: 600;
+    }
+
+    /* ─── BUTTONS ─── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 12px 20px; border-radius: 10px;
+      font-size: 14px; font-weight: 600; font-family: inherit;
+      cursor: pointer; border: none;
+      transition: all 0.2s;
+      text-decoration: none;
+    }
+    .btn-block { width: 100%; }
+    .btn-primary {
+      background: linear-gradient(135deg, #818cf8, #6366f1);
+      color: #fff;
+    }
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.15);
+      color: #e5e7eb;
+    }
+    .btn-ghost:hover { border-color: rgba(255,255,255,0.3); background: rgba(255,255,255,0.04); }
+    .btn-gold {
+      background: linear-gradient(135deg, #d4a853, #b8860b);
+      color: #fff;
+    }
+    .btn-gold:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-glow {
+      box-shadow: 0 0 20px rgba(129,140,248,0.2);
+    }
+    .btn-glow:hover { box-shadow: 0 0 30px rgba(129,140,248,0.3); }
+
+    /* ─── SKIP LINK ─── */
+    .skip-link {
+      text-align: center; margin-top: 12px;
+    }
+    .skip-link a {
+      color: #6b7280; font-size: 13px; text-decoration: none;
+      transition: color 0.2s;
+    }
+    .skip-link a:hover { color: #818cf8; }
+
+    /* ─── EXEC NOTICE ─── */
+    .exec-notice {
+      text-align: center; font-size: 12px; color: #6b7280;
+      margin-top: 12px; font-style: italic;
+    }
+
+    /* ─── FOOTER ─── */
+    .pricing-footer {
+      text-align: center; padding: 20px;
+      color: #4b5563; font-size: 12px;
+    }
+
+    /* ─── TOAST ─── */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: #1e293b; color: #e5e7eb;
+      padding: 14px 20px; border-radius: 10px;
+      font-size: 14px; z-index: 9999;
+      border: 1px solid rgba(255,255,255,0.1);
+      box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+      animation: toastIn 0.3s ease;
+      transition: opacity 0.3s;
+    }
+    .toast.success { border-left: 3px solid #22c55e; }
+    .toast.info { border-left: 3px solid #818cf8; }
+    @keyframes toastIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* ─── LOADING ─── */
+    .loading-overlay {
+      position: fixed; inset: 0;
+      background: rgba(10,10,26,0.85);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 9999;
+    }
+    .loading-overlay.hidden { display: none; }
+    .loading-text {
+      color: #e5e7eb; font-size: 16px; font-weight: 500;
+    }
+    .loading-text::after {
+      content: ''; animation: dots 1.5s infinite;
+    }
+    @keyframes dots {
+      0%, 20% { content: ''; }
+      40% { content: '.'; }
+      60% { content: '..'; }
+      80%, 100% { content: '...'; }
+    }
+
+    /* ─── RESPONSIVE ─── */
+    @media (max-width: 768px) {
+      .plan-cards, .plan-cards-exec { grid-template-columns: 1fr; }
+      .plan-card-exec-highlight { transform: none; }
+      .pricing-header h1 { font-size: 26px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Loading overlay -->
+  <div class="loading-overlay hidden" id="loading-overlay">
+    <div class="loading-text" id="loading-text">กำลังเปิด Stripe Checkout</div>
+  </div>
+
+  <!-- HEADER -->
+  <header class="pricing-header">
+    <a href="/" class="logo">
+      <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
+        <rect width="32" height="32" rx="8" fill="url(#lg)"/>
+        <defs><linearGradient id="lg" x1="0" y1="0" x2="32" y2="32">
+          <stop stop-color="#818cf8"/><stop offset="1" stop-color="#6366f1"/>
+        </linearGradient></defs>
+        <text x="8" y="23" fill="white" font-size="18" font-weight="700" font-family="Inter">K</text>
+      </svg>
+      <span>Project KEY</span>
+    </a>
+    <h1>🎯 เลือกแพลนที่เหมาะกับคุณ</h1>
+    <p>เริ่มฟรี หรืออัปเกรดเพื่อปลดล็อกศักยภาพ AI ส่วนตัวของคุณ</p>
+  </header>
+
+  <!-- CONTENT -->
+  <div class="pricing-container">
+
+    <!-- 🧠 Personal AI Context -->
+    <div class="plan-group">
+      <div class="plan-group-label plan-group-personal">🧠 Personal AI Context</div>
+      <p class="plan-group-desc">สำหรับนักศึกษา ครีเอเตอร์ และคนใช้ AI ทั่วไป</p>
+      <div class="plan-cards">
+        <!-- Free -->
+        <div class="plan-card" id="plan-card-free">
+          <div class="plan-card-header">
+            <h3>Free</h3>
+            <div class="plan-card-price">฿0<span>/เดือน</span></div>
+          </div>
+          <p class="plan-card-tagline">เริ่มต้นใช้ AI Context ฟรี</p>
+          <ul class="plan-card-features">
+            <li>1 Context Pack</li>
+            <li>5 ไฟล์ (50 MB)</li>
+            <li>Basic profile summary</li>
+            <li>AI Summary 5 ครั้ง/เดือน</li>
+            <li>Basic Search</li>
+            <li>MCP 100 calls/เดือน</li>
+          </ul>
+          <button class="btn btn-ghost btn-block" id="btn-plan-free" onclick="chooseFree()">เริ่มต้นฟรี</button>
+        </div>
+        <!-- Starter -->
+        <div class="plan-card plan-card-highlight" id="plan-card-starter">
+          <div class="plan-card-badge">แนะนำ</div>
+          <div class="plan-card-header">
+            <h3>Starter</h3>
+            <div class="plan-card-price plan-card-price-accent">฿99<span>/เดือน</span></div>
+          </div>
+          <p class="plan-card-tagline">สำหรับนักศึกษาและคนใช้ AI จริงจัง</p>
+          <ul class="plan-card-features">
+            <li>5 Context Packs</li>
+            <li>50 ไฟล์ (1 GB)</li>
+            <li>Rich profile + auto-summary</li>
+            <li>AI Summary 100 ครั้ง/เดือน</li>
+            <li>Semantic Search</li>
+            <li>Version History 7 วัน</li>
+            <li>Export Prompt 300 ครั้ง/เดือน</li>
+            <li>MCP 3,000 calls/เดือน</li>
+          </ul>
+          <button class="btn btn-primary btn-block btn-glow" id="btn-plan-starter" onclick="chooseStarter()">⚡ Get Starter — ฿99/เดือน</button>
+        </div>
+      </div>
+      <div class="skip-link" id="skip-link" style="display:none;">
+        <a href="/">← กลับไปหน้าหลัก</a>
+      </div>
+    </div>
+
+    <!-- 👑 Executive Digital Twin -->
+    <div class="plan-group">
+      <div class="plan-group-label plan-group-exec">👑 Executive Digital Twin</div>
+      <p class="plan-group-desc">สำหรับ Founder ผู้บริหาร และผู้นำที่ต้องการให้ AI ทำงานด้วยวิธีคิดของตัวเอง</p>
+      <div class="plan-cards plan-cards-exec">
+        <!-- Core -->
+        <div class="plan-card plan-card-exec">
+          <div class="plan-card-header">
+            <h3>Core</h3>
+            <div class="plan-card-price plan-card-price-gold">฿12,000<span>/เดือน</span></div>
+          </div>
+          <p class="plan-card-tagline">Start your private Digital Twin.</p>
+          <ul class="plan-card-features">
+            <li>Private Identity Vault</li>
+            <li>Basic Decision Matrix</li>
+            <li>Text-based Digital Twin</li>
+            <li>MCP connection</li>
+            <li>Context retrieval</li>
+            <li>50,000 API calls/เดือน</li>
+          </ul>
+          <a class="btn btn-gold btn-block" href="mailto:boss@projectkey.dev?subject=Core Plan Inquiry">Book Private Demo</a>
+        </div>
+        <!-- Pro -->
+        <div class="plan-card plan-card-exec plan-card-exec-highlight">
+          <div class="plan-card-badge" style="background:linear-gradient(135deg,#d4a853,#b8860b);">Recommended</div>
+          <div class="plan-card-header">
+            <h3>Pro</h3>
+            <div class="plan-card-price plan-card-price-gold">฿25,000<span>/เดือน</span></div>
+          </div>
+          <p class="plan-card-tagline">Most recommended for leaders.</p>
+          <ul class="plan-card-features">
+            <li>ทุกอย่างใน Core</li>
+            <li>Advanced Decision Matrix</li>
+            <li>Voice Clone</li>
+            <li>Priority Support</li>
+            <li>3 Delegated Users</li>
+            <li>Monthly Twin Calibration</li>
+            <li>200,000 API calls/เดือน</li>
+          </ul>
+          <a class="btn btn-gold btn-block" href="mailto:boss@projectkey.dev?subject=Pro Plan Inquiry">Book Private Demo</a>
+        </div>
+        <!-- Elite -->
+        <div class="plan-card plan-card-exec">
+          <div class="plan-card-header">
+            <h3>Elite</h3>
+            <div class="plan-card-price plan-card-price-gold">฿45,000<span>/เดือน</span></div>
+          </div>
+          <p class="plan-card-tagline">A private digital twin experience.</p>
+          <ul class="plan-card-features">
+            <li>ทุกอย่างใน Pro</li>
+            <li>Avatar UI</li>
+            <li>Dedicated CSM</li>
+            <li>Deep Decision Calibration</li>
+            <li>Annual Deep Review</li>
+            <li>Priority Onboarding</li>
+            <li>500,000 API calls/เดือน</li>
+          </ul>
+          <a class="btn btn-gold btn-block" href="mailto:boss@projectkey.dev?subject=Elite Plan Inquiry">Request Elite Access</a>
+        </div>
+      </div>
+      <p class="exec-notice">Executive plans require private onboarding and are available by demo or request only.</p>
+    </div>
+
+  </div>
+
+  <footer class="pricing-footer">
+    © 2026 Project KEY — Personal AI Context &amp; Executive Digital Twin
+  </footer>
+
+  <!-- Toast container -->
+  <div id="toast-el"></div>
+
+  <script>
+    // Auth token
+    const token = localStorage.getItem('projectkey_token');
+
+    // On load — show skip link if logged in
+    document.addEventListener('DOMContentLoaded', () => {
+      if (token) {
+        document.getElementById('skip-link').style.display = 'block';
+        // Change Free button text
+        document.querySelector('#btn-plan-free').textContent = 'ใช้ฟรีต่อ →';
+      }
+      // Check if redirected from register
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('welcome') === '1') {
+        showToast('🎉 สมัครสำเร็จ! เลือกแพลนที่เหมาะกับคุณ', 'success');
+      }
+    });
+
+    function chooseFree() {
+      // Simply go to workspace
+      window.location.href = '/';
+    }
+
+    async function chooseStarter() {
+      if (!token) {
+        // Not logged in — go to main page to register first
+        window.location.href = '/?action=register';
+        return;
+      }
+      try {
+        // Show loading
+        document.getElementById('loading-overlay').classList.remove('hidden');
+        const res = await fetch('/api/billing/create-checkout-session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token,
+          },
+          body: JSON.stringify({ plan: 'starter' }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          document.getElementById('loading-overlay').classList.add('hidden');
+          showToast(data.detail || 'ไม่สามารถเปิดหน้าชำระเงินได้', 'info');
+          return;
+        }
+        window.location.href = data.checkout_url;
+      } catch (e) {
+        document.getElementById('loading-overlay').classList.add('hidden');
+        showToast('❌ เกิดข้อผิดพลาด กรุณาลองใหม่', 'info');
+      }
+    }
+
+    function showToast(msg, type) {
+      const el = document.createElement('div');
+      el.className = 'toast ' + (type || 'info');
+      el.textContent = msg;
+      document.body.appendChild(el);
+      setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 400); }, 4000);
+    }
+  </script>
+
+</body>
+</html>

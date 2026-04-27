@@ -227,8 +227,9 @@ async function doRegister() {
     localStorage.setItem('projectkey_token', data.token);
     localStorage.setItem('projectkey_user', JSON.stringify(data.user));
     document.getElementById('auth-modal').classList.add('hidden');
-    showApp();
-    initAppData();
+    // Redirect to pricing page immediately after registration
+    window.location.href = '/pricing?welcome=1';
+    return; // stop here — don't showApp/initAppData
   } catch (e) {
     errorEl.textContent = 'Connection error';
     errorEl.classList.remove('hidden');
@@ -333,6 +334,17 @@ function initAuth() {
   document.getElementById('btn-hero-login')?.addEventListener('click', () => showAuthModal('login'));
   document.getElementById('btn-cta-register')?.addEventListener('click', () => showAuthModal('register'));
 
+  // Landing pricing buttons
+  document.getElementById('btn-pricing-free')?.addEventListener('click', () => showAuthModal('register'));
+  document.getElementById('btn-pricing-starter')?.addEventListener('click', () => {
+    if (state.authToken) {
+      window.location.href = '/pricing';
+    } else {
+      showAuthModal('register');
+      showToast(getLang() === 'th' ? '📝 สมัครสมาชิกก่อน แล้วอัปเกรดได้ในโปรไฟล์' : '📝 Register first, then upgrade from your profile', 'info');
+    }
+  });
+
   // Auth modal
   document.getElementById('auth-modal-close')?.addEventListener('click', () => {
     document.getElementById('auth-modal').classList.add('hidden');
@@ -373,8 +385,145 @@ function initAuth() {
 function initAppData() {
   loadStats();
   loadFiles();
+  loadBillingInfo();
   initGuideSystem();
+  initBilling();
   setTimeout(detectOnboardingProgress, 3000);
+}
+
+// ═══════════════════════════════════════════
+// BILLING — v5.9.2
+// ═══════════════════════════════════════════
+
+function initBilling() {
+  document.getElementById('btn-upgrade-starter')?.addEventListener('click', () => window.location.href = '/pricing');
+  document.getElementById('btn-manage-billing')?.addEventListener('click', doOpenPortal);
+  // Plan modal buttons
+  document.getElementById('close-plan-modal')?.addEventListener('click', closePlanModal);
+  document.getElementById('btn-plan-free')?.addEventListener('click', closePlanModal);
+  document.getElementById('btn-plan-starter')?.addEventListener('click', () => { closePlanModal(); doStarterCheckout(); });
+  // Close on overlay click
+  document.getElementById('plan-modal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'plan-modal') closePlanModal();
+  });
+}
+
+function showPlanModal() {
+  document.getElementById('plan-modal')?.classList.remove('hidden');
+}
+
+function closePlanModal() {
+  document.getElementById('plan-modal')?.classList.add('hidden');
+}
+
+async function loadBillingInfo() {
+  try {
+    const res = await authFetch('/api/billing/info');
+    if (!res.ok) return;
+    const info = await res.json();
+    updateBillingUI(info);
+  } catch (e) {
+    // Silently fail — billing info is non-critical
+  }
+}
+
+function updateBillingUI(info) {
+  const badge = document.getElementById('billing-plan-badge');
+  const name = document.getElementById('billing-plan-name');
+  const detail = document.getElementById('billing-plan-detail');
+  const upgradeBtn = document.getElementById('btn-upgrade-starter');
+  const manageBtn = document.getElementById('btn-manage-billing');
+  if (!badge) return;
+
+  const isFree = info.plan === 'free';
+  const isStarter = info.subscription_status === 'starter_active';
+  const isPastDue = info.subscription_status === 'starter_past_due';
+  const isCanceled = info.cancel_at_period_end;
+
+  // Badge
+  badge.textContent = isFree ? 'Free' : 'Starter';
+  badge.className = 'billing-plan-badge ' + (isFree ? 'badge-free' : 'badge-starter');
+  name.textContent = 'Personal AI Context';
+
+  // Detail text
+  if (isFree) {
+    detail.textContent = getLang() === 'th' ? 'แพลนปัจจุบัน: Free — อัปเกรดเพื่อปลดล็อกฟีเจอร์เพิ่ม' : 'Current plan: Free — Upgrade to unlock more features';
+  } else if (isPastDue) {
+    detail.textContent = getLang() === 'th' ? '⚠️ การชำระเงินมีปัญหา — กรุณาอัปเดตวิธีการชำระเงิน' : '⚠️ Payment issue — please update your payment method';
+    detail.style.color = '#f59e0b';
+  } else if (isCanceled) {
+    const endDate = info.current_period_end ? new Date(info.current_period_end).toLocaleDateString('th-TH') : '';
+    detail.textContent = getLang() === 'th' ? '⚡ Starter (ยกเลิกแล้ว — ใช้ได้ถึง ' + endDate + ')' : '⚡ Starter (cancelled — active until ' + endDate + ')';
+    detail.style.color = '#f59e0b';
+  } else if (isStarter) {
+    const endDate = info.current_period_end ? new Date(info.current_period_end).toLocaleDateString('th-TH') : '';
+    detail.textContent = getLang() === 'th' ? '⚡ Starter — ต่ออายุ: ' + endDate : '⚡ Starter — renews: ' + endDate;
+    detail.style.color = '#818cf8';
+  }
+
+  // Buttons
+  if (isFree) {
+    upgradeBtn.style.display = 'inline-flex';
+    manageBtn.style.display = info.has_stripe_customer ? 'inline-flex' : 'none';
+  } else {
+    upgradeBtn.style.display = 'none';
+    manageBtn.style.display = 'inline-flex';
+    manageBtn.textContent = getLang() === 'th' ? 'จัดการการชำระเงิน' : 'Manage Billing';
+  }
+}
+
+async function doStarterCheckout() {
+  try {
+    showLoadingOverlay(getLang() === 'th' ? 'กำลังเปิด Stripe Checkout...' : 'Opening Stripe Checkout...', 'default');
+    const res = await authFetch('/api/billing/create-checkout-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan: 'starter' }),
+    });
+    const data = await res.json();
+    hideLoadingOverlay();
+    if (!res.ok) {
+      showToast(data.detail || 'Checkout failed', 'error');
+      return;
+    }
+    // Redirect to Stripe Checkout
+    window.location.href = data.checkout_url;
+  } catch (e) {
+    hideLoadingOverlay();
+    showToast(getLang() === 'th' ? '❌ ไม่สามารถเปิดหน้าชำระเงินได้' : '❌ Could not open checkout', 'error');
+  }
+}
+
+async function doOpenPortal() {
+  try {
+    showLoadingOverlay(getLang() === 'th' ? 'กำลังเปิดหน้าจัดการ...' : 'Opening billing portal...', 'default');
+    const res = await authFetch('/api/billing/create-portal-session', { method: 'POST' });
+    const data = await res.json();
+    hideLoadingOverlay();
+    if (!res.ok) {
+      showToast(data.detail || 'Portal failed', 'error');
+      return;
+    }
+    window.location.href = data.portal_url;
+  } catch (e) {
+    hideLoadingOverlay();
+    showToast(getLang() === 'th' ? '❌ ไม่สามารถเปิดหน้าจัดการได้' : '❌ Could not open portal', 'error');
+  }
+}
+
+// Check for billing success/cancelled on page load
+function checkBillingRedirect() {
+  const path = window.location.pathname;
+  if (path === '/billing/success') {
+    showToast(getLang() === 'th' ? '🎉 อัปเกรดสำเร็จ! ยินดีต้อนรับสู่ Starter plan' : '🎉 Upgrade successful! Welcome to Starter plan', 'success');
+    // Clean URL
+    window.history.replaceState({}, '', '/');
+    // Reload billing info
+    setTimeout(loadBillingInfo, 1000);
+  } else if (path === '/billing/cancelled') {
+    showToast(getLang() === 'th' ? 'ยกเลิกการชำระเงิน — คุณยังอยู่แพลน Free' : 'Payment cancelled — you are still on Free plan', 'info');
+    window.history.replaceState({}, '', '/');
+  }
 }
 
 // Node family color map
@@ -818,6 +967,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Auth system — decides whether to show landing or app
   initAuth();
+
+  // Check for billing redirect (success/cancelled)
+  checkBillingRedirect();
 });
 
 // ═══════════════════════════════════════════

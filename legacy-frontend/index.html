@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://d3js.org/d3.v7.min.js"></script>
-  <link rel="stylesheet" href="/legacy/styles.css?v=5.1.3">
+  <link rel="stylesheet" href="/legacy/styles.css?v=5.9.2">
 </head>
 <body>
   <!-- ═══════════════════════════════════════════ -->
@@ -1300,6 +1300,21 @@
           <button class="btn-close" id="close-profile-modal">✕</button>
         </div>
         <div class="modal-body">
+          <!-- Subscription Section -->
+          <div class="billing-section" id="billing-section">
+            <div class="billing-plan-card" id="billing-plan-card">
+              <div class="billing-plan-info">
+                <span class="billing-plan-badge" id="billing-plan-badge">Free</span>
+                <span class="billing-plan-name" id="billing-plan-name">Personal AI Context</span>
+              </div>
+              <div class="billing-plan-detail" id="billing-plan-detail">แพลนปัจจุบัน: Free</div>
+              <div class="billing-actions" id="billing-actions">
+                <button class="btn btn-primary btn-sm" id="btn-upgrade-starter" style="display:none;">⚡ Upgrade to Starter — ฿99/mo</button>
+                <button class="btn btn-outline btn-sm" id="btn-manage-billing" style="display:none;">จัดการการชำระเงิน</button>
+              </div>
+            </div>
+          </div>
+          <hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:16px 0;">
           <div class="form-group">
             <label data-i18n="profile.identity">Who am I</label>
             <textarea id="profile-identity" rows="2" placeholder="เช่น นักศึกษาปริญญาโท สาขาวิทยาศาสตร์..."></textarea>
@@ -1323,6 +1338,112 @@
         </div>
         <div class="modal-footer">
           <button class="btn btn-primary" id="btn-save-profile" data-i18n="profile.save">Save Profile</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- PLAN SELECTION MODAL (v5.9.2) -->
+    <!-- ═══════════════════════════════════════════ -->
+    <div class="modal-overlay hidden" id="plan-modal">
+      <div class="modal plan-modal">
+        <div class="modal-header">
+          <h2 id="plan-modal-title">🎯 เลือกแพลนของคุณ</h2>
+          <button class="btn-close" id="close-plan-modal">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="plan-modal-desc" id="plan-modal-desc">เลือกแพลนที่เหมาะกับคุณ — เริ่มฟรี หรืออัปเกรดเพื่อปลดล็อกฟีเจอร์เพิ่มเติม</p>
+
+          <!-- 🧠 Personal AI Context -->
+          <div class="plan-group">
+            <div class="plan-group-label plan-group-personal">🧠 Personal AI Context</div>
+            <p class="plan-group-desc">สำหรับนักศึกษา ครีเอเตอร์ และคนใช้ AI ทั่วไป</p>
+            <div class="plan-cards">
+              <div class="plan-card" id="plan-card-free">
+                <div class="plan-card-header">
+                  <h3>Free</h3>
+                  <div class="plan-card-price">฿0<span>/เดือน</span></div>
+                </div>
+                <p class="plan-card-tagline">เริ่มต้นใช้ AI Context ฟรี</p>
+                <ul class="plan-card-features">
+                  <li>1 Context Pack</li>
+                  <li>5 ไฟล์ (50 MB)</li>
+                  <li>AI Summary 5 ครั้ง/เดือน</li>
+                  <li>Basic Search</li>
+                </ul>
+                <button class="btn btn-ghost btn-block" id="btn-plan-free">ใช้ฟรีต่อ</button>
+              </div>
+              <div class="plan-card plan-card-highlight" id="plan-card-starter">
+                <div class="plan-card-badge">แนะนำ</div>
+                <div class="plan-card-header">
+                  <h3>Starter</h3>
+                  <div class="plan-card-price plan-card-price-accent">฿99<span>/เดือน</span></div>
+                </div>
+                <p class="plan-card-tagline">สำหรับนักศึกษาและคนใช้ AI จริงจัง</p>
+                <ul class="plan-card-features">
+                  <li>5 Context Packs</li>
+                  <li>50 ไฟล์ (1 GB)</li>
+                  <li>AI Summary 100 ครั้ง/เดือน</li>
+                  <li>Semantic Search</li>
+                  <li>Version History 7 วัน</li>
+                  <li>Export Prompt 300 ครั้ง/เดือน</li>
+                </ul>
+                <button class="btn btn-primary btn-block btn-glow" id="btn-plan-starter">⚡ Get Starter</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 👑 Executive Digital Twin -->
+          <div class="plan-group" style="margin-top:28px;">
+            <div class="plan-group-label plan-group-exec">👑 Executive Digital Twin</div>
+            <p class="plan-group-desc">สำหรับ Founder ผู้บริหาร และผู้นำ — ให้ AI ทำงานด้วยวิธีคิดของคุณ</p>
+            <div class="plan-cards plan-cards-exec">
+              <div class="plan-card plan-card-exec">
+                <div class="plan-card-header">
+                  <h3>Core</h3>
+                  <div class="plan-card-price plan-card-price-gold">฿12,000<span>/เดือน</span></div>
+                </div>
+                <p class="plan-card-tagline">Start your private Digital Twin.</p>
+                <ul class="plan-card-features">
+                  <li>Private Identity Vault</li>
+                  <li>Basic Decision Matrix</li>
+                  <li>Text-based Digital Twin</li>
+                  <li>MCP connection</li>
+                </ul>
+                <button class="btn btn-gold btn-block" onclick="window.open('mailto:boss@projectkey.dev?subject=Core Plan Inquiry','_blank')">Book Private Demo</button>
+              </div>
+              <div class="plan-card plan-card-exec plan-card-exec-highlight">
+                <div class="plan-card-badge" style="background:linear-gradient(135deg,#d4a853,#b8860b);">Recommended</div>
+                <div class="plan-card-header">
+                  <h3>Pro</h3>
+                  <div class="plan-card-price plan-card-price-gold">฿25,000<span>/เดือน</span></div>
+                </div>
+                <p class="plan-card-tagline">Most recommended for leaders.</p>
+                <ul class="plan-card-features">
+                  <li>ทุกอย่างใน Core</li>
+                  <li>Advanced Decision Matrix</li>
+                  <li>Voice Clone</li>
+                  <li>3 Delegated Users</li>
+                </ul>
+                <button class="btn btn-gold btn-block" onclick="window.open('mailto:boss@projectkey.dev?subject=Pro Plan Inquiry','_blank')">Book Private Demo</button>
+              </div>
+              <div class="plan-card plan-card-exec">
+                <div class="plan-card-header">
+                  <h3>Elite</h3>
+                  <div class="plan-card-price plan-card-price-gold">฿45,000<span>/เดือน</span></div>
+                </div>
+                <p class="plan-card-tagline">A private digital twin experience.</p>
+                <ul class="plan-card-features">
+                  <li>ทุกอย่างใน Pro</li>
+                  <li>Avatar UI + Dedicated CSM</li>
+                  <li>Deep Decision Calibration</li>
+                  <li>Annual Deep Review</li>
+                </ul>
+                <button class="btn btn-gold btn-block" onclick="window.open('mailto:boss@projectkey.dev?subject=Elite Plan Inquiry','_blank')">Request Elite Access</button>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -1374,6 +1495,6 @@
     </div>
   </div>
 
-  <script src="/legacy/app.js?v=5.1.3"></script>
+  <script src="/legacy/app.js?v=5.9.2"></script>
 </body>
 </html>

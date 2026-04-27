@@ -62,3 +62,10 @@ def _load_or_create_mcp_secret() -> str:
     return secret
 
 MCP_SECRET = os.getenv("MCP_SECRET", _load_or_create_mcp_secret())
+
+# ─── Stripe Payment (v5.9.2) ───
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
+STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+STRIPE_STARTER_PRICE_ID = os.getenv("STRIPE_STARTER_PRICE_ID", "")
+APP_BASE_URL = os.getenv("APP_BASE_URL", "http://localhost:8000")

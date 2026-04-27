@@ -17,7 +17,7 @@ from .database import (
     init_db, get_db, gen_id,
     User, File, Cluster, FileClusterMap, FileInsight, FileSummary,
     ContextPack, GraphNode, GraphEdge, NoteObject, SuggestedRelation, GraphLens,
-    MCPToken, MCPUsageLog
+    MCPToken, MCPUsageLog, WebhookLog
 )
 from .extraction import extract_text, cleanup_extracted_text
 from .organizer import organize_files
@@ -31,6 +31,7 @@ from .config import UPLOAD_DIR, BASE_DIR, MAX_FILE_SIZE_MB, ADMIN_PASSWORD
 from .mcp_tokens import generate_token, validate_token, list_tokens, revoke_token, get_active_token_count
 from .mcp_tools import call_tool, get_usage_logs, TOOL_REGISTRY
 from .auth import register_user, login_user, get_current_user, get_optional_user, request_password_reset, reset_password
+from .billing import create_checkout_session, create_portal_session, process_webhook, get_billing_info
 
 # Logging
 logging.basicConfig(level=logging.INFO)
@@ -1436,6 +1437,76 @@ async def mcp_streamable_http(secret: str, request: Request, db: AsyncSession = 
             "id": msg_id,
             "error": {"code": -32601, "message": f"Method not found: {method}"},
         })
+
+
+# ─── BILLING API (v5.9.2) ───
+
+class CheckoutRequest(BaseModel):
+    plan: str = "starter"
+
+@app.post("/api/billing/create-checkout-session")
+async def api_create_checkout(body: CheckoutRequest, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Create a Stripe Checkout Session for upgrading to Starter."""
+    if body.plan != "starter":
+        raise HTTPException(status_code=400, detail="Only Starter plan is available for checkout.")
+    try:
+        url = await create_checkout_session(user, db)
+        return {"checkout_url": url}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Checkout creation failed: {e}")
+        raise HTTPException(status_code=500, detail="We could not start checkout right now. Please try again in a moment.")
+
+@app.post("/api/billing/create-portal-session")
+async def api_create_portal(user: User = Depends(get_current_user)):
+    """Create a Stripe Customer Portal session."""
+    try:
+        url = await create_portal_session(user)
+        return {"portal_url": url}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Portal creation failed: {e}")
+        raise HTTPException(status_code=500, detail="Could not open billing portal.")
+
+@app.post("/api/stripe/webhook")
+async def api_stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
+    """Handle Stripe webhook events. No auth — verified by signature."""
+    return await process_webhook(request, db)
+
+@app.get("/api/billing/info")
+async def api_billing_info(user: User = Depends(get_current_user)):
+    """Get current user billing/subscription info."""
+    return get_billing_info(user)
+
+# Billing page routes (serve index.html for SPA-style handling)
+@app.get("/billing/success")
+async def serve_billing_success():
+    """Billing success page."""
+    index_path = os.path.join(BASE_DIR, "legacy-frontend", "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path, media_type="text/html")
+    raise HTTPException(status_code=404)
+
+@app.get("/pricing")
+async def serve_pricing():
+    """Serve the pricing/plan selection page."""
+    pricing_path = os.path.join(BASE_DIR, "legacy-frontend", "pricing.html")
+    if os.path.exists(pricing_path):
+        resp = FileResponse(pricing_path, media_type="text/html")
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return resp
+    raise HTTPException(status_code=404)
+
+
+@app.get("/billing/cancelled")
+async def serve_billing_cancelled():
+    """Billing cancelled page."""
+    index_path = os.path.join(BASE_DIR, "legacy-frontend", "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path, media_type="text/html")
+    raise HTTPException(status_code=404)
 
 
 # ─── SERVE FRONTEND (legacy-frontend/) ───

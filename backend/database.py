@@ -24,7 +24,17 @@ class User(Base):
     password_hash = Column(String, nullable=True)               # v5.0 — nullable for legacy
     is_active = Column(Boolean, default=True)                   # v5.0
     mcp_secret = Column(String, nullable=True, unique=True)     # v5.1 — per-user MCP connector secret
+    # v5.9.2 — Stripe subscription
+    plan = Column(String, default="free")                       # free, starter
+    subscription_status = Column(String, default="free")        # free, starter_active, starter_past_due, starter_canceled
+    stripe_customer_id = Column(String, nullable=True)
+    stripe_subscription_id = Column(String, nullable=True)
+    stripe_price_id = Column(String, nullable=True)
+    current_period_start = Column(DateTime, nullable=True)
+    current_period_end = Column(DateTime, nullable=True)
+    cancel_at_period_end = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     files = relationship("File", back_populates="owner")
     profile = relationship("UserProfile", uselist=False, back_populates="user", cascade="all, delete-orphan")
 
@@ -333,6 +343,17 @@ class MCPUsageLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class WebhookLog(Base):
+    """v5.9.2 — Stripe webhook event log for idempotency."""
+    __tablename__ = "webhook_logs"
+    id = Column(String, primary_key=True, default=gen_id)
+    event_id = Column(String, unique=True, nullable=False)      # Stripe event ID (evt_xxx)
+    event_type = Column(String, nullable=False)                  # e.g. checkout.session.completed
+    stripe_object_id = Column(String, nullable=True)             # e.g. sub_xxx or cs_xxx
+    status = Column(String, default="processed")                 # processed, error
+    error_message = Column(Text, default="")
+    processed_at = Column(DateTime, default=datetime.utcnow)
+
 # Async engine
 engine = create_async_engine(DATABASE_URL, echo=False)
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -403,6 +424,20 @@ async def init_db():
                     secret = _secrets.token_urlsafe(32)
                     await db.execute("UPDATE users SET mcp_secret = ? WHERE id = ?", (secret, row[0]))
                 print("  → Generated MCP secrets for existing users")
+
+            # v5.9.2 Migration — Stripe subscription fields
+            if "plan" not in columns:
+                await db.execute("ALTER TABLE users ADD COLUMN plan TEXT DEFAULT 'free'")
+                await db.execute("ALTER TABLE users ADD COLUMN subscription_status TEXT DEFAULT 'free'")
+                await db.execute("ALTER TABLE users ADD COLUMN stripe_customer_id TEXT")
+                await db.execute("ALTER TABLE users ADD COLUMN stripe_subscription_id TEXT")
+                await db.execute("ALTER TABLE users ADD COLUMN stripe_price_id TEXT")
+                await db.execute("ALTER TABLE users ADD COLUMN current_period_start TEXT")
+                await db.execute("ALTER TABLE users ADD COLUMN current_period_end TEXT")
+                await db.execute("ALTER TABLE users ADD COLUMN cancel_at_period_end BOOLEAN DEFAULT 0")
+                await db.execute("ALTER TABLE users ADD COLUMN updated_at TEXT")
+                migrated = True
+                print("  → Added: plan, subscription_status, stripe_*, period dates, cancel_at_period_end, updated_at")
 
             if migrated:
                 await db.commit()
