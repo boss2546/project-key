@@ -3170,6 +3170,63 @@ body.show-landing {
 
 .pricing-note { text-align: center; color: #62666d; font-size: 13px; margin-top: 20px; font-style: italic; }
 
+/* Starter badge */
+.pricing-starter-highlight {
+  border-color: rgba(94,106,210,0.3);
+  box-shadow: 0 0 24px rgba(94,106,210,0.08);
+}
+.pricing-badge-starter {
+  position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+  background: #818cf8; color: #0a0a0a; font-size: 11px; font-weight: 700;
+  padding: 4px 14px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+/* Comparison Table */
+.pricing-compare {
+  max-width: 700px; margin: 36px auto 0; position: relative; z-index: 1;
+}
+.pricing-compare-title {
+  text-align: center; font-size: 16px; font-weight: 600; color: #f7f8f8; margin-bottom: 16px;
+}
+.pricing-table-wrap {
+  background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px; overflow: hidden;
+}
+.pricing-table {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+}
+.pricing-table th {
+  padding: 12px 16px; text-align: left; font-weight: 600; color: #8a8f98;
+  border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 12px;
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.pricing-table th.col-starter { color: #818cf8; }
+.pricing-table td {
+  padding: 10px 16px; border-bottom: 1px solid rgba(255,255,255,0.04); color: #d0d6e0;
+}
+.pricing-table tr:last-child td { border-bottom: none; }
+.pricing-table tr:hover { background: rgba(255,255,255,0.02); }
+.pricing-table td:nth-child(3) { color: #818cf8; font-weight: 500; }
+
+/* Executive Notice */
+.pricing-exec-notice {
+  text-align: center; color: #8a8f98; font-size: 12px; font-style: italic;
+  margin-bottom: 20px; padding: 8px 16px;
+  background: rgba(212,168,83,0.05); border: 1px solid rgba(212,168,83,0.1);
+  border-radius: 8px; max-width: 600px; margin-left: auto; margin-right: auto;
+}
+
+/* Pricing Trust Note */
+.pricing-trust-note {
+  max-width: 700px; margin: 32px auto 0; text-align: center;
+  padding: 16px 20px; border-radius: 10px;
+  background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);
+}
+.pricing-trust-note p {
+  font-size: 13px; color: #8a8f98; line-height: 1.6; margin: 4px 0;
+}
+
 /* ─── TRUST ─── */
 .trust-grid {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
@@ -3183,6 +3240,16 @@ body.show-landing {
 }
 .trust-item:hover { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.1); }
 .trust-icon { font-size: 28px; }
+
+/* Trust Warning */
+.trust-warning {
+  max-width: 700px; margin: 24px auto 0; text-align: center;
+  padding: 14px 20px; border-radius: 10px;
+  background: rgba(245, 158, 11, 0.06); border: 1px solid rgba(245, 158, 11, 0.15);
+}
+.trust-warning p {
+  font-size: 13px; color: #d4a853; line-height: 1.6; margin: 0;
+}
 
 /* ─── FAQ ─── */
 .faq-list { max-width: 700px; margin: 0 auto; position: relative; z-index: 1; }

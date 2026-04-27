@@ -193,14 +193,14 @@
     <!-- ─── PRICING ─── -->
     <section class="landing-section landing-section-dark" id="pricing-section">
       <div class="section-center">
-        <h2 class="section-title">เลือกแผนที่เหมาะกับคุณ</h2>
-        <p class="section-desc">เริ่มจากบริบทส่วนตัว แล้วเติบโตสู่ Digital Twin ของคุณ</p>
+        <h2 class="section-title">Start with context. Grow into your <span class="hero-gradient">Digital Twin</span></h2>
+        <p class="section-desc">เลือกชั้นของผลิตภัณฑ์ตามระดับที่คุณต้องการให้ AI เข้าใจข้อมูล งาน สไตล์ และวิธีคิดของคุณ</p>
       </div>
 
       <!-- Personal AI Context -->
       <div class="pricing-group">
         <div class="pricing-group-label pricing-label-personal">🧠 Personal AI Context</div>
-        <p class="pricing-group-desc">สำหรับนักศึกษา ครีเอเตอร์ และคนใช้ AI ทั่วไป</p>
+        <p class="pricing-group-desc">สำหรับนักศึกษา ครีเอเตอร์ และคนใช้ AI ที่อยากให้ AI เข้าใจบริบทของตัวเองมากขึ้น โดยไม่ต้องเริ่มใหม่ทุกครั้ง</p>
         <div class="pricing-cards">
           <div class="pricing-card pricing-personal">
             <h3>Free</h3>
@@ -209,13 +209,15 @@
             <ul class="pricing-features">
               <li>1 Personal Context Pack</li>
               <li>Basic profile summary</li>
-              <li>อัปโหลดไฟล์ได้จำกัด</li>
-              <li>AI-ready summary</li>
-              <li>Export ไปใช้กับ ChatGPT / Claude</li>
+              <li>อัปโหลดไฟล์สูงสุด 5 ไฟล์ (50 MB)</li>
+              <li>AI Summary 5 ครั้ง / เดือน</li>
+              <li>Export Prompt 10 ครั้ง / เดือน</li>
+              <li>Basic search</li>
             </ul>
             <button class="btn btn-ghost btn-block" id="btn-pricing-free">Start Free</button>
           </div>
-          <div class="pricing-card pricing-personal">
+          <div class="pricing-card pricing-personal pricing-starter-highlight">
+            <div class="pricing-badge pricing-badge-starter">Best for beginners</div>
             <h3>Starter</h3>
             <div class="pricing-price">฿99<span>/เดือน</span></div>
             <p class="pricing-tagline">For students and everyday AI users.</p>
@@ -223,20 +225,48 @@
               <li>5 Context Packs</li>
               <li>Study / Work / Creator context</li>
               <li>Writing style เบื้องต้น</li>
-              <li>อัปโหลดไฟล์ได้มากขึ้น</li>
-              <li>Basic search</li>
-              <li>Monthly context refresh</li>
-              <li>Export prompt/context ไปใช้กับ AI</li>
+              <li>อัปโหลดไฟล์สูงสุด 50 ไฟล์ (1 GB)</li>
+              <li>AI Summary 100 ครั้ง / เดือน</li>
+              <li>Export Prompt 300 ครั้ง / เดือน</li>
+              <li>Context Refresh 10 ครั้ง / เดือน</li>
+              <li>Basic + Semantic Search</li>
+              <li>Version History 7 วัน</li>
             </ul>
             <button class="btn btn-primary btn-block" id="btn-pricing-starter">Get Starter</button>
           </div>
         </div>
       </div>
 
+      <!-- Comparison Table -->
+      <div class="pricing-compare" id="pricing-compare">
+        <h3 class="pricing-compare-title">เปรียบเทียบ Free vs Starter</h3>
+        <div class="pricing-table-wrap">
+          <table class="pricing-table">
+            <thead>
+              <tr><th>Feature</th><th>Free</th><th class="col-starter">Starter</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>ราคา</td><td>0 บาท/เดือน</td><td>99 บาท/เดือน</td></tr>
+              <tr><td>Context Packs</td><td>1</td><td>5</td></tr>
+              <tr><td>Files</td><td>5 ไฟล์</td><td>50 ไฟล์</td></tr>
+              <tr><td>Storage</td><td>50 MB</td><td>1 GB</td></tr>
+              <tr><td>Max file size</td><td>10 MB / file</td><td>20 MB / file</td></tr>
+              <tr><td>AI Summary</td><td>5 / เดือน</td><td>100 / เดือน</td></tr>
+              <tr><td>Export Prompt</td><td>10 / เดือน</td><td>300 / เดือน</td></tr>
+              <tr><td>Context Refresh</td><td>—</td><td>10 / เดือน</td></tr>
+              <tr><td>Search</td><td>Basic</td><td>Basic + Semantic</td></tr>
+              <tr><td>Version History</td><td>—</td><td>7 วัน</td></tr>
+              <tr><td>Support</td><td>FAQ</td><td>Email basic</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- Executive Digital Twin -->
       <div class="pricing-group" style="margin-top:48px">
         <div class="pricing-group-label pricing-label-exec">👑 Executive Digital Twin</div>
-        <p class="pricing-group-desc">สำหรับ Founder ผู้บริหาร และผู้นำที่ต้องการ AI ที่เข้าใจวิธีคิดของตัวเอง</p>
+        <p class="pricing-group-desc">สำหรับ Founder ผู้บริหาร และผู้นำที่ต้องการให้ AI ทำงานด้วยวิธีคิด สไตล์ เสียง และบริบทการตัดสินใจของตัวเอง</p>
+        <p class="pricing-exec-notice">Executive plans require private onboarding and are available by demo or request only.</p>
         <div class="pricing-cards pricing-cards-exec">
           <div class="pricing-card pricing-exec">
             <h3>Core</h3>
@@ -247,6 +277,7 @@
               <li>Basic Decision Matrix</li>
               <li>Text-based Digital Twin</li>
               <li>MCP connection</li>
+              <li>Context retrieval</li>
               <li>50,000 API calls / month</li>
             </ul>
             <button class="btn btn-gold btn-block">Book Private Demo</button>
@@ -277,11 +308,12 @@
               <li>Dedicated CSM</li>
               <li>Deep Decision Calibration</li>
               <li>Annual Deep Review</li>
+              <li>Priority Onboarding</li>
               <li>500,000 API calls / month</li>
             </ul>
             <button class="btn btn-gold btn-block">Request Elite Access</button>
           </div>
-          <div class="pricing-card pricing-exec">
+          <div class="pricing-card pricing-exec pricing-legacy">
             <h3>Legacy</h3>
             <div class="pricing-price pricing-price-gold">฿8,000<span>/เดือน</span></div>
             <p class="pricing-tagline">Preserve wisdom. Pass on judgment.</p>
@@ -291,11 +323,18 @@
               <li>Consultation Mode</li>
               <li>Access control สำหรับผู้รับสิทธิ์</li>
               <li>Legacy archive</li>
+              <li>Limited support</li>
             </ul>
             <button class="btn btn-gold btn-block">Explore Legacy</button>
           </div>
         </div>
-        <p class="pricing-note">แพ็กเกจ Executive ต้องมี private onboarding ก่อนเริ่มใช้งาน</p>
+        <p class="pricing-note">แพ็กเกจ Executive ต้องมี private onboarding ก่อนเริ่มใช้งาน และยังไม่เปิดให้ซื้อผ่านหน้าเว็บโดยตรง</p>
+      </div>
+
+      <!-- Trust Note Under Pricing -->
+      <div class="pricing-trust-note">
+        <p>Free และ Starter เป็นแผน Personal AI Context สำหรับสร้างบริบทพร้อมใช้กับ AI ยังไม่ใช่ Digital Twin เต็มระบบ</p>
+        <p>Executive Digital Twin ต้องมี private onboarding และ consent ที่ชัดเจนก่อนใช้ข้อมูลสำคัญใด ๆ</p>
       </div>
     </section>
 
@@ -315,6 +354,9 @@
         <div class="trust-item"><span class="trust-icon">✅</span><span>Only selected data is used</span></div>
         <div class="trust-item"><span class="trust-icon">📚</span><span>Start with low-risk data</span></div>
       </div>
+      <div class="trust-warning">
+        <p>⚠️ ช่วงเริ่มต้นเราจะโฟกัสข้อมูลความรู้ การเรียน งาน และบริบทส่วนตัวที่มีความเสี่ยงต่ำ กรุณาอย่าอัปโหลดบัตรประชาชน เอกสารการเงิน ข้อมูลสุขภาพ หรือข้อมูลอ่อนไหวสูงในเวอร์ชันแรก</p>
+      </div>
     </section>
 
     <!-- ─── FAQ ─── -->
@@ -324,20 +366,24 @@
       </div>
       <div class="faq-list">
         <div class="faq-item" onclick="this.classList.toggle('open')">
-          <div class="faq-q">Free กับ Starter ต่างจาก Digital Twin ยังไง?</div>
-          <div class="faq-a">Free และ Starter คือแผนสำหรับสร้าง AI-ready context เบื้องต้น ส่วน Digital Twin คือระบบเชิงลึกสำหรับผู้บริหารที่รวม Identity Vault, Decision Matrix และ MCP connection</div>
+          <div class="faq-q">Free กับ Starter ต่างกันอย่างไร?</div>
+          <div class="faq-a">Free เหมาะสำหรับทดลองสร้าง Context Pack แรก ส่วน Starter เหมาะสำหรับคนที่ต้องการใช้บริบทหลายชุดกับการเรียน งาน หรือการสร้างคอนเทนต์เป็นประจำ</div>
         </div>
         <div class="faq-item" onclick="this.classList.toggle('open')">
-          <div class="faq-q">ทำไมราคา Executive สูงกว่า Starter มาก?</div>
-          <div class="faq-a">เพราะ Executive Digital Twin มี onboarding ส่วนตัว การสกัดวิธีคิด การเชื่อม AI และการปรับแต่งตามสไตล์ของเจ้าของข้อมูล</div>
+          <div class="faq-q">Starter เป็น Digital Twin หรือไม่?</div>
+          <div class="faq-a">ไม่ใช่ Starter เป็น Personal AI Context plan สำหรับสร้าง context pack และ AI-ready profile เบื้องต้น ส่วน Digital Twin เริ่มที่แผน Core ขึ้นไปและต้องมี onboarding แยกต่างหาก</div>
         </div>
         <div class="faq-item" onclick="this.classList.toggle('open')">
-          <div class="faq-q">ข้อมูลจะถูกเอาไป train AI ไหม?</div>
-          <div class="faq-a">ไม่ ข้อมูลจะไม่ถูกนำไป train โดยไม่มี consent ที่ชัดเจนจากเจ้าของข้อมูล</div>
+          <div class="faq-q">Starter จ่ายผ่านอะไร?</div>
+          <div class="faq-a">Starter จะใช้ Stripe subscription ในเฟสถัดไป ตอนนี้หน้านี้ใช้เพื่อสื่อสารราคาและรับความสนใจจากผู้ใช้ก่อน</div>
         </div>
         <div class="faq-item" onclick="this.classList.toggle('open')">
-          <div class="faq-q">Legacy คืออะไร?</div>
-          <div class="faq-a">Legacy คือโหมด read-only สำหรับเก็บรักษาวิธีคิด ความรู้ และบทเรียนของเจ้าของข้อมูลในระยะยาว เพื่อส่งต่อให้คนรุ่นถัดไป</div>
+          <div class="faq-q">Executive Plans ซื้อผ่านหน้าเว็บได้ไหม?</div>
+          <div class="faq-a">ยังไม่ได้ Executive Plans ต้อง Book Private Demo หรือ Request Access เพราะต้องมี private onboarding, consent และการประเมินความเหมาะสมก่อนเริ่มใช้งาน</div>
+        </div>
+        <div class="faq-item" onclick="this.classList.toggle('open')">
+          <div class="faq-q">อัปโหลดข้อมูลอ่อนไหวได้ไหม?</div>
+          <div class="faq-a">ยังไม่ควรอัปโหลดข้อมูลอ่อนไหว เช่น บัตรประชาชน เอกสารการเงิน ข้อมูลสุขภาพ เวอร์ชันแรกเน้นข้อมูลการเรียน งาน ความรู้ส่วนตัว และบริบทที่มีความเสี่ยงต่ำ</div>
         </div>
       </div>
     </section>
@@ -355,7 +401,7 @@
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.9"/><rect x="14" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/><rect x="3" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/><rect x="14" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.3"/></svg>
         <span>Personal Data Bank</span>
       </div>
-      <p>สร้างด้วย ❤️ · v5.8 — Start with context. Grow into your Digital Twin.</p>
+      <p>สร้างด้วย ❤️ · v5.9.1 — Start with context. Grow into your Digital Twin.</p>
     </footer>
   </div>
 
