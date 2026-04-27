@@ -354,6 +354,15 @@ class WebhookLog(Base):
     error_message = Column(Text, default="")
     processed_at = Column(DateTime, default=datetime.utcnow)
 
+
+class UsageLog(Base):
+    """v5.9.3 — Track monthly usage for quota enforcement."""
+    __tablename__ = "usage_logs"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    action = Column(String, nullable=False)       # ai_summary, export, refresh
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 # Async engine
 engine = create_async_engine(DATABASE_URL, echo=False)
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)

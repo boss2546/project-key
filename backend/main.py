@@ -17,7 +17,7 @@ from .database import (
     init_db, get_db, gen_id,
     User, File, Cluster, FileClusterMap, FileInsight, FileSummary,
     ContextPack, GraphNode, GraphEdge, NoteObject, SuggestedRelation, GraphLens,
-    MCPToken, MCPUsageLog, WebhookLog
+    MCPToken, MCPUsageLog, WebhookLog, UsageLog
 )
 from .extraction import extract_text, cleanup_extracted_text
 from .organizer import organize_files
@@ -32,6 +32,10 @@ from .mcp_tokens import generate_token, validate_token, list_tokens, revoke_toke
 from .mcp_tools import call_tool, get_usage_logs, TOOL_REGISTRY
 from .auth import register_user, login_user, get_current_user, get_optional_user, request_password_reset, reset_password
 from .billing import create_checkout_session, create_portal_session, process_webhook, get_billing_info
+from .plan_limits import (
+    check_upload_allowed, check_pack_create_allowed, check_summary_allowed,
+    check_refresh_allowed, get_usage_summary, log_usage, get_limits, PLAN_LIMITS
+)
 
 # Logging
 logging.basicConfig(level=logging.INFO)
@@ -183,14 +187,27 @@ async def upload_files(
     """Upload one or more files, extract text, save to database."""
     uploaded = []
     skipped = []
-    allowed_types = {"pdf", "txt", "md", "docx"}
-    max_bytes = MAX_FILE_SIZE_MB * 1024 * 1024
+    # v5.9.3 — get plan-specific limits
+    from .plan_limits import get_limits as _gl
+    _limits = _gl(current_user)
+    allowed_types = _limits["allowed_file_types"]
+    max_bytes = _limits["max_file_size_mb"] * 1024 * 1024
+
+    # v5.9.3 — check file count limit before processing
+    from .plan_limits import get_file_count as _fc
+    current_count = await _fc(db, current_user.id)
+    file_limit = _limits["file_limit"]
 
     for upload_file in files:
         # Validate type
         ext = upload_file.filename.rsplit(".", 1)[-1].lower() if "." in upload_file.filename else ""
         if ext not in allowed_types:
             skipped.append({"filename": upload_file.filename, "reason": f"ไม่รองรับไฟล์ .{ext}"})
+            continue
+
+        # v5.9.3 — check file count
+        if current_count + len(uploaded) >= file_limit:
+            skipped.append({"filename": upload_file.filename, "reason": f"ถึงขีดจำกัดไฟล์แล้ว ({file_limit} ไฟล์)"})
             continue
 
         # Save raw file — per-user directory (v5.1)
@@ -719,6 +736,10 @@ async def api_create_pack(req: ContextPackRequest, current_user: User = Depends(
         raise HTTPException(status_code=400, detail=f"Type must be one of: {valid_types}")
     if not req.source_file_ids and not req.source_cluster_ids:
         raise HTTPException(status_code=400, detail="Must provide source_file_ids or source_cluster_ids")
+    # v5.9.3 — enforce pack limit
+    limit_err = await check_pack_create_allowed(db, current_user)
+    if limit_err:
+        raise HTTPException(status_code=403, detail=limit_err["error"])
     try:
         pack = await create_pack(db, current_user.id, req.type, req.title, req.source_file_ids, req.source_cluster_ids)
         return pack
@@ -1061,6 +1082,21 @@ async def get_stats(current_user: User = Depends(get_current_user), db: AsyncSes
         # v4 — MCP stats
         "active_tokens": active_tokens,
     }
+
+
+# ═══════════════════════════════════════════
+# USAGE & PLAN APIs (v5.9.3)
+# ═══════════════════════════════════════════
+
+@app.get("/api/usage")
+async def api_get_usage(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Return usage summary for the current user — dashboard display."""
+    return await get_usage_summary(db, current_user)
+
+@app.get("/api/plan-limits")
+async def api_get_plan_limits(current_user: User = Depends(get_current_user)):
+    """Return the limits for the user's current plan."""
+    return {"plan": current_user.plan or "free", "limits": get_limits(current_user)}
 
 
 @app.delete("/api/reset")
