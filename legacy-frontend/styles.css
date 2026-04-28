@@ -512,6 +512,46 @@ body.show-landing {
 .sensitivity-badge.confidential { color: var(--error); }
 .sot-badge { color: var(--accent); background: rgba(99, 102, 241, 0.1); }
 
+/* v5.9.3 — Locked file styles */
+.file-item.file-locked {
+  opacity: 0.6;
+  position: relative;
+  border-style: dashed;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+.file-item.file-locked:hover {
+  opacity: 0.75;
+  border-color: rgba(239, 68, 68, 0.5);
+}
+.locked-badge {
+  font-size: 12px;
+  position: absolute;
+  top: -2px;
+  right: -2px;
+}
+.locked-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+  letter-spacing: 0.3px;
+}
+
+/* v5.9.3 — Sensitive data warning */
+.upload-sensitive-warning {
+  font-size: 11px;
+  color: #f59e0b;
+  margin-top: 8px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.15);
+  text-align: center;
+}
+
 .file-actions {
   display: flex;
   gap: 4px;

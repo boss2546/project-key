@@ -477,6 +477,21 @@ function updateUploadHint(data) {
     : `Supports ${types} (max ${maxMB} MB)`;
   const el = document.getElementById('upload-hint');
   if (el) el.textContent = hint;
+
+  // v5.9.3 — Sensitive data warning
+  const warnEl = document.getElementById('upload-sensitive-warning');
+  if (!warnEl) {
+    const parent = el?.parentElement;
+    if (parent) {
+      const warn = document.createElement('div');
+      warn.id = 'upload-sensitive-warning';
+      warn.className = 'upload-sensitive-warning';
+      warn.innerHTML = isTh
+        ? '⚠️ กรุณาอย่าอัปโหลดข้อมูลส่วนบุคคลที่อ่อนไหว เช่น บัตรประชาชน, หนังสือเดินทาง, ข้อมูลทางการเงิน หรือเวชระเบียน'
+        : '⚠️ Please do not upload sensitive data such as ID cards, passports, financial statements, or medical records';
+      parent.appendChild(warn);
+    }
+  }
 }
 
 function updateSidebarStats(data) {
@@ -1184,11 +1199,13 @@ function renderFileList(files) {
     const tags = (f.tags || []).map(tag => `<span class="tag-chip">${tag}</span>`).join('');
     const freshness = f.freshness && f.freshness !== 'current' ? `<span class="freshness-badge ${f.freshness}">${f.freshness}</span>` : '';
     const sot = f.source_of_truth ? '<span class="sot-badge">📌 Source of Truth</span>' : '';
+    const locked = f.is_locked ? '<span class="locked-badge" title="' + (f.locked_reason || 'Locked') + '">🔒</span>' : '';
+    const lockedClass = f.is_locked ? ' file-locked' : '';
     return `
-      <div class="file-item" data-id="${f.id}" onclick="openFileDetail('${f.id}')">
-        <div class="file-icon ${f.filetype}">${f.filetype.toUpperCase()}</div>
+      <div class="file-item${lockedClass}" data-id="${f.id}" onclick="openFileDetail('${f.id}')">
+        <div class="file-icon ${f.filetype}">${f.filetype.toUpperCase()}${locked}</div>
         <div class="file-info">
-          <div class="file-name">${f.filename}</div>
+          <div class="file-name">${f.filename}${f.is_locked ? ' <span class="locked-label">' + (getLang() === 'th' ? 'ล็อค' : 'Locked') + '</span>' : ''}</div>
           <div class="file-meta">
             <span>${f.text_length?.toLocaleString() || 0} chars</span>
             <span class="status-dot ${f.processing_status}"></span>

@@ -58,6 +58,10 @@ class File(Base):
     source_of_truth = Column(Boolean, default=False)   # Is this the authoritative source?
     version = Column(String, default="1.0")
 
+    # v5.9.3 — Locked data (downgrade protection)
+    is_locked = Column(Boolean, default=False)
+    locked_reason = Column(String, nullable=True)   # exceeds_free_plan_limit, subscription_expired
+
     owner = relationship("User", back_populates="files")
     insight = relationship("FileInsight", uselist=False, back_populates="file", cascade="all, delete-orphan")
     summary = relationship("FileSummary", uselist=False, back_populates="file", cascade="all, delete-orphan")
@@ -157,6 +161,10 @@ class ContextPack(Base):
     source_cluster_ids = Column(Text, default="[]") # JSON array
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # v5.9.3 — Locked data (downgrade protection)
+    is_locked = Column(Boolean, default=False)
+    locked_reason = Column(String, nullable=True)   # exceeds_free_plan_limit, subscription_expired
 
 
 class ContextInjectionLog(Base):
@@ -363,6 +371,19 @@ class UsageLog(Base):
     action = Column(String, nullable=False)       # ai_summary, export, refresh
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
+class AuditLog(Base):
+    """v5.9.3 — Audit log for tracking important system events."""
+    __tablename__ = "audit_logs"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    event_type = Column(String, nullable=False)      # plan_changed, usage_limit_reached, file_locked, etc.
+    old_value = Column(Text, default="")
+    new_value = Column(Text, default="")
+    triggered_by = Column(String, default="system")   # user, stripe_webhook, system, admin
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 # Async engine
 engine = create_async_engine(DATABASE_URL, echo=False)
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -447,6 +468,24 @@ async def init_db():
                 await db.execute("ALTER TABLE users ADD COLUMN updated_at TEXT")
                 migrated = True
                 print("  → Added: plan, subscription_status, stripe_*, period dates, cancel_at_period_end, updated_at")
+
+            # v5.9.3 — Locked data columns for files
+            cursor = await db.execute("PRAGMA table_info(files)")
+            file_columns = [row[1] for row in await cursor.fetchall()]
+            if "is_locked" not in file_columns:
+                await db.execute("ALTER TABLE files ADD COLUMN is_locked BOOLEAN DEFAULT 0")
+                await db.execute("ALTER TABLE files ADD COLUMN locked_reason TEXT")
+                migrated = True
+                print("  → Added: files.is_locked, files.locked_reason")
+
+            # v5.9.3 — Locked data columns for context_packs
+            cursor = await db.execute("PRAGMA table_info(context_packs)")
+            pack_columns = [row[1] for row in await cursor.fetchall()]
+            if "is_locked" not in pack_columns:
+                await db.execute("ALTER TABLE context_packs ADD COLUMN is_locked BOOLEAN DEFAULT 0")
+                await db.execute("ALTER TABLE context_packs ADD COLUMN locked_reason TEXT")
+                migrated = True
+                print("  → Added: context_packs.is_locked, context_packs.locked_reason")
 
             if migrated:
                 await db.commit()

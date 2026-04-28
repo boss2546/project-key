@@ -17,7 +17,7 @@ from .database import (
     init_db, get_db, gen_id,
     User, File, Cluster, FileClusterMap, FileInsight, FileSummary,
     ContextPack, GraphNode, GraphEdge, NoteObject, SuggestedRelation, GraphLens,
-    MCPToken, MCPUsageLog, WebhookLog, UsageLog
+    MCPToken, MCPUsageLog, WebhookLog, UsageLog, AuditLog
 )
 from .extraction import extract_text, cleanup_extracted_text
 from .organizer import organize_files
@@ -34,7 +34,8 @@ from .auth import register_user, login_user, get_current_user, get_optional_user
 from .billing import create_checkout_session, create_portal_session, process_webhook, get_billing_info
 from .plan_limits import (
     check_upload_allowed, check_pack_create_allowed, check_summary_allowed,
-    check_refresh_allowed, get_usage_summary, log_usage, get_limits, PLAN_LIMITS
+    check_refresh_allowed, check_export_allowed, get_usage_summary, log_usage, get_limits, PLAN_LIMITS,
+    lock_excess_data, unlock_data_for_plan, log_audit
 )
 
 # Logging
@@ -436,6 +437,10 @@ async def get_summary(file_id: str, current_user: User = Depends(get_current_use
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
 
+    # v5.9.3 — locked file check
+    if getattr(file, "is_locked", False):
+        raise HTTPException(status_code=403, detail="ไฟล์นี้ถูกล็อค — อัปเกรดเพื่อดูสรุปไฟล์ที่ล็อค")
+
     if not file.summary:
         raise HTTPException(status_code=404, detail="Summary not yet generated")
 
@@ -486,6 +491,10 @@ async def get_file_content(
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
     
+    # v5.9.3 — locked file check
+    if getattr(file, "is_locked", False):
+        raise HTTPException(status_code=403, detail="ไฟล์นี้ถูกล็อค — อัปเกรดเป็น Starter เพื่อเข้าถึงไฟล์ที่ล็อค")
+    
     text = file.extracted_text or ""
     total = len(text)
     
@@ -512,6 +521,11 @@ async def get_file_content(
 @app.get("/api/files/{file_id}/download")
 async def download_file(file_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """v5.2 — Download original raw file (PDF, DOCX, TXT, MD)."""
+    # v5.9.3 — Export quota check
+    limit_err = await check_export_allowed(db, current_user)
+    if limit_err:
+        raise HTTPException(status_code=403, detail=limit_err["error"])
+
     result = await db.execute(
         select(File).where(File.id == file_id, File.user_id == current_user.id)
     )
@@ -519,9 +533,17 @@ async def download_file(file_id: str, current_user: User = Depends(get_current_u
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
     
+    # v5.9.3 — locked file check
+    if getattr(file, "is_locked", False):
+        raise HTTPException(status_code=403, detail="ไฟล์นี้ถูกล็อค — อัปเกรดเพื่อดาวน์โหลดไฟล์ที่ล็อค")
+    
     if not file.raw_path or not os.path.exists(file.raw_path):
         raise HTTPException(status_code=404, detail="Original file not available on server")
     
+    # Log export usage
+    await log_usage(db, current_user.id, "export")
+    await db.commit()
+
     media_types = {
         "pdf": "application/pdf",
         "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -548,6 +570,11 @@ async def create_share_link(file_id: str, current_user: User = Depends(get_curre
     
     Use this to generate a URL that AI clients can access without authentication.
     """
+    # v5.9.3 — Export quota check
+    limit_err = await check_export_allowed(db, current_user)
+    if limit_err:
+        raise HTTPException(status_code=403, detail=limit_err["error"])
+
     result = await db.execute(
         select(File).where(File.id == file_id, File.user_id == current_user.id)
     )
@@ -558,6 +585,10 @@ async def create_share_link(file_id: str, current_user: User = Depends(get_curre
     if not file.raw_path or not os.path.exists(file.raw_path):
         raise HTTPException(status_code=404, detail="Original file not available")
     
+    # Log export usage
+    await log_usage(db, current_user.id, "export")
+    await db.commit()
+
     token = generate_share_token(file.id, current_user.id, file.filename)
     url = build_share_url(token)
     
@@ -1314,6 +1345,9 @@ def _serialize_file(f: File) -> dict:
         "sensitivity": f.sensitivity or "normal",
         "freshness": f.freshness or "current",
         "source_of_truth": f.source_of_truth or False,
+        # v5.9.3 — locked data
+        "is_locked": getattr(f, "is_locked", False) or False,
+        "locked_reason": getattr(f, "locked_reason", None),
     }
 
 

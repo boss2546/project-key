@@ -5,7 +5,7 @@ All endpoints MUST use these helpers to check limits.
 """
 from __future__ import annotations
 from datetime import datetime, timezone
-from sqlalchemy import func, select
+from sqlalchemy import func, select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # ═══════════════════════════════════════════
@@ -67,6 +67,29 @@ def _effective_plan(user) -> str:
     return "free"
 
 
+def _get_billing_period_start(user) -> datetime | None:
+    """Get billing period start for Starter users.
+    
+    Starter users reset quota based on Stripe billing cycle.
+    Free users reset based on calendar month.
+    Returns None for Free users (will default to calendar month).
+    """
+    status = getattr(user, "subscription_status", "free") or "free"
+    if status.startswith("starter"):
+        period_start = getattr(user, "current_period_start", None)
+        if period_start:
+            return period_start
+    return None  # Free users use calendar month
+
+
+def _month_start_for_user(user) -> datetime:
+    """Get the appropriate month start for counting usage."""
+    billing_start = _get_billing_period_start(user)
+    if billing_start:
+        return billing_start
+    return datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+
 # ═══════════════════════════════════════════
 # 2. USAGE QUERY HELPERS
 # ═══════════════════════════════════════════
@@ -103,43 +126,46 @@ async def get_pack_count(db: AsyncSession, user_id: str) -> int:
     return result.scalar() or 0
 
 
-async def get_monthly_summary_count(db: AsyncSession, user_id: str) -> int:
-    """Count AI summaries generated this month by the user."""
+async def get_monthly_summary_count(db: AsyncSession, user_id: str, period_start: datetime | None = None) -> int:
+    """Count AI summaries generated this billing period by the user."""
     from .database import UsageLog
-    month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if period_start is None:
+        period_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     result = await db.execute(
         select(func.count(UsageLog.id)).where(
             UsageLog.user_id == user_id,
             UsageLog.action == "ai_summary",
-            UsageLog.created_at >= month_start,
+            UsageLog.created_at >= period_start,
         )
     )
     return result.scalar() or 0
 
 
-async def get_monthly_export_count(db: AsyncSession, user_id: str) -> int:
-    """Count exports generated this month by the user."""
+async def get_monthly_export_count(db: AsyncSession, user_id: str, period_start: datetime | None = None) -> int:
+    """Count exports generated this billing period by the user."""
     from .database import UsageLog
-    month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if period_start is None:
+        period_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     result = await db.execute(
         select(func.count(UsageLog.id)).where(
             UsageLog.user_id == user_id,
             UsageLog.action == "export",
-            UsageLog.created_at >= month_start,
+            UsageLog.created_at >= period_start,
         )
     )
     return result.scalar() or 0
 
 
-async def get_monthly_refresh_count(db: AsyncSession, user_id: str) -> int:
-    """Count context refreshes this month by the user."""
+async def get_monthly_refresh_count(db: AsyncSession, user_id: str, period_start: datetime | None = None) -> int:
+    """Count context refreshes this billing period by the user."""
     from .database import UsageLog
-    month_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if period_start is None:
+        period_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     result = await db.execute(
         select(func.count(UsageLog.id)).where(
             UsageLog.user_id == user_id,
             UsageLog.action == "refresh",
-            UsageLog.created_at >= month_start,
+            UsageLog.created_at >= period_start,
         )
     )
     return result.scalar() or 0
@@ -206,9 +232,10 @@ async def check_pack_create_allowed(db: AsyncSession, user) -> dict | None:
 
 
 async def check_summary_allowed(db: AsyncSession, user) -> dict | None:
-    """Check if user can generate another AI summary this month."""
+    """Check if user can generate another AI summary this billing period."""
     limits = get_limits(user)
-    used = await get_monthly_summary_count(db, user.id)
+    period_start = _month_start_for_user(user)
+    used = await get_monthly_summary_count(db, user.id, period_start)
     if used >= limits["ai_summary_limit_monthly"]:
         plan = _effective_plan(user)
         if plan == "free":
@@ -218,9 +245,10 @@ async def check_summary_allowed(db: AsyncSession, user) -> dict | None:
 
 
 async def check_export_allowed(db: AsyncSession, user) -> dict | None:
-    """Check if user can export another prompt this month."""
+    """Check if user can export another prompt this billing period."""
     limits = get_limits(user)
-    used = await get_monthly_export_count(db, user.id)
+    period_start = _month_start_for_user(user)
+    used = await get_monthly_export_count(db, user.id, period_start)
     if used >= limits["export_limit_monthly"]:
         plan = _effective_plan(user)
         if plan == "free":
@@ -230,11 +258,12 @@ async def check_export_allowed(db: AsyncSession, user) -> dict | None:
 
 
 async def check_refresh_allowed(db: AsyncSession, user) -> dict | None:
-    """Check if user can refresh context this month."""
+    """Check if user can refresh context this billing period."""
     limits = get_limits(user)
     if limits["refresh_limit_monthly"] == 0:
         return {"error": "Context Refresh ใช้ได้ใน Starter — อัปเกรดเพื่อรีเฟรช Context Pack ของคุณ", "upgrade": True}
-    used = await get_monthly_refresh_count(db, user.id)
+    period_start = _month_start_for_user(user)
+    used = await get_monthly_refresh_count(db, user.id, period_start)
     if used >= limits["refresh_limit_monthly"]:
         return {"error": f"Refresh เดือนนี้ใช้ครบแล้ว ({limits['refresh_limit_monthly']}) — โควต้าจะรีเซ็ตรอบบิลถัดไป", "upgrade": False}
     return None
@@ -256,13 +285,14 @@ async def get_usage_summary(db: AsyncSession, user) -> dict:
     """Return full usage summary for dashboard display."""
     limits = get_limits(user)
     plan = _effective_plan(user)
+    period_start = _month_start_for_user(user)
 
     files_count = await get_file_count(db, user.id)
     storage_mb = await get_storage_used_mb(db, user.id)
     packs_count = await get_pack_count(db, user.id)
-    summaries_used = await get_monthly_summary_count(db, user.id)
-    exports_used = await get_monthly_export_count(db, user.id)
-    refreshes_used = await get_monthly_refresh_count(db, user.id)
+    summaries_used = await get_monthly_summary_count(db, user.id, period_start)
+    exports_used = await get_monthly_export_count(db, user.id, period_start)
+    refreshes_used = await get_monthly_refresh_count(db, user.id, period_start)
 
     return {
         "plan": plan,
@@ -281,3 +311,143 @@ async def get_usage_summary(db: AsyncSession, user) -> dict:
             "version_history_days": limits["version_history_days"],
         },
     }
+
+
+# ═══════════════════════════════════════════
+# 5. LOCK / UNLOCK DATA — downgrade / upgrade
+# ═══════════════════════════════════════════
+
+async def lock_excess_data(db: AsyncSession, user_id: str, plan: str = "free") -> dict:
+    """Lock packs and files that exceed the given plan's limits.
+    
+    Called when user downgrades. Most-recently-updated items stay unlocked.
+    Data is NEVER deleted — only access is restricted.
+    """
+    limits = PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])
+    from .database import File, ContextPack
+
+    # Lock excess packs (keep most recently updated unlocked)
+    packs_result = await db.execute(
+        select(ContextPack).where(ContextPack.user_id == user_id)
+        .order_by(ContextPack.updated_at.desc())
+    )
+    packs = packs_result.scalars().all()
+    pack_limit = limits["context_pack_limit"]
+    locked_packs = 0
+
+    for i, pack in enumerate(packs):
+        if i < pack_limit:
+            pack.is_locked = False
+            pack.locked_reason = None
+        else:
+            pack.is_locked = True
+            pack.locked_reason = "exceeds_free_plan_limit"
+            locked_packs += 1
+        db.add(pack)
+
+    # Lock excess files (keep most recently uploaded unlocked)
+    files_result = await db.execute(
+        select(File).where(File.user_id == user_id)
+        .order_by(File.uploaded_at.desc())
+    )
+    files = files_result.scalars().all()
+    file_limit = limits["file_limit"]
+    locked_files = 0
+
+    for i, file in enumerate(files):
+        if i < file_limit:
+            file.is_locked = False
+            file.locked_reason = None
+        else:
+            file.is_locked = True
+            file.locked_reason = "exceeds_free_plan_limit"
+            locked_files += 1
+        db.add(file)
+
+    return {"locked_packs": locked_packs, "locked_files": locked_files}
+
+
+async def unlock_data_for_plan(db: AsyncSession, user_id: str, plan: str = "starter") -> dict:
+    """Unlock items that fit within the given plan's limits.
+    
+    Called when user upgrades. Items beyond the new plan's limits stay locked.
+    """
+    limits = PLAN_LIMITS.get(plan, PLAN_LIMITS["starter"])
+    from .database import File, ContextPack
+
+    # Count currently unlocked packs
+    unlocked_pack_result = await db.execute(
+        select(func.count(ContextPack.id)).where(
+            ContextPack.user_id == user_id,
+            ContextPack.is_locked == False,  # noqa: E712
+        )
+    )
+    current_unlocked_packs = unlocked_pack_result.scalar() or 0
+
+    # Unlock locked packs up to limit
+    locked_packs_result = await db.execute(
+        select(ContextPack).where(
+            ContextPack.user_id == user_id,
+            ContextPack.is_locked == True,  # noqa: E712
+        ).order_by(ContextPack.updated_at.desc())
+    )
+    locked_packs = locked_packs_result.scalars().all()
+    unlocked_packs = 0
+    for pack in locked_packs:
+        if current_unlocked_packs + unlocked_packs < limits["context_pack_limit"]:
+            pack.is_locked = False
+            pack.locked_reason = None
+            db.add(pack)
+            unlocked_packs += 1
+
+    # Count currently unlocked files
+    unlocked_file_result = await db.execute(
+        select(func.count(File.id)).where(
+            File.user_id == user_id,
+            File.is_locked == False,  # noqa: E712
+        )
+    )
+    current_unlocked_files = unlocked_file_result.scalar() or 0
+
+    # Unlock locked files up to limit
+    locked_files_result = await db.execute(
+        select(File).where(
+            File.user_id == user_id,
+            File.is_locked == True,  # noqa: E712
+        ).order_by(File.uploaded_at.desc())
+    )
+    locked_files = locked_files_result.scalars().all()
+    unlocked_files = 0
+    for file in locked_files:
+        if current_unlocked_files + unlocked_files < limits["file_limit"]:
+            file.is_locked = False
+            file.locked_reason = None
+            db.add(file)
+            unlocked_files += 1
+
+    return {"unlocked_packs": unlocked_packs, "unlocked_files": unlocked_files}
+
+
+# ═══════════════════════════════════════════
+# 6. AUDIT LOG — track important events
+# ═══════════════════════════════════════════
+
+async def log_audit(
+    db: AsyncSession,
+    user_id: str,
+    event_type: str,
+    old_value: str = "",
+    new_value: str = "",
+    triggered_by: str = "system",
+):
+    """Record an audit event (plan_changed, file_locked, etc.)."""
+    from .database import AuditLog
+    entry = AuditLog(
+        user_id=user_id,
+        event_type=event_type,
+        old_value=old_value,
+        new_value=new_value,
+        triggered_by=triggered_by,
+    )
+    db.add(entry)
+    # Don't commit — caller should commit as part of their transaction

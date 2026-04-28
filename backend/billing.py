@@ -176,7 +176,21 @@ async def _find_user_by_customer(customer_id: str, db: AsyncSession) -> User | N
 
 
 async def _handle_checkout_completed(session_obj, db: AsyncSession):
-    """checkout.session.completed — User just paid."""
+    """checkout.session.completed — User just paid.
+    
+    UPGRADE UNLOCK (PRD v5.9.3):
+    - Plan changes to 'starter' immediately
+    - All Starter limits apply instantly:
+      * Files: 50 (up from 5)
+      * Packs: 5 (up from 1)
+      * AI Summary: 100/month (up from 5)
+      * Export: 300/month (up from 10)
+      * Refresh: 10/month (up from 0)
+      * Semantic Search: enabled
+      * File types: +png, +jpg
+      * Max file size: 20MB (up from 10MB)
+    - Existing data beyond Free limits becomes fully accessible again
+    """
     customer_id = session_obj.get("customer")
     subscription_id = session_obj.get("subscription")
     user_id = session_obj.get("metadata", {}).get("user_id")
@@ -192,14 +206,39 @@ async def _handle_checkout_completed(session_obj, db: AsyncSession):
         logger.error(f"checkout.session.completed: user not found (customer={customer_id}, user_id={user_id})")
         return
 
+    previous_plan = user.plan
     user.stripe_customer_id = customer_id
     user.stripe_subscription_id = subscription_id
     user.plan = "starter"
     user.subscription_status = "starter_active"
     user.updated_at = datetime.utcnow()
     db.add(user)
+
+    # Unlock previously locked data (PRD v5.9.3)
+    from .plan_limits import unlock_data_for_plan, log_audit
+    unlock_result = await unlock_data_for_plan(db, user.id, "starter")
+
+    # Audit log
+    await log_audit(db, user.id, "plan_changed",
+                    old_value=previous_plan or "free",
+                    new_value="starter",
+                    triggered_by="stripe_webhook")
+    if unlock_result["unlocked_packs"] > 0 or unlock_result["unlocked_files"] > 0:
+        await log_audit(db, user.id, "data_unlocked",
+                        new_value=f"packs:{unlock_result['unlocked_packs']}, files:{unlock_result['unlocked_files']}",
+                        triggered_by="stripe_webhook")
+
+    # Log upgrade event for tracking
+    from .database import UsageLog
+    upgrade_log = UsageLog(user_id=user.id, action="upgrade")
+    db.add(upgrade_log)
+
     await db.commit()
-    logger.info(f"User {user.id} upgraded to starter via checkout")
+    logger.info(
+        f"User {user.id} upgraded: {previous_plan} → starter via checkout. "
+        f"All Starter limits now active. "
+        f"Unlocked: {unlock_result['unlocked_packs']} packs, {unlock_result['unlocked_files']} files."
+    )
 
 
 async def _handle_subscription_created(sub_obj, db: AsyncSession):
@@ -238,11 +277,26 @@ async def _handle_subscription_updated(sub_obj, db: AsyncSession):
 
 
 async def _handle_subscription_deleted(sub_obj, db: AsyncSession):
-    """customer.subscription.deleted — Subscription ended."""
+    """customer.subscription.deleted — Subscription ended.
+    
+    DOWNGRADE BEHAVIOR (PRD v5.9.3):
+    - Data is NEVER deleted — user's files, packs, summaries remain intact
+    - Plan reverts to Free — enforcement checks will limit actions:
+      * Files over 5: can't upload new, but existing stay accessible
+      * Packs over 1: can't create new, but existing stay accessible  
+      * AI Summary quota: drops to 5/month
+      * Export quota: drops to 10/month
+      * Refresh: disabled (0/month)
+    - User can re-upgrade anytime to restore full Starter access
+    """
     customer_id = sub_obj.get("customer")
     user = await _find_user_by_customer(customer_id, db)
     if not user:
         return
+
+    # Record downgrade info for audit trail
+    previous_plan = user.plan
+    previous_status = user.subscription_status
 
     user.plan = "free"
     user.subscription_status = "free"
@@ -253,8 +307,30 @@ async def _handle_subscription_deleted(sub_obj, db: AsyncSession):
     user.cancel_at_period_end = False
     user.updated_at = datetime.utcnow()
     db.add(user)
+
+    # Lock excess data beyond Free limits (PRD v5.9.3)
+    from .plan_limits import lock_excess_data, log_audit
+    lock_result = await lock_excess_data(db, user.id, "free")
+
+    # Audit log
+    await log_audit(db, user.id, "plan_changed",
+                    old_value=f"{previous_plan}/{previous_status}",
+                    new_value="free",
+                    triggered_by="stripe_webhook")
+    await log_audit(db, user.id, "downgrade_completed",
+                    new_value=f"locked_packs:{lock_result['locked_packs']}, locked_files:{lock_result['locked_files']}",
+                    triggered_by="stripe_webhook")
+
+    # Log downgrade event for tracking
+    from .database import UsageLog
+    downgrade_log = UsageLog(user_id=user.id, action="downgrade")
+    db.add(downgrade_log)
+
     await db.commit()
-    logger.info(f"User {user.id} downgraded to free (subscription deleted)")
+    logger.info(
+        f"User {user.id} downgraded: {previous_plan}/{previous_status} → free. "
+        f"Data preserved — locked: {lock_result['locked_packs']} packs, {lock_result['locked_files']} files."
+    )
 
 
 async def _handle_payment_succeeded(invoice_obj, db: AsyncSession):
