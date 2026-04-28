@@ -175,6 +175,24 @@ async def _find_user_by_customer(customer_id: str, db: AsyncSession) -> User | N
     return result.scalar_one_or_none()
 
 
+def _first_or_empty(obj: dict, *keys: str) -> dict:
+    """Safely traverse nested dict→list[0]→dict structures from Stripe payloads.
+
+    Returns {} if any key is missing OR the list at any step is empty,
+    avoiding IndexError when Stripe sends an empty `data` array.
+
+    Example: _first_or_empty(sub_obj, "items", "data") -> first item dict or {}
+    """
+    cur = obj
+    for k in keys:
+        if not isinstance(cur, dict):
+            return {}
+        cur = cur.get(k)
+    if isinstance(cur, list):
+        return cur[0] if cur and isinstance(cur[0], dict) else {}
+    return cur if isinstance(cur, dict) else {}
+
+
 async def _handle_checkout_completed(session_obj, db: AsyncSession):
     """checkout.session.completed — User just paid.
     
@@ -249,7 +267,8 @@ async def _handle_subscription_created(sub_obj, db: AsyncSession):
         return
 
     user.stripe_subscription_id = sub_obj.get("id")
-    user.stripe_price_id = sub_obj.get("items", {}).get("data", [{}])[0].get("price", {}).get("id", "")
+    first_item = _first_or_empty(sub_obj, "items", "data")
+    user.stripe_price_id = (first_item.get("price") or {}).get("id", "") if isinstance(first_item.get("price"), dict) else ""
     user.plan = "starter"
     user.subscription_status = _map_stripe_status(sub_obj.get("status"))
     user.current_period_start = _ts_to_dt(sub_obj.get("current_period_start"))
@@ -347,7 +366,9 @@ async def _handle_payment_succeeded(invoice_obj, db: AsyncSession):
     user.subscription_status = "starter_active"
 
     # Update period from subscription data in invoice
-    period = invoice_obj.get("lines", {}).get("data", [{}])[0].get("period", {})
+    first_line = _first_or_empty(invoice_obj, "lines", "data")
+    period = first_line.get("period") if isinstance(first_line.get("period"), dict) else {}
+    period = period or {}
     if period.get("start"):
         user.current_period_start = _ts_to_dt(period["start"])
     if period.get("end"):
