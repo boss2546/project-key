@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://d3js.org/d3.v7.min.js"></script>
-  <link rel="stylesheet" href="/legacy/styles.css?v=5.9.2">
+  <link rel="stylesheet" href="/legacy/styles.css?v=5.9.3">
 </head>
 <body>
   <!-- ═══════════════════════════════════════════ -->
@@ -669,7 +669,7 @@
             </svg>
           </div>
           <p class="upload-text" data-i18n="myData.uploadText">Drag files here or click to select</p>
-          <p class="upload-hint" data-i18n="myData.uploadHint">Supports PDF, TXT, MD, DOCX (max 20 MB)</p>
+          <p class="upload-hint" id="upload-hint" data-i18n="myData.uploadHint">Supports PDF, TXT, MD, DOCX (max 20 MB)</p>
           <input type="file" id="file-input" multiple accept=".pdf,.txt,.md,.docx" hidden>
         </div>
 
@@ -1314,6 +1314,14 @@
               </div>
             </div>
           </div>
+          <!-- Usage Bars Section (v5.9.3) -->
+          <div class="usage-section" id="usage-section">
+            <div class="usage-header">
+              <span class="usage-title">📊 การใช้งาน</span>
+              <span class="usage-plan-label" id="usage-plan-label">🆓 Free</span>
+            </div>
+            <div id="usage-bars-container"></div>
+          </div>
           <hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:16px 0;">
           <div class="form-group">
             <label data-i18n="profile.identity">Who am I</label>
@@ -1495,6 +1503,6 @@
     </div>
   </div>
 
-  <script src="/legacy/app.js?v=5.9.2"></script>
+  <script src="/legacy/app.js?v=5.9.3"></script>
 </body>
 </html>

@@ -259,8 +259,14 @@ async def upload_files(
 @app.post("/api/organize")
 async def organize(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Run the organization pipeline on all uploaded files, then build graph."""
+    # v5.9.3 — check summary quota
+    limit_err = await check_summary_allowed(db, current_user)
+    if limit_err:
+        raise HTTPException(status_code=403, detail=limit_err["error"])
     try:
         await organize_files(db, current_user.id)
+        await log_usage(db, current_user.id, "ai_summary")
+        await db.commit()
 
         # v3: Auto-build knowledge graph after organizing
         logger.info("Auto-building knowledge graph...")
@@ -296,11 +302,18 @@ async def unprocessed_count(current_user: User = Depends(get_current_user), db: 
 @app.post("/api/organize-new")
 async def organize_new(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Run the organization pipeline only on NEW files that don't have summaries yet."""
+    # v5.9.3 — check summary quota
+    limit_err = await check_summary_allowed(db, current_user)
+    if limit_err:
+        raise HTTPException(status_code=403, detail=limit_err["error"])
     from .organizer import organize_new_files
     try:
         result = await organize_new_files(db, current_user.id)
         if result.get("skipped"):
             return {"status": "ok", "message": "ไม่มีไฟล์ใหม่ที่ต้องจัดระเบียบ", "new_files": 0}
+
+        await log_usage(db, current_user.id, "ai_summary")
+        await db.commit()
 
         # Enrich + graph for new files
         await enrich_all_files(db, current_user.id)
@@ -768,10 +781,16 @@ async def api_delete_pack(pack_id: str, current_user: User = Depends(get_current
 @app.post("/api/context-packs/{pack_id}/regenerate")
 async def api_regenerate_pack(pack_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Regenerate a context pack from its original sources."""
+    # v5.9.3 — check refresh quota
+    limit_err = await check_refresh_allowed(db, current_user)
+    if limit_err:
+        raise HTTPException(status_code=403, detail=limit_err["error"])
     try:
         pack = await regenerate_pack(db, pack_id, current_user.id)
         if not pack:
             raise HTTPException(status_code=404, detail="Context pack not found")
+        await log_usage(db, current_user.id, "refresh")
+        await db.commit()
         return pack
     except Exception as e:
         logger.error(f"Pack regeneration failed: {e}")

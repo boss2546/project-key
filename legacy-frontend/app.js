@@ -386,9 +386,76 @@ function initAppData() {
   loadStats();
   loadFiles();
   loadBillingInfo();
+  loadUsageInfo();
   initGuideSystem();
   initBilling();
   setTimeout(detectOnboardingProgress, 3000);
+}
+
+// ═══════════════════════════════════════════
+// USAGE DISPLAY — v5.9.3
+// ═══════════════════════════════════════════
+async function loadUsageInfo() {
+  try {
+    const res = await authFetch('/api/usage');
+    if (!res.ok) return;
+    const data = await res.json();
+    window._usageData = data;
+    renderUsageBars(data);
+    updateUploadHint(data);
+    updateSidebarStats(data);
+  } catch (e) { console.error('Usage load error:', e); }
+}
+
+function renderUsageBars(data) {
+  const container = document.getElementById('usage-bars-container');
+  if (!container) return;
+  const u = data.usage;
+  const isTh = getLang() === 'th';
+
+  const bars = [
+    { label: isTh ? 'ไฟล์' : 'Files', used: u.files.used, limit: u.files.limit, icon: '📄' },
+    { label: isTh ? 'พื้นที่' : 'Storage', used: u.storage_mb.used, limit: u.storage_mb.limit, unit: 'MB', icon: '💾' },
+    { label: 'Context Packs', used: u.context_packs.used, limit: u.context_packs.limit, icon: '📦' },
+    { label: isTh ? 'สรุป AI / เดือน' : 'AI Summary / mo', used: u.ai_summaries.used, limit: u.ai_summaries.limit, icon: '🧠' },
+    { label: isTh ? 'Export / เดือน' : 'Export / mo', used: u.exports.used, limit: u.exports.limit, icon: '📤' },
+  ];
+
+  container.innerHTML = bars.map(b => {
+    const pct = b.limit > 0 ? Math.min(100, Math.round((b.used / b.limit) * 100)) : 0;
+    const full = pct >= 100;
+    const warn = pct >= 80;
+    const unit = b.unit || '';
+    const color = full ? '#ef4444' : warn ? '#f59e0b' : '#818cf8';
+    return `<div class="usage-bar-row">
+      <div class="usage-bar-label"><span>${b.icon} ${b.label}</span><span class="usage-bar-count" style="color:${color}">${b.used}${unit}/${b.limit}${unit}</span></div>
+      <div class="usage-bar-track"><div class="usage-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+    </div>`;
+  }).join('');
+
+  // Show plan badge
+  const planEl = document.getElementById('usage-plan-label');
+  if (planEl) planEl.textContent = data.plan === 'starter' ? '⚡ Starter' : '🆓 Free';
+}
+
+function updateUploadHint(data) {
+  const maxMB = data.limits.max_file_size_mb || 20;
+  const types = Array.isArray(data.limits.allowed_file_types)
+    ? data.limits.allowed_file_types.map(t => t.toUpperCase()).join(', ')
+    : 'PDF, TXT, MD, DOCX';
+  const isTh = getLang() === 'th';
+  const hint = isTh
+    ? `รองรับ ${types} (สูงสุด ${maxMB} MB)`
+    : `Supports ${types} (max ${maxMB} MB)`;
+  const el = document.getElementById('upload-hint');
+  if (el) el.textContent = hint;
+}
+
+function updateSidebarStats(data) {
+  const u = data.usage;
+  const el = (id) => document.getElementById(id);
+  if (el('stat-files')) el('stat-files').textContent = `${u.files.used}/${u.files.limit}`;
+  if (el('stat-packs')) el('stat-packs').textContent = `${u.context_packs.used}/${u.context_packs.limit}`;
 }
 
 // ═══════════════════════════════════════════
@@ -1007,6 +1074,7 @@ async function loadStats() {
   try {
     const res = await authFetch('/api/stats');
     const data = await res.json();
+    // Note: stat-files and stat-packs get overridden by loadUsageInfo with limits
     document.getElementById('stat-files').textContent = data.total_files;
     document.getElementById('stat-clusters').textContent = data.total_clusters;
     document.getElementById('stat-nodes').textContent = data.total_nodes || 0;
