@@ -56,6 +56,34 @@ async function authFetch(url, options = {}) {
 }
 
 // ═══════════════════════════════════════════
+// UPGRADE MODAL — v5.9.3 Quota CTA
+// ═══════════════════════════════════════════
+function showUpgradeModal(message) {
+  // Remove existing modal if any
+  document.getElementById('upgrade-modal-overlay')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'upgrade-modal-overlay';
+  overlay.className = 'upgrade-modal-overlay';
+  overlay.innerHTML = `
+    <div class="upgrade-modal">
+      <div class="upgrade-modal-icon">🚀</div>
+      <h3 class="upgrade-modal-title">${getLang() === 'th' ? 'อัปเกรดแพลนของคุณ' : 'Upgrade Your Plan'}</h3>
+      <p class="upgrade-modal-message">${message}</p>
+      <div class="upgrade-modal-actions">
+        <button class="btn btn-primary upgrade-modal-btn" onclick="window.location.href='/pricing'">
+          ⚡ ${getLang() === 'th' ? 'ดูแพลน Starter — ฿99/เดือน' : 'View Starter Plan — ฿99/mo'}
+        </button>
+        <button class="btn btn-outline upgrade-modal-dismiss" onclick="this.closest('.upgrade-modal-overlay').remove()">
+          ${getLang() === 'th' ? 'ไว้ทีหลัง' : 'Maybe Later'}
+        </button>
+      </div>
+    </div>
+  `;
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
+
+// ═══════════════════════════════════════════
 // LOADING OVERLAY — v5.1 Premium animations
 // ═══════════════════════════════════════════
 
@@ -1116,15 +1144,23 @@ async function uploadFiles(fileList) {
   try {
     const res = await authFetch('/api/upload', { method: 'POST', body: form });
     const data = await res.json();
-    showToast(`${t('toast.uploaded')} ${data.count} ${t('stat.files').toLowerCase()}`, 'success');
-    // Show skipped files if any
+    if (data.count > 0) {
+      showToast(`${t('toast.uploaded')} ${data.count} ${t('stat.files').toLowerCase()}`, 'success');
+    }
+    // Show skipped files — check if quota-related
     if (data.skipped && data.skipped.length > 0) {
-      const names = data.skipped.map(s => `${s.filename}: ${s.reason}`).join(', ');
-      setTimeout(() => showToast(`⚠️ ${getLang() === 'th' ? 'ข้ามไฟล์' : 'Skipped'}: ${names}`, 'error'), 500);
+      const quotaSkip = data.skipped.find(s => s.reason && s.reason.includes('ขีดจำกัด'));
+      if (quotaSkip) {
+        setTimeout(() => showUpgradeModal(quotaSkip.reason), 300);
+      } else {
+        const names = data.skipped.map(s => `${s.filename}: ${s.reason}`).join(', ');
+        setTimeout(() => showToast(`⚠️ ${getLang() === 'th' ? 'ข้ามไฟล์' : 'Skipped'}: ${names}`, 'error'), 500);
+      }
     }
     loadFiles();
     loadStats();
     loadUnprocessedCount();
+    loadUsageInfo();
   } catch (e) { /* authFetch handles toast */ }
   hideLoadingOverlay();
 }
@@ -1381,11 +1417,20 @@ async function runOrganizeAll() {
   showLoadingOverlay(getLang() === 'th' ? '🤖 AI กำลังวิเคราะห์และจัดกลุ่มไฟล์ทั้งหมด...\nอาจใช้เวลา 30-60 วินาที' : '🤖 AI is analyzing and organizing ALL files...\nThis may take 30-60 seconds', 'ai');
   try {
     const res = await authFetch('/api/organize', { method: 'POST' });
+    if (res.status === 403) {
+      const err = await res.json();
+      hideLoadingOverlay();
+      showUpgradeModal(err.detail || 'Quota exceeded');
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg> <span data-i18n="myData.organizeAll">${t('myData.organizeAll')}</span>`;
+      return;
+    }
     const data = await res.json();
     showToast(`${t('toast.organized')} (${data.graph?.nodes || 0} nodes, ${data.graph?.edges || 0} edges)`, 'success');
     loadFiles();
     loadStats();
     loadUnprocessedCount();
+    loadUsageInfo();
   } catch (e) { showToast(t('toast.error'), 'error'); }
   hideLoadingOverlay();
   btn.disabled = false;
@@ -1399,6 +1444,14 @@ async function runOrganizeNew() {
   showLoadingOverlay(getLang() === 'th' ? '✨ AI กำลังจัดระเบียบไฟล์ที่อัปโหลดใหม่...' : '✨ AI is organizing new files...', 'ai');
   try {
     const res = await authFetch('/api/organize-new', { method: 'POST' });
+    if (res.status === 403) {
+      const err = await res.json();
+      hideLoadingOverlay();
+      showUpgradeModal(err.detail || 'Quota exceeded');
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> <span data-i18n="myData.organizeNew">${t('myData.organizeNew')}</span><span class="badge-count" id="unprocessed-badge" style="display:none;">0</span>`;
+      return;
+    }
     const data = await res.json();
     if (data.new_files === 0) {
       showToast(t('toast.noNewFiles'), 'info');
@@ -1408,6 +1461,7 @@ async function runOrganizeNew() {
       loadStats();
     }
     loadUnprocessedCount();
+    loadUsageInfo();
   } catch (e) { showToast(t('toast.error'), 'error'); }
   hideLoadingOverlay();
   btn.disabled = false;
@@ -1633,6 +1687,14 @@ async function submitCreatePack() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, type, source_file_ids: fileIds, source_cluster_ids: [] })
     });
+    if (res.status === 403) {
+      const err = await res.json();
+      closePackModal();
+      showUpgradeModal(err.detail || 'Pack limit reached');
+      btn.disabled = false;
+      btn.textContent = getLang() === 'th' ? 'สร้าง Pack' : 'Create Pack';
+      return;
+    }
     if (!res.ok) {
       const err = await res.json();
       throw new Error(err.detail || 'Failed');
@@ -1641,6 +1703,7 @@ async function submitCreatePack() {
     closePackModal();
     loadKnowledge();
     loadStats();
+    loadUsageInfo();
   } catch (e) {
     showToast(`Error: ${e.message}`, 'error');
   }
@@ -1662,9 +1725,15 @@ async function regeneratePack(packId) {
   try {
     showToast(getLang() === 'th' ? 'กำลัง regenerate...' : 'Regenerating...', 'info');
     const res = await authFetch(`/api/context-packs/${packId}/regenerate`, { method: 'POST' });
+    if (res.status === 403) {
+      const err = await res.json();
+      showUpgradeModal(err.detail || 'Refresh limit reached');
+      return;
+    }
     if (res.ok) {
       showToast(getLang() === 'th' ? 'Regenerate สำเร็จ!' : 'Pack regenerated!', 'success');
       loadKnowledge();
+      loadUsageInfo();
     } else {
       showToast(getLang() === 'th' ? 'Regenerate ล้มเหลว' : 'Regeneration failed', 'error');
     }
