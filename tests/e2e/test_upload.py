@@ -1,8 +1,13 @@
 """End-to-end test: Upload real files → Organize with AI → Test Chat"""
 import httpx
 import os
+from pathlib import Path
 
-BASE = "http://localhost:8000"
+BASE = os.getenv("PDB_BASE_URL", "http://localhost:8000")
+
+# Resolve project root from this file's location (../../)
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
 
 def main():
     # 1. Reset
@@ -10,10 +15,10 @@ def main():
     r = httpx.delete(f"{BASE}/api/reset", timeout=10)
     print(f"  Reset: {r.status_code} {r.json()}")
 
-    # 2. Upload real spec files
+    # 2. Upload real spec files (from project fixtures or repo root)
     files_to_upload = [
-        r"c:\Users\meuok\Desktop\PDB\PRD.md",
-        r"c:\Users\meuok\Desktop\PDB\สปกโปรเจ็ค.md",
+        str(PROJECT_ROOT / "tests" / "fixtures" / "meeting_notes.md"),
+        str(PROJECT_ROOT / "tests" / "fixtures" / "tech_architecture.md"),
     ]
 
     upload_files = []

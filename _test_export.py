@@ -1,10 +1,25 @@
-"""Test export enforcement + downgrade/upgrade logic — v5.9.3c"""
+"""Test export enforcement + downgrade/upgrade logic — v5.9.3c
+
+Run against a LOCAL backend with a pre-existing test user.
+Required env vars:
+  PDB_BASE_URL       (default http://localhost:8000)
+  PDB_TEST_EMAIL     (e.g. e2etest28@test.com)
+  PDB_TEST_PASSWORD  (the user's password)
+"""
+import os
+import sys
 import requests
 
-BASE = "http://localhost:8000"
+BASE = os.getenv("PDB_BASE_URL", "http://localhost:8000")
+EMAIL = os.getenv("PDB_TEST_EMAIL")
+PASSWORD = os.getenv("PDB_TEST_PASSWORD")
+
+if not EMAIL or not PASSWORD:
+    print("ERROR: set PDB_TEST_EMAIL and PDB_TEST_PASSWORD env vars", file=sys.stderr)
+    sys.exit(1)
 
 # Login
-r = requests.post(f"{BASE}/api/auth/login", json={"email": "e2etest28@test.com", "password": "test1234"})
+r = requests.post(f"{BASE}/api/auth/login", json={"email": EMAIL, "password": PASSWORD})
 data = r.json()
 token = data.get("token") or data.get("access_token")
 h = {"Authorization": f"Bearer {token}"}
