@@ -4090,13 +4090,17 @@ body.show-landing {
   color: #d0d6e0;
 }
 .personality-fields select {
-  background: rgba(255,255,255,0.02);
+  background-color: #161719;
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 6px;
   color: #f7f8f8;
   padding: 6px 8px;
   font-size: 13px;
   font-family: inherit;
+}
+.personality-fields select option {
+  background: #1e1f23;
+  color: #f7f8f8;
 }
 .personality-fields select:disabled {
   opacity: 0.4;
