@@ -82,6 +82,13 @@ body.show-landing {
   overflow: hidden;
 }
 
+.main-content {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 24px 32px;
+}
+
 /* ─── SIDEBAR ─── */
 .sidebar {
   width: var(--sidebar-width);
