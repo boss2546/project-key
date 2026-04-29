@@ -145,6 +145,19 @@ class UserProfile(Base):
     background_context = Column(Text, default="")      # บริบทสำคัญ
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # ─── v6.0 — Personality fields (5 new columns) ───
+    # NULL = ผู้ใช้ยังไม่ตั้งค่าระบบนั้น
+    mbti_type = Column(String(8), nullable=True)
+    # "INTJ" | "INTJ-A" | "INTJ-T" — suffix -A/-T มาจาก NERIS เท่านั้น
+    mbti_source = Column(String(20), nullable=True)
+    # "official" | "neris" | "self_report"
+    enneagram_data = Column(Text, nullable=True)
+    # JSON: {"core": 1-9, "wing": 1-9 | null}
+    clifton_top5 = Column(Text, nullable=True)
+    # JSON array — order matters (rank 1→5), 1-5 items, ห้ามซ้ำ
+    via_top5 = Column(Text, nullable=True)
+    # JSON array — order matters, 1-5 items, ห้ามซ้ำ
+
     user = relationship("User", back_populates="profile")
 
 
@@ -278,6 +291,28 @@ class CanvasObject(Base):
     json_payload = Column(Text, default="{}")          # JSON — full canvas state
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# ═══════════════════════════════════════════
+# v6.0 — Personality History (append-only snapshot log)
+# ═══════════════════════════════════════════
+
+class PersonalityHistory(Base):
+    """บันทึกประวัติทุกครั้งที่ผู้ใช้อัปเดต personality (Q3 ของ user 2026-04-30).
+
+    Append-only — ไม่ update/delete row เก่า. Dedup ที่ service layer (profile.py)
+    เพื่อไม่ append เมื่อค่าใหม่ == ค่าล่าสุดของระบบนั้น (กัน table บวม)
+    """
+    __tablename__ = "personality_history"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    system = Column(String, nullable=False)
+    # "mbti" | "enneagram" | "clifton" | "via"
+    data_json = Column(Text, nullable=False)
+    # JSON snapshot — ถ้า user clear field จะเก็บเป็น {"cleared": true}
+    source = Column(String, default="user_update")
+    # "user_update" (เว็บไซต์) | "mcp_update" (Claude/Antigravity ผ่าน MCP)
+    recorded_at = Column(DateTime, default=datetime.utcnow, index=True)
 
 
 # ═══════════════════════════════════════════
@@ -486,6 +521,29 @@ async def init_db():
                 await db.execute("ALTER TABLE context_packs ADD COLUMN locked_reason TEXT")
                 migrated = True
                 print("  → Added: context_packs.is_locked, context_packs.locked_reason")
+
+            # v6.0 — Personality fields ใน user_profiles (PRD: 4 ระบบ + history)
+            # ⚠️ ดู table user_profiles ไม่ใช่ users — เคยมี migration error เพราะดูผิด table
+            cursor = await db.execute("PRAGMA table_info(user_profiles)")
+            profile_columns = [row[1] for row in await cursor.fetchall()]
+            if "mbti_type" not in profile_columns:
+                await db.execute("ALTER TABLE user_profiles ADD COLUMN mbti_type TEXT")
+                await db.execute("ALTER TABLE user_profiles ADD COLUMN mbti_source TEXT")
+                await db.execute("ALTER TABLE user_profiles ADD COLUMN enneagram_data TEXT")
+                await db.execute("ALTER TABLE user_profiles ADD COLUMN clifton_top5 TEXT")
+                await db.execute("ALTER TABLE user_profiles ADD COLUMN via_top5 TEXT")
+                migrated = True
+                print("  → Added: user_profiles.mbti_type, mbti_source, enneagram_data, clifton_top5, via_top5")
+
+            # v6.0 — composite index บน personality_history (table ถูกสร้างโดย create_all แล้ว)
+            # CREATE INDEX IF NOT EXISTS = idempotent + safe re-run
+            try:
+                await db.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_personality_history_user_system "
+                    "ON personality_history(user_id, system, recorded_at DESC)"
+                )
+            except Exception as e:
+                print(f"  ⚠️ personality_history index creation warning: {e}")
 
             if migrated:
                 await db.commit()

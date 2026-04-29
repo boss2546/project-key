@@ -165,13 +165,27 @@ TOOL_REGISTRY = {
     },
     "update_profile": {
         "name": "update_profile",
-        "description": "Update the user profile (identity, goals, working style, preferences)",
+        "description": "Update the user profile (identity, goals, working style, preferences) and/or personality systems (MBTI, Enneagram, CliftonStrengths, VIA Character Strengths). All fields optional - only provided fields are updated. Personality changes are logged in history with source=mcp_update.",
         "params": [
+            # ─── existing 5 text fields ───
             {"name": "identity_summary", "type": "string", "required": False},
             {"name": "goals", "type": "string", "required": False},
             {"name": "working_style", "type": "string", "required": False},
             {"name": "preferred_output_style", "type": "string", "required": False},
             {"name": "background_context", "type": "string", "required": False},
+            # ─── v6.0 — personality (all optional) ───
+            {"name": "mbti_type", "type": "string", "required": False,
+             "description": "MBTI 4-letter code (e.g., 'INTJ' or 'INTJ-A'). -A/-T suffix from NERIS only."},
+            {"name": "mbti_source", "type": "string", "required": False,
+             "description": "Source: 'official' (mbtionline.com), 'neris' (16personalities.com), or 'self_report'"},
+            {"name": "enneagram_core", "type": "integer", "required": False,
+             "description": "Enneagram core type 1-9"},
+            {"name": "enneagram_wing", "type": "integer", "required": False,
+             "description": "Enneagram wing 1-9 (must be ±1 of core, with wrap-around: 9→1, 1→9)"},
+            {"name": "clifton_top5", "type": "array", "required": False,
+             "description": "Top 5 CliftonStrengths themes in order of strength (1-5 items, no duplicates)"},
+            {"name": "via_top5", "type": "array", "required": False,
+             "description": "Top 5 VIA Character Strengths in order (1-5 items, no duplicates)"},
         ],
         "category": "edit",
         "annotations": {"title": "Edit Profile", "readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
@@ -475,7 +489,11 @@ async def call_tool(
 # ═══════════════════════════════════════════
 
 async def _tool_get_profile(db: AsyncSession, user_id: str) -> dict:
-    """Get user profile data + active contexts (v5.5 bundling)."""
+    """Get user profile + personality (4 systems) + active contexts ทั้งหมดในการเรียกครั้งเดียว.
+
+    v6.0 — เพิ่ม personality fields (mbti / enneagram / clifton_top5 / via_top5)
+    + personality_summary (1 บรรทัดสำหรับ AI ใช้ทันที โดยไม่ต้อง parse 4 ระบบ)
+    """
     profile = await get_profile(db, user_id)
     if not profile.get("exists"):
         return {"message": "Profile not set up yet"}
@@ -490,6 +508,23 @@ async def _tool_get_profile(db: AsyncSession, user_id: str) -> dict:
         "preferred_output_style": profile.get("preferred_output_style", ""),
         "background_context": profile.get("background_context", ""),
     }
+
+    # v6.0 — Personality fields (insert ระหว่าง profile fields กับ active_contexts ตาม plan)
+    # ส่งเฉพาะระบบที่ผู้ใช้ตั้งไว้ — ไม่ส่ง null เพื่อให้ payload กระชับ
+    if profile.get("mbti"):
+        result["mbti"] = profile["mbti"]
+    if profile.get("enneagram"):
+        result["enneagram"] = profile["enneagram"]
+    if profile.get("clifton_top5"):
+        result["clifton_top5"] = profile["clifton_top5"]
+    if profile.get("via_top5"):
+        result["via_top5"] = profile["via_top5"]
+
+    # บรรทัดสรุปบุคลิก — AI ใช้ได้ทันทีโดยไม่ต้อง interpret โครงสร้าง 4 ระบบ
+    from .personality import build_personality_summary
+    summary = build_personality_summary(profile)
+    if summary:
+        result["personality_summary"] = summary
 
     if active_contexts:
         result["active_contexts"] = active_contexts
@@ -1170,21 +1205,70 @@ async def _tool_enrich_metadata(db: AsyncSession, user_id: str) -> dict:
 
 
 async def _tool_update_profile(db: AsyncSession, user_id: str, params: dict) -> dict:
-    """Update user profile fields."""
-    updates = {}
-    for key in ["identity_summary", "goals", "working_style", "preferred_output_style", "background_context"]:
+    """Update user profile fields + personality (v6.0).
+
+    Translate flat MCP params (mbti_type, enneagram_core, ...) เป็น structured
+    เพื่อ reuse update_profile() เดียวกับ web. History snapshot จะถูกบันทึก
+    source = "mcp_update" เพื่อแยกที่มา
+    """
+    updates: dict = {}
+
+    # ─── existing 5 text fields ───
+    for key in ("identity_summary", "goals", "working_style",
+                "preferred_output_style", "background_context"):
         if params.get(key):
             updates[key] = params[key]
+
+    # ─── v6.0 — MBTI ───
+    if params.get("mbti_type"):
+        from .personality import validate_mbti, MBTI_SOURCES
+        mbti_type = params["mbti_type"]
+        if not validate_mbti(mbti_type):
+            return {"error": f"INVALID_MBTI_TYPE: {mbti_type}"}
+        src = params.get("mbti_source") or "self_report"
+        if src not in MBTI_SOURCES:
+            return {"error": f"INVALID_MBTI_SOURCE: {src} (must be one of {MBTI_SOURCES})"}
+        updates["mbti"] = {"type": mbti_type, "source": src}
+
+    # ─── v6.0 — Enneagram ───
+    if params.get("enneagram_core") is not None:
+        from .personality import validate_enneagram
+        core = params["enneagram_core"]
+        wing = params.get("enneagram_wing")
+        if not validate_enneagram(core, wing):
+            return {"error": f"INVALID_ENNEAGRAM: core={core}, wing={wing} (wing ต้องเป็น ±1 ของ core, รวม wrap-around 9→1, 1→9)"}
+        updates["enneagram"] = {"core": core, "wing": wing}
+
+    # ─── v6.0 — Clifton Top 5 ───
+    if params.get("clifton_top5"):
+        from .personality import validate_clifton
+        themes = params["clifton_top5"]
+        ok, invalid = validate_clifton(themes)
+        if not ok:
+            return {"error": f"INVALID_CLIFTON: {invalid}"}
+        updates["clifton_top5"] = themes
+
+    # ─── v6.0 — VIA Top 5 ───
+    if params.get("via_top5"):
+        from .personality import validate_via
+        strengths = params["via_top5"]
+        ok, invalid = validate_via(strengths)
+        if not ok:
+            return {"error": f"INVALID_VIA: {invalid}"}
+        updates["via_top5"] = strengths
 
     if not updates:
         return {"error": "No profile fields provided to update"}
 
-    result = await update_profile(db, user_id, updates)
+    # Mark history source — จาก MCP เพื่อแยกจาก web
+    updates["_history_source"] = "mcp_update"
+    await update_profile(db, user_id, updates)
 
+    user_facing_keys = [k for k in updates if not k.startswith("_")]
     return {
         "status": "updated",
-        "updated_fields": list(updates.keys()),
-        "message": f"Profile updated: {', '.join(updates.keys())}",
+        "updated_fields": user_facing_keys,
+        "message": f"Profile updated: {', '.join(user_facing_keys)}",
     }
 
 

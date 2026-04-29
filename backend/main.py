@@ -8,7 +8,7 @@ from fastapi import FastAPI, UploadFile, File as FastAPIFile, Depends, HTTPExcep
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -152,12 +152,64 @@ async def api_reset_password(req: ResetPasswordModel, db: AsyncSession = Depends
 class ChatRequest(BaseModel):
     question: str
 
+class MBTIData(BaseModel):
+    """MBTI sub-model — type + source. v6.0"""
+    type: str
+    source: str = "self_report"
+
+    @field_validator("type")
+    @classmethod
+    def _check_type(cls, v: str) -> str:
+        from .personality import validate_mbti
+        if not validate_mbti(v):
+            raise ValueError("INVALID_MBTI_TYPE")
+        return v
+
+    @field_validator("source")
+    @classmethod
+    def _check_source(cls, v: str) -> str:
+        from .personality import MBTI_SOURCES
+        if v not in MBTI_SOURCES:
+            raise ValueError("INVALID_MBTI_SOURCE")
+        return v
+
+
+class EnneagramData(BaseModel):
+    """Enneagram sub-model — core 1-9 + optional wing (with wrap-around). v6.0"""
+    core: int
+    wing: int | None = None
+
+    @field_validator("core")
+    @classmethod
+    def _check_core(cls, v: int) -> int:
+        if not isinstance(v, int) or not (1 <= v <= 9):
+            raise ValueError("INVALID_ENNEAGRAM_CORE")
+        return v
+
+    @model_validator(mode="after")
+    def _check_wing(self) -> "EnneagramData":
+        # ใช้ get_enneagram_wings เพื่อกัน off-by-one ของ wrap (9→1, 1→9)
+        if self.wing is None:
+            return self
+        from .personality import validate_enneagram
+        if not validate_enneagram(self.core, self.wing):
+            raise ValueError("INVALID_ENNEAGRAM_WING")
+        return self
+
+
 class ProfileRequest(BaseModel):
+    # ─── existing 5 text fields (unchanged) ───
     identity_summary: str | None = None
     goals: str | None = None
     working_style: str | None = None
     preferred_output_style: str | None = None
     background_context: str | None = None
+    # ─── v6.0 — personality fields (ทุกตัว optional, partial update) ───
+    # ส่ง None เพื่อ clear, ไม่ส่ง field เลย = ไม่เปลี่ยน
+    mbti: MBTIData | None = None
+    enneagram: EnneagramData | None = None
+    clifton_top5: list[str] | None = Field(default=None, max_length=5)
+    via_top5: list[str] | None = Field(default=None, max_length=5)
 
 class ContextPackRequest(BaseModel):
     type: str  # profile, study, work, project
@@ -763,10 +815,87 @@ async def api_get_profile(current_user: User = Depends(get_current_user), db: As
     """Get user profile."""
     return await get_profile(db, current_user.id)
 
+@app.get("/api/personality/reference")
+async def api_personality_reference():
+    """Public reference data — 4 ระบบบุคลิกภาพ + test links.
+
+    ไม่ต้อง auth — frontend cache ใน sessionStorage เพื่อลด round-trip
+    """
+    from .personality import (
+        MBTI_TYPES, MBTI_SOURCES, MBTI_TEST_LINKS,
+        ENNEAGRAM_TYPES, ENNEAGRAM_TEST_LINKS,
+        CLIFTON_THEMES, CLIFTON_ALL_THEMES, CLIFTON_TEST_LINKS,
+        VIA_STRENGTHS, VIA_ALL_STRENGTHS, VIA_TEST_LINKS,
+    )
+    return {
+        "mbti": {
+            "types": MBTI_TYPES,
+            "sources": MBTI_SOURCES,
+            "test_links": MBTI_TEST_LINKS,
+        },
+        "enneagram": {
+            # JSON keys ต้องเป็น string — แปลง int key เป็น str
+            "types": {str(k): v for k, v in ENNEAGRAM_TYPES.items()},
+            "test_links": ENNEAGRAM_TEST_LINKS,
+        },
+        "clifton": {
+            "domains": CLIFTON_THEMES,
+            "all": CLIFTON_ALL_THEMES,
+            "test_links": CLIFTON_TEST_LINKS,
+        },
+        "via": {
+            "virtues": VIA_STRENGTHS,
+            "all": VIA_ALL_STRENGTHS,
+            "test_links": VIA_TEST_LINKS,
+        },
+    }
+
+
+@app.get("/api/profile/personality/history")
+async def api_get_personality_history(
+    system: str | None = Query(None, description="Filter: mbti | enneagram | clifton | via"),
+    limit: int = Query(50, ge=1, le=200),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List personality history snapshots (most recent first)."""
+    from .profile import list_personality_history
+    from .personality import SUPPORTED_SYSTEMS
+    if system and system not in SUPPORTED_SYSTEMS:
+        raise HTTPException(status_code=400, detail=f"INVALID_SYSTEM: must be one of {SUPPORTED_SYSTEMS}")
+    history = await list_personality_history(db, current_user.id, system, limit)
+    return {"history": history, "count": len(history)}
+
+
 @app.put("/api/profile")
 async def api_update_profile(req: ProfileRequest, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    """Create or update user profile."""
-    data = req.model_dump(exclude_none=True)
+    """Create or update user profile (v6.0 — supports personality fields + history).
+
+    ⚠️ Convention เปลี่ยนจาก v5: ใช้ exclude_unset แทน exclude_none
+    → ส่ง null = clear field (DB NULL + history บันทึก clear event)
+    → ไม่ส่ง field = ไม่เปลี่ยน
+    """
+    # Clifton/VIA — validate ที่ service-level เพื่อให้ error message ละเอียด
+    # (Pydantic v2 max_length คุม count ให้แล้ว แต่ไม่รู้จัก theme name)
+    if req.clifton_top5:
+        from .personality import validate_clifton
+        ok, invalid = validate_clifton(req.clifton_top5)
+        if not ok:
+            if invalid == ["DUPLICATE"]:
+                raise HTTPException(status_code=400, detail=f"DUPLICATE_THEMES: clifton_top5 มีค่าซ้ำ")
+            raise HTTPException(status_code=400, detail=f"INVALID_CLIFTON_THEME: {invalid}")
+    if req.via_top5:
+        from .personality import validate_via
+        ok, invalid = validate_via(req.via_top5)
+        if not ok:
+            if invalid == ["DUPLICATE"]:
+                raise HTTPException(status_code=400, detail=f"DUPLICATE_THEMES: via_top5 มีค่าซ้ำ")
+            raise HTTPException(status_code=400, detail=f"INVALID_VIA_STRENGTH: {invalid}")
+
+    # exclude_unset: เก็บเฉพาะ field ที่ user ส่งมาจริง (รวม null) เพื่อให้ clear ทำงาน
+    data = req.model_dump(exclude_unset=True)
+    # Mark source สำหรับ history — ผ่าน web → "user_update"
+    data["_history_source"] = "user_update"
     return await update_profile(db, current_user.id, data)
 
 
