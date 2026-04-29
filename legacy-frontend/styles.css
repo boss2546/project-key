@@ -3969,3 +3969,254 @@ body.show-landing {
   color: #94a3b8 !important;
 }
 
+
+/* ═══════════════════════════════════════════ */
+/* v6.0 — Personality Section + History       */
+/* ═══════════════════════════════════════════ */
+
+.personality-section {
+  margin-top: 16px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding-top: 16px;
+}
+
+.personality-section > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  font-weight: 510;
+  color: #f7f8f8;
+  user-select: none;
+}
+.personality-section > summary::-webkit-details-marker { display: none; }
+.personality-section > summary::before {
+  content: '▶';
+  display: inline-block;
+  font-size: 10px;
+  color: #8a8f98;
+  transition: transform 0.15s ease;
+}
+.personality-section[open] > summary::before { transform: rotate(90deg); }
+.personality-section > summary:hover {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.12);
+}
+
+.personality-section-title { flex: 1; }
+.personality-optional {
+  font-size: 12px;
+  font-weight: 400;
+  color: #8a8f98;
+}
+
+.personality-pdpa {
+  font-size: 12px;
+  color: #62666d;
+  margin: 12px 0 16px 0;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.02);
+  border-radius: 6px;
+  border-left: 2px solid rgba(94,106,210,0.35);
+  line-height: 1.5;
+}
+
+/* ─── Personality blocks (4 systems) ─── */
+.personality-block {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+.personality-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.personality-block-head h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 590;
+  color: #f7f8f8;
+  letter-spacing: -0.182px;
+}
+
+.btn-history {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 4px;
+  color: #d0d6e0;
+  font-size: 12px;
+  font-weight: 510;
+  padding: 4px 10px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.btn-history:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.14);
+}
+.history-count {
+  background: #5e6ad2;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 590;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  line-height: 1.4;
+}
+
+.personality-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 14px;
+  margin-bottom: 12px;
+}
+.personality-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #d0d6e0;
+}
+.personality-fields select {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  color: #f7f8f8;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.personality-fields select:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.personality-fields small {
+  font-size: 10px;
+  color: #62666d;
+  margin-top: -2px;
+}
+
+.personality-rank-list {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.personality-rank-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.personality-rank-label {
+  width: 28px;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 590;
+  color: #8a8f98;
+  text-align: right;
+}
+.personality-rank-row input {
+  flex: 1;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  color: #f7f8f8;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.personality-rank-row input:focus {
+  outline: none;
+  border-color: rgba(113,112,255,0.4);
+  background: rgba(255,255,255,0.04);
+}
+
+/* ─── External test links (chip style) ─── */
+.test-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.test-link-chip {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 9999px;
+  color: #d0d6e0;
+  font-size: 11px;
+  font-weight: 510;
+  padding: 3px 10px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.test-link-chip:hover {
+  background: rgba(255,255,255,0.08);
+  color: #f7f8f8;
+}
+.test-link-chip.is-free {
+  border-color: rgba(39,166,68,0.35);
+  color: #5fcc78;
+}
+.test-link-chip.is-free:hover {
+  background: rgba(39,166,68,0.12);
+  color: #5fcc78;
+}
+
+/* ─── History modal + timeline ─── */
+.personality-history-modal {
+  max-width: 520px;
+  width: 90vw;
+}
+.history-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.history-entry {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+.history-date {
+  font-size: 12px;
+  color: #8a8f98;
+  margin-bottom: 4px;
+}
+.history-value {
+  font-size: 14px;
+  color: #f7f8f8;
+  font-weight: 510;
+  margin-bottom: 4px;
+}
+.history-source {
+  font-size: 11px;
+  color: #62666d;
+}
+.history-empty {
+  text-align: center;
+  color: #62666d;
+  font-size: 13px;
+  padding: 24px 0;
+}
+
+/* Responsive — collapse personality fields ลง 1 column บน mobile */
+@media (max-width: 600px) {
+  .personality-fields { grid-template-columns: 1fr; }
+}

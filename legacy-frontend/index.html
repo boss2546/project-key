@@ -1343,9 +1343,135 @@
             <label data-i18n="profile.background">Important Context</label>
             <textarea id="profile-background" rows="2" placeholder="เช่น กำลังทำโปรเจกต์..."></textarea>
           </div>
+
+          <!-- ═══════════════════════════════════════════ -->
+          <!-- v6.0 — Personality Section (collapsible, default closed) -->
+          <!-- ═══════════════════════════════════════════ -->
+          <details class="personality-section" id="personality-section">
+            <summary>
+              <span class="personality-section-title">💎 <span data-i18n="personality.title">บุคลิกภาพ</span></span>
+              <span class="personality-optional" data-i18n="personality.optional">(ไม่บังคับ)</span>
+            </summary>
+
+            <p class="personality-pdpa" data-i18n="personality.pdpa">
+              💡 ลิงก์ "ทำที่..." จะพาคุณไปยังเว็บไซต์ภายนอก — โปรดดูนโยบายความเป็นส่วนตัวของเว็บนั้นๆ
+            </p>
+
+            <!-- ─── MBTI ─── -->
+            <div class="personality-block" id="block-mbti">
+              <div class="personality-block-head">
+                <h4>MBTI</h4>
+                <button type="button" class="btn-history" data-system="mbti" data-i18n-title="personality.viewHistory">
+                  📜 <span data-i18n="personality.history">ประวัติ</span>
+                  <span class="history-count" id="mbti-history-count" hidden>0</span>
+                </button>
+              </div>
+              <div class="personality-fields">
+                <label>
+                  <span data-i18n="personality.mbti.type">ประเภท</span>
+                  <select id="mbti-type">
+                    <option value="">— <span data-i18n="personality.notSet">ไม่ระบุ</span> —</option>
+                  </select>
+                </label>
+                <label>
+                  <span data-i18n="personality.mbti.identity">Identity</span>
+                  <select id="mbti-identity">
+                    <option value="">—</option>
+                    <option value="A">-A (Assertive)</option>
+                    <option value="T">-T (Turbulent)</option>
+                  </select>
+                  <small data-i18n="personality.mbti.identityHint">สำหรับ NERIS เท่านั้น</small>
+                </label>
+                <label>
+                  <span data-i18n="personality.mbti.source">ที่มาของผล</span>
+                  <select id="mbti-source">
+                    <option value="">—</option>
+                    <option value="official">Official (mbtionline)</option>
+                    <option value="neris">NERIS (16personalities)</option>
+                    <option value="self_report" data-i18n="personality.mbti.selfReport">ฉันเดาเอง</option>
+                  </select>
+                </label>
+              </div>
+              <div class="test-links" id="mbti-test-links"></div>
+            </div>
+
+            <!-- ─── Enneagram ─── -->
+            <div class="personality-block" id="block-enneagram">
+              <div class="personality-block-head">
+                <h4>Enneagram</h4>
+                <button type="button" class="btn-history" data-system="enneagram">
+                  📜 <span data-i18n="personality.history">ประวัติ</span>
+                  <span class="history-count" id="enneagram-history-count" hidden>0</span>
+                </button>
+              </div>
+              <div class="personality-fields">
+                <label>
+                  <span data-i18n="personality.enneagram.core">Core</span>
+                  <select id="enneagram-core">
+                    <option value="">— <span data-i18n="personality.notSet">ไม่ระบุ</span> —</option>
+                  </select>
+                </label>
+                <label>
+                  <span data-i18n="personality.enneagram.wing">Wing</span>
+                  <select id="enneagram-wing" disabled>
+                    <option value="">— <span data-i18n="personality.notSet">ไม่ระบุ</span> —</option>
+                  </select>
+                  <small data-i18n="personality.enneagram.wingHint">เลือก Core ก่อน</small>
+                </label>
+              </div>
+              <div class="test-links" id="enneagram-test-links"></div>
+            </div>
+
+            <!-- ─── CliftonStrengths Top 5 ─── -->
+            <div class="personality-block" id="block-clifton">
+              <div class="personality-block-head">
+                <h4>CliftonStrengths Top 5</h4>
+                <button type="button" class="btn-history" data-system="clifton">
+                  📜 <span data-i18n="personality.history">ประวัติ</span>
+                  <span class="history-count" id="clifton-history-count" hidden>0</span>
+                </button>
+              </div>
+              <div class="personality-rank-list" id="clifton-rank-list">
+                <!-- 5 rows populated by JS -->
+              </div>
+              <div class="test-links" id="clifton-test-links"></div>
+            </div>
+
+            <!-- ─── VIA Character Strengths Top 5 ─── -->
+            <div class="personality-block" id="block-via">
+              <div class="personality-block-head">
+                <h4>VIA Character Strengths Top 5</h4>
+                <button type="button" class="btn-history" data-system="via">
+                  📜 <span data-i18n="personality.history">ประวัติ</span>
+                  <span class="history-count" id="via-history-count" hidden>0</span>
+                </button>
+              </div>
+              <div class="personality-rank-list" id="via-rank-list">
+                <!-- 5 rows populated by JS -->
+              </div>
+              <div class="test-links" id="via-test-links"></div>
+            </div>
+          </details>
         </div>
         <div class="modal-footer">
           <button class="btn btn-primary" id="btn-save-profile" data-i18n="profile.save">Save Profile</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- v6.0 — Personality History Modal -->
+    <!-- ═══════════════════════════════════════════ -->
+    <div class="modal-overlay hidden" id="personality-history-modal">
+      <div class="modal personality-history-modal">
+        <div class="modal-header">
+          <h2 id="personality-history-title">📜 <span data-i18n="personality.history">ประวัติ</span></h2>
+          <button class="btn-close" id="close-personality-history">✕</button>
+        </div>
+        <div class="modal-body">
+          <div id="personality-history-list" class="history-timeline">
+            <!-- entries populated by JS -->
+          </div>
         </div>
       </div>
     </div>

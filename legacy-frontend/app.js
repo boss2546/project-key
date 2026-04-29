@@ -741,6 +741,21 @@ const I18N = {
     'profile.stylePh': 'เช่น ชอบข้อมูลที่เป็นระบบ...',
     'profile.outputPh': 'เช่น สรุปสั้นๆ ตรงประเด็น...',
     'profile.backgroundPh': 'เช่น กำลังทำโปรเจกต์...',
+    // v6.0 — Personality
+    'personality.title': 'บุคลิกภาพ',
+    'personality.optional': '(ไม่บังคับ)',
+    'personality.pdpa': '💡 ลิงก์ "ทำที่..." จะพาคุณไปยังเว็บไซต์ภายนอก — โปรดดูนโยบายความเป็นส่วนตัวของเว็บนั้นๆ',
+    'personality.history': 'ประวัติ',
+    'personality.viewHistory': 'ดูประวัติการอัปเดต',
+    'personality.notSet': 'ไม่ระบุ',
+    'personality.mbti.type': 'ประเภท',
+    'personality.mbti.identity': 'Identity',
+    'personality.mbti.identityHint': 'สำหรับ NERIS เท่านั้น',
+    'personality.mbti.source': 'ที่มาของผล',
+    'personality.mbti.selfReport': 'ฉันเดาเอง',
+    'personality.enneagram.core': 'Core',
+    'personality.enneagram.wing': 'Wing',
+    'personality.enneagram.wingHint': 'เลือก Core ก่อน',
 
     // Confirm modal
     'confirm.cancel': 'ยกเลิก',
@@ -927,6 +942,21 @@ const I18N = {
     'profile.stylePh': 'e.g. Prefer structured data...',
     'profile.outputPh': 'e.g. Short and to the point...',
     'profile.backgroundPh': 'e.g. Working on a project...',
+    // v6.0 — Personality
+    'personality.title': 'Personality',
+    'personality.optional': '(optional)',
+    'personality.pdpa': '💡 "Take it at..." links will open external sites — please review their privacy policies.',
+    'personality.history': 'History',
+    'personality.viewHistory': 'View update history',
+    'personality.notSet': 'Not set',
+    'personality.mbti.type': 'Type',
+    'personality.mbti.identity': 'Identity',
+    'personality.mbti.identityHint': 'NERIS only',
+    'personality.mbti.source': 'Source',
+    'personality.mbti.selfReport': 'Self-report',
+    'personality.enneagram.core': 'Core',
+    'personality.enneagram.wing': 'Wing',
+    'personality.enneagram.wingHint': 'Pick Core first',
 
     // Confirm modal
     'confirm.cancel': 'Cancel',
@@ -2442,13 +2472,18 @@ function renderEvidenceGraph(data) {
 }
 
 // ═══════════════════════════════════════════
-// PROFILE
+// PROFILE  (v6.0 — เพิ่ม 4 personality systems + history)
 // ═══════════════════════════════════════════
+const PERSONALITY_SYSTEMS = ['mbti', 'enneagram', 'clifton', 'via'];
+let _personalityRef = null;  // cached reference data — loaded ครั้งแรกที่เปิด modal
+
 function initProfile() {
-  document.getElementById('profile-trigger')?.addEventListener('click', e => {
+  document.getElementById('profile-trigger')?.addEventListener('click', async (e) => {
     e.preventDefault();
     document.getElementById('profile-modal').classList.remove('hidden');
-    loadProfile();
+    // โหลด reference data (cached) → fill dropdowns ครั้งเดียว → fetch profile
+    await ensurePersonalityReference();
+    await loadProfile();
   });
 
   document.getElementById('close-profile-modal')?.addEventListener('click', () => {
@@ -2456,19 +2491,213 @@ function initProfile() {
   });
 
   document.getElementById('btn-save-profile')?.addEventListener('click', saveProfile);
+
+  // Enneagram core change → recalc valid wings (รวม wrap-around 9→1, 1→9)
+  document.getElementById('enneagram-core')?.addEventListener('change', (e) => {
+    updateEnneagramWingOptions(parseInt(e.target.value) || null);
+  });
+
+  // History modal — เปิดเมื่อคลิก 📜 ประวัติ ของแต่ละระบบ
+  document.querySelectorAll('.btn-history').forEach(btn => {
+    btn.addEventListener('click', () => openPersonalityHistory(btn.dataset.system));
+  });
+  document.getElementById('close-personality-history')?.addEventListener('click', () => {
+    document.getElementById('personality-history-modal').classList.add('hidden');
+  });
+}
+
+// ─── Reference data (cache ใน sessionStorage) ───
+async function ensurePersonalityReference() {
+  if (_personalityRef) return _personalityRef;
+  // Cache key มี version เพื่อ invalidate ถ้า theme list เปลี่ยน (ดู plan: Notes for เขียว)
+  const cacheKey = 'personality_ref_v1';
+  const cached = sessionStorage.getItem(cacheKey);
+  if (cached) {
+    try {
+      _personalityRef = JSON.parse(cached);
+      populatePersonalityDropdowns(_personalityRef);
+      return _personalityRef;
+    } catch (e) {
+      sessionStorage.removeItem(cacheKey);
+    }
+  }
+  try {
+    // endpoint นี้ public — ใช้ fetch ตรงเพื่อไม่ต้อง JWT
+    const res = await fetch('/api/personality/reference');
+    if (!res.ok) throw new Error('reference fetch failed');
+    _personalityRef = await res.json();
+    sessionStorage.setItem(cacheKey, JSON.stringify(_personalityRef));
+    populatePersonalityDropdowns(_personalityRef);
+    return _personalityRef;
+  } catch (e) {
+    console.error('Personality reference load failed:', e);
+    return null;
+  }
+}
+
+function populatePersonalityDropdowns(ref) {
+  if (!ref) return;
+
+  // MBTI types
+  const mbtiSel = document.getElementById('mbti-type');
+  if (mbtiSel && mbtiSel.options.length <= 1) {
+    ref.mbti.types.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t; opt.textContent = t;
+      mbtiSel.appendChild(opt);
+    });
+  }
+
+  // Enneagram cores (1-9 with TH/EN labels)
+  const enCore = document.getElementById('enneagram-core');
+  if (enCore && enCore.options.length <= 1) {
+    Object.entries(ref.enneagram.types).forEach(([k, v]) => {
+      const opt = document.createElement('option');
+      opt.value = k;
+      opt.textContent = `${k} — ${v.th} / ${v.en}`;
+      enCore.appendChild(opt);
+    });
+  }
+
+  // Clifton + VIA — populate <datalist> สำหรับ searchable dropdown
+  ensureDatalist('clifton-themes-datalist', ref.clifton.all);
+  ensureDatalist('via-strengths-datalist', ref.via.all);
+
+  // Render 5 rank rows สำหรับ Clifton + VIA
+  renderRankList('clifton-rank-list', 'clifton', 'clifton-themes-datalist');
+  renderRankList('via-rank-list', 'via', 'via-strengths-datalist');
+
+  // Test links
+  renderTestLinks('mbti-test-links', ref.mbti.test_links);
+  renderTestLinks('enneagram-test-links', ref.enneagram.test_links);
+  renderTestLinks('clifton-test-links', ref.clifton.test_links);
+  renderTestLinks('via-test-links', ref.via.test_links);
+}
+
+function ensureDatalist(id, options) {
+  if (document.getElementById(id)) return;
+  const dl = document.createElement('datalist');
+  dl.id = id;
+  options.forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name;
+    dl.appendChild(opt);
+  });
+  document.body.appendChild(dl);
+}
+
+function renderRankList(containerId, system, datalistId) {
+  const container = document.getElementById(containerId);
+  if (!container || container.children.length > 0) return;
+  for (let i = 1; i <= 5; i++) {
+    const row = document.createElement('div');
+    row.className = 'personality-rank-row';
+    const label = document.createElement('span');
+    label.className = 'personality-rank-label';
+    label.textContent = `#${i}`;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = `${system}-rank-${i}`;
+    input.setAttribute('list', datalistId);
+    input.placeholder = `อันดับ ${i}`;
+    input.autocomplete = 'off';
+    row.appendChild(label);
+    row.appendChild(input);
+    container.appendChild(row);
+  }
+}
+
+function renderTestLinks(containerId, links) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.textContent = '';  // clear (ไม่ใช้ innerHTML ตามกฎ XSS)
+  links.forEach(link => {
+    const a = document.createElement('a');
+    a.href = link.url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';  // กัน window.opener leak ตามกฎ plan
+    a.className = 'test-link-chip ' + (link.cost === 'free' ? 'is-free' : 'is-paid');
+    // ใช้ textContent กัน XSS + เพื่อ render "&" ใน "Appreciation of Beauty & Excellence" ถูก
+    a.textContent = `↗ ${link.name} (${link.cost === 'free' ? 'ฟรี' : link.cost})`;
+    if (link.note) a.title = link.note;
+    container.appendChild(a);
+  });
+}
+
+function updateEnneagramWingOptions(core) {
+  const wingSel = document.getElementById('enneagram-wing');
+  if (!wingSel) return;
+  // Clear existing options เหลือเฉพาะ placeholder
+  wingSel.textContent = '';
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = '— ไม่ระบุ —';
+  wingSel.appendChild(placeholder);
+
+  if (!core) {
+    wingSel.disabled = true;
+    return;
+  }
+  // wrap-around: core=9 → wings (8,1), core=1 → wings (9,2)
+  const left = core > 1 ? core - 1 : 9;
+  const right = core < 9 ? core + 1 : 1;
+  [left, right].forEach(w => {
+    const opt = document.createElement('option');
+    opt.value = String(w);
+    opt.textContent = String(w);
+    wingSel.appendChild(opt);
+  });
+  wingSel.disabled = false;
 }
 
 async function loadProfile() {
   try {
     const res = await authFetch('/api/profile');
     const p = await res.json();
+    // Existing 5 text fields
     document.getElementById('profile-identity').value = p.identity_summary || '';
     document.getElementById('profile-goals').value = p.goals || '';
     document.getElementById('profile-style').value = p.working_style || '';
     document.getElementById('profile-output').value = p.preferred_output_style || '';
     document.getElementById('profile-background').value = p.background_context || '';
 
-    const isSet = !!(p.identity_summary || p.goals);
+    // ─── v6.0 — Personality fields ───
+    // MBTI
+    if (p.mbti && p.mbti.type) {
+      const parts = p.mbti.type.split('-');
+      document.getElementById('mbti-type').value = parts[0] || '';
+      document.getElementById('mbti-identity').value = parts[1] || '';
+      document.getElementById('mbti-source').value = p.mbti.source || '';
+    } else {
+      document.getElementById('mbti-type').value = '';
+      document.getElementById('mbti-identity').value = '';
+      document.getElementById('mbti-source').value = '';
+    }
+    // Enneagram (recalc wing options ตาม core)
+    if (p.enneagram && p.enneagram.core) {
+      document.getElementById('enneagram-core').value = String(p.enneagram.core);
+      updateEnneagramWingOptions(p.enneagram.core);
+      document.getElementById('enneagram-wing').value = p.enneagram.wing ? String(p.enneagram.wing) : '';
+    } else {
+      document.getElementById('enneagram-core').value = '';
+      updateEnneagramWingOptions(null);
+    }
+    // Clifton Top 5
+    for (let i = 1; i <= 5; i++) {
+      const inp = document.getElementById(`clifton-rank-${i}`);
+      if (inp) inp.value = (p.clifton_top5 && p.clifton_top5[i - 1]) || '';
+    }
+    // VIA Top 5
+    for (let i = 1; i <= 5; i++) {
+      const inp = document.getElementById(`via-rank-${i}`);
+      if (inp) inp.value = (p.via_top5 && p.via_top5[i - 1]) || '';
+    }
+
+    // อัปเดต history badges ของ 4 ระบบ (ขอ count ล่วงหน้าเพื่อตัดสินใจว่าจะแสดง badge)
+    refreshAllHistoryCounts();
+
+    // chat header indicator (เดิม) — รวม personality เป็น "Active" criterion ด้วย
+    const isSet = !!(p.identity_summary || p.goals || p.mbti || p.enneagram || p.clifton_top5 || p.via_top5);
     const indicator = document.getElementById('chat-profile-status');
     if (indicator) indicator.textContent = isSet ? 'Active' : 'Not set';
     const dot = document.querySelector('.chat-header .profile-dot');
@@ -2476,24 +2705,197 @@ async function loadProfile() {
   } catch (e) { console.error('Profile load error:', e); }
 }
 
+// ─── Input collectors (กลับ null = ไม่ส่ง field, undefined = clear ผ่าน null) ───
+function getMbtiInput() {
+  const type = document.getElementById('mbti-type').value;
+  if (!type) return null;
+  const identity = document.getElementById('mbti-identity').value;
+  const source = document.getElementById('mbti-source').value || 'self_report';
+  const fullType = identity ? `${type}-${identity}` : type;
+  return { type: fullType, source };
+}
+function getEnneagramInput() {
+  const core = parseInt(document.getElementById('enneagram-core').value);
+  if (!core) return null;
+  const wingRaw = document.getElementById('enneagram-wing').value;
+  const wing = wingRaw ? parseInt(wingRaw) : null;
+  return { core, wing };
+}
+function _collectRankInputs(system) {
+  const out = [];
+  for (let i = 1; i <= 5; i++) {
+    const v = (document.getElementById(`${system}-rank-${i}`)?.value || '').trim();
+    if (v) out.push(v);
+  }
+  return out;
+}
+function getCliftonInput() {
+  const top5 = _collectRankInputs('clifton');
+  if (top5.length === 0) return null;
+  if (new Set(top5).size !== top5.length) {
+    showToast('CliftonStrengths Top 5: ห้ามเลือกซ้ำ', 'error');
+    return undefined;  // sentinel — ห้าม save
+  }
+  return top5;
+}
+function getViaInput() {
+  const top5 = _collectRankInputs('via');
+  if (top5.length === 0) return null;
+  if (new Set(top5).size !== top5.length) {
+    showToast('VIA Top 5: ห้ามเลือกซ้ำ', 'error');
+    return undefined;
+  }
+  return top5;
+}
+
 async function saveProfile() {
+  const cliftonVal = getCliftonInput();
+  const viaVal = getViaInput();
+  // sentinel undefined = duplicate detected client-side → abort
+  if (cliftonVal === undefined || viaVal === undefined) return;
+
   const data = {
     identity_summary: document.getElementById('profile-identity').value,
     goals: document.getElementById('profile-goals').value,
     working_style: document.getElementById('profile-style').value,
     preferred_output_style: document.getElementById('profile-output').value,
     background_context: document.getElementById('profile-background').value,
+    // v6.0 — personality (ส่งทั้ง 4 เพื่อให้ partial-update detect การ clear/set ได้ครบ)
+    mbti: getMbtiInput(),
+    enneagram: getEnneagramInput(),
+    clifton_top5: cliftonVal,
+    via_top5: viaVal,
   };
   try {
-    await authFetch('/api/profile', {
+    const res = await authFetch('/api/profile', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
+    if (!res.ok) {
+      // backend ส่ง 400 พร้อม detail สำหรับ INVALID_MBTI_TYPE / INVALID_ENNEAGRAM_WING etc
+      let msg = t('toast.error');
+      try {
+        const err = await res.json();
+        if (err.detail) msg = `❌ ${err.detail}`;
+      } catch (_) {}
+      showToast(msg, 'error');
+      return;
+    }
     showToast(t('toast.profileSaved'), 'success');
     document.getElementById('profile-modal').classList.add('hidden');
     loadStats();
   } catch (e) { showToast(t('toast.error'), 'error'); }
+}
+
+// ═══════════════════════════════════════════
+// PERSONALITY HISTORY (v6.0)
+// ═══════════════════════════════════════════
+async function refreshAllHistoryCounts() {
+  // เรียกแค่ครั้งเดียวพอ — backend คืน count รวม ก็ใช้ได้ แต่เราต้องการแยก system → 4 fetch parallel
+  await Promise.all(PERSONALITY_SYSTEMS.map(async (sys) => {
+    try {
+      const res = await authFetch(`/api/profile/personality/history?system=${sys}&limit=1`);
+      if (!res.ok) return;
+      const data = await res.json();
+      // count=1 = มี history อย่างน้อย 1 entry → เราเรียก count แท้อีกที
+      // เพื่อประหยัด — ขอ limit=200 (ซึ่งคือ max) แล้วเอา count
+      const fullRes = await authFetch(`/api/profile/personality/history?system=${sys}&limit=200`);
+      if (!fullRes.ok) return;
+      const fullData = await fullRes.json();
+      const badge = document.getElementById(`${sys}-history-count`);
+      if (!badge) return;
+      const c = fullData.count || 0;
+      if (c > 0) {
+        badge.textContent = String(c);
+        badge.hidden = false;
+      } else {
+        badge.hidden = true;
+      }
+    } catch (_) { /* swallow — history badge ไม่ critical */ }
+  }));
+}
+
+const SYSTEM_LABELS = {
+  mbti: 'MBTI', enneagram: 'Enneagram',
+  clifton: 'CliftonStrengths', via: 'VIA Character Strengths',
+};
+
+async function openPersonalityHistory(system) {
+  const modal = document.getElementById('personality-history-modal');
+  const title = document.getElementById('personality-history-title');
+  const list = document.getElementById('personality-history-list');
+  // Clear data เก่าก่อน fetch ใหม่ — กัน flash ตามกฎ plan
+  list.textContent = '';
+  title.textContent = `📜 ${getLang() === 'th' ? 'ประวัติ' : 'History'}: ${SYSTEM_LABELS[system] || system}`;
+  modal.classList.remove('hidden');
+
+  try {
+    const res = await authFetch(`/api/profile/personality/history?system=${system}&limit=200`);
+    if (!res.ok) {
+      list.textContent = '⚠️ โหลดประวัติไม่สำเร็จ';
+      return;
+    }
+    const data = await res.json();
+    if (!data.history || data.history.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'history-empty';
+      empty.textContent = getLang() === 'th' ? 'ยังไม่มีประวัติ' : 'No history yet';
+      list.appendChild(empty);
+      return;
+    }
+    data.history.forEach(entry => {
+      list.appendChild(renderHistoryEntry(system, entry));
+    });
+  } catch (e) {
+    list.textContent = '⚠️ Error: ' + (e.message || e);
+  }
+}
+
+function renderHistoryEntry(system, entry) {
+  const div = document.createElement('div');
+  div.className = 'history-entry';
+
+  // Date
+  const dateEl = document.createElement('div');
+  dateEl.className = 'history-date';
+  const dt = entry.recorded_at ? new Date(entry.recorded_at) : null;
+  dateEl.textContent = dt ? '📅 ' + dt.toLocaleString('th-TH') : '📅 —';
+  div.appendChild(dateEl);
+
+  // Value (ใช้ textContent กัน XSS + render "&" ใน VIA ได้ถูก)
+  const valEl = document.createElement('div');
+  valEl.className = 'history-value';
+  valEl.textContent = formatHistoryValue(system, entry.data);
+  div.appendChild(valEl);
+
+  // Source
+  const srcEl = document.createElement('div');
+  srcEl.className = 'history-source';
+  const srcLabel = entry.source === 'mcp_update'
+    ? (getLang() === 'th' ? 'อัปเดตจาก: Claude/Antigravity (MCP)' : 'Updated via: Claude/Antigravity (MCP)')
+    : (getLang() === 'th' ? 'อัปเดตจาก: เว็บไซต์ project-key' : 'Updated via: project-key web');
+  srcEl.textContent = srcLabel;
+  div.appendChild(srcEl);
+
+  return div;
+}
+
+function formatHistoryValue(system, data) {
+  if (!data) return '—';
+  if (data.cleared) return getLang() === 'th' ? '❌ ล้างค่า' : '❌ Cleared';
+  if (system === 'mbti') {
+    return `${data.type || '—'} (${data.source || 'self_report'})`;
+  }
+  if (system === 'enneagram') {
+    const wing = data.wing ? `w${data.wing}` : '';
+    return `${data.core}${wing}`;
+  }
+  if (system === 'clifton' || system === 'via') {
+    const list = data.top5 || [];
+    return list.join(', ');
+  }
+  return JSON.stringify(data);
 }
 
 // ═══════════════════════════════════════════
