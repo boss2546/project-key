@@ -581,10 +581,14 @@ async def create_share_link(file_id: str, current_user: User = Depends(get_curre
     file = result.scalar_one_or_none()
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
-    
+
+    # v5.9.3 — locked file check (PRD section 17.2 — locked files cannot be exported)
+    if getattr(file, "is_locked", False):
+        raise HTTPException(status_code=403, detail="ไฟล์นี้ถูกล็อค — อัปเกรดเพื่อแชร์ลิงก์ไฟล์ที่ล็อค")
+
     if not file.raw_path or not os.path.exists(file.raw_path):
         raise HTTPException(status_code=404, detail="Original file not available")
-    
+
     # Log export usage
     await log_usage(db, current_user.id, "export")
     await db.commit()
@@ -646,7 +650,11 @@ async def reprocess_file(file_id: str, current_user: User = Depends(get_current_
     file = result.scalar_one_or_none()
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
-    
+
+    # v5.9.3 — locked file check (PRD section 17.2 — cannot re-extract content of locked files)
+    if getattr(file, "is_locked", False):
+        raise HTTPException(status_code=403, detail="ไฟล์นี้ถูกล็อค — อัปเกรดเพื่อประมวลผลใหม่")
+
     if not file.raw_path or not os.path.exists(file.raw_path):
         raise HTTPException(status_code=404, detail="Original file not available — cannot reprocess")
     
@@ -812,6 +820,16 @@ async def api_delete_pack(pack_id: str, current_user: User = Depends(get_current
 @app.post("/api/context-packs/{pack_id}/regenerate")
 async def api_regenerate_pack(pack_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Regenerate a context pack from its original sources."""
+    # v5.9.3 — locked pack check (PRD section 17.1 — locked packs cannot be refreshed)
+    pack_check = await db.execute(
+        select(ContextPack).where(ContextPack.id == pack_id, ContextPack.user_id == current_user.id)
+    )
+    existing_pack = pack_check.scalar_one_or_none()
+    if not existing_pack:
+        raise HTTPException(status_code=404, detail="Context pack not found")
+    if getattr(existing_pack, "is_locked", False):
+        raise HTTPException(status_code=403, detail="Context Pack นี้ถูกล็อค — อัปเกรดเพื่อ refresh pack ที่ล็อค")
+
     # v5.9.3 — check refresh quota
     limit_err = await check_refresh_allowed(db, current_user)
     if limit_err:
