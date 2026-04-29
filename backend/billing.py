@@ -297,16 +297,17 @@ async def _handle_subscription_updated(sub_obj, db: AsyncSession):
 
 async def _handle_subscription_deleted(sub_obj, db: AsyncSession):
     """customer.subscription.deleted — Subscription ended.
-    
-    DOWNGRADE BEHAVIOR (PRD v5.9.3):
+
+    DOWNGRADE BEHAVIOR (PRD v5.9.3 section 16):
     - Data is NEVER deleted — user's files, packs, summaries remain intact
-    - Plan reverts to Free — enforcement checks will limit actions:
-      * Files over 5: can't upload new, but existing stay accessible
-      * Packs over 1: can't create new, but existing stay accessible  
-      * AI Summary quota: drops to 5/month
-      * Export quota: drops to 10/month
-      * Refresh: disabled (0/month)
+    - Plan reverts to Free — enforcement checks will limit actions
     - User can re-upgrade anytime to restore full Starter access
+
+    A8 GUARD: Stripe sends this event when a subscription truly ends, but as
+    defensive insurance against test webhooks / edge cases / replays we
+    re-check `ended_at`. If the subscription claims to be deleted but
+    `ended_at` is still in the future, keep the user on starter_canceled
+    with period_end intact (matches PRD section 15 "active until period end").
     """
     customer_id = sub_obj.get("customer")
     user = await _find_user_by_customer(customer_id, db)
@@ -317,6 +318,37 @@ async def _handle_subscription_deleted(sub_obj, db: AsyncSession):
     previous_plan = user.plan
     previous_status = user.subscription_status
 
+    # A8 — defensive: only fully downgrade if subscription has actually ended
+    ended_at = sub_obj.get("ended_at") or sub_obj.get("canceled_at")
+    ended_dt = _ts_to_dt(ended_at) if ended_at else None
+    period_end_dt = _ts_to_dt(sub_obj.get("current_period_end"))
+    now = datetime.utcnow()
+
+    still_active = (
+        (ended_dt is not None and ended_dt > now)
+        or (ended_dt is None and period_end_dt is not None and period_end_dt > now)
+    )
+
+    if still_active:
+        # Stripe says deleted but period not over — treat as canceled, keep access
+        from .plan_limits import log_audit
+        user.subscription_status = "starter_canceled"
+        user.cancel_at_period_end = True
+        if period_end_dt:
+            user.current_period_end = period_end_dt
+        user.updated_at = now
+        db.add(user)
+        await log_audit(db, user.id, "subscription_status_changed",
+                        old_value=f"{previous_plan}/{previous_status}",
+                        new_value=f"starter/starter_canceled (period_end={period_end_dt})",
+                        triggered_by="stripe_webhook")
+        await db.commit()
+        logger.info(
+            f"User {user.id} subscription.deleted received but period not over "
+            f"(ends {period_end_dt}); kept as starter_canceled"
+        )
+        return
+
     user.plan = "free"
     user.subscription_status = "free"
     user.stripe_subscription_id = None
@@ -324,7 +356,7 @@ async def _handle_subscription_deleted(sub_obj, db: AsyncSession):
     user.current_period_start = None
     user.current_period_end = None
     user.cancel_at_period_end = False
-    user.updated_at = datetime.utcnow()
+    user.updated_at = now
     db.add(user)
 
     # Lock excess data beyond Free limits (PRD v5.9.3)
