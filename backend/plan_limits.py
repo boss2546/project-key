@@ -12,29 +12,31 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # 1. PLAN DEFINITIONS — the only place limits live
 # ═══════════════════════════════════════════
 
+# ⚠️ TESTING MODE — all limits removed for all accounts
+# TODO: Restore original limits before production launch
 PLAN_LIMITS = {
     "free": {
-        "context_pack_limit": 1,
-        "file_limit": 5,
-        "storage_limit_mb": 50,
-        "max_file_size_mb": 10,
-        "ai_summary_limit_monthly": 5,
-        "export_limit_monthly": 10,
-        "refresh_limit_monthly": 0,
-        "semantic_search_enabled": False,
-        "version_history_days": 0,
-        "allowed_file_types": {"pdf", "docx", "txt", "md", "csv"},
+        "context_pack_limit": 999999,
+        "file_limit": 999999,
+        "storage_limit_mb": 999999,
+        "max_file_size_mb": 100,
+        "ai_summary_limit_monthly": 999999,
+        "export_limit_monthly": 999999,
+        "refresh_limit_monthly": 999999,
+        "semantic_search_enabled": True,
+        "version_history_days": 30,
+        "allowed_file_types": {"pdf", "docx", "txt", "md", "csv", "png", "jpg"},
     },
     "starter": {
-        "context_pack_limit": 5,
-        "file_limit": 50,
-        "storage_limit_mb": 1024,
-        "max_file_size_mb": 20,
-        "ai_summary_limit_monthly": 100,
-        "export_limit_monthly": 300,
-        "refresh_limit_monthly": 10,
+        "context_pack_limit": 999999,
+        "file_limit": 999999,
+        "storage_limit_mb": 999999,
+        "max_file_size_mb": 100,
+        "ai_summary_limit_monthly": 999999,
+        "export_limit_monthly": 999999,
+        "refresh_limit_monthly": 999999,
         "semantic_search_enabled": True,
-        "version_history_days": 7,
+        "version_history_days": 30,
         "allowed_file_types": {"pdf", "docx", "txt", "md", "csv", "png", "jpg"},
     },
 }
