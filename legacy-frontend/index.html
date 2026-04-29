@@ -1,1634 +1,1638 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Project KEY — Knowledge Workspace</title>
-  <meta name="description" content="พื้นที่ข้อมูลส่วนตัวที่ช่วยเก็บ จัดระบบ เห็นความเชื่อมโยง และใช้กับ AI อย่างมีหลักฐาน">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <script src="https://d3js.org/d3.v7.min.js"></script>
-  <link rel="stylesheet" href="/legacy/styles.css?v=5.9.3">
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+ <title>Project KEY — Knowledge Workspace</title>
+ <meta name="description" content="พื้นที่ข้อมูลส่วนตัวที่ช่วยเก็บ จัดระบบ เห็นความเชื่อมโยง และใช้กับ AI อย่างมีหลักฐาน">
+ <link rel="preconnect" href="https://fonts.googleapis.com">
+ <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+ <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+ <script src="https://d3js.org/d3.v7.min.js"></script>
+ <link rel="stylesheet" href="/legacy/styles.css?v=5.9.3">
 </head>
 <body>
-  <!-- ═══════════════════════════════════════════ -->
-  <!-- LANDING PAGE (shown when not logged in) -->
-  <!-- ═══════════════════════════════════════════ -->
-  <div id="landing-page" class="landing-page">
-
-    <!-- Animated background orbs -->
-    <div class="landing-bg">
-      <div class="orb orb-1"></div>
-      <div class="orb orb-2"></div>
-      <div class="orb orb-3"></div>
-    </div>
-
-    <!-- ─── HEADER ─── -->
-    <header class="landing-header">
-      <div class="landing-logo">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.9"/><rect x="14" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/><rect x="3" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/><rect x="14" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.3"/></svg>
-        <span>Project KEY</span>
-      </div>
-      <div class="landing-nav">
-        <button class="btn btn-ghost" id="btn-show-login">เข้าสู่ระบบ</button>
-        <button class="btn btn-primary btn-glow" id="btn-show-register">เริ่มต้นฟรี</button>
-      </div>
-    </header>
-
-    <!-- ─── HERO ─── -->
-    <section class="landing-hero">
-      <div class="hero-badge">🔑 Personal Data Bank</div>
-      <h1 class="hero-title">
-        Start with context.<br>
-        Grow into your <span class="hero-gradient">Digital Twin</span>
-      </h1>
-      <p class="hero-subtitle">
-        เริ่มจากบริบทส่วนตัว แล้วเติบโตสู่ Digital Twin ของคุณ<br>
-        ให้ AI เข้าใจคุณจริงๆ — ไม่ต้องเริ่มใหม่ทุกครั้ง
-      </p>
-      <div class="hero-actions">
-        <button class="btn btn-primary btn-lg btn-glow" id="btn-hero-register">
-          เริ่มใช้ฟรี
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-        </button>
-        <button class="btn btn-glass" id="btn-hero-login">ฉันมีบัญชีแล้ว</button>
-      </div>
-
-      <!-- Pipeline visual -->
-      <div class="hero-pipeline">
-        <div class="pipeline-step">
-          <div class="pipeline-icon">📄</div>
-          <span>อัปโหลด</span>
-        </div>
-        <div class="pipeline-arrow">→</div>
-        <div class="pipeline-step">
-          <div class="pipeline-icon">🧠</div>
-          <span>AI วิเคราะห์</span>
-        </div>
-        <div class="pipeline-arrow">→</div>
-        <div class="pipeline-step">
-          <div class="pipeline-icon">🔗</div>
-          <span>Knowledge Graph</span>
-        </div>
-        <div class="pipeline-arrow">→</div>
-        <div class="pipeline-step">
-          <div class="pipeline-icon">💬</div>
-          <span>ถามตอบ AI</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- ─── FEATURES ─── -->
-    <section class="landing-section">
-      <div class="section-center">
-        <h2 class="section-title">ทุกอย่างที่คุณต้องการ <span class="hero-gradient">ในที่เดียว</span></h2>
-        <p class="section-desc">ระบบจัดการความรู้ครบวงจร ตั้งแต่เก็บ วิเคราะห์ เชื่อมโยง ไปจนถึงใช้งานกับ AI</p>
-      </div>
-      <div class="landing-features">
-        <div class="feature-card">
-          <div class="feature-icon-wrap" style="--fc: 99, 102, 241">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
-          </div>
-          <h3>จัดเก็บอัจฉริยะ</h3>
-          <p>รองรับ PDF, TXT, MD, DOCX — AI สรุปเนื้อหา จัดกลุ่ม ติดแท็ก และ Enrich metadata ให้อัตโนมัติ</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon-wrap" style="--fc: 79, 195, 247">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><circle cx="18" cy="6" r="3"/><line x1="8.6" y1="7.4" x2="15.4" y2="16.6"/><line x1="15.4" y1="7.4" x2="8.6" y2="16.6"/></svg>
-          </div>
-          <h3>Knowledge Graph</h3>
-          <p>AI สร้างกราฟความสัมพันธ์ระหว่างข้อมูลทั้งหมด — ค้นพบ insight ที่ซ่อนอยู่แบบ Interactive</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon-wrap" style="--fc: 129, 140, 248">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          </div>
-          <h3>AI Chat 7 ชั้น</h3>
-          <p>ถามตอบกับข้อมูลจริง — AI อ้างอิงจาก Profile, Context Packs, Files และ Knowledge Graph</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon-wrap" style="--fc: 255, 138, 101">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-          </div>
-          <h3>MCP — 22 เครื่องมือ</h3>
-          <p>เชื่อมต่อ Claude Desktop ผ่าน Remote MCP Server — ใช้ข้อมูลของคุณจากทุกที่ ทุกเวลา</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- ─── STATS ─── -->
-    <section class="landing-stats">
-      <div class="stat-block">
-        <div class="stat-number">22</div>
-        <div class="stat-text">MCP Tools</div>
-      </div>
-      <div class="stat-divider"></div>
-      <div class="stat-block">
-        <div class="stat-number">7</div>
-        <div class="stat-text">AI Layers</div>
-      </div>
-      <div class="stat-divider"></div>
-      <div class="stat-block">
-        <div class="stat-number">∞</div>
-        <div class="stat-text">ไฟล์</div>
-      </div>
-      <div class="stat-divider"></div>
-      <div class="stat-block">
-        <div class="stat-number">100%</div>
-        <div class="stat-text">ข้อมูลเป็นของคุณ</div>
-      </div>
-    </section>
-
-    <!-- ─── PROBLEM ─── -->
-    <section class="landing-section landing-section-dark" id="problem-section">
-      <div class="section-center">
-        <h2 class="section-title">ปัญหาที่ AI ยังแก้ไม่ได้</h2>
-        <p class="section-desc">AI ฉลาดขึ้นทุกวัน แต่ยังไม่รู้จักคุณ</p>
-      </div>
-      <div class="steps-grid">
-        <div class="step-card">
-          <div class="step-number">😩</div>
-          <h3>เริ่มใหม่ทุกครั้ง</h3>
-          <p>ทุกครั้งที่เปิดแชท AI คุณต้องอธิบายตัวเอง เป้าหมาย และบริบทซ้ำแล้วซ้ำเล่า</p>
-        </div>
-        <div class="step-card">
-          <div class="step-number">🤷</div>
-          <h3>AI ไม่รู้จักคุณ</h3>
-          <p>AI ตอบแบบกลางๆ ไม่มีบริบทเฉพาะตัว ไม่เข้าใจสไตล์ วิธีคิด หรือเป้าหมายของคุณ</p>
-        </div>
-        <div class="step-card">
-          <div class="step-number">📂</div>
-          <h3>ข้อมูลกระจัดกระจาย</h3>
-          <p>Resume, บันทึก, ไอเดีย อยู่คนละที่ ไม่ถูกเชื่อมโยง ใช้ประโยชน์ไม่เต็มที่</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- ─── SOLUTION ─── -->
-    <section class="landing-section" id="solution-section">
-      <div class="section-center">
-        <h2 class="section-title">Personal Data Bank <span class="hero-gradient">คือคำตอบ</span></h2>
-        <p class="section-desc">สร้างบริบทส่วนตัวให้ AI รู้จักคุณ — ไม่ต้องเริ่มใหม่อีกต่อไป</p>
-      </div>
-      <div class="steps-grid">
-        <div class="step-card">
-          <div class="step-number">01</div>
-          <h3>สร้าง Context ของคุณ</h3>
-          <p>อัปโหลดเอกสาร ข้อมูลส่วนตัว — AI สรุป จัดกลุ่ม สร้าง Knowledge Graph อัตโนมัติ</p>
-        </div>
-        <div class="step-card">
-          <div class="step-number">02</div>
-          <h3>เชื่อมต่อกับ AI ทุกที่</h3>
-          <p>Export context ไปใช้กับ ChatGPT, Claude หรือเชื่อมผ่าน MCP — AI เข้าใจคุณทันที</p>
-        </div>
-        <div class="step-card">
-          <div class="step-number">03</div>
-          <h3>เติบโตเป็น Digital Twin</h3>
-          <p>ยิ่งใช้ยิ่งฉลาด — ผู้บริหารสามารถอัปเกรดสู่ Digital Twin ที่เข้าใจวิธีคิดของคุณ</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- ─── PRICING ─── -->
-    <section class="landing-section landing-section-dark" id="pricing-section">
-      <div class="section-center">
-        <h2 class="section-title">Start with context. Grow into your <span class="hero-gradient">Digital Twin</span></h2>
-        <p class="section-desc">เลือกชั้นของผลิตภัณฑ์ตามระดับที่คุณต้องการให้ AI เข้าใจข้อมูล งาน สไตล์ และวิธีคิดของคุณ</p>
-      </div>
-
-      <!-- Personal AI Context -->
-      <div class="pricing-group">
-        <div class="pricing-group-label pricing-label-personal">🧠 Personal AI Context</div>
-        <p class="pricing-group-desc">สำหรับนักศึกษา ครีเอเตอร์ และคนใช้ AI ที่อยากให้ AI เข้าใจบริบทของตัวเองมากขึ้น โดยไม่ต้องเริ่มใหม่ทุกครั้ง</p>
-        <div class="pricing-cards">
-          <div class="pricing-card pricing-personal">
-            <h3>Free</h3>
-            <div class="pricing-price">฿0<span>/เดือน</span></div>
-            <p class="pricing-tagline">Try your first AI-ready context.</p>
-            <ul class="pricing-features">
-              <li>1 Personal Context Pack</li>
-              <li>Basic profile summary</li>
-              <li>อัปโหลดไฟล์สูงสุด 5 ไฟล์ (50 MB)</li>
-              <li>AI Summary 5 ครั้ง / เดือน</li>
-              <li>Export Prompt 10 ครั้ง / เดือน</li>
-              <li>Basic search</li>
-            </ul>
-            <button class="btn btn-ghost btn-block" id="btn-pricing-free">Start Free</button>
-          </div>
-          <div class="pricing-card pricing-personal pricing-starter-highlight">
-            <div class="pricing-badge pricing-badge-starter">Best for beginners</div>
-            <h3>Starter</h3>
-            <div class="pricing-price">฿99<span>/เดือน</span></div>
-            <p class="pricing-tagline">For students and everyday AI users.</p>
-            <ul class="pricing-features">
-              <li>5 Context Packs</li>
-              <li>Study / Work / Creator context</li>
-              <li>Writing style เบื้องต้น</li>
-              <li>อัปโหลดไฟล์สูงสุด 50 ไฟล์ (1 GB)</li>
-              <li>AI Summary 100 ครั้ง / เดือน</li>
-              <li>Export Prompt 300 ครั้ง / เดือน</li>
-              <li>Context Refresh 10 ครั้ง / เดือน</li>
-              <li>Basic + Semantic Search</li>
-              <li>Version History 7 วัน</li>
-            </ul>
-            <button class="btn btn-primary btn-block" id="btn-pricing-starter">Get Starter</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Comparison Table -->
-      <div class="pricing-compare" id="pricing-compare">
-        <h3 class="pricing-compare-title">เปรียบเทียบ Free vs Starter</h3>
-        <div class="pricing-table-wrap">
-          <table class="pricing-table">
-            <thead>
-              <tr><th>Feature</th><th>Free</th><th class="col-starter">Starter</th></tr>
-            </thead>
-            <tbody>
-              <tr><td>ราคา</td><td>0 บาท/เดือน</td><td>99 บาท/เดือน</td></tr>
-              <tr><td>Context Packs</td><td>1</td><td>5</td></tr>
-              <tr><td>Files</td><td>5 ไฟล์</td><td>50 ไฟล์</td></tr>
-              <tr><td>Storage</td><td>50 MB</td><td>1 GB</td></tr>
-              <tr><td>Max file size</td><td>10 MB / file</td><td>20 MB / file</td></tr>
-              <tr><td>AI Summary</td><td>5 / เดือน</td><td>100 / เดือน</td></tr>
-              <tr><td>Export Prompt</td><td>10 / เดือน</td><td>300 / เดือน</td></tr>
-              <tr><td>Context Refresh</td><td>—</td><td>10 / เดือน</td></tr>
-              <tr><td>Search</td><td>Basic</td><td>Basic + Semantic</td></tr>
-              <tr><td>Version History</td><td>—</td><td>7 วัน</td></tr>
-              <tr><td>Support</td><td>FAQ</td><td>Email basic</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Executive Digital Twin -->
-      <div class="pricing-group" style="margin-top:48px">
-        <div class="pricing-group-label pricing-label-exec">👑 Executive Digital Twin</div>
-        <p class="pricing-group-desc">สำหรับ Founder ผู้บริหาร และผู้นำที่ต้องการให้ AI ทำงานด้วยวิธีคิด สไตล์ เสียง และบริบทการตัดสินใจของตัวเอง</p>
-        <p class="pricing-exec-notice">Executive plans require private onboarding and are available by demo or request only.</p>
-        <div class="pricing-cards pricing-cards-exec">
-          <div class="pricing-card pricing-exec">
-            <h3>Core</h3>
-            <div class="pricing-price pricing-price-gold">฿12,000<span>/เดือน</span></div>
-            <p class="pricing-tagline">Start your private Digital Twin.</p>
-            <ul class="pricing-features">
-              <li>Private Identity Vault</li>
-              <li>Basic Decision Matrix</li>
-              <li>Text-based Digital Twin</li>
-              <li>MCP connection</li>
-              <li>Context retrieval</li>
-              <li>50,000 API calls / month</li>
-            </ul>
-            <button class="btn btn-gold btn-block">Book Private Demo</button>
-          </div>
-          <div class="pricing-card pricing-exec pricing-recommended">
-            <div class="pricing-badge">Recommended</div>
-            <h3>Pro</h3>
-            <div class="pricing-price pricing-price-gold">฿25,000<span>/เดือน</span></div>
-            <p class="pricing-tagline">Most recommended for leaders.</p>
-            <ul class="pricing-features">
-              <li>ทุกอย่างใน Core</li>
-              <li>Advanced Decision Matrix</li>
-              <li>Voice Clone</li>
-              <li>Priority Support</li>
-              <li>3 Delegated Users</li>
-              <li>Monthly Twin Calibration</li>
-              <li>200,000 API calls / month</li>
-            </ul>
-            <button class="btn btn-gold btn-block">Book Private Demo</button>
-          </div>
-          <div class="pricing-card pricing-exec">
-            <h3>Elite</h3>
-            <div class="pricing-price pricing-price-gold">฿45,000<span>/เดือน</span></div>
-            <p class="pricing-tagline">A private digital twin experience.</p>
-            <ul class="pricing-features">
-              <li>ทุกอย่างใน Pro</li>
-              <li>Avatar UI</li>
-              <li>Dedicated CSM</li>
-              <li>Deep Decision Calibration</li>
-              <li>Annual Deep Review</li>
-              <li>Priority Onboarding</li>
-              <li>500,000 API calls / month</li>
-            </ul>
-            <button class="btn btn-gold btn-block">Request Elite Access</button>
-          </div>
-          <div class="pricing-card pricing-exec pricing-legacy">
-            <h3>Legacy</h3>
-            <div class="pricing-price pricing-price-gold">฿8,000<span>/เดือน</span></div>
-            <p class="pricing-tagline">Preserve wisdom. Pass on judgment.</p>
-            <ul class="pricing-features">
-              <li>Read-only Digital Twin</li>
-              <li>Knowledge Preservation Mode</li>
-              <li>Consultation Mode</li>
-              <li>Access control สำหรับผู้รับสิทธิ์</li>
-              <li>Legacy archive</li>
-              <li>Limited support</li>
-            </ul>
-            <button class="btn btn-gold btn-block">Explore Legacy</button>
-          </div>
-        </div>
-        <p class="pricing-note">แพ็กเกจ Executive ต้องมี private onboarding ก่อนเริ่มใช้งาน และยังไม่เปิดให้ซื้อผ่านหน้าเว็บโดยตรง</p>
-      </div>
-
-      <!-- Trust Note Under Pricing -->
-      <div class="pricing-trust-note">
-        <p>Free และ Starter เป็นแผน Personal AI Context สำหรับสร้างบริบทพร้อมใช้กับ AI ยังไม่ใช่ Digital Twin เต็มระบบ</p>
-        <p>Executive Digital Twin ต้องมี private onboarding และ consent ที่ชัดเจนก่อนใช้ข้อมูลสำคัญใด ๆ</p>
-      </div>
-    </section>
-
-    <!-- ─── TRUST ─── -->
-    <section class="landing-section" id="trust-section">
-      <div class="section-center">
-        <h2 class="section-title">Built around <span class="hero-gradient">user control</span></h2>
-        <p class="section-desc">ออกแบบบนหลักการที่ผู้ใช้ควบคุมข้อมูลของตัวเอง</p>
-      </div>
-      <div class="trust-grid">
-        <div class="trust-item"><span class="trust-icon">🔒</span><span>Private by default</span></div>
-        <div class="trust-item"><span class="trust-icon">🎛️</span><span>User-controlled context</span></div>
-        <div class="trust-item"><span class="trust-icon">📤</span><span>Export anytime</span></div>
-        <div class="trust-item"><span class="trust-icon">🗑️</span><span>Delete anytime</span></div>
-        <div class="trust-item"><span class="trust-icon">🚫</span><span>Revoke access</span></div>
-        <div class="trust-item"><span class="trust-icon">🧬</span><span>No training without consent</span></div>
-        <div class="trust-item"><span class="trust-icon">✅</span><span>Only selected data is used</span></div>
-        <div class="trust-item"><span class="trust-icon">📚</span><span>Start with low-risk data</span></div>
-      </div>
-      <div class="trust-warning">
-        <p>⚠️ ช่วงเริ่มต้นเราจะโฟกัสข้อมูลความรู้ การเรียน งาน และบริบทส่วนตัวที่มีความเสี่ยงต่ำ กรุณาอย่าอัปโหลดบัตรประชาชน เอกสารการเงิน ข้อมูลสุขภาพ หรือข้อมูลอ่อนไหวสูงในเวอร์ชันแรก</p>
-      </div>
-    </section>
-
-    <!-- ─── FAQ ─── -->
-    <section class="landing-section landing-section-dark" id="faq-section">
-      <div class="section-center">
-        <h2 class="section-title">คำถามที่พบบ่อย</h2>
-      </div>
-      <div class="faq-list">
-        <div class="faq-item" onclick="this.classList.toggle('open')">
-          <div class="faq-q">Free กับ Starter ต่างกันอย่างไร?</div>
-          <div class="faq-a">Free เหมาะสำหรับทดลองสร้าง Context Pack แรก ส่วน Starter เหมาะสำหรับคนที่ต้องการใช้บริบทหลายชุดกับการเรียน งาน หรือการสร้างคอนเทนต์เป็นประจำ</div>
-        </div>
-        <div class="faq-item" onclick="this.classList.toggle('open')">
-          <div class="faq-q">Starter เป็น Digital Twin หรือไม่?</div>
-          <div class="faq-a">ไม่ใช่ Starter เป็น Personal AI Context plan สำหรับสร้าง context pack และ AI-ready profile เบื้องต้น ส่วน Digital Twin เริ่มที่แผน Core ขึ้นไปและต้องมี onboarding แยกต่างหาก</div>
-        </div>
-        <div class="faq-item" onclick="this.classList.toggle('open')">
-          <div class="faq-q">Starter จ่ายผ่านอะไร?</div>
-          <div class="faq-a">Starter จะใช้ Stripe subscription ในเฟสถัดไป ตอนนี้หน้านี้ใช้เพื่อสื่อสารราคาและรับความสนใจจากผู้ใช้ก่อน</div>
-        </div>
-        <div class="faq-item" onclick="this.classList.toggle('open')">
-          <div class="faq-q">Executive Plans ซื้อผ่านหน้าเว็บได้ไหม?</div>
-          <div class="faq-a">ยังไม่ได้ Executive Plans ต้อง Book Private Demo หรือ Request Access เพราะต้องมี private onboarding, consent และการประเมินความเหมาะสมก่อนเริ่มใช้งาน</div>
-        </div>
-        <div class="faq-item" onclick="this.classList.toggle('open')">
-          <div class="faq-q">อัปโหลดข้อมูลอ่อนไหวได้ไหม?</div>
-          <div class="faq-a">ยังไม่ควรอัปโหลดข้อมูลอ่อนไหว เช่น บัตรประชาชน เอกสารการเงิน ข้อมูลสุขภาพ เวอร์ชันแรกเน้นข้อมูลการเรียน งาน ความรู้ส่วนตัว และบริบทที่มีความเสี่ยงต่ำ</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ─── FINAL CTA ─── -->
-    <section class="landing-cta">
-      <h2>พร้อมให้ AI เข้าใจคุณแล้วหรือยัง?</h2>
-      <p>เริ่มสร้างบริบทส่วนตัวของคุณวันนี้ — ฟรี ไม่มีบัตรเครดิต</p>
-      <button class="btn btn-primary btn-lg btn-glow" id="btn-cta-register">เริ่มใช้งานฟรี →</button>
-    </section>
-
-    <!-- ─── FOOTER ─── -->
-    <footer class="landing-footer">
-      <div class="landing-logo footer-logo">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.9"/><rect x="14" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/><rect x="3" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/><rect x="14" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.3"/></svg>
-        <span>Personal Data Bank</span>
-      </div>
-      <p>สร้างด้วย ❤️ · v5.9.3 — Start with context. Grow into your Digital Twin.</p>
-    </footer>
-  </div>
-
-  <!-- ═══════════════════════════════════════════ -->
-  <!-- AUTH MODAL -->
-  <!-- ═══════════════════════════════════════════ -->
-  <div class="modal-overlay hidden" id="auth-modal">
-    <div class="modal auth-modal">
-      <div class="modal-header">
-        <h2 id="auth-modal-title">เข้าสู่ระบบ</h2>
-        <button class="btn-close" id="auth-modal-close">✕</button>
-      </div>
-      <div class="modal-body">
-        <!-- Login Form -->
-        <div id="login-form">
-          <div class="form-group">
-            <label>อีเมล</label>
-            <input type="email" id="login-email" placeholder="you@example.com" class="form-input" autocomplete="email">
-          </div>
-          <div class="form-group">
-            <label>รหัสผ่าน</label>
-            <input type="password" id="login-password" placeholder="••••••" class="form-input" autocomplete="current-password">
-          </div>
-          <div id="login-error" class="auth-error hidden"></div>
-          <button class="btn btn-primary btn-block" id="btn-login">เข้าสู่ระบบ</button>
-          <p class="auth-switch"><a href="#" id="switch-to-forgot" class="forgot-link">ลืมรหัสผ่าน?</a></p>
-          <p class="auth-switch">ยังไม่มีบัญชี? <a href="#" id="switch-to-register">สมัครสมาชิก</a></p>
-        </div>
-        <!-- Register Form -->
-        <div id="register-form" class="hidden">
-          <div class="form-group">
-            <label>ชื่อ</label>
-            <input type="text" id="register-name" placeholder="ชื่อของคุณ" class="form-input" autocomplete="name">
-          </div>
-          <div class="form-group">
-            <label>อีเมล</label>
-            <input type="email" id="register-email" placeholder="you@example.com" class="form-input" autocomplete="email">
-          </div>
-          <div class="form-group">
-            <label>รหัสผ่าน (อย่างน้อย 6 ตัว)</label>
-            <input type="password" id="register-password" placeholder="••••••" class="form-input" autocomplete="new-password">
-          </div>
-          <div id="register-error" class="auth-error hidden"></div>
-          <button class="btn btn-primary btn-block" id="btn-register">สมัครสมาชิก</button>
-          <p class="auth-switch">มีบัญชีอยู่แล้ว? <a href="#" id="switch-to-login">เข้าสู่ระบบ</a></p>
-        </div>
-        <!-- Forgot Password Form (v5.1) -->
-        <div id="forgot-form" class="hidden">
-          <div class="reset-icon-wrapper">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
-            </svg>
-          </div>
-          <p class="reset-subtitle">กรอกอีเมลที่ใช้สมัครเพื่อรีเซ็ตรหัสผ่าน</p>
-          <div class="form-group">
-            <label>อีเมล</label>
-            <input type="email" id="forgot-email" placeholder="you@example.com" class="form-input" autocomplete="email">
-          </div>
-          <div id="forgot-error" class="auth-error hidden"></div>
-          <button class="btn btn-primary btn-block" id="btn-forgot-submit">ยืนยันอีเมล</button>
-          <p class="auth-switch"><a href="#" id="switch-forgot-to-login">← กลับเข้าสู่ระบบ</a></p>
-        </div>
-        <!-- Reset Password Form (v5.1) -->
-        <div id="reset-form" class="hidden">
-          <div class="reset-icon-wrapper success">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            </svg>
-          </div>
-          <p class="reset-subtitle">ตั้งรหัสผ่านใหม่สำหรับ <strong id="reset-email-display"></strong></p>
-          <div class="form-group">
-            <label>รหัสผ่านใหม่ (อย่างน้อย 6 ตัว)</label>
-            <input type="password" id="reset-new-password" placeholder="••••••" class="form-input" autocomplete="new-password">
-          </div>
-          <div class="form-group">
-            <label>ยืนยันรหัสผ่านใหม่</label>
-            <input type="password" id="reset-confirm-password" placeholder="••••••" class="form-input" autocomplete="new-password">
-          </div>
-          <div id="reset-error" class="auth-error hidden"></div>
-          <button class="btn btn-primary btn-block" id="btn-reset-submit">เปลี่ยนรหัสผ่าน</button>
-          <p class="auth-switch"><a href="#" id="switch-reset-to-login">← กลับเข้าสู่ระบบ</a></p>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div id="app" class="app-container hidden">
-
-    <!-- ═══════════════════════════════════════════ -->
-    <!-- SIDEBAR -->
-    <!-- ═══════════════════════════════════════════ -->
-    <aside class="sidebar" id="sidebar">
-      <div class="sidebar-header">
-        <div class="logo">
-          <div class="logo-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <rect x="3" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.9"/>
-              <rect x="14" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/>
-              <rect x="3" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/>
-              <rect x="14" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.3"/>
-            </svg>
-          </div>
-          <div class="logo-text-area">
-            <span class="logo-text">Project KEY</span>
-            <span class="logo-version">v5.9.3</span>
-          </div>
-        </div>
-      </div>
-
-      <nav class="sidebar-nav">
-        <a href="#" class="nav-item active" data-page="my-data" id="nav-my-data">
-          <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
-              <polyline points="13 2 13 9 20 9"/>
-            </svg>
-          </span>
-          <span class="nav-label" data-i18n="nav.myData">My Data</span>
-        </a>
-        <a href="#" class="nav-item" data-page="knowledge" id="nav-knowledge">
-          <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="3" width="7" height="7"/>
-              <rect x="14" y="3" width="7" height="7"/>
-              <rect x="3" y="14" width="7" height="7"/>
-              <rect x="14" y="14" width="7" height="7"/>
-            </svg>
-          </span>
-          <span class="nav-label" data-i18n="nav.knowledge">Knowledge View</span>
-        </a>
-        <a href="#" class="nav-item" data-page="graph" id="nav-graph">
-          <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/>
-              <circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/>
-              <line x1="9" y1="6" x2="15" y2="6"/>
-              <line x1="6" y1="9" x2="6" y2="15"/>
-              <line x1="18" y1="9" x2="18" y2="15"/>
-              <line x1="9" y1="18" x2="15" y2="18"/>
-              <line x1="9" y1="8" x2="15" y2="16"/>
-            </svg>
-          </span>
-          <span class="nav-label" data-i18n="nav.graph">Graph</span>
-        </a>
-        <a href="#" class="nav-item" data-page="chat" id="nav-chat">
-          <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-            </svg>
-          </span>
-          <span class="nav-label" data-i18n="nav.chat">AI Chat</span>
-        </a>
-        <a href="#" class="nav-item" data-page="context-memory" id="nav-context-memory">
-          <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 2a4 4 0 0 1 4 4c0 1.95-1.4 3.58-3.25 3.93"/>
-              <path d="M8.56 13.44A6 6 0 0 0 6 18h12a6 6 0 0 0-2.56-4.56"/>
-              <circle cx="12" cy="10" r="1"/>
-              <path d="M12 14v3"/>
-              <path d="M9 20h6"/>
-            </svg>
-          </span>
-          <span class="nav-label">Context Memory</span>
-        </a>
-
-        <!-- v4 — Connector Layer -->
-        <div class="nav-divider"></div>
-        <span class="nav-section-label" data-i18n="nav.connectorSection">Connector</span>
-
-        <a href="#" class="nav-item" data-page="mcp-setup" id="nav-mcp-setup">
-          <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
-            </svg>
-          </span>
-          <span class="nav-label" data-i18n="nav.mcpSetup">MCP Setup</span>
-        </a>
-        <a href="#" class="nav-item" data-page="tokens" id="nav-tokens">
-          <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-            </svg>
-          </span>
-          <span class="nav-label" data-i18n="nav.tokens">Tokens</span>
-        </a>
-        <a href="#" class="nav-item" data-page="mcp-logs" id="nav-mcp-logs">
-          <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
-            </svg>
-          </span>
-          <span class="nav-label" data-i18n="nav.mcpLogs">MCP Logs</span>
-        </a>
-      </nav>
-
-      <!-- Sidebar Stats -->
-      <div class="sidebar-stats" id="sidebar-stats">
-        <div class="stat-row"><span class="stat-label" data-i18n="stat.files">Files</span><span class="stat-value" id="stat-files">0</span></div>
-        <div class="stat-row"><span class="stat-label" data-i18n="stat.collections">Collections</span><span class="stat-value" id="stat-clusters">0</span></div>
-        <div class="stat-row"><span class="stat-label" data-i18n="stat.nodes">Nodes</span><span class="stat-value" id="stat-nodes">0</span></div>
-        <div class="stat-row"><span class="stat-label" data-i18n="stat.relations">Relations</span><span class="stat-value" id="stat-edges">0</span></div>
-        <div class="stat-row"><span class="stat-label" data-i18n="stat.packs">Packs</span><span class="stat-value" id="stat-packs">0</span></div>
-        <div class="stat-row"><span class="stat-label" data-i18n="stat.tokens">Tokens</span><span class="stat-value" id="stat-tokens">0</span></div>
-      </div>
-
-      <!-- Profile -->
-      <div class="sidebar-footer">
-        <button class="lang-toggle" id="lang-toggle" title="Switch Language">
-          <svg id="lang-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-          <span id="lang-label">TH</span>
-          <span class="lang-separator">|</span>
-          <span id="lang-alt">EN</span>
-        </button>
-        <a href="#" class="nav-item profile-trigger" id="profile-trigger">
-          <span class="nav-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-              <circle cx="12" cy="7" r="4"/>
-            </svg>
-          </span>
-          <span class="nav-label" data-i18n="nav.profile">My Profile</span>
-          <span class="profile-status-dot" id="profile-dot"></span>
-        </a>
-        <div class="sidebar-user-info" id="sidebar-user-info">
-          <span class="user-email" id="sidebar-user-email"></span>
-          <button class="btn-logout" id="btn-logout" title="ออกจากระบบ">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          </button>
-        </div>
-      </div>
-    </aside>
-
-    <!-- ═══════════════════════════════════════════ -->
-    <!-- MAIN CONTENT -->
-    <!-- ═══════════════════════════════════════════ -->
-    <main class="main-content" id="main-content">
-
-      <!-- ─── PAGE: MY DATA ─── -->
-      <section class="page active" id="page-my-data">
-        <div class="page-header">
-          <div>
-            <h1 class="page-title" data-i18n="myData.title">My Data</h1>
-            <p class="page-subtitle" data-i18n="myData.subtitle">Your personal data space</p>
-          </div>
-          <div class="header-actions">
-            <button class="btn btn-outline" id="btn-organize-all" title="จัดระเบียบไฟล์ทั้งหมดใหม่">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
-              <span data-i18n="myData.organizeAll">จัดระเบียบทั้งหมด</span>
-            </button>
-            <button class="btn btn-primary" id="btn-organize-new">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-              <span data-i18n="myData.organizeNew">จัดระเบียบไฟล์ใหม่</span>
-              <span class="badge-count" id="unprocessed-badge" style="display:none;">0</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Upload Zone -->
-        <div class="upload-zone" id="upload-zone">
-          <div class="upload-icon">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="17 8 12 3 7 8"/>
-              <line x1="12" y1="3" x2="12" y2="15"/>
-            </svg>
-          </div>
-          <p class="upload-text" data-i18n="myData.uploadText">Drag files here or click to select</p>
-          <p class="upload-hint" id="upload-hint" data-i18n="myData.uploadHint">Supports PDF, TXT, MD, DOCX (max 20 MB)</p>
-          <input type="file" id="file-input" multiple accept=".pdf,.txt,.md,.docx" hidden>
-        </div>
-
-        <!-- File List -->
-        <div class="section-header">
-          <h2 data-i18n="myData.allFiles">All Files</h2>
-          <span class="badge" id="file-count-badge">0</span>
-        </div>
-        <div class="file-list" id="file-list">
-          <div class="empty-state">
-            <p>ยังไม่มีไฟล์ — เพิ่มไฟล์เข้าพื้นที่ส่วนตัวของคุณ</p>
-          </div>
-        </div>
-
-        <!-- File Detail Slide Panel -->
-        <div class="file-detail-panel hidden" id="file-detail-panel">
-          <div class="file-detail-header">
-            <div class="file-detail-title-area">
-              <div class="file-detail-icon" id="fd-icon">MD</div>
-              <div>
-                <h2 id="fd-filename">—</h2>
-                <div class="fd-meta-row">
-                  <span class="badge" id="fd-cluster">—</span>
-                  <span id="fd-importance">—</span>
-                </div>
-              </div>
-            </div>
-            <button class="btn-close" id="fd-close">✕</button>
-          </div>
-          <div class="file-detail-body">
-            <!-- Edit Actions -->
-            <div class="fd-edit-bar" id="fd-edit-bar">
-              <button class="btn btn-outline btn-sm" id="fd-edit-btn" onclick="toggleSummaryEdit(true)">✏️ Edit</button>
-              <div class="fd-edit-actions hidden" id="fd-edit-actions">
-                <button class="btn btn-primary btn-sm" id="fd-save-btn" onclick="saveSummaryEdit()">💾 Save</button>
-                <button class="btn btn-outline btn-sm" onclick="toggleSummaryEdit(false)">Cancel</button>
-              </div>
-            </div>
-            <!-- Summary -->
-            <div class="fd-section">
-              <h3>📝 Summary</h3>
-              <p id="fd-summary" class="fd-text">—</p>
-              <textarea id="fd-summary-edit" class="fd-edit-textarea hidden"></textarea>
-            </div>
-            <!-- Key Topics -->
-            <div class="fd-section">
-              <h3>🏷️ Key Topics</h3>
-              <div id="fd-topics" class="fd-chips"></div>
-            </div>
-            <!-- Key Facts -->
-            <div class="fd-section">
-              <h3>📋 Key Facts</h3>
-              <ul id="fd-facts" class="fd-list"></ul>
-            </div>
-            <!-- Why Important -->
-            <div class="fd-section">
-              <h3>⭐ Why Important</h3>
-              <p id="fd-why" class="fd-text">—</p>
-              <textarea id="fd-why-edit" class="fd-edit-textarea hidden"></textarea>
-            </div>
-            <!-- Content Preview -->
-            <div class="fd-section">
-              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-                <h3>📄 Content Preview</h3>
-                <div style="display:flex; gap:8px;">
-                  <button class="btn btn-outline btn-sm" id="fd-reprocess-btn" title="Re-extract text (OCR + Thai fix)">🔄 Re-extract</button>
-                  <button class="btn btn-primary btn-sm" id="fd-download-btn" title="Download original file">⬇️ Download</button>
-                </div>
-              </div>
-              <pre id="fd-content" class="fd-content-preview">—</pre>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ─── PAGE: KNOWLEDGE VIEW ─── -->
-      <section class="page" id="page-knowledge">
-        <div class="page-header">
-          <div>
-            <h1 class="page-title" data-i18n="knowledge.title">Knowledge View</h1>
-            <p class="page-subtitle" data-i18n="knowledge.subtitle">Your organized knowledge system</p>
-          </div>
-          <div class="header-actions">
-            <div class="view-toggle">
-              <button class="toggle-btn active" data-view="cards" id="view-cards">Cards</button>
-              <button class="toggle-btn" data-view="table" id="view-table">Table</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Knowledge Tabs -->
-        <div class="knowledge-tabs">
-          <button class="tab-btn active" data-tab="collections" data-i18n="knowledge.collections">Collections</button>
-          <button class="tab-btn" data-tab="notes" data-i18n="knowledge.notes">Notes & Summaries</button>
-          <button class="tab-btn" data-tab="packs" data-i18n="knowledge.packs">Context Packs</button>
-        </div>
-
-        <div class="knowledge-content" id="knowledge-content">
-          <div class="empty-state">
-            <p>จัดระเบียบไฟล์ก่อนเพื่อสร้างระบบความรู้</p>
-          </div>
-        </div>
-
-        <!-- Relation Preview Sidebar (shows when item selected) -->
-        <div class="relation-sidebar hidden" id="relation-sidebar">
-          <div class="relation-sidebar-header">
-            <h3 id="relation-item-title">—</h3>
-            <button class="btn-close" id="close-relation-sidebar">✕</button>
-          </div>
-          <div class="relation-section">
-            <h4>📥 Backlinks <span class="badge" id="backlink-count">0</span></h4>
-            <div id="backlinks-list" class="relation-list"></div>
-          </div>
-          <div class="relation-section">
-            <h4>📤 Outgoing <span class="badge" id="outgoing-count">0</span></h4>
-            <div id="outgoing-list" class="relation-list"></div>
-          </div>
-          <div class="relation-section">
-            <h4>💡 Suggestions <span class="badge" id="suggestion-count">0</span></h4>
-            <div id="suggestions-list" class="relation-list"></div>
-          </div>
-        </div>
-
-        <!-- Create Context Pack Modal -->
-        <div class="pack-modal-overlay hidden" id="pack-modal-overlay">
-          <div class="pack-modal">
-            <div class="pack-modal-header">
-              <h2 id="pack-modal-title">📦 Create Context Pack</h2>
-              <button class="btn-close" id="pack-modal-close">✕</button>
-            </div>
-            <div class="pack-modal-body">
-              <div class="form-group">
-                <label>Pack Name</label>
-                <input type="text" id="pack-title-input" placeholder="e.g. My Work Context" class="form-input">
-              </div>
-              <div class="form-group">
-                <label>Type</label>
-                <select id="pack-type-select" class="form-input">
-                  <option value="project">📁 Project</option>
-                  <option value="study">📚 Study</option>
-                  <option value="work">💼 Work</option>
-                  <option value="profile">👤 Profile</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label>Select Files</label>
-                <div id="pack-file-list" class="pack-file-list">
-                  <p class="text-muted">Loading files...</p>
-                </div>
-              </div>
-            </div>
-            <div class="pack-modal-footer">
-              <button class="btn btn-outline" id="pack-cancel-btn">Cancel</button>
-              <button class="btn btn-primary" id="pack-create-btn">Create Pack</button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ─── PAGE: GRAPH ─── -->
-      <section class="page" id="page-graph">
-        <div class="page-header">
-          <div>
-            <h1 class="page-title" id="graph-page-title" data-i18n="graph.globalTitle">Global Graph</h1>
-            <p class="page-subtitle" id="graph-page-subtitle" data-i18n="graph.globalSubtitle">Overview of all connections</p>
-          </div>
-          <div class="header-actions">
-            <div class="view-toggle">
-              <button class="toggle-btn active" data-graph="global" id="graph-global-btn">Global</button>
-              <button class="toggle-btn" data-graph="local" id="graph-local-btn">Local</button>
-            </div>
-            <button class="btn btn-outline" id="btn-rebuild-graph">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
-              Rebuild Graph
-            </button>
-          </div>
-        </div>
-
-        <!-- Graph Controls -->
-        <div class="graph-controls" id="graph-controls">
-          <div class="graph-search">
-            <input type="text" id="graph-search-input" placeholder="ค้นหา node..." class="search-input">
-          </div>
-          <div class="graph-filters">
-            <label class="filter-chip active" data-family="source_file"><span class="dot dot-file"></span> <span data-i18n="graph.filterFile">File</span></label>
-            <label class="filter-chip active" data-family="entity"><span class="dot dot-entity"></span> Entity</label>
-            <label class="filter-chip active" data-family="tag"><span class="dot dot-tag"></span> Tag</label>
-            <label class="filter-chip active" data-family="project"><span class="dot dot-project"></span> Collection</label>
-            <label class="filter-chip active" data-family="context_pack"><span class="dot dot-pack"></span> Pack</label>
-            <label class="filter-chip active" data-family="person"><span class="dot dot-person"></span> Person</label>
-          </div>
-          <!-- Local graph depth slider (hidden for global) -->
-          <div class="local-controls hidden" id="local-controls">
-            <label>Depth: <input type="range" id="depth-slider" min="1" max="3" value="1"><span id="depth-value">1</span></label>
-          </div>
-        </div>
-
-        <!-- Graph Canvas -->
-        <div class="graph-area">
-          <div class="graph-canvas" id="graph-canvas">
-            <svg id="graph-svg" width="100%" height="100%"></svg>
-            <div class="graph-empty hidden" id="graph-empty">
-              <p data-i18n="graph.emptyTitle">No Knowledge Graph yet</p>
-              <p class="hint" data-i18n="graph.emptyHint">Organize files first to build graph</p>
-            </div>
-            <!-- Tooltip (Obsidian-style) -->
-            <div class="graph-tooltip hidden" id="graph-tooltip">
-              <div class="tooltip-label" id="tooltip-label"></div>
-              <div class="tooltip-type" id="tooltip-type"></div>
-            </div>
-            <!-- Zoom Controls -->
-            <div class="graph-zoom-controls" id="graph-zoom-controls">
-              <button class="zoom-btn" id="zoom-in-btn" title="Zoom In">+</button>
-              <button class="zoom-btn" id="zoom-out-btn" title="Zoom Out">−</button>
-              <button class="zoom-btn" id="zoom-fit-btn" title="Fit All">⊡</button>
-            </div>
-            <!-- Node count overlay -->
-            <div class="graph-info-overlay" id="graph-info-overlay">
-              <span id="graph-node-count">0</span> nodes · <span id="graph-edge-count">0</span> edges
-            </div>
-          </div>
-
-          <!-- Detail Panel -->
-          <div class="detail-panel hidden" id="detail-panel">
-            <div class="detail-header">
-              <div class="detail-type-badge" id="detail-type">—</div>
-              <h3 id="detail-label">—</h3>
-              <button class="btn-close" id="close-detail">✕</button>
-            </div>
-            <div class="detail-body">
-              <div class="detail-section">
-                <h4 data-i18n="detail.summary">Summary</h4>
-                <p id="detail-summary" class="detail-text">—</p>
-              </div>
-              <div class="detail-section">
-                <h4>Metadata</h4>
-                <div id="detail-metadata" class="detail-meta-grid"></div>
-              </div>
-              <div class="detail-section">
-                <h4 data-i18n="detail.relations">Relations</h4>
-                <div id="detail-relations" class="detail-relations"></div>
-              </div>
-              <div class="detail-actions">
-                <button class="btn btn-sm" id="detail-open-local" data-i18n="detail.showLocal">Show Local Graph</button>
-                <button class="btn btn-sm" id="detail-ask-ai" data-i18n="detail.askAi">Ask AI about this</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ─── PAGE: AI CHAT ─── -->
-      <section class="page" id="page-chat">
-        <div class="chat-container">
-          <div class="chat-main">
-            <div class="chat-header">
-              <div>
-                <h1 class="page-title" data-i18n="chat.title">AI Chat</h1>
-                <p class="page-subtitle" data-i18n="chat.subtitle">AI uses your data, relations, and context to respond</p>
-              </div>
-              <div class="profile-indicator" id="chat-profile-indicator">
-                <span class="profile-dot"></span>
-                <span>Profile: <span id="chat-profile-status">Not set</span></span>
-              </div>
-            </div>
-
-            <!-- Chat Messages -->
-            <div class="chat-messages" id="chat-messages">
-              <div class="welcome-message">
-                <h2 data-i18n="chat.welcome">Hi! Ask anything about your data</h2>
-                <p data-i18n="chat.welcomeSub">AI uses Profile, Context Packs, Files, and Knowledge Graph to answer</p>
-                <div class="context-layers" id="context-layers">
-                  <span class="layer-chip layer-profile">👤 Profile</span>
-                  <span class="layer-chip layer-pack">📦 Packs</span>
-                  <span class="layer-chip layer-collection">📁 Collections</span>
-                  <span class="layer-chip layer-file">📄 Files</span>
-                  <span class="layer-chip layer-graph">🔗 Graph</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Chat Input -->
-            <div class="chat-input-area">
-              <div class="chat-input-wrapper">
-                <textarea id="chat-input" placeholder="ถามเกี่ยวกับข้อมูลของคุณ..." rows="1"></textarea>
-                <button class="btn btn-send" id="btn-send">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Sources Panel -->
-          <div class="sources-panel" id="sources-panel">
-            <div class="sources-header">
-              <h3 data-i18n="sources.title">Evidence Used</h3>
-            </div>
-            <div class="sources-body" id="sources-body">
-              <div class="source-section">
-                <h4 data-i18n="sources.profile">👤 Profile</h4>
-                <div id="src-profile" class="source-content">—</div>
-              </div>
-              <div class="source-section">
-                <h4>📦 Context Packs</h4>
-                <div id="src-packs" class="source-content">—</div>
-              </div>
-              <div class="source-section">
-                <h4 data-i18n="sources.files">📄 Files Used</h4>
-                <div id="src-files" class="source-content">—</div>
-              </div>
-              <div class="source-section">
-                <h4>🔗 Nodes & Edges</h4>
-                <div id="src-graph" class="source-content">—</div>
-              </div>
-              <div class="source-section">
-                <h4 data-i18n="sources.reasoning">🧠 Reasoning</h4>
-                <div id="src-reasoning" class="source-content">—</div>
-              </div>
-              <div class="source-section">
-                <h4>📊 Evidence Graph</h4>
-                <div id="src-evidence-graph" class="evidence-graph-container">
-                  <svg id="evidence-graph-svg" width="100%" height="200"></svg>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ─── PAGE: MCP SETUP (v4) ─── -->
-      <!-- ─── PAGE: CONTEXT MEMORY (v5.5) ─── -->
-      <section class="page" id="page-context-memory">
-        <div class="page-header">
-          <div>
-            <h1 class="page-title">🧠 Context Memory</h1>
-            <p class="page-subtitle">บริบทการทำงานข้ามแพลตฟอร์ม — AI จำได้ต่อเนื่อง</p>
-          </div>
-          <div class="header-actions">
-            <input type="text" class="search-input" id="ctx-search" placeholder="🔍 ค้นหา context..." style="width:200px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:0.85rem;">
-            <select id="ctx-filter-type" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:0.85rem;">
-              <option value="">ทุกประเภท</option>
-              <option value="conversation">💬 Conversation</option>
-              <option value="project">📁 Project</option>
-              <option value="task">✅ Task</option>
-              <option value="note">📝 Note</option>
-            </select>
-            <button class="btn btn-primary" id="btn-new-context">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-              <span>สร้าง Context</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Context Cards Grid -->
-        <div class="ctx-grid" id="ctx-grid">
-          <div class="empty-state" id="ctx-empty">
-            <p>🧠 ยังไม่มี Context — AI จะเริ่มบันทึกให้อัตโนมัติเมื่อคุณใช้งาน</p>
-          </div>
-        </div>
-      </section>
-
-      <!-- Context Memory: Create/Edit Modal -->
-      <div class="modal-overlay hidden" id="ctx-modal">
-        <div class="modal" style="max-width:600px;">
-          <div class="modal-header">
-            <h2 id="ctx-modal-title">🧠 สร้าง Context ใหม่</h2>
-            <button class="btn-close" id="ctx-modal-close">✕</button>
-          </div>
-          <div class="modal-body">
-            <input type="hidden" id="ctx-edit-id">
-            <div class="form-group">
-              <label>ชื่อ Context</label>
-              <input type="text" id="ctx-input-title" placeholder="เช่น Project KEY v5.5 progress" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);">
-            </div>
-            <div class="form-group">
-              <label>เนื้อหา (Markdown)</label>
-              <textarea id="ctx-input-content" rows="8" placeholder="บันทึกบริบท สรุปงาน สิ่งที่ทำค้างไว้..." style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-family:inherit;resize:vertical;"></textarea>
-            </div>
-            <div style="display:flex;gap:12px;">
-              <div class="form-group" style="flex:1;">
-                <label>ประเภท</label>
-                <select id="ctx-input-type" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);">
-                  <option value="conversation">💬 Conversation</option>
-                  <option value="project">📁 Project</option>
-                  <option value="task">✅ Task</option>
-                  <option value="note">📝 Note</option>
-                </select>
-              </div>
-              <div class="form-group" style="flex:1;">
-                <label>Tags (คั่นด้วย ,)</label>
-                <input type="text" id="ctx-input-tags" placeholder="tag1, tag2" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);">
-              </div>
-            </div>
-            <div class="form-group" style="display:flex;align-items:center;gap:8px;">
-              <input type="checkbox" id="ctx-input-pinned">
-              <label for="ctx-input-pinned" style="margin:0;">📌 ปักหมุด (Pin) — แนบไปทุกแพลตฟอร์มเสมอ</label>
-            </div>
-          </div>
-          <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:8px;padding:16px 24px;border-top:1px solid var(--border);">
-            <button class="btn btn-outline" id="ctx-modal-cancel">ยกเลิก</button>
-            <button class="btn btn-primary" id="ctx-modal-save">💾 บันทึก</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Context Memory: View Modal -->
-      <div class="modal-overlay hidden" id="ctx-view-modal">
-        <div class="modal" style="max-width:700px;">
-          <div class="modal-header">
-            <h2 id="ctx-view-title">Context</h2>
-            <button class="btn-close" id="ctx-view-close">✕</button>
-          </div>
-          <div class="modal-body" id="ctx-view-body" style="white-space:pre-wrap;font-size:0.9rem;line-height:1.7;max-height:60vh;overflow-y:auto;">
-          </div>
-          <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:8px;padding:16px 24px;border-top:1px solid var(--border);">
-            <button class="btn btn-outline" id="ctx-view-edit">✏️ แก้ไข</button>
-            <button class="btn btn-danger" id="ctx-view-delete" style="background:#ef4444;color:#fff;">🗑️ ลบ</button>
-          </div>
-        </div>
-      </div>
-
-      <section class="page" id="page-mcp-setup">
-        <div class="page-header">
-          <div>
-            <h1 class="page-title" data-i18n="mcp.setupTitle">Claude Connector Setup</h1>
-            <p class="page-subtitle" data-i18n="mcp.setupSubtitle">Connect your Project KEY data to Claude via remote MCP</p>
-          </div>
-        </div>
-
-        <!-- Connection Status -->
-        <div class="mcp-status-card" id="mcp-status-card">
-          <div class="mcp-status-indicator">
-            <span class="mcp-status-dot" id="mcp-status-dot"></span>
-            <span class="mcp-status-text" id="mcp-status-text" data-i18n="mcp.notConfigured">Not configured</span>
-          </div>
-          <div class="mcp-status-meta" id="mcp-status-meta"></div>
-        </div>
-
-        <!-- Setup Steps -->
-        <div class="mcp-setup-grid">
-
-          <!-- Step 1: Server URL -->
-          <div class="mcp-step-card">
-            <div class="mcp-step-number">1</div>
-            <div class="mcp-step-content">
-              <h3 data-i18n="mcp.step1Title">MCP Server URL</h3>
-              <p data-i18n="mcp.step1Desc">Copy this URL to your Claude custom connector settings</p>
-              <div class="code-block" id="mcp-server-url">
-                <code id="mcp-url-value">Loading...</code>
-                <button class="copy-btn" id="btn-copy-url" title="Copy URL">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Step 2: Generate Token -->
-          <div class="mcp-step-card">
-            <div class="mcp-step-number">2</div>
-            <div class="mcp-step-content">
-              <h3 data-i18n="mcp.step2Title">Generate Access Token</h3>
-              <p data-i18n="mcp.step2Desc">Create a Bearer token for REST API access</p>
-              <div class="mcp-token-area">
-                <div class="mcp-token-input-row">
-                  <input type="text" id="mcp-token-label" placeholder="Token label (e.g. Claude Desktop)" class="search-input" value="Claude Connector">
-                  <button class="btn btn-primary" id="btn-generate-token" data-i18n="mcp.generateToken">Generate Token</button>
-                </div>
-                <div class="mcp-token-display hidden" id="mcp-token-display">
-                  <div class="mcp-token-warning">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                    <span data-i18n="mcp.tokenWarning">Save this token now — it won't be shown again</span>
-                  </div>
-                  <div class="code-block code-block-token">
-                    <code id="mcp-token-value"></code>
-                    <button class="copy-btn" id="btn-copy-token" title="Copy Token">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Step 3: Configure AI Client -->
-          <div class="mcp-step-card">
-            <div class="mcp-step-number">3</div>
-            <div class="mcp-step-content">
-              <h3 data-i18n="mcp.step3Title">Configure Claude</h3>
-              <p data-i18n="mcp.step3Desc">Add this configuration to your Claude Desktop settings</p>
-              <!-- Platform Tabs -->
-              <div class="mcp-platform-tabs">
-                <button class="mcp-tab active" id="tab-claude" onclick="switchMcpTab('claude')">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                  Claude Desktop
-                </button>
-                <button class="mcp-tab" id="tab-antigravity" onclick="switchMcpTab('antigravity')">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-                  Antigravity
-                </button>
-              </div>
-              <!-- Claude Config -->
-              <div class="mcp-tab-content active" id="panel-claude">
-                <div class="code-block code-block-multi" id="mcp-config-block">
-                  <pre id="mcp-config-json">Loading...</pre>
-                  <button class="copy-btn" id="btn-copy-config" title="Copy Config">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                  </button>
-                </div>
-              </div>
-              <!-- Antigravity Config -->
-              <div class="mcp-tab-content" id="panel-antigravity">
-                <p style="font-size:13px;color:var(--text-secondary);margin-bottom:8px" data-i18n="mcp.antigravityDesc">Add to mcp_config.json (uses mcp-remote bridge)</p>
-                <div class="code-block code-block-multi">
-                  <pre id="mcp-config-antigravity">Loading...</pre>
-                  <button class="copy-btn" id="btn-copy-config-ag" title="Copy Config">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Step 4: Test Connection -->
-          <div class="mcp-step-card">
-            <div class="mcp-step-number">4</div>
-            <div class="mcp-step-content">
-              <h3 data-i18n="mcp.step4Title">Test Connection</h3>
-              <p data-i18n="mcp.step4Desc">Verify your connector setup is working</p>
-              <button class="btn btn-outline" id="btn-test-connection" data-i18n="mcp.testConnection">Test Connection</button>
-              <div class="mcp-test-result hidden" id="mcp-test-result"></div>
-            </div>
-          </div>
-
-        </div>
-
-        <!-- Available Tools -->
-        <div class="section-header" style="margin-top:32px">
-          <h2 data-i18n="mcp.availableTools">Available Tools</h2>
-          <span class="badge" id="mcp-tools-count">24</span>
-        </div>
-        <div class="mcp-tools-grid" id="mcp-tools-grid"></div>
-
-      </section>
-
-      <!-- ─── PAGE: TOKEN MANAGEMENT (v4) ─── -->
-      <section class="page" id="page-tokens">
-        <div class="page-header">
-          <div>
-            <h1 class="page-title" data-i18n="tokens.title">Token Management</h1>
-            <p class="page-subtitle" data-i18n="tokens.subtitle">Manage access tokens for external AI connectors</p>
-          </div>
-          <div class="header-actions">
-            <button class="btn btn-primary" id="btn-new-token">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-              <span data-i18n="tokens.newToken">New Token</span>
-            </button>
-          </div>
-        </div>
-
-        <div class="token-list" id="token-list">
-          <div class="empty-state">
-            <p data-i18n="tokens.empty">No tokens yet — generate one from MCP Setup</p>
-          </div>
-        </div>
-      </section>
-
-      <!-- ─── PAGE: MCP LOGS (v4) ─── -->
-      <section class="page" id="page-mcp-logs">
-        <div class="page-header">
-          <div>
-            <h1 class="page-title" data-i18n="logs.title">MCP Logs</h1>
-            <p class="page-subtitle" data-i18n="logs.subtitle">Track connector tool usage and debug issues</p>
-          </div>
-        </div>
-
-        <!-- Filters -->
-        <div class="log-filters" id="log-filters">
-          <select class="log-filter-select" id="log-filter-tool">
-            <option value="" data-i18n="logs.allTools">All Tools</option>
-            <option value="get_profile">get_profile</option>
-            <option value="list_context_packs">list_context_packs</option>
-            <option value="get_context_pack">get_context_pack</option>
-            <option value="search_knowledge">search_knowledge</option>
-            <option value="get_file_summary">get_file_summary</option>
-          </select>
-          <select class="log-filter-select" id="log-filter-status">
-            <option value="" data-i18n="logs.allStatus">All Status</option>
-            <option value="success">Success</option>
-            <option value="error">Error</option>
-          </select>
-          <button class="btn btn-outline btn-sm" id="btn-refresh-logs" data-i18n="logs.refresh">Refresh</button>
-        </div>
-
-        <!-- Log Table -->
-        <div class="log-table-wrapper">
-          <table class="log-table" id="log-table">
-            <thead>
-              <tr>
-                <th data-i18n="logs.colTime">Time</th>
-                <th data-i18n="logs.colTool">Tool</th>
-                <th data-i18n="logs.colStatus">Status</th>
-                <th data-i18n="logs.colLatency">Latency</th>
-                <th data-i18n="logs.colDetails">Details</th>
-              </tr>
-            </thead>
-            <tbody id="log-table-body">
-              <tr class="log-empty-row">
-                <td colspan="5">
-                  <div class="empty-state">
-                    <p data-i18n="logs.empty">No logs yet — connector usage will appear here</p>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-    </main>
-
-    <!-- ═══════════════════════════════════════════ -->
-    <!-- PROFILE MODAL -->
-    <!-- ═══════════════════════════════════════════ -->
-    <div class="modal-overlay hidden" id="profile-modal">
-      <div class="modal profile-modal">
-        <div class="modal-header">
-          <h2 data-i18n="profile.title">👤 My Profile</h2>
-          <button class="btn-close" id="close-profile-modal">✕</button>
-        </div>
-        <div class="modal-body">
-          <!-- Subscription Section -->
-          <div class="billing-section" id="billing-section">
-            <div class="billing-plan-card" id="billing-plan-card">
-              <div class="billing-plan-info">
-                <span class="billing-plan-badge" id="billing-plan-badge">Free</span>
-                <span class="billing-plan-name" id="billing-plan-name">Personal AI Context</span>
-              </div>
-              <div class="billing-plan-detail" id="billing-plan-detail">แพลนปัจจุบัน: Free</div>
-              <div class="billing-actions" id="billing-actions">
-                <button class="btn btn-primary btn-sm" id="btn-upgrade-starter" style="display:none;">⚡ Upgrade to Starter — ฿99/mo</button>
-                <button class="btn btn-outline btn-sm" id="btn-manage-billing" style="display:none;">จัดการการชำระเงิน</button>
-              </div>
-            </div>
-          </div>
-          <!-- Usage Bars Section (v5.9.3) -->
-          <div class="usage-section" id="usage-section">
-            <div class="usage-header">
-              <span class="usage-title">📊 การใช้งาน</span>
-              <span class="usage-plan-label" id="usage-plan-label">🆓 Free</span>
-            </div>
-            <div id="usage-bars-container"></div>
-          </div>
-          <hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:16px 0;">
-          <div class="form-group">
-            <label data-i18n="profile.identity">Who am I</label>
-            <textarea id="profile-identity" rows="2" placeholder="เช่น นักศึกษาปริญญาโท สาขาวิทยาศาสตร์..."></textarea>
-          </div>
-          <div class="form-group">
-            <label data-i18n="profile.goals">My Goals</label>
-            <textarea id="profile-goals" rows="2" placeholder="เช่น ทำวิจัยเกี่ยวกับ..."></textarea>
-          </div>
-          <div class="form-group">
-            <label data-i18n="profile.style">Work Style</label>
-            <textarea id="profile-style" rows="2" placeholder="เช่น ชอบข้อมูลที่เป็นระบบ..."></textarea>
-          </div>
-          <div class="form-group">
-            <label data-i18n="profile.output">Answer Preference</label>
-            <textarea id="profile-output" rows="2" placeholder="เช่น สรุปสั้นๆ ตรงประเด็น..."></textarea>
-          </div>
-          <div class="form-group">
-            <label data-i18n="profile.background">Important Context</label>
-            <textarea id="profile-background" rows="2" placeholder="เช่น กำลังทำโปรเจกต์..."></textarea>
-          </div>
-
-          <!-- ═══════════════════════════════════════════ -->
-          <!-- v6.0 — Personality Section (collapsible, default closed) -->
-          <!-- ═══════════════════════════════════════════ -->
-          <details class="personality-section" id="personality-section">
-            <summary>
-              <span class="personality-section-title">💎 <span data-i18n="personality.title">บุคลิกภาพ</span></span>
-              <span class="personality-optional" data-i18n="personality.optional">(ไม่บังคับ)</span>
-            </summary>
-
-            <p class="personality-pdpa" data-i18n="personality.pdpa">
-              💡 ลิงก์ "ทำที่..." จะพาคุณไปยังเว็บไซต์ภายนอก — โปรดดูนโยบายความเป็นส่วนตัวของเว็บนั้นๆ
-            </p>
-
-            <!-- ─── MBTI ─── -->
-            <div class="personality-block" id="block-mbti">
-              <div class="personality-block-head">
-                <h4>MBTI</h4>
-                <button type="button" class="btn-history" data-system="mbti" data-i18n-title="personality.viewHistory">
-                  📜 <span data-i18n="personality.history">ประวัติ</span>
-                  <span class="history-count" id="mbti-history-count" hidden>0</span>
-                </button>
-              </div>
-              <div class="personality-fields">
-                <label>
-                  <span data-i18n="personality.mbti.type">ประเภท</span>
-                  <select id="mbti-type">
-                    <option value="">— <span data-i18n="personality.notSet">ไม่ระบุ</span> —</option>
-                  </select>
-                </label>
-                <label>
-                  <span data-i18n="personality.mbti.identity">Identity</span>
-                  <select id="mbti-identity">
-                    <option value="">—</option>
-                    <option value="A">-A (Assertive)</option>
-                    <option value="T">-T (Turbulent)</option>
-                  </select>
-                  <small data-i18n="personality.mbti.identityHint">สำหรับ NERIS เท่านั้น</small>
-                </label>
-                <label>
-                  <span data-i18n="personality.mbti.source">ที่มาของผล</span>
-                  <select id="mbti-source">
-                    <option value="">—</option>
-                    <option value="official">Official (mbtionline)</option>
-                    <option value="neris">NERIS (16personalities)</option>
-                    <option value="self_report" data-i18n="personality.mbti.selfReport">ฉันเดาเอง</option>
-                  </select>
-                </label>
-              </div>
-              <div class="test-links" id="mbti-test-links"></div>
-            </div>
-
-            <!-- ─── Enneagram ─── -->
-            <div class="personality-block" id="block-enneagram">
-              <div class="personality-block-head">
-                <h4>Enneagram</h4>
-                <button type="button" class="btn-history" data-system="enneagram">
-                  📜 <span data-i18n="personality.history">ประวัติ</span>
-                  <span class="history-count" id="enneagram-history-count" hidden>0</span>
-                </button>
-              </div>
-              <div class="personality-fields">
-                <label>
-                  <span data-i18n="personality.enneagram.core">Core</span>
-                  <select id="enneagram-core">
-                    <option value="">— <span data-i18n="personality.notSet">ไม่ระบุ</span> —</option>
-                  </select>
-                </label>
-                <label>
-                  <span data-i18n="personality.enneagram.wing">Wing</span>
-                  <select id="enneagram-wing" disabled>
-                    <option value="">— <span data-i18n="personality.notSet">ไม่ระบุ</span> —</option>
-                  </select>
-                  <small data-i18n="personality.enneagram.wingHint">เลือก Core ก่อน</small>
-                </label>
-              </div>
-              <div class="test-links" id="enneagram-test-links"></div>
-            </div>
-
-            <!-- ─── CliftonStrengths Top 5 ─── -->
-            <div class="personality-block" id="block-clifton">
-              <div class="personality-block-head">
-                <h4>CliftonStrengths Top 5</h4>
-                <button type="button" class="btn-history" data-system="clifton">
-                  📜 <span data-i18n="personality.history">ประวัติ</span>
-                  <span class="history-count" id="clifton-history-count" hidden>0</span>
-                </button>
-              </div>
-              <div class="personality-rank-list" id="clifton-rank-list">
-                <!-- 5 rows populated by JS -->
-              </div>
-              <div class="test-links" id="clifton-test-links"></div>
-            </div>
-
-            <!-- ─── VIA Character Strengths Top 5 ─── -->
-            <div class="personality-block" id="block-via">
-              <div class="personality-block-head">
-                <h4>VIA Character Strengths Top 5</h4>
-                <button type="button" class="btn-history" data-system="via">
-                  📜 <span data-i18n="personality.history">ประวัติ</span>
-                  <span class="history-count" id="via-history-count" hidden>0</span>
-                </button>
-              </div>
-              <div class="personality-rank-list" id="via-rank-list">
-                <!-- 5 rows populated by JS -->
-              </div>
-              <div class="test-links" id="via-test-links"></div>
-            </div>
-          </details>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-primary" id="btn-save-profile" data-i18n="profile.save">Save Profile</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- ═══════════════════════════════════════════ -->
-    <!-- v6.0 — Personality History Modal -->
-    <!-- ═══════════════════════════════════════════ -->
-    <div class="modal-overlay hidden" id="personality-history-modal">
-      <div class="modal personality-history-modal">
-        <div class="modal-header">
-          <h2 id="personality-history-title">📜 <span data-i18n="personality.history">ประวัติ</span></h2>
-          <button class="btn-close" id="close-personality-history">✕</button>
-        </div>
-        <div class="modal-body">
-          <div id="personality-history-list" class="history-timeline">
-            <!-- entries populated by JS -->
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ═══════════════════════════════════════════ -->
-    <!-- PLAN SELECTION MODAL (v5.9.2) -->
-    <!-- ═══════════════════════════════════════════ -->
-    <div class="modal-overlay hidden" id="plan-modal">
-      <div class="modal plan-modal">
-        <div class="modal-header">
-          <h2 id="plan-modal-title">🎯 เลือกแพลนของคุณ</h2>
-          <button class="btn-close" id="close-plan-modal">✕</button>
-        </div>
-        <div class="modal-body">
-          <p class="plan-modal-desc" id="plan-modal-desc">เลือกแพลนที่เหมาะกับคุณ — เริ่มฟรี หรืออัปเกรดเพื่อปลดล็อกฟีเจอร์เพิ่มเติม</p>
-
-          <!-- 🧠 Personal AI Context -->
-          <div class="plan-group">
-            <div class="plan-group-label plan-group-personal">🧠 Personal AI Context</div>
-            <p class="plan-group-desc">สำหรับนักศึกษา ครีเอเตอร์ และคนใช้ AI ทั่วไป</p>
-            <div class="plan-cards">
-              <div class="plan-card" id="plan-card-free">
-                <div class="plan-card-header">
-                  <h3>Free</h3>
-                  <div class="plan-card-price">฿0<span>/เดือน</span></div>
-                </div>
-                <p class="plan-card-tagline">เริ่มต้นใช้ AI Context ฟรี</p>
-                <ul class="plan-card-features">
-                  <li>1 Context Pack</li>
-                  <li>5 ไฟล์ (50 MB)</li>
-                  <li>AI Summary 5 ครั้ง/เดือน</li>
-                  <li>Basic Search</li>
-                </ul>
-                <button class="btn btn-ghost btn-block" id="btn-plan-free">ใช้ฟรีต่อ</button>
-              </div>
-              <div class="plan-card plan-card-highlight" id="plan-card-starter">
-                <div class="plan-card-badge">แนะนำ</div>
-                <div class="plan-card-header">
-                  <h3>Starter</h3>
-                  <div class="plan-card-price plan-card-price-accent">฿99<span>/เดือน</span></div>
-                </div>
-                <p class="plan-card-tagline">สำหรับนักศึกษาและคนใช้ AI จริงจัง</p>
-                <ul class="plan-card-features">
-                  <li>5 Context Packs</li>
-                  <li>50 ไฟล์ (1 GB)</li>
-                  <li>AI Summary 100 ครั้ง/เดือน</li>
-                  <li>Semantic Search</li>
-                  <li>Version History 7 วัน</li>
-                  <li>Export Prompt 300 ครั้ง/เดือน</li>
-                </ul>
-                <button class="btn btn-primary btn-block btn-glow" id="btn-plan-starter">⚡ Get Starter</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- 👑 Executive Digital Twin -->
-          <div class="plan-group" style="margin-top:28px;">
-            <div class="plan-group-label plan-group-exec">👑 Executive Digital Twin</div>
-            <p class="plan-group-desc">สำหรับ Founder ผู้บริหาร และผู้นำ — ให้ AI ทำงานด้วยวิธีคิดของคุณ</p>
-            <div class="plan-cards plan-cards-exec">
-              <div class="plan-card plan-card-exec">
-                <div class="plan-card-header">
-                  <h3>Core</h3>
-                  <div class="plan-card-price plan-card-price-gold">฿12,000<span>/เดือน</span></div>
-                </div>
-                <p class="plan-card-tagline">Start your private Digital Twin.</p>
-                <ul class="plan-card-features">
-                  <li>Private Identity Vault</li>
-                  <li>Basic Decision Matrix</li>
-                  <li>Text-based Digital Twin</li>
-                  <li>MCP connection</li>
-                </ul>
-                <button class="btn btn-gold btn-block" onclick="window.open('mailto:boss@projectkey.dev?subject=Core Plan Inquiry','_blank')">Book Private Demo</button>
-              </div>
-              <div class="plan-card plan-card-exec plan-card-exec-highlight">
-                <div class="plan-card-badge" style="background:linear-gradient(135deg,#d4a853,#b8860b);">Recommended</div>
-                <div class="plan-card-header">
-                  <h3>Pro</h3>
-                  <div class="plan-card-price plan-card-price-gold">฿25,000<span>/เดือน</span></div>
-                </div>
-                <p class="plan-card-tagline">Most recommended for leaders.</p>
-                <ul class="plan-card-features">
-                  <li>ทุกอย่างใน Core</li>
-                  <li>Advanced Decision Matrix</li>
-                  <li>Voice Clone</li>
-                  <li>3 Delegated Users</li>
-                </ul>
-                <button class="btn btn-gold btn-block" onclick="window.open('mailto:boss@projectkey.dev?subject=Pro Plan Inquiry','_blank')">Book Private Demo</button>
-              </div>
-              <div class="plan-card plan-card-exec">
-                <div class="plan-card-header">
-                  <h3>Elite</h3>
-                  <div class="plan-card-price plan-card-price-gold">฿45,000<span>/เดือน</span></div>
-                </div>
-                <p class="plan-card-tagline">A private digital twin experience.</p>
-                <ul class="plan-card-features">
-                  <li>ทุกอย่างใน Pro</li>
-                  <li>Avatar UI + Dedicated CSM</li>
-                  <li>Deep Decision Calibration</li>
-                  <li>Annual Deep Review</li>
-                </ul>
-                <button class="btn btn-gold btn-block" onclick="window.open('mailto:boss@projectkey.dev?subject=Elite Plan Inquiry','_blank')">Request Elite Access</button>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </div>
-    </div>
-
-    <!-- ═══════════════════════════════════════════ -->
-    <!-- CONFIRM MODAL -->
-    <!-- ═══════════════════════════════════════════ -->
-    <div class="modal-overlay hidden" id="confirm-modal">
-      <div class="modal confirm-modal">
-        <div class="modal-body">
-          <p id="confirm-message">ยืนยันการดำเนินการ?</p>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-outline" id="confirm-cancel" data-i18n="confirm.cancel">Cancel</button>
-          <button class="btn btn-danger" id="confirm-ok" data-i18n="confirm.ok">Confirm</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Toast Container -->
-    <div id="toast-container"></div>
-
-  </div>
-
-  <!-- ═══════════════════════════════════════════ -->
-  <!-- GUIDE SYSTEM (FAB + Drawer) -->
-  <!-- ═══════════════════════════════════════════ -->
-  <button id="guide-fab" class="guide-fab" title="คู่มือการใช้งาน" style="display:none;">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-    <span>คู่มือ</span>
-  </button>
-
-  <div id="guide-overlay" class="guide-overlay" style="display:none;"></div>
-  <div id="guide-drawer" class="guide-drawer" style="display:none;">
-    <div class="guide-header">
-      <h2>📖 คู่มือ Project KEY</h2>
-      <button id="guide-close" class="guide-close">✕</button>
-    </div>
-    <div class="guide-search">
-      <input type="text" id="guide-search-input" placeholder="🔍 ค้นหา...">
-    </div>
-    <div class="guide-tabs">
-      <button class="guide-tab active" data-tab="usage">📄 วิธีใช้</button>
-      <button class="guide-tab" data-tab="connect">🔌 เชื่อมต่อ</button>
-      <button class="guide-tab" data-tab="examples">💡 ตัวอย่าง</button>
-    </div>
-    <div class="guide-content" id="guide-content">
-      <!-- Content injected by JS -->
-    </div>
-  </div>
-
-  <script src="/legacy/app.js?v=5.9.3"></script>
+ <!-- ═══════════════════════════════════════════ -->
+ <!-- LANDING PAGE (shown when not logged in) -->
+ <!-- ═══════════════════════════════════════════ -->
+ <div id="landing-page" class="landing-page">
+
+ <!-- Animated background orbs -->
+ <div class="landing-bg">
+ <div class="orb orb-1"></div>
+ <div class="orb orb-2"></div>
+ <div class="orb orb-3"></div>
+ </div>
+
+ <!-- ─── HEADER ─── -->
+ <header class="landing-header">
+ <div class="landing-logo">
+ <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.9"/><rect x="14" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/><rect x="3" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/><rect x="14" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.3"/></svg>
+ <span>Project KEY</span>
+ </div>
+ <div class="landing-nav">
+ <button class="btn btn-ghost" id="btn-show-login">เข้าสู่ระบบ</button>
+ <button class="btn btn-primary btn-glow" id="btn-show-register">เริ่มต้นฟรี</button>
+ </div>
+ </header>
+
+ <!-- ─── HERO ─── -->
+ <section class="landing-hero">
+ <div class="hero-badge"> Personal Data Bank</div>
+ <h1 class="hero-title">
+ Start with context.<br>
+ Grow into your <span class="hero-gradient">Digital Twin</span>
+ </h1>
+ <p class="hero-subtitle">
+ เริ่มจากบริบทส่วนตัว แล้วเติบโตสู่ Digital Twin ของคุณ<br>
+ ให้ AI เข้าใจคุณจริงๆ — ไม่ต้องเริ่มใหม่ทุกครั้ง
+ </p>
+ <div class="hero-actions">
+ <button class="btn btn-primary btn-lg btn-glow" id="btn-hero-register">
+ เริ่มใช้ฟรี
+ <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+ </button>
+ <button class="btn btn-glass" id="btn-hero-login">ฉันมีบัญชีแล้ว</button>
+ </div>
+
+ <!-- Pipeline visual -->
+ <div class="hero-pipeline">
+ <div class="pipeline-step">
+ <div class="pipeline-icon"></div>
+ <span>อัปโหลด</span>
+ </div>
+ <div class="pipeline-arrow">→</div>
+ <div class="pipeline-step">
+ <div class="pipeline-icon"></div>
+ <span>AI วิเคราะห์</span>
+ </div>
+ <div class="pipeline-arrow">→</div>
+ <div class="pipeline-step">
+ <div class="pipeline-icon"></div>
+ <span>Knowledge Graph</span>
+ </div>
+ <div class="pipeline-arrow">→</div>
+ <div class="pipeline-step">
+ <div class="pipeline-icon"></div>
+ <span>ถามตอบ AI</span>
+ </div>
+ </div>
+ </section>
+
+ <!-- ─── FEATURES ─── -->
+ <section class="landing-section">
+ <div class="section-center">
+ <h2 class="section-title">ทุกอย่างที่คุณต้องการ <span class="hero-gradient">ในที่เดียว</span></h2>
+ <p class="section-desc">ระบบจัดการความรู้ครบวงจร ตั้งแต่เก็บ วิเคราะห์ เชื่อมโยง ไปจนถึงใช้งานกับ AI</p>
+ </div>
+ <div class="landing-features">
+ <div class="feature-card">
+ <div class="feature-icon-wrap" style="--fc: 99, 102, 241">
+ <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+ </div>
+ <h3>จัดเก็บอัจฉริยะ</h3>
+ <p>รองรับ PDF, TXT, MD, DOCX — AI สรุปเนื้อหา จัดกลุ่ม ติดแท็ก และ Enrich metadata ให้อัตโนมัติ</p>
+ </div>
+ <div class="feature-card">
+ <div class="feature-icon-wrap" style="--fc: 79, 195, 247">
+ <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><circle cx="18" cy="6" r="3"/><line x1="8.6" y1="7.4" x2="15.4" y2="16.6"/><line x1="15.4" y1="7.4" x2="8.6" y2="16.6"/></svg>
+ </div>
+ <h3>Knowledge Graph</h3>
+ <p>AI สร้างกราฟความสัมพันธ์ระหว่างข้อมูลทั้งหมด — ค้นพบ insight ที่ซ่อนอยู่แบบ Interactive</p>
+ </div>
+ <div class="feature-card">
+ <div class="feature-icon-wrap" style="--fc: 129, 140, 248">
+ <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+ </div>
+ <h3>AI Chat 7 ชั้น</h3>
+ <p>ถามตอบกับข้อมูลจริง — AI อ้างอิงจาก Profile, Context Packs, Files และ Knowledge Graph</p>
+ </div>
+ <div class="feature-card">
+ <div class="feature-icon-wrap" style="--fc: 255, 138, 101">
+ <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+ </div>
+ <h3>MCP — 22 เครื่องมือ</h3>
+ <p>เชื่อมต่อ Claude Desktop ผ่าน Remote MCP Server — ใช้ข้อมูลของคุณจากทุกที่ ทุกเวลา</p>
+ </div>
+ </div>
+ </section>
+
+ <!-- ─── STATS ─── -->
+ <section class="landing-stats">
+ <div class="stat-block">
+ <div class="stat-number">22</div>
+ <div class="stat-text">MCP Tools</div>
+ </div>
+ <div class="stat-divider"></div>
+ <div class="stat-block">
+ <div class="stat-number">7</div>
+ <div class="stat-text">AI Layers</div>
+ </div>
+ <div class="stat-divider"></div>
+ <div class="stat-block">
+ <div class="stat-number">∞</div>
+ <div class="stat-text">ไฟล์</div>
+ </div>
+ <div class="stat-divider"></div>
+ <div class="stat-block">
+ <div class="stat-number">100%</div>
+ <div class="stat-text">ข้อมูลเป็นของคุณ</div>
+ </div>
+ </section>
+
+ <!-- ─── PROBLEM ─── -->
+ <section class="landing-section landing-section-dark" id="problem-section">
+ <div class="section-center">
+ <h2 class="section-title">ปัญหาที่ AI ยังแก้ไม่ได้</h2>
+ <p class="section-desc">AI ฉลาดขึ้นทุกวัน แต่ยังไม่รู้จักคุณ</p>
+ </div>
+ <div class="steps-grid">
+ <div class="step-card">
+ <div class="step-number"></div>
+ <h3>เริ่มใหม่ทุกครั้ง</h3>
+ <p>ทุกครั้งที่เปิดแชท AI คุณต้องอธิบายตัวเอง เป้าหมาย และบริบทซ้ำแล้วซ้ำเล่า</p>
+ </div>
+ <div class="step-card">
+ <div class="step-number"></div>
+ <h3>AI ไม่รู้จักคุณ</h3>
+ <p>AI ตอบแบบกลางๆ ไม่มีบริบทเฉพาะตัว ไม่เข้าใจสไตล์ วิธีคิด หรือเป้าหมายของคุณ</p>
+ </div>
+ <div class="step-card">
+ <div class="step-number"></div>
+ <h3>ข้อมูลกระจัดกระจาย</h3>
+ <p>Resume, บันทึก, ไอเดีย อยู่คนละที่ ไม่ถูกเชื่อมโยง ใช้ประโยชน์ไม่เต็มที่</p>
+ </div>
+ </div>
+ </section>
+
+ <!-- ─── SOLUTION ─── -->
+ <section class="landing-section" id="solution-section">
+ <div class="section-center">
+ <h2 class="section-title">Personal Data Bank <span class="hero-gradient">คือคำตอบ</span></h2>
+ <p class="section-desc">สร้างบริบทส่วนตัวให้ AI รู้จักคุณ — ไม่ต้องเริ่มใหม่อีกต่อไป</p>
+ </div>
+ <div class="steps-grid">
+ <div class="step-card">
+ <div class="step-number">01</div>
+ <h3>สร้าง Context ของคุณ</h3>
+ <p>อัปโหลดเอกสาร ข้อมูลส่วนตัว — AI สรุป จัดกลุ่ม สร้าง Knowledge Graph อัตโนมัติ</p>
+ </div>
+ <div class="step-card">
+ <div class="step-number">02</div>
+ <h3>เชื่อมต่อกับ AI ทุกที่</h3>
+ <p>Export context ไปใช้กับ ChatGPT, Claude หรือเชื่อมผ่าน MCP — AI เข้าใจคุณทันที</p>
+ </div>
+ <div class="step-card">
+ <div class="step-number">03</div>
+ <h3>เติบโตเป็น Digital Twin</h3>
+ <p>ยิ่งใช้ยิ่งฉลาด — ผู้บริหารสามารถอัปเกรดสู่ Digital Twin ที่เข้าใจวิธีคิดของคุณ</p>
+ </div>
+ </div>
+ </section>
+
+ <!-- ─── PRICING ─── -->
+ <section class="landing-section landing-section-dark" id="pricing-section">
+ <div class="section-center">
+ <h2 class="section-title">Start with context. Grow into your <span class="hero-gradient">Digital Twin</span></h2>
+ <p class="section-desc">เลือกชั้นของผลิตภัณฑ์ตามระดับที่คุณต้องการให้ AI เข้าใจข้อมูล งาน สไตล์ และวิธีคิดของคุณ</p>
+ </div>
+
+ <!-- Personal AI Context -->
+ <div class="pricing-group">
+ <div class="pricing-group-label pricing-label-personal"> Personal AI Context</div>
+ <p class="pricing-group-desc">สำหรับนักศึกษา ครีเอเตอร์ และคนใช้ AI ที่อยากให้ AI เข้าใจบริบทของตัวเองมากขึ้น โดยไม่ต้องเริ่มใหม่ทุกครั้ง</p>
+ <div class="pricing-cards">
+ <div class="pricing-card pricing-personal">
+ <h3>Free</h3>
+ <div class="pricing-price">฿0<span>/เดือน</span></div>
+ <p class="pricing-tagline">Try your first AI-ready context.</p>
+ <ul class="pricing-features">
+ <li>1 Personal Context Pack</li>
+ <li>Basic profile summary</li>
+ <li>อัปโหลดไฟล์สูงสุด 5 ไฟล์ (50 MB)</li>
+ <li>AI Summary 5 ครั้ง / เดือน</li>
+ <li>Export Prompt 10 ครั้ง / เดือน</li>
+ <li>Basic search</li>
+ </ul>
+ <button class="btn btn-ghost btn-block" id="btn-pricing-free">Start Free</button>
+ </div>
+ <div class="pricing-card pricing-personal pricing-starter-highlight">
+ <div class="pricing-badge pricing-badge-starter">Best for beginners</div>
+ <h3>Starter</h3>
+ <div class="pricing-price">฿99<span>/เดือน</span></div>
+ <p class="pricing-tagline">For students and everyday AI users.</p>
+ <ul class="pricing-features">
+ <li>5 Context Packs</li>
+ <li>Study / Work / Creator context</li>
+ <li>Writing style เบื้องต้น</li>
+ <li>อัปโหลดไฟล์สูงสุด 50 ไฟล์ (1 GB)</li>
+ <li>AI Summary 100 ครั้ง / เดือน</li>
+ <li>Export Prompt 300 ครั้ง / เดือน</li>
+ <li>Context Refresh 10 ครั้ง / เดือน</li>
+ <li>Basic + Semantic Search</li>
+ <li>Version History 7 วัน</li>
+ </ul>
+ <button class="btn btn-primary btn-block" id="btn-pricing-starter">Get Starter</button>
+ </div>
+ </div>
+ </div>
+
+ <!-- Comparison Table -->
+ <div class="pricing-compare" id="pricing-compare">
+ <h3 class="pricing-compare-title">เปรียบเทียบ Free vs Starter</h3>
+ <div class="pricing-table-wrap">
+ <table class="pricing-table">
+ <thead>
+ <tr><th>Feature</th><th>Free</th><th class="col-starter">Starter</th></tr>
+ </thead>
+ <tbody>
+ <tr><td>ราคา</td><td>0 บาท/เดือน</td><td>99 บาท/เดือน</td></tr>
+ <tr><td>Context Packs</td><td>1</td><td>5</td></tr>
+ <tr><td>Files</td><td>5 ไฟล์</td><td>50 ไฟล์</td></tr>
+ <tr><td>Storage</td><td>50 MB</td><td>1 GB</td></tr>
+ <tr><td>Max file size</td><td>10 MB / file</td><td>20 MB / file</td></tr>
+ <tr><td>AI Summary</td><td>5 / เดือน</td><td>100 / เดือน</td></tr>
+ <tr><td>Export Prompt</td><td>10 / เดือน</td><td>300 / เดือน</td></tr>
+ <tr><td>Context Refresh</td><td>—</td><td>10 / เดือน</td></tr>
+ <tr><td>Search</td><td>Basic</td><td>Basic + Semantic</td></tr>
+ <tr><td>Version History</td><td>—</td><td>7 วัน</td></tr>
+ <tr><td>Support</td><td>FAQ</td><td>Email basic</td></tr>
+ </tbody>
+ </table>
+ </div>
+ </div>
+
+ <!-- Executive Digital Twin -->
+ <div class="pricing-group" style="margin-top:48px">
+ <div class="pricing-group-label pricing-label-exec"> Executive Digital Twin</div>
+ <p class="pricing-group-desc">สำหรับ Founder ผู้บริหาร และผู้นำที่ต้องการให้ AI ทำงานด้วยวิธีคิด สไตล์ เสียง และบริบทการตัดสินใจของตัวเอง</p>
+ <p class="pricing-exec-notice">Executive plans require private onboarding and are available by demo or request only.</p>
+ <div class="pricing-cards pricing-cards-exec">
+ <div class="pricing-card pricing-exec">
+ <h3>Core</h3>
+ <div class="pricing-price pricing-price-gold">฿12,000<span>/เดือน</span></div>
+ <p class="pricing-tagline">Start your private Digital Twin.</p>
+ <ul class="pricing-features">
+ <li>Private Identity Vault</li>
+ <li>Basic Decision Matrix</li>
+ <li>Text-based Digital Twin</li>
+ <li>MCP connection</li>
+ <li>Context retrieval</li>
+ <li>50,000 API calls / month</li>
+ </ul>
+ <button class="btn btn-gold btn-block">Book Private Demo</button>
+ </div>
+ <div class="pricing-card pricing-exec pricing-recommended">
+ <div class="pricing-badge">Recommended</div>
+ <h3>Pro</h3>
+ <div class="pricing-price pricing-price-gold">฿25,000<span>/เดือน</span></div>
+ <p class="pricing-tagline">Most recommended for leaders.</p>
+ <ul class="pricing-features">
+ <li>ทุกอย่างใน Core</li>
+ <li>Advanced Decision Matrix</li>
+ <li>Voice Clone</li>
+ <li>Priority Support</li>
+ <li>3 Delegated Users</li>
+ <li>Monthly Twin Calibration</li>
+ <li>200,000 API calls / month</li>
+ </ul>
+ <button class="btn btn-gold btn-block">Book Private Demo</button>
+ </div>
+ <div class="pricing-card pricing-exec">
+ <h3>Elite</h3>
+ <div class="pricing-price pricing-price-gold">฿45,000<span>/เดือน</span></div>
+ <p class="pricing-tagline">A private digital twin experience.</p>
+ <ul class="pricing-features">
+ <li>ทุกอย่างใน Pro</li>
+ <li>Avatar UI</li>
+ <li>Dedicated CSM</li>
+ <li>Deep Decision Calibration</li>
+ <li>Annual Deep Review</li>
+ <li>Priority Onboarding</li>
+ <li>500,000 API calls / month</li>
+ </ul>
+ <button class="btn btn-gold btn-block">Request Elite Access</button>
+ </div>
+ <div class="pricing-card pricing-exec pricing-legacy">
+ <h3>Legacy</h3>
+ <div class="pricing-price pricing-price-gold">฿8,000<span>/เดือน</span></div>
+ <p class="pricing-tagline">Preserve wisdom. Pass on judgment.</p>
+ <ul class="pricing-features">
+ <li>Read-only Digital Twin</li>
+ <li>Knowledge Preservation Mode</li>
+ <li>Consultation Mode</li>
+ <li>Access control สำหรับผู้รับสิทธิ์</li>
+ <li>Legacy archive</li>
+ <li>Limited support</li>
+ </ul>
+ <button class="btn btn-gold btn-block">Explore Legacy</button>
+ </div>
+ </div>
+ <p class="pricing-note">แพ็กเกจ Executive ต้องมี private onboarding ก่อนเริ่มใช้งาน และยังไม่เปิดให้ซื้อผ่านหน้าเว็บโดยตรง</p>
+ </div>
+
+ <!-- Trust Note Under Pricing -->
+ <div class="pricing-trust-note">
+ <p>Free และ Starter เป็นแผน Personal AI Context สำหรับสร้างบริบทพร้อมใช้กับ AI ยังไม่ใช่ Digital Twin เต็มระบบ</p>
+ <p>Executive Digital Twin ต้องมี private onboarding และ consent ที่ชัดเจนก่อนใช้ข้อมูลสำคัญใด ๆ</p>
+ </div>
+ </section>
+
+ <!-- ─── TRUST ─── -->
+ <section class="landing-section" id="trust-section">
+ <div class="section-center">
+ <h2 class="section-title">Built around <span class="hero-gradient">user control</span></h2>
+ <p class="section-desc">ออกแบบบนหลักการที่ผู้ใช้ควบคุมข้อมูลของตัวเอง</p>
+ </div>
+ <div class="trust-grid">
+ <div class="trust-item"><span class="trust-icon"></span><span>Private by default</span></div>
+ <div class="trust-item"><span class="trust-icon"></span><span>User-controlled context</span></div>
+ <div class="trust-item"><span class="trust-icon"></span><span>Export anytime</span></div>
+ <div class="trust-item"><span class="trust-icon"></span><span>Delete anytime</span></div>
+ <div class="trust-item"><span class="trust-icon"></span><span>Revoke access</span></div>
+ <div class="trust-item"><span class="trust-icon"></span><span>No training without consent</span></div>
+ <div class="trust-item"><span class="trust-icon"></span><span>Only selected data is used</span></div>
+ <div class="trust-item"><span class="trust-icon"></span><span>Start with low-risk data</span></div>
+ </div>
+ <div class="trust-warning">
+ <p> ช่วงเริ่มต้นเราจะโฟกัสข้อมูลความรู้ การเรียน งาน และบริบทส่วนตัวที่มีความเสี่ยงต่ำ กรุณาอย่าอัปโหลดบัตรประชาชน เอกสารการเงิน ข้อมูลสุขภาพ หรือข้อมูลอ่อนไหวสูงในเวอร์ชันแรก</p>
+ </div>
+ </section>
+
+ <!-- ─── FAQ ─── -->
+ <section class="landing-section landing-section-dark" id="faq-section">
+ <div class="section-center">
+ <h2 class="section-title">คำถามที่พบบ่อย</h2>
+ </div>
+ <div class="faq-list">
+ <div class="faq-item" onclick="this.classList.toggle('open')">
+ <div class="faq-q">Free กับ Starter ต่างกันอย่างไร?</div>
+ <div class="faq-a">Free เหมาะสำหรับทดลองสร้าง Context Pack แรก ส่วน Starter เหมาะสำหรับคนที่ต้องการใช้บริบทหลายชุดกับการเรียน งาน หรือการสร้างคอนเทนต์เป็นประจำ</div>
+ </div>
+ <div class="faq-item" onclick="this.classList.toggle('open')">
+ <div class="faq-q">Starter เป็น Digital Twin หรือไม่?</div>
+ <div class="faq-a">ไม่ใช่ Starter เป็น Personal AI Context plan สำหรับสร้าง context pack และ AI-ready profile เบื้องต้น ส่วน Digital Twin เริ่มที่แผน Core ขึ้นไปและต้องมี onboarding แยกต่างหาก</div>
+ </div>
+ <div class="faq-item" onclick="this.classList.toggle('open')">
+ <div class="faq-q">Starter จ่ายผ่านอะไร?</div>
+ <div class="faq-a">Starter จะใช้ Stripe subscription ในเฟสถัดไป ตอนนี้หน้านี้ใช้เพื่อสื่อสารราคาและรับความสนใจจากผู้ใช้ก่อน</div>
+ </div>
+ <div class="faq-item" onclick="this.classList.toggle('open')">
+ <div class="faq-q">Executive Plans ซื้อผ่านหน้าเว็บได้ไหม?</div>
+ <div class="faq-a">ยังไม่ได้ Executive Plans ต้อง Book Private Demo หรือ Request Access เพราะต้องมี private onboarding, consent และการประเมินความเหมาะสมก่อนเริ่มใช้งาน</div>
+ </div>
+ <div class="faq-item" onclick="this.classList.toggle('open')">
+ <div class="faq-q">อัปโหลดข้อมูลอ่อนไหวได้ไหม?</div>
+ <div class="faq-a">ยังไม่ควรอัปโหลดข้อมูลอ่อนไหว เช่น บัตรประชาชน เอกสารการเงิน ข้อมูลสุขภาพ เวอร์ชันแรกเน้นข้อมูลการเรียน งาน ความรู้ส่วนตัว และบริบทที่มีความเสี่ยงต่ำ</div>
+ </div>
+ </div>
+ </section>
+
+ <!-- ─── FINAL CTA ─── -->
+ <section class="landing-cta">
+ <h2>พร้อมให้ AI เข้าใจคุณแล้วหรือยัง?</h2>
+ <p>เริ่มสร้างบริบทส่วนตัวของคุณวันนี้ — ฟรี ไม่มีบัตรเครดิต</p>
+ <button class="btn btn-primary btn-lg btn-glow" id="btn-cta-register">เริ่มใช้งานฟรี →</button>
+ </section>
+
+ <!-- ─── FOOTER ─── -->
+ <footer class="landing-footer">
+ <div class="landing-logo footer-logo">
+ <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.9"/><rect x="14" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/><rect x="3" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/><rect x="14" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.3"/></svg>
+ <span>Personal Data Bank</span>
+ </div>
+ <p>สร้างด้วย · v5.9.3 — Start with context. Grow into your Digital Twin.</p>
+ </footer>
+ </div>
+
+ <!-- ═══════════════════════════════════════════ -->
+ <!-- AUTH MODAL -->
+ <!-- ═══════════════════════════════════════════ -->
+ <div class="modal-overlay hidden" id="auth-modal">
+ <div class="modal auth-modal">
+ <div class="modal-header">
+ <h2 id="auth-modal-title">เข้าสู่ระบบ</h2>
+ <button class="btn-close" id="auth-modal-close"></button>
+ </div>
+ <div class="modal-body">
+ <!-- Login Form -->
+ <div id="login-form">
+ <div class="form-group">
+ <label>อีเมล</label>
+ <input type="email" id="login-email" placeholder="you@example.com" class="form-input" autocomplete="email">
+ </div>
+ <div class="form-group">
+ <label>รหัสผ่าน</label>
+ <input type="password" id="login-password" placeholder="••••••" class="form-input" autocomplete="current-password">
+ </div>
+ <div id="login-error" class="auth-error hidden"></div>
+ <button class="btn btn-primary btn-block" id="btn-login">เข้าสู่ระบบ</button>
+ <p class="auth-switch"><a href="#" id="switch-to-forgot" class="forgot-link">ลืมรหัสผ่าน?</a></p>
+ <p class="auth-switch">ยังไม่มีบัญชี? <a href="#" id="switch-to-register">สมัครสมาชิก</a></p>
+ </div>
+ <!-- Register Form -->
+ <div id="register-form" class="hidden">
+ <div class="form-group">
+ <label>ชื่อ</label>
+ <input type="text" id="register-name" placeholder="ชื่อของคุณ" class="form-input" autocomplete="name">
+ </div>
+ <div class="form-group">
+ <label>อีเมล</label>
+ <input type="email" id="register-email" placeholder="you@example.com" class="form-input" autocomplete="email">
+ </div>
+ <div class="form-group">
+ <label>รหัสผ่าน (อย่างน้อย 6 ตัว)</label>
+ <input type="password" id="register-password" placeholder="••••••" class="form-input" autocomplete="new-password">
+ </div>
+ <div id="register-error" class="auth-error hidden"></div>
+ <button class="btn btn-primary btn-block" id="btn-register">สมัครสมาชิก</button>
+ <p class="auth-switch">มีบัญชีอยู่แล้ว? <a href="#" id="switch-to-login">เข้าสู่ระบบ</a></p>
+ </div>
+ <!-- Forgot Password Form (v5.1) -->
+ <div id="forgot-form" class="hidden">
+ <div class="reset-icon-wrapper">
+ <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+ <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+ </svg>
+ </div>
+ <p class="reset-subtitle">กรอกอีเมลที่ใช้สมัครเพื่อรีเซ็ตรหัสผ่าน</p>
+ <div class="form-group">
+ <label>อีเมล</label>
+ <input type="email" id="forgot-email" placeholder="you@example.com" class="form-input" autocomplete="email">
+ </div>
+ <div id="forgot-error" class="auth-error hidden"></div>
+ <button class="btn btn-primary btn-block" id="btn-forgot-submit">ยืนยันอีเมล</button>
+ <p class="auth-switch"><a href="#" id="switch-forgot-to-login">← กลับเข้าสู่ระบบ</a></p>
+ </div>
+ <!-- Reset Password Form (v5.1) -->
+ <div id="reset-form" class="hidden">
+ <div class="reset-icon-wrapper success">
+ <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+ <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+ </svg>
+ </div>
+ <p class="reset-subtitle">ตั้งรหัสผ่านใหม่สำหรับ <strong id="reset-email-display"></strong></p>
+ <div class="form-group">
+ <label>รหัสผ่านใหม่ (อย่างน้อย 6 ตัว)</label>
+ <input type="password" id="reset-new-password" placeholder="••••••" class="form-input" autocomplete="new-password">
+ </div>
+ <div class="form-group">
+ <label>ยืนยันรหัสผ่านใหม่</label>
+ <input type="password" id="reset-confirm-password" placeholder="••••••" class="form-input" autocomplete="new-password">
+ </div>
+ <div id="reset-error" class="auth-error hidden"></div>
+ <button class="btn btn-primary btn-block" id="btn-reset-submit">เปลี่ยนรหัสผ่าน</button>
+ <p class="auth-switch"><a href="#" id="switch-reset-to-login">← กลับเข้าสู่ระบบ</a></p>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ <div id="app" class="app-container hidden">
+
+ <!-- ═══════════════════════════════════════════ -->
+ <!-- SIDEBAR -->
+ <!-- ═══════════════════════════════════════════ -->
+ <aside class="sidebar" id="sidebar">
+ <div class="sidebar-header">
+ <div class="logo">
+ <div class="logo-icon">
+ <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+ <rect x="3" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.9"/>
+ <rect x="14" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/>
+ <rect x="3" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/>
+ <rect x="14" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.3"/>
+ </svg>
+ </div>
+ <div class="logo-text-area">
+ <span class="logo-text">Project KEY</span>
+ <span class="logo-version">v5.9.3</span>
+ </div>
+ </div>
+ </div>
+
+ <nav class="sidebar-nav">
+ <a href="#" class="nav-item active" data-page="my-data" id="nav-my-data">
+ <span class="nav-icon">
+ <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+ <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+ <polyline points="13 2 13 9 20 9"/>
+ </svg>
+ </span>
+ <span class="nav-label" data-i18n="nav.myData">My Data</span>
+ </a>
+ <a href="#" class="nav-item" data-page="knowledge" id="nav-knowledge">
+ <span class="nav-icon">
+ <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+ <rect x="3" y="3" width="7" height="7"/>
+ <rect x="14" y="3" width="7" height="7"/>
+ <rect x="3" y="14" width="7" height="7"/>
+ <rect x="14" y="14" width="7" height="7"/>
+ </svg>
+ </span>
+ <span class="nav-label" data-i18n="nav.knowledge">Knowledge View</span>
+ </a>
+ <a href="#" class="nav-item" data-page="graph" id="nav-graph">
+ <span class="nav-icon">
+ <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+ <circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/>
+ <circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/>
+ <line x1="9" y1="6" x2="15" y2="6"/>
+ <line x1="6" y1="9" x2="6" y2="15"/>
+ <line x1="18" y1="9" x2="18" y2="15"/>
+ <line x1="9" y1="18" x2="15" y2="18"/>
+ <line x1="9" y1="8" x2="15" y2="16"/>
+ </svg>
+ </span>
+ <span class="nav-label" data-i18n="nav.graph">Graph</span>
+ </a>
+ <a href="#" class="nav-item" data-page="chat" id="nav-chat">
+ <span class="nav-icon">
+ <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+ <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+ </svg>
+ </span>
+ <span class="nav-label" data-i18n="nav.chat">AI Chat</span>
+ </a>
+ <a href="#" class="nav-item" data-page="context-memory" id="nav-context-memory">
+ <span class="nav-icon">
+ <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+ <path d="M12 2a4 4 0 0 1 4 4c0 1.95-1.4 3.58-3.25 3.93"/>
+ <path d="M8.56 13.44A6 6 0 0 0 6 18h12a6 6 0 0 0-2.56-4.56"/>
+ <circle cx="12" cy="10" r="1"/>
+ <path d="M12 14v3"/>
+ <path d="M9 20h6"/>
+ </svg>
+ </span>
+ <span class="nav-label">Context Memory</span>
+ </a>
+
+ <!-- v4 — Connector Layer -->
+ <div class="nav-divider"></div>
+ <span class="nav-section-label" data-i18n="nav.connectorSection">Connector</span>
+
+ <a href="#" class="nav-item" data-page="mcp-setup" id="nav-mcp-setup">
+ <span class="nav-icon">
+ <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+ <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+ </svg>
+ </span>
+ <span class="nav-label" data-i18n="nav.mcpSetup">MCP Setup</span>
+ </a>
+ <a href="#" class="nav-item" data-page="tokens" id="nav-tokens">
+ <span class="nav-icon">
+ <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+ <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+ </svg>
+ </span>
+ <span class="nav-label" data-i18n="nav.tokens">Tokens</span>
+ </a>
+ <a href="#" class="nav-item" data-page="mcp-logs" id="nav-mcp-logs">
+ <span class="nav-icon">
+ <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+ <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+ </svg>
+ </span>
+ <span class="nav-label" data-i18n="nav.mcpLogs">MCP Logs</span>
+ </a>
+ </nav>
+
+ <!-- Sidebar Stats -->
+ <div class="sidebar-stats" id="sidebar-stats">
+ <div class="stat-row"><span class="stat-label" data-i18n="stat.files">Files</span><span class="stat-value" id="stat-files">0</span></div>
+ <div class="stat-row"><span class="stat-label" data-i18n="stat.collections">Collections</span><span class="stat-value" id="stat-clusters">0</span></div>
+ <div class="stat-row"><span class="stat-label" data-i18n="stat.nodes">Nodes</span><span class="stat-value" id="stat-nodes">0</span></div>
+ <div class="stat-row"><span class="stat-label" data-i18n="stat.relations">Relations</span><span class="stat-value" id="stat-edges">0</span></div>
+ <div class="stat-row"><span class="stat-label" data-i18n="stat.packs">Packs</span><span class="stat-value" id="stat-packs">0</span></div>
+ <div class="stat-row"><span class="stat-label" data-i18n="stat.tokens">Tokens</span><span class="stat-value" id="stat-tokens">0</span></div>
+ </div>
+
+ <!-- Profile -->
+ <div class="sidebar-footer">
+ <button class="lang-toggle" id="lang-toggle" title="Switch Language">
+ <svg id="lang-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+ <span id="lang-label">TH</span>
+ <span class="lang-separator">|</span>
+ <span id="lang-alt">EN</span>
+ </button>
+ <a href="#" class="nav-item profile-trigger" id="profile-trigger">
+ <span class="nav-icon">
+ <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+ <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+ <circle cx="12" cy="7" r="4"/>
+ </svg>
+ </span>
+ <span class="nav-label" data-i18n="nav.profile">My Profile</span>
+ <span class="profile-status-dot" id="profile-dot"></span>
+ </a>
+ <div class="sidebar-user-info" id="sidebar-user-info">
+ <span class="user-email" id="sidebar-user-email"></span>
+ <button class="btn-logout" id="btn-logout" title="ออกจากระบบ">
+ <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+ </button>
+ </div>
+ </div>
+ </aside>
+
+ <!-- ═══════════════════════════════════════════ -->
+ <!-- MAIN CONTENT -->
+ <!-- ═══════════════════════════════════════════ -->
+ <main class="main-content" id="main-content">
+
+ <!-- ─── PAGE: MY DATA ─── -->
+ <section class="page active" id="page-my-data">
+ <div class="page-header">
+ <div>
+ <h1 class="page-title" data-i18n="myData.title">My Data</h1>
+ <p class="page-subtitle" data-i18n="myData.subtitle">Your personal data space</p>
+ </div>
+ <div class="header-actions">
+ <button class="btn btn-outline" id="btn-organize-all" title="จัดระเบียบไฟล์ทั้งหมดใหม่">
+ <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+ <span data-i18n="myData.organizeAll">จัดระเบียบทั้งหมด</span>
+ </button>
+ <button class="btn btn-primary" id="btn-organize-new">
+ <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+ <span data-i18n="myData.organizeNew">จัดระเบียบไฟล์ใหม่</span>
+ <span class="badge-count" id="unprocessed-badge" style="display:none;">0</span>
+ </button>
+ </div>
+ </div>
+
+ <!-- Upload Zone -->
+ <div class="upload-zone" id="upload-zone">
+ <div class="upload-icon">
+ <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+ <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+ <polyline points="17 8 12 3 7 8"/>
+ <line x1="12" y1="3" x2="12" y2="15"/>
+ </svg>
+ </div>
+ <p class="upload-text" data-i18n="myData.uploadText">Drag files here or click to select</p>
+ <p class="upload-hint" id="upload-hint" data-i18n="myData.uploadHint">Supports PDF, TXT, MD, DOCX (max 20 MB)</p>
+ <input type="file" id="file-input" multiple accept=".pdf,.txt,.md,.docx" hidden>
+ </div>
+
+ <!-- File List -->
+ <div class="section-header">
+ <h2 data-i18n="myData.allFiles">All Files</h2>
+ <span class="badge" id="file-count-badge">0</span>
+ </div>
+ <div class="file-list" id="file-list">
+ <div class="empty-state">
+ <p>ยังไม่มีไฟล์ — เพิ่มไฟล์เข้าพื้นที่ส่วนตัวของคุณ</p>
+ </div>
+ </div>
+
+ <!-- File Detail Slide Panel -->
+ <div class="file-detail-panel hidden" id="file-detail-panel">
+ <div class="file-detail-header">
+ <div class="file-detail-title-area">
+ <div class="file-detail-icon" id="fd-icon">MD</div>
+ <div>
+ <h2 id="fd-filename">—</h2>
+ <div class="fd-meta-row">
+ <span class="badge" id="fd-cluster">—</span>
+ <span id="fd-importance">—</span>
+ </div>
+ </div>
+ </div>
+ <button class="btn-close" id="fd-close"></button>
+ </div>
+ <div class="file-detail-body">
+ <!-- Edit Actions -->
+ <div class="fd-edit-bar" id="fd-edit-bar">
+ <button class="btn btn-outline btn-sm" id="fd-edit-btn" onclick="toggleSummaryEdit(true)"> Edit</button>
+ <div class="fd-edit-actions hidden" id="fd-edit-actions">
+ <button class="btn btn-primary btn-sm" id="fd-save-btn" onclick="saveSummaryEdit()"> Save</button>
+ <button class="btn btn-outline btn-sm" onclick="toggleSummaryEdit(false)">Cancel</button>
+ </div>
+ </div>
+ <!-- Summary -->
+ <div class="fd-section">
+ <h3> Summary</h3>
+ <p id="fd-summary" class="fd-text">—</p>
+ <textarea id="fd-summary-edit" class="fd-edit-textarea hidden"></textarea>
+ </div>
+ <!-- Key Topics -->
+ <div class="fd-section">
+ <h3> Key Topics</h3>
+ <div id="fd-topics" class="fd-chips"></div>
+ </div>
+ <!-- Key Facts -->
+ <div class="fd-section">
+ <h3> Key Facts</h3>
+ <ul id="fd-facts" class="fd-list"></ul>
+ </div>
+ <!-- Why Important -->
+ <div class="fd-section">
+ <h3> Why Important</h3>
+ <p id="fd-why" class="fd-text">—</p>
+ <textarea id="fd-why-edit" class="fd-edit-textarea hidden"></textarea>
+ </div>
+ <!-- Content Preview -->
+ <div class="fd-section">
+ <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+ <h3> Content Preview</h3>
+ <div style="display:flex; gap:8px;">
+ <button class="btn btn-outline btn-sm" id="fd-reprocess-btn" title="Re-extract text (OCR + Thai fix)"> Re-extract</button>
+ <button class="btn btn-primary btn-sm" id="fd-download-btn" title="Download original file">⬇ Download</button>
+ </div>
+ </div>
+ <pre id="fd-content" class="fd-content-preview">—</pre>
+ </div>
+ </div>
+ </div>
+ </section>
+
+ <!-- ─── PAGE: KNOWLEDGE VIEW ─── -->
+ <section class="page" id="page-knowledge">
+ <div class="page-header">
+ <div>
+ <h1 class="page-title" data-i18n="knowledge.title">Knowledge View</h1>
+ <p class="page-subtitle" data-i18n="knowledge.subtitle">Your organized knowledge system</p>
+ </div>
+ <div class="header-actions">
+ <div class="view-toggle">
+ <button class="toggle-btn active" data-view="cards" id="view-cards">Cards</button>
+ <button class="toggle-btn" data-view="table" id="view-table">Table</button>
+ </div>
+ </div>
+ </div>
+
+ <!-- Knowledge Tabs -->
+ <div class="knowledge-tabs">
+ <button class="tab-btn active" data-tab="collections" data-i18n="knowledge.collections">Collections</button>
+ <button class="tab-btn" data-tab="notes" data-i18n="knowledge.notes">Notes & Summaries</button>
+ <button class="tab-btn" data-tab="packs" data-i18n="knowledge.packs">Context Packs</button>
+ </div>
+
+ <div class="knowledge-content" id="knowledge-content">
+ <div class="empty-state">
+ <p>จัดระเบียบไฟล์ก่อนเพื่อสร้างระบบความรู้</p>
+ </div>
+ </div>
+
+ <!-- Relation Preview Sidebar (shows when item selected) -->
+ <div class="relation-sidebar hidden" id="relation-sidebar">
+ <div class="relation-sidebar-header">
+ <h3 id="relation-item-title">—</h3>
+ <button class="btn-close" id="close-relation-sidebar"></button>
+ </div>
+ <div class="relation-section">
+ <h4> Backlinks <span class="badge" id="backlink-count">0</span></h4>
+ <div id="backlinks-list" class="relation-list"></div>
+ </div>
+ <div class="relation-section">
+ <h4> Outgoing <span class="badge" id="outgoing-count">0</span></h4>
+ <div id="outgoing-list" class="relation-list"></div>
+ </div>
+ <div class="relation-section">
+ <h4> Suggestions <span class="badge" id="suggestion-count">0</span></h4>
+ <div id="suggestions-list" class="relation-list"></div>
+ </div>
+ </div>
+
+ <!-- Create Context Pack Modal -->
+ <div class="pack-modal-overlay hidden" id="pack-modal-overlay">
+ <div class="pack-modal">
+ <div class="pack-modal-header">
+ <h2 id="pack-modal-title"> Create Context Pack</h2>
+ <button class="btn-close" id="pack-modal-close"></button>
+ </div>
+ <div class="pack-modal-body">
+ <div class="form-group">
+ <label>Pack Name</label>
+ <input type="text" id="pack-title-input" placeholder="e.g. My Work Context" class="form-input">
+ </div>
+ <div class="form-group">
+ <label>Type</label>
+ <select id="pack-type-select" class="form-input">
+ <option value="project"> Project</option>
+ <option value="study"> Study</option>
+ <option value="work"> Work</option>
+ <option value="profile"> Profile</option>
+ </select>
+ </div>
+ <div class="form-group">
+ <label>Select Files</label>
+ <div id="pack-file-list" class="pack-file-list">
+ <p class="text-muted">Loading files...</p>
+ </div>
+ </div>
+ </div>
+ <div class="pack-modal-footer">
+ <button class="btn btn-outline" id="pack-cancel-btn">Cancel</button>
+ <button class="btn btn-primary" id="pack-create-btn">Create Pack</button>
+ </div>
+ </div>
+ </div>
+ </section>
+
+ <!-- ─── PAGE: GRAPH ─── -->
+ <section class="page" id="page-graph">
+ <div class="page-header">
+ <div>
+ <h1 class="page-title" id="graph-page-title" data-i18n="graph.globalTitle">Global Graph</h1>
+ <p class="page-subtitle" id="graph-page-subtitle" data-i18n="graph.globalSubtitle">Overview of all connections</p>
+ </div>
+ <div class="header-actions">
+ <div class="view-toggle">
+ <button class="toggle-btn active" data-graph="global" id="graph-global-btn">Global</button>
+ <button class="toggle-btn" data-graph="local" id="graph-local-btn">Local</button>
+ </div>
+ <button class="btn btn-outline" id="btn-rebuild-graph">
+ <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+ Rebuild Graph
+ </button>
+ </div>
+ </div>
+
+ <!-- Graph Controls -->
+ <div class="graph-controls" id="graph-controls">
+ <div class="graph-search">
+ <input type="text" id="graph-search-input" placeholder="ค้นหา node..." class="search-input">
+ </div>
+ <div class="graph-filters">
+ <label class="filter-chip active" data-family="source_file"><span class="dot dot-file"></span> <span data-i18n="graph.filterFile">File</span></label>
+ <label class="filter-chip active" data-family="entity"><span class="dot dot-entity"></span> Entity</label>
+ <label class="filter-chip active" data-family="tag"><span class="dot dot-tag"></span> Tag</label>
+ <label class="filter-chip active" data-family="project"><span class="dot dot-project"></span> Collection</label>
+ <label class="filter-chip active" data-family="context_pack"><span class="dot dot-pack"></span> Pack</label>
+ <label class="filter-chip active" data-family="person"><span class="dot dot-person"></span> Person</label>
+ </div>
+ <!-- Local graph depth slider (hidden for global) -->
+ <div class="local-controls hidden" id="local-controls">
+ <label>Depth: <input type="range" id="depth-slider" min="1" max="3" value="1"><span id="depth-value">1</span></label>
+ </div>
+ </div>
+
+ <!-- Graph Canvas -->
+ <div class="graph-area">
+ <div class="graph-canvas" id="graph-canvas">
+ <svg id="graph-svg" width="100%" height="100%"></svg>
+ <div class="graph-empty hidden" id="graph-empty">
+ <p data-i18n="graph.emptyTitle">No Knowledge Graph yet</p>
+ <p class="hint" data-i18n="graph.emptyHint">Organize files first to build graph</p>
+ </div>
+ <!-- Tooltip (Obsidian-style) -->
+ <div class="graph-tooltip hidden" id="graph-tooltip">
+ <div class="tooltip-label" id="tooltip-label"></div>
+ <div class="tooltip-type" id="tooltip-type"></div>
+ </div>
+ <!-- Zoom Controls -->
+ <div class="graph-zoom-controls" id="graph-zoom-controls">
+ <button class="zoom-btn" id="zoom-in-btn" title="Zoom In">+</button>
+ <button class="zoom-btn" id="zoom-out-btn" title="Zoom Out">−</button>
+ <button class="zoom-btn" id="zoom-fit-btn" title="Fit All">⊡</button>
+ </div>
+ <!-- Node count overlay -->
+ <div class="graph-info-overlay" id="graph-info-overlay">
+ <span id="graph-node-count">0</span> nodes · <span id="graph-edge-count">0</span> edges
+ </div>
+ </div>
+
+ <!-- Detail Panel -->
+ <div class="detail-panel hidden" id="detail-panel">
+ <div class="detail-header">
+ <div class="detail-type-badge" id="detail-type">—</div>
+ <h3 id="detail-label">—</h3>
+ <button class="btn-close" id="close-detail"></button>
+ </div>
+ <div class="detail-body">
+ <div class="detail-section">
+ <h4 data-i18n="detail.summary">Summary</h4>
+ <p id="detail-summary" class="detail-text">—</p>
+ </div>
+ <div class="detail-section">
+ <h4>Metadata</h4>
+ <div id="detail-metadata" class="detail-meta-grid"></div>
+ </div>
+ <div class="detail-section">
+ <h4 data-i18n="detail.relations">Relations</h4>
+ <div id="detail-relations" class="detail-relations"></div>
+ </div>
+ <div class="detail-actions">
+ <button class="btn btn-sm" id="detail-open-local" data-i18n="detail.showLocal">Show Local Graph</button>
+ <button class="btn btn-sm" id="detail-ask-ai" data-i18n="detail.askAi">Ask AI about this</button>
+ </div>
+ </div>
+ </div>
+ </div>
+ </section>
+
+ <!-- ─── PAGE: AI CHAT ─── -->
+ <section class="page" id="page-chat">
+ <div class="chat-container">
+ <div class="chat-main">
+ <div class="chat-header">
+ <div>
+ <h1 class="page-title" data-i18n="chat.title">AI Chat</h1>
+ <p class="page-subtitle" data-i18n="chat.subtitle">AI uses your data, relations, and context to respond</p>
+ </div>
+ <div class="profile-indicator" id="chat-profile-indicator">
+ <span class="profile-dot"></span>
+ <span>Profile: <span id="chat-profile-status">Not set</span></span>
+ </div>
+ </div>
+
+ <!-- Chat Messages -->
+ <div class="chat-messages" id="chat-messages">
+ <div class="welcome-message">
+ <h2 data-i18n="chat.welcome">Hi! Ask anything about your data</h2>
+ <p data-i18n="chat.welcomeSub">AI uses Profile, Context Packs, Files, and Knowledge Graph to answer</p>
+ <div class="context-layers" id="context-layers">
+ <span class="layer-chip layer-profile"> Profile</span>
+ <span class="layer-chip layer-pack"> Packs</span>
+ <span class="layer-chip layer-collection"> Collections</span>
+ <span class="layer-chip layer-file"> Files</span>
+ <span class="layer-chip layer-graph"> Graph</span>
+ </div>
+ </div>
+ </div>
+
+ <!-- Chat Input -->
+ <div class="chat-input-area">
+ <div class="chat-input-wrapper">
+ <textarea id="chat-input" placeholder="ถามเกี่ยวกับข้อมูลของคุณ..." rows="1"></textarea>
+ <button class="btn btn-send" id="btn-send">
+ <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+ </button>
+ </div>
+ </div>
+ </div>
+
+ <!-- Sources Panel -->
+ <div class="sources-panel" id="sources-panel">
+ <div class="sources-header">
+ <h3 data-i18n="sources.title">Evidence Used</h3>
+ </div>
+ <div class="sources-body" id="sources-body">
+ <div class="source-section">
+ <h4 data-i18n="sources.profile"> Profile</h4>
+ <div id="src-profile" class="source-content">—</div>
+ </div>
+ <div class="source-section">
+ <h4> Context Packs</h4>
+ <div id="src-packs" class="source-content">—</div>
+ </div>
+ <div class="source-section">
+ <h4 data-i18n="sources.files"> Files Used</h4>
+ <div id="src-files" class="source-content">—</div>
+ </div>
+ <div class="source-section">
+ <h4> Nodes & Edges</h4>
+ <div id="src-graph" class="source-content">—</div>
+ </div>
+ <div class="source-section">
+ <h4 data-i18n="sources.reasoning"> Reasoning</h4>
+ <div id="src-reasoning" class="source-content">—</div>
+ </div>
+ <div class="source-section">
+ <h4> Evidence Graph</h4>
+ <div id="src-evidence-graph" class="evidence-graph-container">
+ <svg id="evidence-graph-svg" width="100%" height="200"></svg>
+ </div>
+ </div>
+ </div>
+ </div>
+ </div>
+ </section>
+
+ <!-- ─── PAGE: MCP SETUP (v4) ─── -->
+ <!-- ─── PAGE: CONTEXT MEMORY (v5.5) ─── -->
+ <section class="page" id="page-context-memory">
+ <div class="page-header">
+ <div>
+ <h1 class="page-title"> Context Memory</h1>
+ <p class="page-subtitle">บริบทการทำงานข้ามแพลตฟอร์ม — AI จำได้ต่อเนื่อง</p>
+ </div>
+ <div class="header-actions">
+ <input type="text" class="search-input" id="ctx-search" placeholder=" ค้นหา context..." style="width:200px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:0.85rem;">
+ <select id="ctx-filter-type" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:0.85rem;">
+ <option value="">ทุกประเภท</option>
+ <option value="conversation"> Conversation</option>
+ <option value="project"> Project</option>
+ <option value="task"> Task</option>
+ <option value="note"> Note</option>
+ </select>
+ <button class="btn btn-primary" id="btn-new-context">
+ <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+ <span>สร้าง Context</span>
+ </button>
+ </div>
+ </div>
+
+ <!-- Context Cards Grid -->
+ <div class="ctx-grid" id="ctx-grid">
+ <div class="empty-state" id="ctx-empty">
+ <p> ยังไม่มี Context — AI จะเริ่มบันทึกให้อัตโนมัติเมื่อคุณใช้งาน</p>
+ </div>
+ </div>
+ </section>
+
+ <!-- Context Memory: Create/Edit Modal -->
+ <div class="modal-overlay hidden" id="ctx-modal">
+ <div class="modal" style="max-width:600px;">
+ <div class="modal-header">
+ <h2 id="ctx-modal-title"> สร้าง Context ใหม่</h2>
+ <button class="btn-close" id="ctx-modal-close"></button>
+ </div>
+ <div class="modal-body">
+ <input type="hidden" id="ctx-edit-id">
+ <div class="form-group">
+ <label>ชื่อ Context</label>
+ <input type="text" id="ctx-input-title" placeholder="เช่น Project KEY v5.5 progress" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);">
+ </div>
+ <div class="form-group">
+ <label>เนื้อหา (Markdown)</label>
+ <textarea id="ctx-input-content" rows="8" placeholder="บันทึกบริบท สรุปงาน สิ่งที่ทำค้างไว้..." style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-family:inherit;resize:vertical;"></textarea>
+ </div>
+ <div style="display:flex;gap:12px;">
+ <div class="form-group" style="flex:1;">
+ <label>ประเภท</label>
+ <select id="ctx-input-type" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);">
+ <option value="conversation"> Conversation</option>
+ <option value="project"> Project</option>
+ <option value="task"> Task</option>
+ <option value="note"> Note</option>
+ </select>
+ </div>
+ <div class="form-group" style="flex:1;">
+ <label>Tags (คั่นด้วย ,)</label>
+ <input type="text" id="ctx-input-tags" placeholder="tag1, tag2" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);">
+ </div>
+ </div>
+ <div class="form-group" style="display:flex;align-items:center;gap:8px;">
+ <input type="checkbox" id="ctx-input-pinned">
+ <label for="ctx-input-pinned" style="margin:0;"> ปักหมุด (Pin) — แนบไปทุกแพลตฟอร์มเสมอ</label>
+ </div>
+ </div>
+ <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:8px;padding:16px 24px;border-top:1px solid var(--border);">
+ <button class="btn btn-outline" id="ctx-modal-cancel">ยกเลิก</button>
+ <button class="btn btn-primary" id="ctx-modal-save"> บันทึก</button>
+ </div>
+ </div>
+ </div>
+
+ <!-- Context Memory: View Modal -->
+ <div class="modal-overlay hidden" id="ctx-view-modal">
+ <div class="modal" style="max-width:700px;">
+ <div class="modal-header">
+ <h2 id="ctx-view-title">Context</h2>
+ <button class="btn-close" id="ctx-view-close"></button>
+ </div>
+ <div class="modal-body" id="ctx-view-body" style="white-space:pre-wrap;font-size:0.9rem;line-height:1.7;max-height:60vh;overflow-y:auto;">
+ </div>
+ <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:8px;padding:16px 24px;border-top:1px solid var(--border);">
+ <button class="btn btn-outline" id="ctx-view-edit"> แก้ไข</button>
+ <button class="btn btn-danger" id="ctx-view-delete" style="background:#ef4444;color:#fff;"> ลบ</button>
+ </div>
+ </div>
+ </div>
+
+ <section class="page" id="page-mcp-setup">
+ <div class="page-header">
+ <div>
+ <h1 class="page-title" data-i18n="mcp.setupTitle">Claude Connector Setup</h1>
+ <p class="page-subtitle" data-i18n="mcp.setupSubtitle">Connect your Project KEY data to Claude via remote MCP</p>
+ </div>
+ </div>
+
+ <!-- Connection Status -->
+ <div class="mcp-status-card" id="mcp-status-card">
+ <div class="mcp-status-indicator">
+ <span class="mcp-status-dot" id="mcp-status-dot"></span>
+ <span class="mcp-status-text" id="mcp-status-text" data-i18n="mcp.notConfigured">Not configured</span>
+ </div>
+ <div class="mcp-status-meta" id="mcp-status-meta"></div>
+ </div>
+
+ <!-- Setup Steps -->
+ <div class="mcp-setup-grid">
+
+ <!-- Step 1: Server URL -->
+ <div class="mcp-step-card">
+ <div class="mcp-step-number">1</div>
+ <div class="mcp-step-content">
+ <h3 data-i18n="mcp.step1Title">MCP Server URL</h3>
+ <p data-i18n="mcp.step1Desc">Copy this URL to your Claude custom connector settings</p>
+ <div class="code-block" id="mcp-server-url">
+ <code id="mcp-url-value">Loading...</code>
+ <button class="copy-btn" id="btn-copy-url" title="Copy URL">
+ <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+ </button>
+ </div>
+ </div>
+ </div>
+
+ <!-- Step 2: Generate Token -->
+ <div class="mcp-step-card">
+ <div class="mcp-step-number">2</div>
+ <div class="mcp-step-content">
+ <h3 data-i18n="mcp.step2Title">Generate Access Token</h3>
+ <p data-i18n="mcp.step2Desc">Create a Bearer token for REST API access</p>
+ <div class="mcp-token-area">
+ <div class="mcp-token-input-row">
+ <input type="text" id="mcp-token-label" placeholder="Token label (e.g. Claude Desktop)" class="search-input" value="Claude Connector">
+ <button class="btn btn-primary" id="btn-generate-token" data-i18n="mcp.generateToken">Generate Token</button>
+ </div>
+ <div class="mcp-token-display hidden" id="mcp-token-display">
+ <div class="mcp-token-warning">
+ <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+ <span data-i18n="mcp.tokenWarning">Save this token now — it won't be shown again</span>
+ </div>
+ <div class="code-block code-block-token">
+ <code id="mcp-token-value"></code>
+ <button class="copy-btn" id="btn-copy-token" title="Copy Token">
+ <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+ </button>
+ </div>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ <!-- Step 3: Configure AI Client -->
+ <div class="mcp-step-card">
+ <div class="mcp-step-number">3</div>
+ <div class="mcp-step-content">
+ <h3 data-i18n="mcp.step3Title">Configure Claude</h3>
+ <p data-i18n="mcp.step3Desc">Add this configuration to your Claude Desktop settings</p>
+ <!-- Platform Tabs -->
+ <div class="mcp-platform-tabs">
+ <button class="mcp-tab active" id="tab-claude" onclick="switchMcpTab('claude')">
+ <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+ Claude Desktop
+ </button>
+ <button class="mcp-tab" id="tab-antigravity" onclick="switchMcpTab('antigravity')">
+ <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+ Antigravity
+ </button>
+ </div>
+ <!-- Claude Config -->
+ <div class="mcp-tab-content active" id="panel-claude">
+ <div class="code-block code-block-multi" id="mcp-config-block">
+ <pre id="mcp-config-json">Loading...</pre>
+ <button class="copy-btn" id="btn-copy-config" title="Copy Config">
+ <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+ </button>
+ </div>
+ </div>
+ <!-- Antigravity Config -->
+ <div class="mcp-tab-content" id="panel-antigravity">
+ <p style="font-size:13px;color:var(--text-secondary);margin-bottom:8px" data-i18n="mcp.antigravityDesc">Add to mcp_config.json (uses mcp-remote bridge)</p>
+ <div class="code-block code-block-multi">
+ <pre id="mcp-config-antigravity">Loading...</pre>
+ <button class="copy-btn" id="btn-copy-config-ag" title="Copy Config">
+ <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+ </button>
+ </div>
+ </div>
+ </div>
+ </div>
+
+ <!-- Step 4: Test Connection -->
+ <div class="mcp-step-card">
+ <div class="mcp-step-number">4</div>
+ <div class="mcp-step-content">
+ <h3 data-i18n="mcp.step4Title">Test Connection</h3>
+ <p data-i18n="mcp.step4Desc">Verify your connector setup is working</p>
+ <button class="btn btn-outline" id="btn-test-connection" data-i18n="mcp.testConnection">Test Connection</button>
+ <div class="mcp-test-result hidden" id="mcp-test-result"></div>
+ </div>
+ </div>
+
+ </div>
+
+ <!-- Available Tools -->
+ <div class="section-header" style="margin-top:32px">
+ <h2 data-i18n="mcp.availableTools">Available Tools</h2>
+ <span class="badge" id="mcp-tools-count">24</span>
+ </div>
+ <div class="mcp-tools-grid" id="mcp-tools-grid"></div>
+
+ </section>
+
+ <!-- ─── PAGE: TOKEN MANAGEMENT (v4) ─── -->
+ <section class="page" id="page-tokens">
+ <div class="page-header">
+ <div>
+ <h1 class="page-title" data-i18n="tokens.title">Token Management</h1>
+ <p class="page-subtitle" data-i18n="tokens.subtitle">Manage access tokens for external AI connectors</p>
+ </div>
+ <div class="header-actions">
+ <button class="btn btn-primary" id="btn-new-token">
+ <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+ <span data-i18n="tokens.newToken">New Token</span>
+ </button>
+ </div>
+ </div>
+
+ <div class="token-list" id="token-list">
+ <div class="empty-state">
+ <p data-i18n="tokens.empty">No tokens yet — generate one from MCP Setup</p>
+ </div>
+ </div>
+ </section>
+
+ <!-- ─── PAGE: MCP LOGS (v4) ─── -->
+ <section class="page" id="page-mcp-logs">
+ <div class="page-header">
+ <div>
+ <h1 class="page-title" data-i18n="logs.title">MCP Logs</h1>
+ <p class="page-subtitle" data-i18n="logs.subtitle">Track connector tool usage and debug issues</p>
+ </div>
+ </div>
+
+ <!-- Filters -->
+ <div class="log-filters" id="log-filters">
+ <select class="log-filter-select" id="log-filter-tool">
+ <option value="" data-i18n="logs.allTools">All Tools</option>
+ <option value="get_profile">get_profile</option>
+ <option value="list_context_packs">list_context_packs</option>
+ <option value="get_context_pack">get_context_pack</option>
+ <option value="search_knowledge">search_knowledge</option>
+ <option value="get_file_summary">get_file_summary</option>
+ </select>
+ <select class="log-filter-select" id="log-filter-status">
+ <option value="" data-i18n="logs.allStatus">All Status</option>
+ <option value="success">Success</option>
+ <option value="error">Error</option>
+ </select>
+ <button class="btn btn-outline btn-sm" id="btn-refresh-logs" data-i18n="logs.refresh">Refresh</button>
+ </div>
+
+ <!-- Log Table -->
+ <div class="log-table-wrapper">
+ <table class="log-table" id="log-table">
+ <thead>
+ <tr>
+ <th data-i18n="logs.colTime">Time</th>
+ <th data-i18n="logs.colTool">Tool</th>
+ <th data-i18n="logs.colStatus">Status</th>
+ <th data-i18n="logs.colLatency">Latency</th>
+ <th data-i18n="logs.colDetails">Details</th>
+ </tr>
+ </thead>
+ <tbody id="log-table-body">
+ <tr class="log-empty-row">
+ <td colspan="5">
+ <div class="empty-state">
+ <p data-i18n="logs.empty">No logs yet — connector usage will appear here</p>
+ </div>
+ </td>
+ </tr>
+ </tbody>
+ </table>
+ </div>
+ </section>
+
+ </main>
+
+ <!-- ═══════════════════════════════════════════ -->
+ <!-- PROFILE MODAL -->
+ <!-- ═══════════════════════════════════════════ -->
+ <div class="modal-overlay hidden" id="profile-modal">
+ <div class="modal profile-modal">
+ <div class="modal-header">
+ <h2 data-i18n="profile.title"> My Profile</h2>
+ <button class="btn-close" id="close-profile-modal"></button>
+ </div>
+ <div class="modal-body">
+ <!-- Subscription Section -->
+ <div class="billing-section" id="billing-section">
+ <div class="billing-plan-card" id="billing-plan-card">
+ <div class="billing-plan-info">
+ <span class="billing-plan-badge" id="billing-plan-badge">Free</span>
+ <span class="billing-plan-name" id="billing-plan-name">Personal AI Context</span>
+ </div>
+ <div class="billing-plan-detail" id="billing-plan-detail">แพลนปัจจุบัน: Free</div>
+ <div class="billing-actions" id="billing-actions">
+ <button class="btn btn-primary btn-sm" id="btn-upgrade-starter" style="display:none;"> Upgrade to Starter — ฿99/mo</button>
+ <button class="btn btn-outline btn-sm" id="btn-manage-billing" style="display:none;">จัดการการชำระเงิน</button>
+ </div>
+ </div>
+ </div>
+ <!-- Usage Bars Section (v5.9.3) -->
+ <div class="usage-section" id="usage-section">
+ <div class="usage-header">
+ <span class="usage-title"> การใช้งาน</span>
+ <span class="usage-plan-label" id="usage-plan-label">🆓 Free</span>
+ </div>
+ <div id="usage-bars-container"></div>
+ </div>
+ <hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:16px 0;">
+ <div class="form-group">
+ <label data-i18n="profile.identity">Who am I</label>
+ <textarea id="profile-identity" rows="2" placeholder="เช่น นักศึกษาปริญญาโท สาขาวิทยาศาสตร์..."></textarea>
+ </div>
+ <div class="form-group">
+ <label data-i18n="profile.goals">My Goals</label>
+ <textarea id="profile-goals" rows="2" placeholder="เช่น ทำวิจัยเกี่ยวกับ..."></textarea>
+ </div>
+ <div class="form-group">
+ <label data-i18n="profile.style">Work Style</label>
+ <textarea id="profile-style" rows="2" placeholder="เช่น ชอบข้อมูลที่เป็นระบบ..."></textarea>
+ </div>
+ <div class="form-group">
+ <label data-i18n="profile.output">Answer Preference</label>
+ <textarea id="profile-output" rows="2" placeholder="เช่น สรุปสั้นๆ ตรงประเด็น..."></textarea>
+ </div>
+ <div class="form-group">
+ <label data-i18n="profile.background">Important Context</label>
+ <textarea id="profile-background" rows="2" placeholder="เช่น กำลังทำโปรเจกต์..."></textarea>
+ </div>
+
+ <!-- ═══════════════════════════════════════════ -->
+ <!-- v6.0 — Personality Section (collapsible, default closed) -->
+ <!-- ═══════════════════════════════════════════ -->
+ <details class="personality-section" id="personality-section">
+ <summary>
+ <span class="personality-section-title"> <span data-i18n="personality.title">บุคลิกภาพ</span></span>
+ <span class="personality-optional" data-i18n="personality.optional">(ไม่บังคับ)</span>
+ </summary>
+
+ <p class="personality-pdpa" data-i18n="personality.pdpa">
+ ลิงก์ "ทำที่..." จะพาคุณไปยังเว็บไซต์ภายนอก — โปรดดูนโยบายความเป็นส่วนตัวของเว็บนั้นๆ
+ </p>
+
+ <!-- ─── MBTI ─── -->
+ <div class="personality-block" id="block-mbti">
+ <div class="personality-block-head">
+ <h4>MBTI</h4>
+ <button type="button" class="btn-history" data-system="mbti" data-i18n-title="personality.viewHistory">
+ <span data-i18n="personality.history">ประวัติ</span>
+ <span class="history-count" id="mbti-history-count" hidden>0</span>
+ </button>
+ </div>
+ <p class="personality-desc"> <strong>วิธีคิดและตัดสินใจ</strong> — MBTI แบ่งคนเป็น 16 ประเภทตาม 4 มิติ: พลังงาน (Introvert/Extrovert), การรับข้อมูล (Sensing/iNtuition), การตัดสินใจ (Thinking/Feeling), และวิธีใช้ชีวิต (Judging/Perceiving) ช่วยให้ AI เข้าใจว่าคุณชอบรับข้อมูลแบบไหน และตัดสินใจอย่างไร</p>
+ <div class="personality-fields">
+ <label>
+ <span data-i18n="personality.mbti.type">ประเภท</span>
+ <select id="mbti-type">
+ <option value="">— <span data-i18n="personality.notSet">ไม่ระบุ</span> —</option>
+ </select>
+ </label>
+ <label>
+ <span data-i18n="personality.mbti.identity">Identity</span>
+ <select id="mbti-identity">
+ <option value="">—</option>
+ <option value="A">-A (Assertive)</option>
+ <option value="T">-T (Turbulent)</option>
+ </select>
+ <small data-i18n="personality.mbti.identityHint">สำหรับ NERIS เท่านั้น</small>
+ </label>
+ <label>
+ <span data-i18n="personality.mbti.source">ที่มาของผล</span>
+ <select id="mbti-source">
+ <option value="">—</option>
+ <option value="official">Official (mbtionline)</option>
+ <option value="neris">NERIS (16personalities)</option>
+ <option value="self_report" data-i18n="personality.mbti.selfReport">ฉันเดาเอง</option>
+ </select>
+ </label>
+ </div>
+ <div class="test-links" id="mbti-test-links"></div>
+ </div>
+
+ <!-- ─── Enneagram ─── -->
+ <div class="personality-block" id="block-enneagram">
+ <div class="personality-block-head">
+ <h4>Enneagram</h4>
+ <button type="button" class="btn-history" data-system="enneagram">
+ <span data-i18n="personality.history">ประวัติ</span>
+ <span class="history-count" id="enneagram-history-count" hidden>0</span>
+ </button>
+ </div>
+ <p class="personality-desc"> <strong>แรงจูงใจลึกๆ และ "ทำไม" ของพฤติกรรม</strong> — Enneagram มี 9 ประเภทหลัก แต่ละประเภทมี "ความกลัวพื้นฐาน" และ "ความปรารถนาลึกสุด" ที่ต่างกัน Wing คือประเภทข้างเคียงที่มีอิทธิพลเสริม ช่วยให้ AI เข้าใจว่าอะไรขับเคลื่อนคุณจากข้างในจริงๆ</p>
+ <div class="personality-fields">
+ <label>
+ <span data-i18n="personality.enneagram.core">Core</span>
+ <select id="enneagram-core">
+ <option value="">— <span data-i18n="personality.notSet">ไม่ระบุ</span> —</option>
+ </select>
+ </label>
+ <label>
+ <span data-i18n="personality.enneagram.wing">Wing</span>
+ <select id="enneagram-wing" disabled>
+ <option value="">— <span data-i18n="personality.notSet">ไม่ระบุ</span> —</option>
+ </select>
+ <small data-i18n="personality.enneagram.wingHint">เลือก Core ก่อน</small>
+ </label>
+ </div>
+ <div class="test-links" id="enneagram-test-links"></div>
+ </div>
+
+ <!-- ─── CliftonStrengths Top 5 ─── -->
+ <div class="personality-block" id="block-clifton">
+ <div class="personality-block-head">
+ <h4>CliftonStrengths Top 5</h4>
+ <button type="button" class="btn-history" data-system="clifton">
+ <span data-i18n="personality.history">ประวัติ</span>
+ <span class="history-count" id="clifton-history-count" hidden>0</span>
+ </button>
+ </div>
+ <p class="personality-desc"> <strong>จุดแข็งเชิงงาน — สิ่งที่ทำได้ดีตามธรรมชาติ</strong> — CliftonStrengths (Gallup) วิเคราะห์ 34 ธีมจุดแข็ง แบ่งเป็น 4 ด้าน: Executing, Influencing, Relationship Building, Strategic Thinking เลือก Top 5 ของคุณเรียงตามความแข็งแรง เพื่อให้ AI รู้ว่าควรมอบหมายงานแบบไหนให้เหมาะ</p>
+ <div class="personality-rank-list" id="clifton-rank-list">
+ <!-- 5 rows populated by JS -->
+ </div>
+ <div class="test-links" id="clifton-test-links"></div>
+ </div>
+
+ <!-- ─── VIA Character Strengths Top 5 ─── -->
+ <div class="personality-block" id="block-via">
+ <div class="personality-block-head">
+ <h4>VIA Character Strengths Top 5</h4>
+ <button type="button" class="btn-history" data-system="via">
+ <span data-i18n="personality.history">ประวัติ</span>
+ <span class="history-count" id="via-history-count" hidden>0</span>
+ </button>
+ </div>
+ <p class="personality-desc"> <strong>คุณค่าหลักในชีวิต — สิ่งที่ขับเคลื่อนจากภายใน</strong> — VIA (Values in Action) วัด 24 คุณธรรมสากล จัดเป็น 6 กลุ่ม: ปัญญา, ความกล้า, ความรักมนุษย์, ความยุติธรรม, การควบคุมตน, ความเหนือโลก เลือก Top 5 ของคุณเพื่อให้ AI เข้าใจค่านิยมที่สำคัญกับตัวคุณมากที่สุด</p>
+ <div class="personality-rank-list" id="via-rank-list">
+ <!-- 5 rows populated by JS -->
+ </div>
+ <div class="test-links" id="via-test-links"></div>
+ </div>
+ </details>
+ </div>
+ <div class="modal-footer">
+ <button class="btn btn-primary" id="btn-save-profile" data-i18n="profile.save">Save Profile</button>
+ </div>
+ </div>
+ </div>
+
+ <!-- ═══════════════════════════════════════════ -->
+ <!-- v6.0 — Personality History Modal -->
+ <!-- ═══════════════════════════════════════════ -->
+ <div class="modal-overlay hidden" id="personality-history-modal">
+ <div class="modal personality-history-modal">
+ <div class="modal-header">
+ <h2 id="personality-history-title"> <span data-i18n="personality.history">ประวัติ</span></h2>
+ <button class="btn-close" id="close-personality-history"></button>
+ </div>
+ <div class="modal-body">
+ <div id="personality-history-list" class="history-timeline">
+ <!-- entries populated by JS -->
+ </div>
+ </div>
+ </div>
+ </div>
+
+ <!-- ═══════════════════════════════════════════ -->
+ <!-- PLAN SELECTION MODAL (v5.9.2) -->
+ <!-- ═══════════════════════════════════════════ -->
+ <div class="modal-overlay hidden" id="plan-modal">
+ <div class="modal plan-modal">
+ <div class="modal-header">
+ <h2 id="plan-modal-title"> เลือกแพลนของคุณ</h2>
+ <button class="btn-close" id="close-plan-modal"></button>
+ </div>
+ <div class="modal-body">
+ <p class="plan-modal-desc" id="plan-modal-desc">เลือกแพลนที่เหมาะกับคุณ — เริ่มฟรี หรืออัปเกรดเพื่อปลดล็อกฟีเจอร์เพิ่มเติม</p>
+
+ <!-- Personal AI Context -->
+ <div class="plan-group">
+ <div class="plan-group-label plan-group-personal"> Personal AI Context</div>
+ <p class="plan-group-desc">สำหรับนักศึกษา ครีเอเตอร์ และคนใช้ AI ทั่วไป</p>
+ <div class="plan-cards">
+ <div class="plan-card" id="plan-card-free">
+ <div class="plan-card-header">
+ <h3>Free</h3>
+ <div class="plan-card-price">฿0<span>/เดือน</span></div>
+ </div>
+ <p class="plan-card-tagline">เริ่มต้นใช้ AI Context ฟรี</p>
+ <ul class="plan-card-features">
+ <li>1 Context Pack</li>
+ <li>5 ไฟล์ (50 MB)</li>
+ <li>AI Summary 5 ครั้ง/เดือน</li>
+ <li>Basic Search</li>
+ </ul>
+ <button class="btn btn-ghost btn-block" id="btn-plan-free">ใช้ฟรีต่อ</button>
+ </div>
+ <div class="plan-card plan-card-highlight" id="plan-card-starter">
+ <div class="plan-card-badge">แนะนำ</div>
+ <div class="plan-card-header">
+ <h3>Starter</h3>
+ <div class="plan-card-price plan-card-price-accent">฿99<span>/เดือน</span></div>
+ </div>
+ <p class="plan-card-tagline">สำหรับนักศึกษาและคนใช้ AI จริงจัง</p>
+ <ul class="plan-card-features">
+ <li>5 Context Packs</li>
+ <li>50 ไฟล์ (1 GB)</li>
+ <li>AI Summary 100 ครั้ง/เดือน</li>
+ <li>Semantic Search</li>
+ <li>Version History 7 วัน</li>
+ <li>Export Prompt 300 ครั้ง/เดือน</li>
+ </ul>
+ <button class="btn btn-primary btn-block btn-glow" id="btn-plan-starter"> Get Starter</button>
+ </div>
+ </div>
+ </div>
+
+ <!-- Executive Digital Twin -->
+ <div class="plan-group" style="margin-top:28px;">
+ <div class="plan-group-label plan-group-exec"> Executive Digital Twin</div>
+ <p class="plan-group-desc">สำหรับ Founder ผู้บริหาร และผู้นำ — ให้ AI ทำงานด้วยวิธีคิดของคุณ</p>
+ <div class="plan-cards plan-cards-exec">
+ <div class="plan-card plan-card-exec">
+ <div class="plan-card-header">
+ <h3>Core</h3>
+ <div class="plan-card-price plan-card-price-gold">฿12,000<span>/เดือน</span></div>
+ </div>
+ <p class="plan-card-tagline">Start your private Digital Twin.</p>
+ <ul class="plan-card-features">
+ <li>Private Identity Vault</li>
+ <li>Basic Decision Matrix</li>
+ <li>Text-based Digital Twin</li>
+ <li>MCP connection</li>
+ </ul>
+ <button class="btn btn-gold btn-block" onclick="window.open('mailto:boss@projectkey.dev?subject=Core Plan Inquiry','_blank')">Book Private Demo</button>
+ </div>
+ <div class="plan-card plan-card-exec plan-card-exec-highlight">
+ <div class="plan-card-badge" style="background:linear-gradient(135deg,#d4a853,#b8860b);">Recommended</div>
+ <div class="plan-card-header">
+ <h3>Pro</h3>
+ <div class="plan-card-price plan-card-price-gold">฿25,000<span>/เดือน</span></div>
+ </div>
+ <p class="plan-card-tagline">Most recommended for leaders.</p>
+ <ul class="plan-card-features">
+ <li>ทุกอย่างใน Core</li>
+ <li>Advanced Decision Matrix</li>
+ <li>Voice Clone</li>
+ <li>3 Delegated Users</li>
+ </ul>
+ <button class="btn btn-gold btn-block" onclick="window.open('mailto:boss@projectkey.dev?subject=Pro Plan Inquiry','_blank')">Book Private Demo</button>
+ </div>
+ <div class="plan-card plan-card-exec">
+ <div class="plan-card-header">
+ <h3>Elite</h3>
+ <div class="plan-card-price plan-card-price-gold">฿45,000<span>/เดือน</span></div>
+ </div>
+ <p class="plan-card-tagline">A private digital twin experience.</p>
+ <ul class="plan-card-features">
+ <li>ทุกอย่างใน Pro</li>
+ <li>Avatar UI + Dedicated CSM</li>
+ <li>Deep Decision Calibration</li>
+ <li>Annual Deep Review</li>
+ </ul>
+ <button class="btn btn-gold btn-block" onclick="window.open('mailto:boss@projectkey.dev?subject=Elite Plan Inquiry','_blank')">Request Elite Access</button>
+ </div>
+ </div>
+ </div>
+
+ </div>
+ </div>
+ </div>
+
+ <!-- ═══════════════════════════════════════════ -->
+ <!-- CONFIRM MODAL -->
+ <!-- ═══════════════════════════════════════════ -->
+ <div class="modal-overlay hidden" id="confirm-modal">
+ <div class="modal confirm-modal">
+ <div class="modal-body">
+ <p id="confirm-message">ยืนยันการดำเนินการ?</p>
+ </div>
+ <div class="modal-footer">
+ <button class="btn btn-outline" id="confirm-cancel" data-i18n="confirm.cancel">Cancel</button>
+ <button class="btn btn-danger" id="confirm-ok" data-i18n="confirm.ok">Confirm</button>
+ </div>
+ </div>
+ </div>
+
+ <!-- Toast Container -->
+ <div id="toast-container"></div>
+
+ </div>
+
+ <!-- ═══════════════════════════════════════════ -->
+ <!-- GUIDE SYSTEM (FAB + Drawer) -->
+ <!-- ═══════════════════════════════════════════ -->
+ <button id="guide-fab" class="guide-fab" title="คู่มือการใช้งาน" style="display:none;">
+ <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+ <span>คู่มือ</span>
+ </button>
+
+ <div id="guide-overlay" class="guide-overlay" style="display:none;"></div>
+ <div id="guide-drawer" class="guide-drawer" style="display:none;">
+ <div class="guide-header">
+ <h2> คู่มือ Project KEY</h2>
+ <button id="guide-close" class="guide-close"></button>
+ </div>
+ <div class="guide-search">
+ <input type="text" id="guide-search-input" placeholder=" ค้นหา...">
+ </div>
+ <div class="guide-tabs">
+ <button class="guide-tab active" data-tab="usage"> วิธีใช้</button>
+ <button class="guide-tab" data-tab="connect"> เชื่อมต่อ</button>
+ <button class="guide-tab" data-tab="examples"> ตัวอย่าง</button>
+ </div>
+ <div class="guide-content" id="guide-content">
+ <!-- Content injected by JS -->
+ </div>
+ </div>
+
+ <script src="/legacy/app.js?v=5.9.3"></script>
 </body>
 </html>
