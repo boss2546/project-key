@@ -1365,6 +1365,9 @@ body.show-landing {
   border: 1px solid var(--border);
   border-radius: 14px;
   width: min(480px, 90vw);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
   animation: fadeIn 0.2s ease;
 }
 
@@ -1383,6 +1386,9 @@ body.show-landing {
 
 .modal-body {
   padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 }
 
 .modal-footer {
