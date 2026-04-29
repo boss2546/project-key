@@ -6,6 +6,11 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
+# ─── App Version (single source of truth) ───
+# Bump this when releasing. All version strings exposed to clients
+# (Swagger /docs, /api/mcp/info, MCP serverInfo) read from here.
+APP_VERSION = "5.9.3"
+
 # OpenRouter API
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"

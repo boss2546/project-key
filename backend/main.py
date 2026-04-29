@@ -27,7 +27,7 @@ from .context_packs import list_packs, get_pack, create_pack, delete_pack, regen
 from .graph_builder import build_full_graph, get_graph_data, get_node_detail, get_neighborhood
 from .relations import get_backlinks, get_outgoing, get_suggestions, accept_suggestion, dismiss_suggestion, generate_suggestions
 from .metadata import enrich_file_metadata, enrich_all_files, get_file_metadata, update_file_metadata
-from .config import UPLOAD_DIR, BASE_DIR, MAX_FILE_SIZE_MB, ADMIN_PASSWORD
+from .config import UPLOAD_DIR, BASE_DIR, MAX_FILE_SIZE_MB, ADMIN_PASSWORD, APP_VERSION
 from .mcp_tokens import generate_token, validate_token, list_tokens, revoke_token, get_active_token_count
 from .mcp_tools import call_tool, get_usage_logs, TOOL_REGISTRY
 from .auth import register_user, login_user, get_current_user, get_optional_user, request_password_reset, reset_password
@@ -43,7 +43,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # App
-app = FastAPI(title="Project KEY", version="5.2.0")
+app = FastAPI(title="Project KEY", version=APP_VERSION)
 
 app.add_middleware(
     CORSMiddleware,
@@ -1223,7 +1223,7 @@ async def api_mcp_info(request: Request, current_user: User = Depends(get_curren
         "mcp_connector_url": f"{base_url}/mcp/{current_user.mcp_secret}",
         "auth_type": "bearer",
         "scope": "read+write",
-        "version": "v5.2",
+        "version": f"v{APP_VERSION}",
         "available_tools": list(TOOL_REGISTRY.values()),
         "tool_count": len(TOOL_REGISTRY),
     }
@@ -1456,7 +1456,7 @@ async def mcp_streamable_http(secret: str, request: Request, db: AsyncSession = 
                 },
                 "serverInfo": {
                     "name": "project-key",
-                    "version": "5.5.0",
+                    "version": APP_VERSION,
                 },
             },
         })

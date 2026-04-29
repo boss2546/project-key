@@ -1,10 +1,10 @@
 # 🔑 Project KEY — Personal Data Bank
 
 > พื้นที่ข้อมูลส่วนตัวที่ใช้ AI จัดระเบียบ วิเคราะห์ และเชื่อมโยงข้อมูลของคุณ  
-> **v5.7** — Simple Guide + ChatGPT MCP Support + Real Screenshots
+> **v5.9.3** — Stripe Billing + Plan Limits + Downgrade Lock + Upgrade Unlock + Audit Log
 
 [![Production](https://img.shields.io/badge/Production-project--key.fly.dev-blue)](https://project-key.fly.dev/)
-[![Version](https://img.shields.io/badge/version-5.7-green)]()
+[![Version](https://img.shields.io/badge/version-5.9.3-green)]()
 [![MCP Tools](https://img.shields.io/badge/MCP_Tools-30-purple)]()
 
 ---
