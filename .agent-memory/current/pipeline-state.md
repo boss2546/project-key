@@ -48,7 +48,7 @@
   - Step 7: Memory (project/overview.md 2 changes — drop "Project KEY" name + version 5.9.3 → 6.1.0)
   - Step 8: New `maybeShowRebrandNotice()` ใน app.js + flag `pdb_rebrand_notice_seen`
   - Step 9: Verify — grep 201→159 (เหลือเฉพาะ historical PRDs + plan files + intentional release notes) + Python compileall OK + JS syntax OK + TestClient GET / contains "Personal Data Bank" + zero "Project KEY"
-- 2026-04-30 — เขียว build เสร็จ → state: `built_pending_review` → ส่ง MSG-004 ใน inbox/for-ฟ้า.md → รอ user สั่งให้เปิดฟ้า review
+- 2026-04-30 — เขียว build เสร็จ → commit `6e14e63` (21 files, +210/-71) → state: `built_pending_review` → ส่ง MSG-004 ใน inbox/for-ฟ้า.md → รอ user สั่งให้เปิดฟ้า review
 
 ### Notes
 - Time budget เดิม: ~3 ชม. (1/3 วัน) — งาน mechanical
