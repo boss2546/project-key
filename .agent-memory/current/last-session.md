@@ -51,11 +51,31 @@
 
 ---
 
-## 🧪 Smoke test results (in-process TestClient — 21/21 PASS)
-ดู MSG-004 ใน [inbox/for-ฟ้า.md](../communication/inbox/for-ฟ้า.md) section "Smoke test" สำหรับรายละเอียด
-- **MCP /initialize end-to-end ผ่าน:** serverInfo.name='personal-data-bank' + version='6.1.0' ✅
-- **Login regression intact:** localStorage `projectkey_token`/`projectkey_user`/`projectkey_lang` ทั้งหมดยังคงเดิม
-- **KEEP invariants 9/9 pass:** ไม่มีอะไรหลุดที่ห้ามแตะ (fly.toml, projectkey.db, HTTP-Referer real URL ฯลฯ)
+## 🧪 Smoke test results — เขียวเทสต์ backend เอง: 76/76 PASS (per user instruction)
+**Script:** [`scripts/rebrand_smoke_v6.1.0.py`](../../scripts/rebrand_smoke_v6.1.0.py) — in-process TestClient (sandbox blocks port binding)
+
+**9 sections / 76 tests / 0 failures:**
+- §1 Health + landing + static (5/5)
+- §2 Auth flows (11/11) — incl. dup/short pwd/invalid email/wrong pwd/no token
+- §3 Profile + Personality (10/10) — 4 systems CRUD + history + 4 validation cases
+- §4 MCP protocol (13/13) — info, tokens CRUD, /initialize, tools/list (30 tools), tools/call (3 tools), security boundary
+- §5 Files (5/5)
+- §6 Plan/billing (3/3)
+- §7 Error format invariant (7/7)
+- §8 Branding correctness in API responses (7/7)
+- §9 KEEP invariants + stray-brand scan (15/15)
+
+**Key proofs:**
+- ⭐ MCP `/initialize` end-to-end: `serverInfo.name='personal-data-bank'` + `version='6.1.0'`
+- ⭐ MCP `tools/call get_overview` returns "Personal Data Bank — v4.1 (PDB)" system string
+- ⭐ Login regression intact: localStorage `projectkey_token`/`projectkey_user`/`projectkey_lang` kept
+- ⭐ Personality (v6.0.0 feature) ยังทำงานหลัง rebrand: PUT 4 systems → GET back → history dedup
+- ⭐ All 7 error format checks pass (structured JSON for failures)
+- ⭐ 0 stray "Project KEY" ใน 17 actively-rebranded files
+
+**Bug ที่ smoke test จับได้:** `312658e` — served app.js had literal "Project KEY" ใน WHY comment → reword "ชื่อเดิม"
+
+→ **ฟ้า scope ลดลงเป็น UI-only review** (ดู MSG-004 ใน inbox/for-ฟ้า.md)
 
 ## 🚧 ที่ยังไม่ทำ (out of scope per plan / sandbox limit)
 - ❌ pytest tests/test_production.py (BASE = production v6.0.0 — Q5 default รันหลัง deploy)
