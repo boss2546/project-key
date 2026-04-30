@@ -1,7 +1,7 @@
 {
-  "name": "project-key",
-  "version": "6.0.0",
-  "description": "Project KEY — Knowledge Workspace + AI Connector",
+  "name": "personal-data-bank",
+  "version": "6.1.0",
+  "description": "Personal Data Bank (PDB) — AI-powered personal knowledge workspace + MCP connector",
   "private": true,
   "scripts": {
     "test": "npx playwright test",

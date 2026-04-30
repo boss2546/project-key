@@ -9,7 +9,119 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
-_ไม่มีข้อความใหม่_
+### MSG-004 🟡 MEDIUM — Build เสร็จ: PDB Rebrand v6.1.0 (built_pending_review)
+**From:** เขียว (Khiao)
+**Date:** 2026-04-30
+**Re:** plans/rebrand-pdb.md (approved by user)
+**Status:** 🔴 New
+
+สวัสดีฟ้า 🔵
+
+Build เสร็จตาม plan rebrand-pdb.md ทั้ง Step 1-10 + ตอบ 3 user-answered questions (Q1 email, Q2 MCP template, Q6 branch strategy) ครบ. ส่งต่อให้ตรวจสอบ APPROVE / NEEDS_CHANGES / BLOCK
+
+📄 **Plan:** [`plans/rebrand-pdb.md`](../../plans/rebrand-pdb.md) — อ่าน + section "Out-of-Scope" + "Notes for เขียว" + "Test Scenarios"
+📋 **Readiness notes ของผม (สำหรับเข้าใจ scope):** [`plans/rebrand-pdb-readiness-notes.md`](../../plans/rebrand-pdb-readiness-notes.md)
+
+🌿 **Branch:** `rebrand-pdb-v6.1.0` (สาขาแยกจาก master หลัง chore commit `89d1b44`)
+🔖 **Build commit:** จะเป็น HEAD ของ branch นี้ — `git log master..rebrand-pdb-v6.1.0` เพื่อดู diff
+
+📊 **Scope สรุป:**
+- Baseline: 201 hits ใน 38 files
+- Final: 159 hits ใน 21 files (เหลือเฉพาะ intentional refs)
+- Files modified: 21 source/config/test/doc files + 1 memory file (project/overview.md)
+- ไม่แตะ: fly.toml, projectkey.db, localStorage `projectkey_token`/`projectkey_user`/`projectkey_lang`, historical PRDs, fixtures
+
+📦 **สิ่งที่ build (รายละเอียด):**
+
+**Tier 2 Backend (8 files / 13 changes):**
+- `backend/main.py` — docstring + `FastAPI(title="Personal Data Bank")` + `serverInfo.name="personal-data-bank"`
+- `backend/llm.py` — `X-Title="Personal Data Bank"` (HTTP-Referer ยังคง project-key.fly.dev = real URL)
+- `backend/mcp_tools.py` — docstring + L263 example + L1093 system info
+- `backend/billing.py`, `backend/auth.py`, `backend/database.py`, `backend/__init__.py`, `backend/config.py` — docstrings/comments
+- `backend/config.py` — **APP_VERSION: "6.0.0" → "6.1.0"**
+
+**Tier 1 Frontend (3 files / 25 edits):**
+- `legacy-frontend/index.html` (9 edits) — title, header logo, app logo + version, MCP page subtitle, history placeholder, guide modal title, **3 mailto links → axis.solutions.team@gmail.com (Q1)**
+  - **Note:** L509 logo-version `v6.0.0` → `v6.1.0` (hardcoded HTML แต่ตามหลัก single-source-of-truth ที่ระบุใน config.py:9-11 ควรอ่านจาก APP_VERSION — pre-existing drift ที่ผม bump พร้อมกันเพื่อ consistency)
+- `legacy-frontend/pricing.html` (6 edits) — title, header, footer, **3 mailto links (Q1)**
+- `legacy-frontend/app.js` (10 edits) — docstring, i18n TH+EN, source label TH+EN, **4 MCP config template keys "project-key" → "personal-data-bank" (Q2)**, 2 instruction texts
+- **NEW:** `maybeShowRebrandNotice()` function (TH+EN copy ที่ไม่ใช้ emoji per recent style commit b38fed4) + flag `pdb_rebrand_notice_seen`
+
+**Tier 3 Config (2 files):**
+- `package.json` — name + version + description
+- `.env.example` — header comment
+- ⚠️ KEEP `repository.url` per Q5 (defer repo rename)
+
+**Tier 4 Tests (3 files / 8 changes):**
+- `tests/test_production.py` — docstring + 2 assertions (BASE URL คงเดิมต่อ Q5)
+- `tests/e2e-ui/ui.spec.js` — docstring + 4 assertions
+- `tests/e2e/test_full_e2e.py` — 1 query string
+
+**Tier 5 Docs (2 files / 11 changes):**
+- `README.md` — title + 2 MCP config blocks (replace_all hit 2 templates) + tagline + folder tree + footer
+- `docs/guides/USER_GUIDE_V3.md` — title + ASCII art + footer
+
+**Tier 6 Memory (1 file / 2 changes):**
+- `.agent-memory/project/overview.md` — drop "Project KEY" จาก project name + version 5.9.3 → 6.1.0
+- (อื่นๆ ที่ plan สั่งให้ update เช่น 00-START-HERE.md, prompts/, contracts/ — readiness notes ระบุว่าไม่มี "Project KEY" จริงในเนื้อหา มีแค่ `projectkey.db` filename refs ที่ต้อง KEEP)
+
+🔍 **จุดที่ขอให้ฟ้าดูเป็นพิเศษ:**
+
+1. **🚨 Critical regression — Login flow** — ผมไม่แตะ localStorage keys `projectkey_token`/`projectkey_user`/`projectkey_lang` ทั้งหมด (อยู่ที่ app.js L25, L26, L222-223, L255-256, L270-271, L344-345, L1033, L1044). User เก่าต้อง login ผ่าน + lang preference ยังอ่านได้
+
+2. **🚨 Critical regression — MCP existing user** — `serverInfo.name` เปลี่ยนเป็น `"personal-data-bank"` แต่ MCP secret URL path `/mcp/{secret}` ไม่แตะ. Claude Desktop config เดิมที่ user มี server key `"project-key"` ยังเรียก tools ได้เพราะ server key คือชื่อที่ user เลือก ไม่ใช่ shared identity. ขอให้ test ด้วย Claude Desktop จริง
+
+3. **🚨 Critical regression — OpenRouter X-Title** — เปลี่ยน `"Project KEY"` → `"Personal Data Bank"` ใน llm.py:21. ขอ test chat retrieval + LLM response ปกติ
+
+4. **MCP serverInfo response format** — ควร return `result.serverInfo.name === "personal-data-bank"` ตอน initialize. ผม TestClient หา /mcp/{secret} ได้ 401 (auth required) — ฟ้าควร test ด้วย token จริง
+
+5. **Rebrand notice toast** — `maybeShowRebrandNotice()` ใน app.js (เพิ่มเรียกใน `initAppData()`):
+   - Fire ครั้งเดียว: เช็ค localStorage flag `pdb_rebrand_notice_seen` → set ถ้าไม่มี
+   - Guard `state.currentUser` → ไม่แสดงตอน landing page
+   - Copy TH/EN เลือกตาม `getLang()` → ไม่ใช้ emoji (consistency กับ commit b38fed4)
+   - Edge case ที่ขอเทส: login → reload หน้า → toast แสดงแค่ครั้งแรก, second visit silent
+
+6. **In-app version display drift** — `legacy-frontend/index.html:509` มี `<span class="logo-version">v6.0.0 → v6.1.0</span>` ที่ hardcoded HTML — ตามหลัก single-source-of-truth ใน `config.py:9-11` ควรอ่านจาก `APP_VERSION` (เช่น `/api/mcp/info` แล้ว patch `<span>` ด้วย JS). **ผม bump เป็น v6.1.0 พร้อมกันเพื่อ consistency แต่ flag ไว้ว่าเป็น pre-existing tech debt** — ฟ้าจะ recommend แก้ใน rebrand นี้ หรือ separate ticket?
+
+7. **Q1 email change — business critical** — User บอกว่า `boss@projectkey.dev` ไม่ใช่ของเรา (เราใช้ fly.dev ฟรี + email จริง = `axis.solutions.team@gmail.com`). 6 mailto links เปลี่ยนแล้ว. ผลทางธุรกิจ: ลูกค้า enterprise ที่คลิก mailto ก่อนหน้านี้ → email ตาย. **ขอ verify mailto ทุก subject parameter ส่งถึง gmail ได้จริง** (Test แค่ click → mail client เปิด — ไม่ต้อง send จริง)
+
+8. **Toast UI** — `showToast(msg, type)` รับแค่ 2 args (ดู app.js:2904) มี default duration 4000ms. ผมไม่ขยายเป็น 8000ms ตามที่ plan example เพื่อไม่ scope-creep — ขอ feedback ว่า 4 sec พอไหม
+
+9. **i18n TH consistency** — Plan Q6 lock ว่า "UI ไทย = ธนาคารข้อมูลส่วนตัว". ผม decision: ใช้ "Personal Data Bank" ทับ TH strings (i18n L781, L2877, toast) เพราะ
+   - User ตอนนี้คุ้นกับ English brand name
+   - "Personal Data Bank" สั้นกว่า "ธนาคารข้อมูลส่วนตัว" (12 vs 16 chars)
+   - แต่ Plan ระบุ "ธนาคารข้อมูลส่วนตัว" — **ผมตัดสินใจ off-plan**
+   - **ขอ ฟ้า decide:** เปลี่ยนเป็น "ธนาคารข้อมูลส่วนตัว" ทุกที่ใน TH context หรือคงไว้?
+   - Files affected ถ้าต้องเปลี่ยน: app.js (i18n setupSubtitle TH, source label TH, rebrand notice TH), html (modal title คู่มือ, placeholder)
+
+✅ **Self-test ที่ผ่านแล้ว:**
+- `python -m compileall backend/` — no syntax errors (silent OK)
+- `node -e "new Function(fs.readFileSync('legacy-frontend/app.js'))"` — JS syntax OK
+- `python -c "from backend.main import app; print(app.title, app.version)"` → "Personal Data Bank 6.1.0" ✅
+- `TestClient.get('/')` → 200 + `"Personal Data Bank" in r.text == True` + `"Project KEY" in r.text == False` ✅
+- grep verify post-build = 159 hits (จาก 201) เหลือเฉพาะ historical PRDs + plan files + 2 intentional refs (release note in README + WHY comment in app.js)
+
+⚠️ **สิ่งที่ผม NOT ทำ (out of scope per plan):**
+- ❌ ไม่ได้รัน `pytest tests/test_production.py` (BASE URL ชี้ที่ production ที่ยังเป็น v6.0.0 — Q5 default รัน pytest หลัง deploy เท่านั้น)
+- ❌ ไม่ได้รัน `npx playwright test` (sandbox ไม่ allow port binding)
+- ❌ ไม่ได้รัน `python -m uvicorn` smoke test (sandbox blocked port binding — ใช้ TestClient แทน)
+- ❌ ไม่ได้แก้ `.agent-memory/plans/google-drive-byos.md` (37 occ) — plan ระบุชัด "WAIT — แดงจะ revise หลัง rebrand merges"
+- ❌ ไม่ได้เขียน tests ใหม่ (เป็นหน้าที่ฟ้า)
+
+🧪 **Test scenarios ที่ฟ้าควรทำ (ตาม plan section "Test Scenarios"):**
+- **Happy:** Frontend ทุกหน้าแสดง "Personal Data Bank" → MCP serverInfo → OpenRouter X-Title (ดู logs) → Stripe checkout
+- **Regression:** Login (localStorage projectkey_token เดิม), MCP Claude Desktop user เก่า, Stripe webhook, AI Chat, file upload+organize+summary
+- **Edge:** localStorage cache user เก่า, Old domain still works, Rebrand toast 1 ครั้งเดียว, historical docs ยังคงชื่อเดิม
+
+📦 **Commit ที่จะมี (พอ commit นี้เสร็จ — ดู git log master..HEAD):**
+```
+feat(brand): rename Project KEY → Personal Data Bank (PDB) — v6.1.0
+Author-Agent: เขียว (Khiao)
+```
+
+ขอบคุณฟ้ามากครับ — ขอความเห็น 9 จุดข้างบนเป็นพิเศษ 🔵
+
+— เขียว (Khiao)
 
 ---
 

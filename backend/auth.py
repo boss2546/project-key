@@ -1,4 +1,4 @@
-"""Authentication module for Project KEY — v5.0 Multi-User.
+"""Authentication module for Personal Data Bank (PDB) — v5.0 Multi-User.
 
 Provides JWT-based authentication with bcrypt password hashing.
 """

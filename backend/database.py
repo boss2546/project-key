@@ -1,4 +1,4 @@
-"""Database models and setup for Project KEY — MVP v3."""
+"""Database models and setup for Personal Data Bank (PDB) — MVP v3."""
 from sqlalchemy import Column, String, Integer, Float, Boolean, Text, DateTime, ForeignKey, create_engine
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession

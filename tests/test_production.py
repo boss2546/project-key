@@ -1,5 +1,5 @@
 """
-Project KEY v5.0 — Production Smoke & Stress Tests
+Personal Data Bank v5.0 — Production Smoke & Stress Tests
 ===================================================
 เทสแบบ "หักๆ" ก่อนให้ผู้ใช้จริง — ทดสอบทุกจุดสำคัญ
 
@@ -66,13 +66,13 @@ class TestFrontend:
         r = client.get("/")
         assert r.status_code == 200
         assert "text/html" in r.headers.get("content-type", "")
-        assert "Project KEY" in r.text
+        assert "Personal Data Bank" in r.text
 
     def test_legacy_route(self, client):
         """GET /legacy ต้องได้ HTML เหมือน root"""
         r = client.get("/legacy")
         assert r.status_code == 200
-        assert "Project KEY" in r.text
+        assert "Personal Data Bank" in r.text
 
     def test_css_loads(self, client):
         """CSS ต้องโหลดได้"""

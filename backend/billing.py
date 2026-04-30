@@ -1,4 +1,4 @@
-"""Billing module for Project KEY — v5.9.2 Stripe Payment System.
+"""Billing module for Personal Data Bank (PDB) — v5.9.2 Stripe Payment System.
 
 Handles Stripe Checkout, Customer Portal, and Webhook processing.
 Stripe Webhook is the source of truth for subscription status.

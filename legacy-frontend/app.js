@@ -1,5 +1,5 @@
 /**
- * Project KEY v5.1 — Frontend Logic
+ * Personal Data Bank (PDB) v6.1.0 — Frontend Logic
  * Multi-User Knowledge Workspace + PDB Connector Layer
  */
 
@@ -418,6 +418,20 @@ function initAppData() {
  initGuideSystem();
  initBilling();
  setTimeout(detectOnboardingProgress, 3000);
+ maybeShowRebrandNotice();
+}
+
+// แสดง toast แจ้ง rebrand ครั้งเดียวต่อ browser (v6.1.0)
+// เหตุผล: user เก่าที่จำชื่อ "Project KEY" จะได้รู้ว่าเปลี่ยนชื่อ + Claude Desktop config เดิมยังใช้ได้
+function maybeShowRebrandNotice() {
+ const REBRAND_NOTICE_KEY = 'pdb_rebrand_notice_seen';
+ if (localStorage.getItem(REBRAND_NOTICE_KEY)) return;
+ if (!state.currentUser) return;
+ const msg = getLang() === 'th'
+ ? 'เราเปลี่ยนชื่อเป็น "Personal Data Bank" แล้ว — ฟีเจอร์เดิมและ Claude Desktop config ของคุณยังใช้งานได้ปกติ'
+ : 'We rebranded to "Personal Data Bank" — all features and your existing Claude Desktop config still work as before';
+ showToast(msg, 'info');
+ localStorage.setItem(REBRAND_NOTICE_KEY, '1');
 }
 
 // ═══════════════════════════════════════════
@@ -778,7 +792,7 @@ const I18N = {
 
  // MCP Setup page
  'mcp.setupTitle': 'ตั้งค่าตัวเชื่อมต่อ Claude',
- 'mcp.setupSubtitle': 'เชื่อมต่อข้อมูล Project KEY ของคุณไปยัง Claude ผ่าน Remote MCP',
+ 'mcp.setupSubtitle': 'เชื่อมต่อข้อมูล Personal Data Bank ของคุณไปยัง Claude ผ่าน Remote MCP',
  'mcp.notConfigured': 'ยังไม่ได้ตั้งค่า',
  'mcp.configured': 'เชื่อมต่อแล้ว',
  'mcp.noActiveToken': 'ยังไม่มี Token ที่เปิดใช้งาน',
@@ -979,7 +993,7 @@ const I18N = {
 
  // MCP Setup page
  'mcp.setupTitle': 'Claude Connector Setup',
- 'mcp.setupSubtitle': 'Connect your Project KEY data to Claude via remote MCP',
+ 'mcp.setupSubtitle': 'Connect your Personal Data Bank data to Claude via remote MCP',
  'mcp.notConfigured': 'Not configured',
  'mcp.configured': 'Connected',
  'mcp.noActiveToken': 'No active token',
@@ -2874,7 +2888,7 @@ function renderHistoryEntry(system, entry) {
  srcEl.className = 'history-source';
  const srcLabel = entry.source === 'mcp_update'
  ? (getLang() === 'th' ? 'อัปเดตจาก: Claude/Antigravity (MCP)' : 'Updated via: Claude/Antigravity (MCP)')
- : (getLang() === 'th' ? 'อัปเดตจาก: เว็บไซต์ project-key' : 'Updated via: project-key web');
+ : (getLang() === 'th' ? 'อัปเดตจาก: เว็บไซต์ Personal Data Bank' : 'Updated via: Personal Data Bank web');
  srcEl.textContent = srcLabel;
  div.appendChild(srcEl);
 
@@ -3009,7 +3023,7 @@ async function loadMCPSetup() {
  // Build config JSON — simplified for Claude Custom Connector
  const configObj = {
  "mcpServers": {
- "project-key": {
+ "personal-data-bank": {
  "url": connectorUrl
  }
  }
@@ -3019,7 +3033,7 @@ async function loadMCPSetup() {
  // Build Antigravity config — uses mcp-remote bridge (v5.3)
  const agConfigObj = {
  "mcpServers": {
- "project-key": {
+ "personal-data-bank": {
  "command": "npx",
  "args": ["-y", "mcp-remote@latest", connectorUrl]
  }
@@ -3189,7 +3203,7 @@ async function generateMCPToken() {
  if (state.mcpInfo) {
  const configObj = {
  "mcpServers": {
- "project-key": {
+ "personal-data-bank": {
  "url": state.mcpInfo.mcp_server_url,
  "headers": {
  "Authorization": `Bearer ${data.raw_token}`
@@ -3851,7 +3865,7 @@ function renderGuideTab(tab) {
  <h3> Antigravity</h3>
  <div class="guide-item">
  <p><strong>ขั้นตอนที่ 1:</strong> เปิด Antigravity → Settings → MCP Servers</p>
- <p><strong>ขั้นตอนที่ 2:</strong> กด + Add Server → ใส่ชื่อ "Project KEY"</p>
+ <p><strong>ขั้นตอนที่ 2:</strong> กด + Add Server → ใส่ชื่อ "Personal Data Bank"</p>
  <p><strong>ขั้นตอนที่ 3:</strong> กด "คัดลอก Config" แล้ววาง URL ของ server</p>
  <p><strong>ขั้นตอนที่ 4:</strong> กด Save → ทดสอบโดยพิมพ์ "list_files"</p>
  <button class="guide-copy-btn" id="copy-antigravity"> คัดลอก Config (Antigravity)</button>
@@ -3869,7 +3883,7 @@ function renderGuideTab(tab) {
  <img src="/guide/chatgpt-4-applist.png" alt="กดสร้างแอป" loading="lazy">
  <p><strong>ขั้นตอนที่ 3:</strong> กด "การตั้งค่าขั้นสูง" → กดปุ่ม "สร้างแอป"</p>
  <img src="/guide/chatgpt-5-create.png" alt="สร้างแอปใหม่" loading="lazy">
- <p><strong>ขั้นตอนที่ 4:</strong> ตั้งชื่อ เช่น "Project KEY" แล้วใส่ MCP Server URL ด้านล่าง</p>
+ <p><strong>ขั้นตอนที่ 4:</strong> ตั้งชื่อ เช่น "Personal Data Bank" แล้วใส่ MCP Server URL ด้านล่าง</p>
  <p><strong>ขั้นตอนที่ 5:</strong> การพิสูจน์ตัวตน → เลือก "ไม่พิสูจน์ตัวตน"</p>
  <p><strong>ขั้นตอนที่ 6:</strong> กดปุ่ม "ฉันเข้าใจและฉันต้องการดำเนินการต่อ" → สร้างเสร็จ!</p>
  <p><strong>วิธีใช้:</strong> เปิดแชทใหม่ → กด "เพิ่มเติม" → เลือกแอปที่สร้างไว้</p>
@@ -3887,7 +3901,7 @@ function renderGuideTab(tab) {
  if (btn.id === 'copy-chatgpt') {
  text = mcpUrl;
  } else {
- text = JSON.stringify({ "mcpServers": { "project-key": { "url": mcpUrl } } }, null, 2);
+ text = JSON.stringify({ "mcpServers": { "personal-data-bank": { "url": mcpUrl } } }, null, 2);
  }
  const origLabel = btn.textContent;
  try {

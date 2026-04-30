@@ -1,10 +1,10 @@
 # 📖 PDB Project Overview
 
 ## โปรเจกต์คืออะไร
-**PDB (Personal Data Bank) — Project KEY** เป็นพื้นที่ข้อมูลส่วนตัวที่ใช้ AI ช่วยจัดระเบียบ วิเคราะห์ และเชื่อมโยงข้อมูลของผู้ใช้
+**Personal Data Bank (PDB)** เป็นพื้นที่ข้อมูลส่วนตัวที่ใช้ AI ช่วยจัดระเบียบ วิเคราะห์ และเชื่อมโยงข้อมูลของผู้ใช้
 
-**Production:** https://project-key.fly.dev/
-**Version:** 5.9.3
+**Production:** https://project-key.fly.dev/ (Fly.io app name `project-key` ยังคงเดิม — รอ custom domain ภายหลัง)
+**Version:** 6.1.0
 
 ## เป้าหมายหลัก
 - ผู้ใช้ upload ไฟล์ส่วนตัว (PDF, TXT, MD, DOCX) → AI จัดระเบียบให้อัตโนมัติ

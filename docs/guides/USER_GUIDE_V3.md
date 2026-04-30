@@ -1,4 +1,4 @@
-# 📖 คู่มือการใช้งาน Project KEY v3.0
+# 📖 คู่มือการใช้งาน Personal Data Bank v3.0
 
 > **Knowledge Workspace — เห็นความเชื่อมโยง สำรวจด้วยกราฟ AI ตอบอย่างมีหลักฐาน**
 
@@ -548,7 +548,7 @@ curl -X DELETE http://localhost:8000/api/reset
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                  Project KEY v3.0                     │
+│              Personal Data Bank v3.0                  │
 │              Knowledge Workspace                      │
 │                                                       │
 │  📤 Upload    → อัปโหลดไฟล์ (PDF, TXT, MD, DOCX)    │
@@ -569,4 +569,4 @@ curl -X DELETE http://localhost:8000/api/reset
 
 ---
 
-*คู่มือจัดทำโดย Antigravity AI · Project KEY v3.0 · 18 เมษายน 2569*
+*คู่มือจัดทำโดย Antigravity AI · Personal Data Bank v3.0 · 18 เมษายน 2569*

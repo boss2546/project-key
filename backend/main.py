@@ -1,4 +1,4 @@
-"""Project KEY — FastAPI Backend (v5.0 — Multi-User + Auth)"""
+"""Personal Data Bank (PDB) — FastAPI Backend (v5.0 — Multi-User + Auth)"""
 import os
 import json
 import logging
@@ -43,7 +43,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # App
-app = FastAPI(title="Project KEY", version=APP_VERSION)
+app = FastAPI(title="Personal Data Bank", version=APP_VERSION)
 
 app.add_middleware(
     CORSMiddleware,
@@ -1584,7 +1584,7 @@ async def mcp_streamable_http(secret: str, request: Request, db: AsyncSession = 
                     "tools": {},
                 },
                 "serverInfo": {
-                    "name": "project-key",
+                    "name": "personal-data-bank",
                     "version": APP_VERSION,
                 },
             },

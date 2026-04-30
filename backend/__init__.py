@@ -1,1 +1,1 @@
-# Project KEY backend package
+# Personal Data Bank (PDB) backend package

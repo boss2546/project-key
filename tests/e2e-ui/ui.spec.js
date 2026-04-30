@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Project KEY v5.0 — E2E UI Tests (Playwright)
+ * Personal Data Bank v5.0 — E2E UI Tests (Playwright)
  * ==============================================
  * เทสหน้าเว็บแบบโหมดๆ — ทดสอบทุก interaction ก่อนให้ผู้ใช้จริง
  *
@@ -74,7 +74,7 @@ test.describe("Landing Page", () => {
     // Footer
     const footer = page.locator(".landing-footer");
     await footer.scrollIntoViewIfNeeded();
-    await expect(footer).toContainText("Project KEY");
+    await expect(footer).toContainText("Personal Data Bank");
   });
 
   test("Feature cards แสดงครบ 4 ใบ", async ({ page }) => {
@@ -349,8 +349,8 @@ test.describe("Sidebar", () => {
     await expect(page.locator("#stat-tokens")).toBeVisible();
   });
 
-  test("Logo แสดง Project KEY", async ({ page }) => {
-    await expect(page.locator(".logo-text")).toContainText("Project KEY");
+  test("Logo แสดง Personal Data Bank", async ({ page }) => {
+    await expect(page.locator(".logo-text")).toContainText("Personal Data Bank");
   });
 
   test("User email แสดงใน sidebar", async ({ page }) => {
@@ -653,7 +653,7 @@ test.describe("Knowledge View Page", () => {
 test.describe("Meta & SEO", () => {
   test("Title tag ถูกต้อง", async ({ page }) => {
     await page.goto("/");
-    await expect(page).toHaveTitle(/Project KEY/);
+    await expect(page).toHaveTitle(/Personal Data Bank/);
   });
 
   test("Meta description มี", async ({ page }) => {

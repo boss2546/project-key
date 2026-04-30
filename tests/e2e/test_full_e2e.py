@@ -86,7 +86,7 @@ print(f"  Modes: {d.get('retrieval_modes',{})}")
 
 # Step 7: Another chat - technical question
 print("\n=== Testing AI Chat (technical question) ===")
-q2 = "Tech stack ของ Project KEY ใช้อะไรบ้าง อธิบายแต่ละ component"
+q2 = "Tech stack ของ Personal Data Bank ใช้อะไรบ้าง อธิบายแต่ละ component"
 print(f"  Q: {q2}")
 r = httpx.post(f"{BASE}/api/chat", json={"question": q2}, timeout=timeout)
 d = r.json()

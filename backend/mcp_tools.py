@@ -1,6 +1,6 @@
 """MCP Tools — PDB Core API tool implementations for MVP v4.1.
 
-13 tools that expose Project KEY data to external AI connectors.
+13 tools that expose Personal Data Bank data to external AI connectors.
 Read (7) + Search & Graph (2) + Write (3) + System (1).
 """
 import os
@@ -260,7 +260,7 @@ TOOL_REGISTRY = {
         "name": "save_context",
         "description": "Save conversation context to your personal memory bank. AI SHOULD proactively suggest saving context when: 1) conversation is ending, 2) significant work is completed, 3) user switches topics. Smart Merge: if same title exists within 2 hours, updates existing instead of creating new. User only needs to confirm.",
         "params": [
-            {"name": "title", "type": "string", "required": True, "description": "Context title (e.g. 'Project KEY v5.4 progress')"},
+            {"name": "title", "type": "string", "required": True, "description": "Context title (e.g. 'Personal Data Bank v5.4 progress')"},
             {"name": "content", "type": "string", "required": True, "description": "Full context content (markdown)"},
             {"name": "context_type", "type": "string", "required": False, "default": "conversation", "description": "Type: conversation, project, task, note"},
             {"name": "tags", "type": "array", "required": False, "description": "Tags for categorization"},
@@ -1090,7 +1090,7 @@ async def _tool_get_overview(db: AsyncSession, user_id: str) -> dict:
         "graph_nodes": nodes_count,
         "graph_edges": edges_count,
         "profile_set": profile.get("exists", False),
-        "system": "Project KEY v4.1 — Personal Data Bank",
+        "system": "Personal Data Bank — v4.1 (PDB)",
     }
 
 
