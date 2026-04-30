@@ -346,6 +346,22 @@ Tags: {tag_list_str}
     edge_count = len(edge_result)
 
     logger.info(f"Graph built: {node_count} nodes, {edge_count} edges")
+
+    # v7.0 BYOS: push graph + clusters data to Drive (best-effort)
+    try:
+        from .storage_router import push_graph_to_drive_if_byos, push_clusters_to_drive_if_byos
+        # Get graph data to push
+        graph_data = await get_graph_data(db, user_id)
+        await push_graph_to_drive_if_byos(user_id, db, graph_data)
+        # Get clusters to push
+        clusters_list = [
+            {"id": c.id, "title": c.title, "summary": c.summary}
+            for c in clusters
+        ]
+        await push_clusters_to_drive_if_byos(user_id, db, clusters_list)
+    except Exception as drive_e:
+        logger.debug("BYOS graph/clusters push skipped: %s", drive_e)
+
     return {"nodes": node_count, "edges": edge_count}
 
 

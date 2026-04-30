@@ -166,6 +166,15 @@ async def organize_files(db: AsyncSession, user_id: str):
                     user_id=user_id,  # v5.1 — per-user index
                 )
 
+                # v7.0 BYOS: push summary to Drive (best-effort, no-op for managed)
+                try:
+                    from .storage_router import push_summary_to_drive_if_byos
+                    await push_summary_to_drive_if_byos(
+                        user_id, db, f.id, summary_data.get("summary", "")
+                    )
+                except Exception as drive_e:
+                    logger.debug("BYOS summary push skipped: %s", drive_e)
+
                 f.processing_status = "ready"
             except Exception as e:
                 logger.error(f"Summary generation failed for {f.filename}: {e}")
@@ -400,6 +409,15 @@ async def organize_new_files(db: AsyncSession, user_id: str) -> dict:
                     cluster_title=cluster_title,
                     user_id=user_id,
                 )
+
+                # v7.0 BYOS: push summary to Drive (best-effort, no-op for managed)
+                try:
+                    from .storage_router import push_summary_to_drive_if_byos
+                    await push_summary_to_drive_if_byos(
+                        user_id, db, f.id, summary_data.get("summary", "")
+                    )
+                except Exception as drive_e:
+                    logger.debug("BYOS summary push skipped: %s", drive_e)
 
                 f.processing_status = "ready"
             except Exception as e:

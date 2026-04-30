@@ -9,7 +9,7 @@
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
  <script src="https://d3js.org/d3.v7.min.js"></script>
- <link rel="stylesheet" href="/legacy/styles.css?v=6.1.0">
+ <link rel="stylesheet" href="/legacy/styles.css?v=7.0.0">
 </head>
 <body>
  <!-- ═══════════════════════════════════════════ -->
@@ -401,7 +401,7 @@
  <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.9"/><rect x="14" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/><rect x="3" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/><rect x="14" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.3"/></svg>
  <span>Personal Data Bank</span>
  </div>
- <p>สร้างด้วย · v6.1.0 — Start with context. Grow into your Digital Twin.</p>
+ <p>สร้างด้วย · v7.0.0 — Start with context. Grow into your Digital Twin.</p>
  </footer>
  </div>
 
@@ -506,7 +506,7 @@
  </div>
  <div class="logo-text-area">
  <span class="logo-text">Personal Data Bank</span>
- <span class="logo-version">v6.1.0</span>
+ <span class="logo-version">v7.0.0</span>
  </div>
  </div>
  </div>
@@ -1322,6 +1322,30 @@
  </div>
  <div id="usage-bars-container"></div>
  </div>
+ <!-- Storage Mode Section (BYOS v7.0.0) -->
+ <div class="storage-mode-section" id="storage-mode-section">
+ <div class="storage-mode-header">
+  <div class="storage-mode-title-row">
+   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0022 16z"/>
+    <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+    <line x1="12" y1="22.08" x2="12" y2="12"/>
+   </svg>
+   <span class="storage-mode-title">Storage Mode</span>
+   <span class="storage-badge storage-badge-managed" id="storage-mode-badge">Managed</span>
+  </div>
+ </div>
+ <div class="storage-mode-body">
+  <div id="storage-mode-desc">
+   <p class="storage-managed-desc">Loading...</p>
+  </div>
+  <div class="storage-mode-actions" id="storage-mode-actions"></div>
+  <div class="storage-mode-notice hidden" id="storage-mode-notice">
+   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+   <span>Testing mode — only approved test users can connect</span>
+  </div>
+ </div>
+ </div>
  <hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:16px 0;">
  <div class="form-group">
  <label data-i18n="profile.identity">Who am I</label>
@@ -1633,6 +1657,7 @@
  </div>
  </div>
 
- <script src="/legacy/app.js?v=6.0.0"></script>
+ <script src="/legacy/storage_mode.js?v=7.0.0"></script>
+ <script src="/legacy/app.js?v=7.0.0"></script>
 </body>
 </html>

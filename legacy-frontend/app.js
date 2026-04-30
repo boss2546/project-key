@@ -419,6 +419,8 @@ function initAppData() {
  initBilling();
  setTimeout(detectOnboardingProgress, 3000);
  maybeShowRebrandNotice();
+ // v7.0 — BYOS Storage Mode (loads Drive status for profile modal)
+ if (typeof initStorageMode === 'function') initStorageMode();
 }
 
 // แสดง toast แจ้ง rebrand ครั้งเดียวต่อ browser (v6.1.0)
