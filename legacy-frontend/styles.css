@@ -4048,6 +4048,21 @@ body.show-landing {
   letter-spacing: -0.182px;
 }
 
+.personality-desc {
+  font-size: 12px;
+  color: #8a8f98;
+  line-height: 1.6;
+  margin: 0 0 10px 0;
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.015);
+  border-radius: 5px;
+  border-left: 2px solid rgba(94,106,210,0.25);
+}
+.personality-desc strong {
+  color: #b0b7c3;
+  font-weight: 590;
+}
+
 .btn-history {
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.08);

@@ -28,6 +28,7 @@ backups/
 .gemini/
 .vscode/
 .testsprite/
+.claude/
 *.swp
 
 # OS
