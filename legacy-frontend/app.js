@@ -422,7 +422,7 @@ function initAppData() {
 }
 
 // แสดง toast แจ้ง rebrand ครั้งเดียวต่อ browser (v6.1.0)
-// เหตุผล: user เก่าที่จำชื่อ "Project KEY" จะได้รู้ว่าเปลี่ยนชื่อ + Claude Desktop config เดิมยังใช้ได้
+// เหตุผล: user เก่าที่จำชื่อเดิมจะได้รู้ว่าเปลี่ยนชื่อ + Claude Desktop config เดิมยังใช้ได้
 function maybeShowRebrandNotice() {
  const REBRAND_NOTICE_KEY = 'pdb_rebrand_notice_seen';
  if (localStorage.getItem(REBRAND_NOTICE_KEY)) return;
