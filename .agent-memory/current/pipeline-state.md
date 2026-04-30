@@ -15,20 +15,36 @@
 **Authority:** ฟ้า may fix small UI bugs herself + commit + push (per user override)
 **Verdict:** ✅ APPROVE — ready for user to merge to master + deploy
 
-### 🟢 v7.0.0 Google Drive BYOS — owned by เขียว (foundation only until plan revised)
-**State:** `building_foundation` (custom state — plan not formally approved + not yet revised for new branding, but user authorized parallel start)
+### 🟢 v7.0.0 Google Drive BYOS — owned by เขียว
+**State:** `phase_2_complete` ✅ — Phase 1 + Phase 2 done with mock tests; credentials integrated
 **Owner:** เขียว (Khiao)
-**Plan file:** [plans/google-drive-byos.md](../plans/google-drive-byos.md) (1,129 lines, still uses "Project KEY" branding — 37 occ to revise)
-**Branch:** TBD — will branch off `rebrand-pdb-v6.1.0` HEAD (inherits rebrand)
+**Plan file:** [plans/google-drive-byos.md](../plans/google-drive-byos.md) (still uses "Project KEY" branding — แดง will revise; new code uses "Personal Data Bank" already)
+**Branch:** `byos-v7.0.0-foundation` (4 BYOS commits, ready for end-to-end live test)
 
-**Blockers waiting on user:**
-- Google Cloud Console setup → 5 env vars (GOOGLE_OAUTH_CLIENT_ID/SECRET/PICKER_API_KEY/PICKER_APP_ID/DRIVE_TOKEN_ENCRYPTION_KEY)
-- Drive folder name decision (`/Personal Data Bank/` proposed default)
-- Plan revision request → sent to แดง
+**✅ Credentials integrated 2026-04-30:**
+- ฟ้า GCP setup ผ่านครบ 6 steps (Project / APIs / OAuth Consent / Client ID / API Key / Project Number)
+- 4 credentials + DRIVE_TOKEN_ENCRYPTION_KEY (เขียว generate) → ใส่ใน `.env` (gitignored)
+- `is_byos_configured() == True` verified
+- 5 BYOS endpoints unlocked from 503
+- `/api/drive/oauth/init` produces valid 541-char Google auth URL (drive.file scope + CSRF + offline + consent ครบ)
 
-**Blockers waiting on แดง:**
+**✅ Build summary (Phase 1 + Phase 2):**
+- 4 backend modules: drive_layout, drive_oauth, drive_storage, drive_sync (~900 lines)
+- 5 endpoints: drive/status, oauth/init, oauth/callback, disconnect, storage-mode
+- Schema migration: users.storage_mode + drive_connections + files.drive_*
+- 4 mock smoke tests = 90/90 PASS (foundation 26 + storage 20 + sync 24 + oauth 20)
+- docs/BYOS_SETUP.md admin guide (270 lines)
+- .env.example BYOS section + safety notes
+
+**Pending (next sessions):**
+- Phase 3: storage abstraction (route extraction/profile/organizer/graph_builder by storage_mode)
+- Phase 4: frontend UI (storage_mode.js + Picker SDK + Storage Mode section in profile)
+- Live OAuth E2E: ฟ้า/user click "Connect Drive" → real Google flow → verify folder created
+- Plan revision by แดง (37 brand occurrences) — non-blocking
+
+**Blockers waiting on แดง (non-blocking):**
 - Plan revision (37 occurrences "Project KEY" → "Personal Data Bank")
-- 4 open questions in plan (Q-A real-time webhook, Q-B existing folder merge, Q-C drive full Phase 2, Q-D OneDrive/Dropbox)
+- 4 open questions: Q-A webhook, Q-B existing folder merge, Q-C drive full Phase 2, Q-D OneDrive/Dropbox
 
 ### Original v6.1.0 metadata (kept for reference)
 **Owner (build):** เขียว (Khiao)

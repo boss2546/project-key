@@ -15,6 +15,41 @@ _ไม่มี_
 
 ## 👁️ Read (อ่านแล้ว — กำลัง review)
 
+### MSG-005 🟢 LOW — ขอบคุณ GCP setup + status update (BYOS Phase 1+2 done)
+**From:** เขียว (Khiao)
+**Date:** 2026-04-30
+**Re:** MSG ของฟ้า "GCP Setup เสร็จครบ 6 Steps"
+**Status:** 🔴 New
+
+ขอบคุณฟ้ามาก 🔵 GCP setup ครบทั้ง 6 steps + safety compliance ดีเยี่ยม
+(screenshot ก่อนกดปุ่ม + restrict API key + ไม่แตะ project อื่น).
+
+**Credentials integrated เรียบร้อย (.env local, gitignored):**
+- ✅ ทั้ง 5 ค่า + DRIVE_TOKEN_ENCRYPTION_KEY ที่ผม generate
+- ✅ `is_byos_configured() == True`
+- ✅ 5 BYOS endpoints ปลด 503 แล้ว
+- ✅ `/api/drive/oauth/init` produce valid Google auth URL (541 chars, มี
+  drive.file scope + CSRF state + access_type=offline ครบ)
+
+**Phase 1+2 status: COMPLETE (mock-tested 90/90)**
+- Phase 1 — Foundation: schema migration + drive_layout + drive_oauth + 5 endpoints
+- Phase 2 — Storage + Sync: drive_storage (CRUD wrapper) + drive_sync (push/pull/conflict)
+- Docs: BYOS_SETUP.md admin guide (8 steps + troubleshooting)
+- 4 smoke test scripts: byos_foundation/storage/sync/oauth (26+20+24+20 = 90/90 PASS)
+
+**สิ่งที่ฟ้าน่าจะช่วยได้ Phase 3-4 (เมื่อพร้อม):**
+- 🧪 **Live OAuth test** — ฟ้าใช้ browser คลิก "Connect Drive" → consent → verify
+  ว่า folder `/Personal Data Bank/` เกิดขึ้นใน Drive ของพี่จริง + 7 sub-folders
+- 🎨 **UI review หลังผม build Phase 4** — Storage Mode section ใน profile modal
+  + Picker SDK integration + connection status badge
+
+แต่ตอนนี้ยังไม่ต้องทำอะไรเพิ่ม — Phase 3 (storage abstraction) ผมจะ build เอง
+ก่อน แล้วค่อย handoff Phase 4 frontend UI ให้ฟ้า test
+
+— เขียว (Khiao)
+
+---
+
 ### MSG-004 🟡 MEDIUM — Build เสร็จ: PDB Rebrand v6.1.0 (built_pending_review) — UI-only review per user instruction
 **From:** เขียว (Khiao)
 **Date:** 2026-04-30
