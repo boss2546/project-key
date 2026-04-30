@@ -74,3 +74,38 @@ STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 STRIPE_STARTER_PRICE_ID = os.getenv("STRIPE_STARTER_PRICE_ID", "")
 APP_BASE_URL = os.getenv("APP_BASE_URL", "http://localhost:8000")
+
+# ─── Google Drive BYOS (v7.0.0) ───
+# OAuth 2.0 credentials จาก Google Cloud Console. ถ้าว่าง = BYOS feature ปิด
+# (endpoints จะ return 503 GOOGLE_OAUTH_NOT_CONFIGURED) — ไม่ break Managed Mode
+GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "")
+GOOGLE_OAUTH_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "")
+GOOGLE_OAUTH_REDIRECT_URI = os.getenv(
+    "GOOGLE_OAUTH_REDIRECT_URI",
+    f"{APP_BASE_URL}/api/drive/oauth/callback",
+)
+# Picker SDK credentials (separate from OAuth — for client-side file selection)
+GOOGLE_PICKER_API_KEY = os.getenv("GOOGLE_PICKER_API_KEY", "")
+GOOGLE_PICKER_APP_ID = os.getenv("GOOGLE_PICKER_APP_ID", "")  # = Cloud project number
+
+# OAuth mode: "testing" (free, 7-day token expiry, max 100 test users)
+# vs "production" (verified, persistent tokens, public)
+GOOGLE_OAUTH_MODE = os.getenv("GOOGLE_OAUTH_MODE", "testing")
+
+# Fernet encryption key สำหรับ refresh_token at rest (Drive's Connection table)
+# Generate ครั้งเดียวด้วย:  python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# ถ้าว่าง: BYOS endpoints จะ return 503 (เก็บ token ไม่ปลอดภัยถ้าไม่ encrypt)
+DRIVE_TOKEN_ENCRYPTION_KEY = os.getenv("DRIVE_TOKEN_ENCRYPTION_KEY", "")
+
+
+def is_byos_configured() -> bool:
+    """True ถ้า config ครบสำหรับ BYOS feature ใช้งานจริง.
+
+    เรียกที่ endpoint level เพื่อ short-circuit เป็น 503 ถ้า env vars ยังไม่ set —
+    BYOS feature จะ "ปิดเงียบๆ" จนกว่า user จะ deploy ด้วย credentials ครบ
+    """
+    return bool(
+        GOOGLE_OAUTH_CLIENT_ID
+        and GOOGLE_OAUTH_CLIENT_SECRET
+        and DRIVE_TOKEN_ENCRYPTION_KEY
+    )

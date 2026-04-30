@@ -35,8 +35,13 @@ class User(Base):
     cancel_at_period_end = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    # v7.0 — BYOS storage mode: "managed" (server volume) | "byos" (user's Google Drive)
+    storage_mode = Column(String, default="managed")
     files = relationship("File", back_populates="owner")
     profile = relationship("UserProfile", uselist=False, back_populates="user", cascade="all, delete-orphan")
+    drive_connection = relationship(
+        "DriveConnection", uselist=False, back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class File(Base):
@@ -61,6 +66,13 @@ class File(Base):
     # v5.9.3 — Locked data (downgrade protection)
     is_locked = Column(Boolean, default=False)
     locked_reason = Column(String, nullable=True)   # exceeds_free_plan_limit, subscription_expired
+
+    # v7.0 — BYOS link to user's Google Drive copy (NULL ใน managed mode)
+    # storage_source: "local" | "drive_uploaded" (user upload via UI -> stored in Drive)
+    #                 | "drive_picked" (user picked existing Drive file via Google Picker)
+    drive_file_id = Column(String, nullable=True, index=True)
+    drive_modified_time = Column(DateTime, nullable=True)
+    storage_source = Column(String, default="local")
 
     owner = relationship("User", back_populates="files")
     insight = relationship("FileInsight", uselist=False, back_populates="file", cascade="all, delete-orphan")
@@ -419,6 +431,34 @@ class AuditLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class DriveConnection(Base):
+    """v7.0 — OAuth connection ของ user ไปยัง Google Drive ของตัวเอง (BYOS feature).
+
+    เก็บ refresh_token แบบ encrypted เพื่อให้ server refresh access_token ได้
+    เมื่อ access_token หมดอายุ (1 ชม.) โดยไม่ต้องให้ user re-consent ทุกครั้ง.
+
+    Encryption: Fernet (key = DRIVE_TOKEN_ENCRYPTION_KEY ใน config) — ถ้า env var
+    หาย refresh_token ที่เก็บไว้จะถอดไม่ได้ → user ต้อง re-connect.
+
+    1 user : 1 connection (unique constraint บน user_id) — Phase 2 อาจเปลี่ยนเป็น
+    multi-account (personal + work).
+    """
+    __tablename__ = "drive_connections"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String, ForeignKey("users.id"), unique=True, nullable=False)
+    drive_email = Column(String, nullable=False)
+    refresh_token_encrypted = Column(Text, nullable=False)
+    drive_root_folder_id = Column(String, nullable=False)
+    # last_sync_status: "pending" (just connected) | "syncing" | "success" | "error"
+    last_sync_at = Column(DateTime, nullable=True)
+    last_sync_status = Column(String, default="pending")
+    last_sync_error = Column(Text, nullable=True)
+    connected_at = Column(DateTime, default=datetime.utcnow)
+    revoked_at = Column(DateTime, nullable=True)
+
+    user = relationship("User", back_populates="drive_connection")
+
+
 # Async engine
 engine = create_async_engine(DATABASE_URL, echo=False)
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -544,6 +584,39 @@ async def init_db():
                 )
             except Exception as e:
                 print(f"  ⚠️ personality_history index creation warning: {e}")
+
+            # v7.0 Migration — BYOS support (Google Drive bring-your-own-storage)
+            # ⚠️ เพิ่ม column "storage_mode" ใน users + Drive-link columns ใน files
+            #     drive_connections table ถูกสร้างโดย create_all แล้ว (ดู class DriveConnection)
+            cursor = await db.execute("PRAGMA table_info(users)")
+            user_cols_v7 = [row[1] for row in await cursor.fetchall()]
+            if "storage_mode" not in user_cols_v7:
+                # default = 'managed' = backward compat — user เก่าทุกคนยังอยู่โหมดเดิม
+                await db.execute(
+                    "ALTER TABLE users ADD COLUMN storage_mode TEXT DEFAULT 'managed'"
+                )
+                migrated = True
+                print("  → Added: users.storage_mode (BYOS feature)")
+
+            cursor = await db.execute("PRAGMA table_info(files)")
+            file_cols_v7 = [row[1] for row in await cursor.fetchall()]
+            if "drive_file_id" not in file_cols_v7:
+                await db.execute("ALTER TABLE files ADD COLUMN drive_file_id TEXT")
+                await db.execute("ALTER TABLE files ADD COLUMN drive_modified_time TEXT")
+                await db.execute(
+                    "ALTER TABLE files ADD COLUMN storage_source TEXT DEFAULT 'local'"
+                )
+                migrated = True
+                print("  → Added: files.drive_file_id, drive_modified_time, storage_source (BYOS)")
+
+            # Index บน drive_file_id เพื่อ lookup เร็วตอน sync (ถ้า column ใหม่ + index ยังไม่มี)
+            try:
+                await db.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_files_drive_file_id "
+                    "ON files(drive_file_id)"
+                )
+            except Exception as e:
+                print(f"  ⚠️ files.drive_file_id index creation warning: {e}")
 
             if migrated:
                 await db.commit()

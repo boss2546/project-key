@@ -17,7 +17,8 @@ from .database import (
     init_db, get_db, gen_id,
     User, File, Cluster, FileClusterMap, FileInsight, FileSummary,
     ContextPack, GraphNode, GraphEdge, NoteObject, SuggestedRelation, GraphLens,
-    MCPToken, MCPUsageLog, WebhookLog, UsageLog, AuditLog
+    MCPToken, MCPUsageLog, WebhookLog, UsageLog, AuditLog,
+    DriveConnection,
 )
 from .extraction import extract_text, cleanup_extracted_text
 from .organizer import organize_files
@@ -1715,6 +1716,271 @@ async def api_stripe_webhook(request: Request, db: AsyncSession = Depends(get_db
 async def api_billing_info(user: User = Depends(get_current_user)):
     """Get current user billing/subscription info."""
     return get_billing_info(user)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# BYOS — Google Drive (v7.0 — foundation only, full flow pending creds)
+# ═══════════════════════════════════════════════════════════════════
+# กฎ: ทุก endpoint ตรงนี้ short-circuit เป็น 503 ถ้า env vars ยังไม่ครบ
+# (is_byos_configured()) — ทำให้ BYOS feature "ปิดเงียบๆ" ใน production จนกว่า
+# ผู้ดูแลจะ deploy พร้อม Google OAuth credentials. Managed Mode ไม่กระทบ.
+from .config import is_byos_configured as _byos_ready  # local import เพื่อชัดเจน
+from . import drive_oauth as _drive_oauth
+from .drive_layout import (
+    DRIVE_ROOT_FOLDER_NAME,
+    DRIVE_SCHEMA_VERSION,
+    STORAGE_MODE_BYOS,
+    STORAGE_MODE_MANAGED,
+    VALID_STORAGE_MODES,
+)
+
+
+def _byos_503_error():
+    """Standard 503 response เมื่อ BYOS env vars ยังไม่ครบ — endpoint จะ return อันนี้"""
+    raise HTTPException(
+        status_code=503,
+        detail={
+            "error": {
+                "code": "GOOGLE_OAUTH_NOT_CONFIGURED",
+                "message": (
+                    "BYOS feature ยังไม่พร้อมใช้งาน — กำลังรอ Google OAuth credentials "
+                    "ของผู้ดูแลระบบ. Managed Mode ใช้งานได้ปกติ"
+                ),
+            }
+        },
+    )
+
+
+@app.get("/api/drive/status")
+async def api_drive_status(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """ดู BYOS status ของ user — ใช้สำหรับ frontend ตัดสินใจ render UI.
+
+    Public-ish endpoint (auth required) — ไม่ short-circuit 503 เพราะ frontend
+    ต้องเรียกได้เพื่อรู้ว่า feature available หรือไม่.
+    """
+    drive_email: str | None = None
+    last_sync_at: str | None = None
+    last_sync_status: str | None = None
+    if user.storage_mode == STORAGE_MODE_BYOS:
+        result = await db.execute(
+            select(DriveConnection).where(DriveConnection.user_id == user.id)
+        )
+        conn = result.scalar_one_or_none()
+        if conn:
+            drive_email = conn.drive_email
+            last_sync_at = conn.last_sync_at.isoformat() if conn.last_sync_at else None
+            last_sync_status = conn.last_sync_status
+
+    return {
+        "feature_available": _byos_ready(),
+        "storage_mode": user.storage_mode,
+        "drive_connected": drive_email is not None,
+        "drive_email": drive_email,
+        "drive_root_folder_name": DRIVE_ROOT_FOLDER_NAME,
+        "drive_schema_version": DRIVE_SCHEMA_VERSION,
+        "last_sync_at": last_sync_at,
+        "last_sync_status": last_sync_status,
+        "oauth_mode": "testing",  # หลัง Google verification → "production"
+    }
+
+
+@app.get("/api/drive/oauth/init")
+async def api_drive_oauth_init(user: User = Depends(get_current_user)):
+    """เริ่ม OAuth flow — return auth_url ให้ frontend redirect."""
+    if not _byos_ready():
+        _byos_503_error()
+    try:
+        return _drive_oauth.init_oauth(user.id)
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=500,
+            detail={"error": {"code": "OAUTH_INIT_FAILED", "message": str(e)}},
+        )
+
+
+@app.get("/api/drive/oauth/callback")
+async def api_drive_oauth_callback(
+    code: str = "",
+    state: str = "",
+    error: str = "",
+    db: AsyncSession = Depends(get_db),
+):
+    """Google redirect กลับมาที่นี่หลัง user grant consent.
+
+    Note: ไม่มี JWT auth — verify ผ่าน CSRF state token แทน.
+    หลัง process เสร็จ redirect ไป frontend (success or error param).
+    """
+    from fastapi.responses import RedirectResponse
+
+    if not _byos_ready():
+        _byos_503_error()
+
+    # User denied consent → Google redirect with ?error=access_denied
+    if error:
+        return RedirectResponse(
+            url=f"/?drive_connected=false&error={error}",
+            status_code=302,
+        )
+
+    if not code or not state:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": {
+                    "code": "MISSING_OAUTH_PARAMS",
+                    "message": "code หรือ state หายไปจาก callback URL",
+                }
+            },
+        )
+
+    try:
+        result = await _drive_oauth.handle_callback(code, state)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": {"code": "INVALID_OAUTH_STATE", "message": str(e)}},
+        )
+
+    # Save connection to DB (encrypted refresh_token)
+    encrypted = _drive_oauth.encrypt_refresh_token(result["refresh_token"])
+    new_conn = DriveConnection(
+        user_id=result["user_id"],
+        drive_email=result["drive_email"],
+        refresh_token_encrypted=encrypted,
+        drive_root_folder_id=result["drive_root_folder_id"],
+        last_sync_status="pending",
+    )
+
+    # Upsert: ถ้า user re-connect (เดิมมี connection อยู่) → update แทน insert
+    existing_q = await db.execute(
+        select(DriveConnection).where(DriveConnection.user_id == result["user_id"])
+    )
+    existing = existing_q.scalar_one_or_none()
+    if existing:
+        existing.drive_email = new_conn.drive_email
+        existing.refresh_token_encrypted = new_conn.refresh_token_encrypted
+        existing.drive_root_folder_id = new_conn.drive_root_folder_id
+        existing.last_sync_status = "pending"
+        existing.last_sync_error = None
+        existing.revoked_at = None
+    else:
+        db.add(new_conn)
+    await db.commit()
+
+    logger.info(
+        "BYOS: user %s connected Drive (email=%s, folder_id=%s)",
+        result["user_id"], result["drive_email"], result["drive_root_folder_id"],
+    )
+    return RedirectResponse(url="/?drive_connected=true", status_code=302)
+
+
+@app.post("/api/drive/disconnect")
+async def api_drive_disconnect(
+    keep_files: bool = True,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """ตัดการเชื่อมต่อ Drive ของ user.
+
+    keep_files=True (default): เก็บ cache ฝั่งเรา + หยุด sync — user เปิด Drive ดูเองได้
+    keep_files=False: ลบ File rows ที่ link กับ Drive ฝั่งเรา (Drive content ไม่แตะ)
+
+    Drive folder ของ user ใน /Personal Data Bank/ จะไม่ถูกลบ — user ลบเองถ้าต้องการ.
+    """
+    if not _byos_ready():
+        _byos_503_error()
+
+    result = await db.execute(
+        select(DriveConnection).where(DriveConnection.user_id == user.id)
+    )
+    conn = result.scalar_one_or_none()
+    if not conn:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": {
+                    "code": "NO_DRIVE_CONNECTION",
+                    "message": "User นี้ยังไม่ได้เชื่อมต่อ Drive",
+                }
+            },
+        )
+
+    # Revoke token ที่ Google (best-effort — ไม่ raise ถ้า fail)
+    try:
+        plaintext = _drive_oauth.decrypt_refresh_token(conn.refresh_token_encrypted)
+        revoked = _drive_oauth.revoke_refresh_token(plaintext)
+        logger.info("BYOS: revoke_refresh_token result for user %s: %s", user.id, revoked)
+    except RuntimeError as e:
+        # encryption key เปลี่ยน — ทำต่อได้ (ลบ DB row อยู่ดี)
+        logger.warning("BYOS: could not decrypt token for revoke: %s", e)
+
+    if not keep_files:
+        # Soft-cleanup: mark file rows ที่ผูก Drive ว่า unlinked (ไม่ลบจริง — protect against
+        # accidental data loss; ผู้ใช้ที่ต้องการลบจริงใช้ delete file endpoint แยกต่อ)
+        await db.execute(
+            File.__table__.update()
+            .where(File.user_id == user.id, File.drive_file_id.isnot(None))
+            .values(drive_file_id=None, storage_source="local")
+        )
+
+    # Switch user back to managed mode
+    user.storage_mode = STORAGE_MODE_MANAGED
+
+    # Delete connection row (revoke complete)
+    await db.delete(conn)
+    await db.commit()
+
+    return {"status": "disconnected", "keep_files": keep_files}
+
+
+@app.put("/api/storage-mode")
+async def api_set_storage_mode(
+    body: dict,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """สลับโหมดเก็บข้อมูลระหว่าง managed ↔ byos.
+
+    Body: {"mode": "managed" | "byos"}
+
+    หมายเหตุ: ใน foundation rev นี้ยัง **ไม่** trigger migration job
+    (managed → byos จะ upload ไฟล์เก่าขึ้น Drive). Migration logic จะมาใน Phase 2 —
+    endpoint นี้แค่ flip column ตอนนี้ + ต้องมี drive_connection ก่อนถึง byos
+    """
+    if not _byos_ready():
+        _byos_503_error()
+
+    mode = body.get("mode") if isinstance(body, dict) else None
+    if mode not in VALID_STORAGE_MODES:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": {
+                    "code": "INVALID_STORAGE_MODE",
+                    "message": f"mode ต้องเป็น {sorted(VALID_STORAGE_MODES)}",
+                }
+            },
+        )
+
+    if mode == STORAGE_MODE_BYOS:
+        # ตรวจว่า user เชื่อม Drive แล้วก่อน switch
+        result = await db.execute(
+            select(DriveConnection).where(DriveConnection.user_id == user.id)
+        )
+        if not result.scalar_one_or_none():
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": {
+                        "code": "BYOS_REQUIRES_DRIVE_CONNECTION",
+                        "message": "ต้องเชื่อมต่อ Drive ก่อน switch ไป BYOS mode",
+                    }
+                },
+            )
+
+    user.storage_mode = mode
+    await db.commit()
+    return {"status": "ok", "storage_mode": mode}
 
 # Billing page routes (serve index.html for SPA-style handling)
 @app.get("/billing/success")
