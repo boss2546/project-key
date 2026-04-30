@@ -22,9 +22,13 @@ import aiosqlite
 
 sys.path.insert(0, ".")
 
-# Make sure env vars are clear at start (test default 503 path first)
+# Force-clear env vars BEFORE importing backend.main (which triggers
+# config.py's load_dotenv()).
+# Set to "" instead of pop because load_dotenv defaults to override=False:
+# - pop -> var missing -> dotenv reads .env and repopulates (defeats clear)
+# - set "" -> var present (empty) -> dotenv skips (preserves clear)
 for k in ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "DRIVE_TOKEN_ENCRYPTION_KEY"]:
-    os.environ.pop(k, None)
+    os.environ[k] = ""
 
 from fastapi.testclient import TestClient
 from backend.main import app
@@ -61,8 +65,9 @@ def set_byos_env():
 
 
 def clear_byos_env():
+    # Set to "" (not pop) so dotenv reload doesn't repopulate from .env
     for k in ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "DRIVE_TOKEN_ENCRYPTION_KEY"]:
-        os.environ.pop(k, None)
+        os.environ[k] = ""
     return reload_cfg()
 
 

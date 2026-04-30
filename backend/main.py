@@ -1724,7 +1724,7 @@ async def api_billing_info(user: User = Depends(get_current_user)):
 # กฎ: ทุก endpoint ตรงนี้ short-circuit เป็น 503 ถ้า env vars ยังไม่ครบ
 # (is_byos_configured()) — ทำให้ BYOS feature "ปิดเงียบๆ" ใน production จนกว่า
 # ผู้ดูแลจะ deploy พร้อม Google OAuth credentials. Managed Mode ไม่กระทบ.
-from .config import is_byos_configured as _byos_ready  # local import เพื่อชัดเจน
+from . import config as _byos_cfg  # dynamic resolution — รองรับ config reload ใน tests
 from . import drive_oauth as _drive_oauth
 from .drive_layout import (
     DRIVE_ROOT_FOLDER_NAME,
@@ -1772,7 +1772,7 @@ async def api_drive_status(user: User = Depends(get_current_user), db: AsyncSess
             last_sync_status = conn.last_sync_status
 
     return {
-        "feature_available": _byos_ready(),
+        "feature_available": _byos_cfg.is_byos_configured(),
         "storage_mode": user.storage_mode,
         "drive_connected": drive_email is not None,
         "drive_email": drive_email,
@@ -1787,7 +1787,7 @@ async def api_drive_status(user: User = Depends(get_current_user), db: AsyncSess
 @app.get("/api/drive/oauth/init")
 async def api_drive_oauth_init(user: User = Depends(get_current_user)):
     """เริ่ม OAuth flow — return auth_url ให้ frontend redirect."""
-    if not _byos_ready():
+    if not _byos_cfg.is_byos_configured():
         _byos_503_error()
     try:
         return _drive_oauth.init_oauth(user.id)
@@ -1812,7 +1812,7 @@ async def api_drive_oauth_callback(
     """
     from fastapi.responses import RedirectResponse
 
-    if not _byos_ready():
+    if not _byos_cfg.is_byos_configured():
         _byos_503_error()
 
     # User denied consent → Google redirect with ?error=access_denied
@@ -1865,12 +1865,27 @@ async def api_drive_oauth_callback(
         existing.revoked_at = None
     else:
         db.add(new_conn)
+
+    # Auto-flip user เป็น byos mode (ถ้ายังไม่ใช่) — convenience: connect = opt in
+    user_q = await db.execute(select(User).where(User.id == result["user_id"]))
+    user_obj = user_q.scalar_one_or_none()
+    if user_obj and user_obj.storage_mode != STORAGE_MODE_BYOS:
+        user_obj.storage_mode = STORAGE_MODE_BYOS
+
     await db.commit()
 
     logger.info(
         "BYOS: user %s connected Drive (email=%s, folder_id=%s)",
         result["user_id"], result["drive_email"], result["drive_root_folder_id"],
     )
+
+    # Initialize folder layout (root + 7 sub-folders + _meta/version.txt) — best effort
+    try:
+        from .storage_router import init_drive_folder_layout
+        await init_drive_folder_layout(result["user_id"], db)
+    except Exception as e:
+        logger.warning("BYOS: layout init wrapper failed (non-fatal): %s", e)
+
     return RedirectResponse(url="/?drive_connected=true", status_code=302)
 
 
@@ -1887,7 +1902,7 @@ async def api_drive_disconnect(
 
     Drive folder ของ user ใน /Personal Data Bank/ จะไม่ถูกลบ — user ลบเองถ้าต้องการ.
     """
-    if not _byos_ready():
+    if not _byos_cfg.is_byos_configured():
         _byos_503_error()
 
     result = await db.execute(
@@ -1947,7 +1962,7 @@ async def api_set_storage_mode(
     (managed → byos จะ upload ไฟล์เก่าขึ้น Drive). Migration logic จะมาใน Phase 2 —
     endpoint นี้แค่ flip column ตอนนี้ + ต้องมี drive_connection ก่อนถึง byos
     """
-    if not _byos_ready():
+    if not _byos_cfg.is_byos_configured():
         _byos_503_error()
 
     mode = body.get("mode") if isinstance(body, dict) else None

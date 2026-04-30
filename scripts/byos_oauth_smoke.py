@@ -49,9 +49,10 @@ def setup_env():
 
 
 def teardown_env():
+    # Set to "" so dotenv (override=False default) doesn't repopulate from .env
     for k in ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET",
               "GOOGLE_OAUTH_REDIRECT_URI", "DRIVE_TOKEN_ENCRYPTION_KEY"]:
-        os.environ.pop(k, None)
+        os.environ[k] = ""
     from backend import config as _cfg, drive_oauth as _do
     importlib.reload(_cfg)
     importlib.reload(_do)

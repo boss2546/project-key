@@ -201,14 +201,17 @@ async def main():
 
     print("\n=== 3. PULL Case A: New Drive file -> imported into cache ===")
     user_id2, _ = await make_user_with_connection()
+    # Use random IDs to prevent UNIQUE id collisions across test runs
+    case_a_file_id = _s.token_hex(6)
+    case_a_drive_id = f"drive_external_{_s.token_hex(4)}"
 
     async with AsyncSessionLocal() as db:
         from sqlalchemy import select
         fake_client2 = FakeDriveClient()
         # Pre-populate Drive with a file the cache doesn't know about
         fake_client2.raw_files.append({
-            "id": "drive_external_001",
-            "name": "abc123def456_picked.pdf",
+            "id": case_a_drive_id,
+            "name": f"{case_a_file_id}_picked.pdf",
             "mimeType": "application/pdf",
             "modifiedTime": "2026-04-30T11:00:00Z",
         })
@@ -223,7 +226,7 @@ async def main():
         result = await db.execute(select(File).where(File.user_id == user_id2))
         rows = list(result.scalars().all())
     t("Pull Case A: File row inserted with drive_file_id",
-      lambda: len(rows) == 1 and rows[0].drive_file_id == "drive_external_001")
+      lambda: len(rows) == 1 and rows[0].drive_file_id == case_a_drive_id)
     t("Pull Case A: storage_source detected from name format",
       lambda: rows[0].storage_source in ("drive_uploaded", "drive_picked"))
     t("Pull Case A: processing_status='uploaded' (queued for extraction)",
@@ -319,6 +322,8 @@ async def main():
     t("DriveConnection.last_sync_at is populated", lambda: last_at is not None)
 
     print("\n=== 7. Drive name parsing ===")
+    # Use a fixed 12-char hex sample for the parsing test (no DB insert,
+    # so collision-safe — pure string parse)
     t("'abc123def456_report.pdf' -> ('abc123def456', 'report.pdf')",
       lambda: DriveSync._split_drive_name("abc123def456_report.pdf") == ("abc123def456", "report.pdf"))
     t("'no_prefix_file.pdf' -> generated id + full name",

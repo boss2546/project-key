@@ -214,7 +214,20 @@ async def update_profile(db: AsyncSession, user_id: str, data: dict) -> dict:
     await db.commit()
 
     logger.info(f"Profile updated for user {user_id} (source={history_source})")
-    return await get_profile(db, user_id)
+    result = await get_profile(db, user_id)
+
+    # ─── 4) BYOS projection (best-effort) ───────────────────────
+    # ถ้า user เป็น byos mode → push profile.json ลง /Personal Data Bank/personal/ ใน Drive
+    # ของ user เพื่อโปร่งใส (user เปิด Drive ดูเองได้). DB เป็น source of truth — Drive failure
+    # ไม่ throw + ไม่ rollback DB. Managed users no-op.
+    try:
+        from .storage_router import push_profile_to_drive_if_byos
+        await push_profile_to_drive_if_byos(user_id, db, result)
+    except Exception as e:
+        # Defensive: storage_router ดักไว้แล้ว แต่ใส่ guard ไว้กันดอด ถ้า import fail
+        logger.warning(f"BYOS profile push wrapper failed (non-fatal): {e}")
+
+    return result
 
 
 # ═══════════════════════════════════════════
