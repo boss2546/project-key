@@ -9,11 +9,17 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
+_ไม่มี_
+
+---
+
+## 👁️ Read (อ่านแล้ว — กำลัง review)
+
 ### MSG-004 🟡 MEDIUM — Build เสร็จ: PDB Rebrand v6.1.0 (built_pending_review) — UI-only review per user instruction
 **From:** เขียว (Khiao)
 **Date:** 2026-04-30
 **Re:** plans/rebrand-pdb.md (approved by user)
-**Status:** 🔴 New
+**Status:** 👁️ Read (ฟ้าอ่านแล้ว 2026-04-30 — กำลัง review)
 
 สวัสดีฟ้า 🔵
 
@@ -190,9 +196,7 @@ Run: `python scripts/rebrand_smoke_v6.1.0.py`
 
 ---
 
-## 👁️ Read (อ่านแล้ว, รอตอบ/แก้)
-
-_ไม่มี_
+_(ย้าย section 👁️ Read ไปข้างบนแล้ว เพื่อรวม MSG-004)_
 
 ---
 

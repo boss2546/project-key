@@ -5,11 +5,33 @@
 
 ---
 
-## 🎯 Current Feature
+## 🎯 Current Features (PARALLEL MODE — per user instruction 2026-04-30)
 
-**Feature:** Rebrand "Project KEY" → "Personal Data Bank" (PDB) — v6.1.0
-**State:** `built_pending_review` (เขียว build เสร็จ Step 1-10 → ส่งต่อให้ฟ้า review)
-**Owner:** ฟ้า (Fah) — รอ review
+> **Pipeline override:** User สั่งให้ทำ 2 features parallel — ฟ้าทำ v6.1.0 review/test/fix/commit/push, เขียวเริ่ม v7.0.0 BYOS foundation. Default rule "1 feature at a time" suspended for this round.
+
+### 🔵 v6.1.0 Rebrand — owned by ฟ้า
+**State:** `built_pending_review` → ฟ้า review/test/fix/commit/push by herself
+**Branch:** `rebrand-pdb-v6.1.0` (5 commits)
+**Authority:** ฟ้า may fix small UI bugs herself + commit + push (per user override)
+
+### 🟢 v7.0.0 Google Drive BYOS — owned by เขียว (foundation only until plan revised)
+**State:** `building_foundation` (custom state — plan not formally approved + not yet revised for new branding, but user authorized parallel start)
+**Owner:** เขียว (Khiao)
+**Plan file:** [plans/google-drive-byos.md](../plans/google-drive-byos.md) (1,129 lines, still uses "Project KEY" branding — 37 occ to revise)
+**Branch:** TBD — will branch off `rebrand-pdb-v6.1.0` HEAD (inherits rebrand)
+
+**Blockers waiting on user:**
+- Google Cloud Console setup → 5 env vars (GOOGLE_OAUTH_CLIENT_ID/SECRET/PICKER_API_KEY/PICKER_APP_ID/DRIVE_TOKEN_ENCRYPTION_KEY)
+- Drive folder name decision (`/Personal Data Bank/` proposed default)
+- Plan revision request → sent to แดง
+
+**Blockers waiting on แดง:**
+- Plan revision (37 occurrences "Project KEY" → "Personal Data Bank")
+- 4 open questions in plan (Q-A real-time webhook, Q-B existing folder merge, Q-C drive full Phase 2, Q-D OneDrive/Dropbox)
+
+### Original v6.1.0 metadata (kept for reference)
+**Owner (build):** เขียว (Khiao)
+**Started:** 2026-04-30
 **Started:** 2026-04-30
 **Plan file:** [plans/rebrand-pdb.md](../plans/rebrand-pdb.md)
 **Readiness notes:** [plans/rebrand-pdb-readiness-notes.md](../plans/rebrand-pdb-readiness-notes.md)
