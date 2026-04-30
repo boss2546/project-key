@@ -10,9 +10,10 @@
 > **Pipeline override:** User สั่งให้ทำ 2 features parallel — ฟ้าทำ v6.1.0 review/test/fix/commit/push, เขียวเริ่ม v7.0.0 BYOS foundation. Default rule "1 feature at a time" suspended for this round.
 
 ### 🔵 v6.1.0 Rebrand — owned by ฟ้า
-**State:** `built_pending_review` → ฟ้า review/test/fix/commit/push by herself
-**Branch:** `rebrand-pdb-v6.1.0` (5 commits)
+**State:** `review_passed` ✅ — ฟ้า reviewed + fixed version drift + APPROVED (2026-04-30)
+**Branch:** `rebrand-pdb-v6.1.0` (5 commits by เขียว + 1 fix by ฟ้า = 6 total)
 **Authority:** ฟ้า may fix small UI bugs herself + commit + push (per user override)
+**Verdict:** ✅ APPROVE — ready for user to merge to master + deploy
 
 ### 🟢 v7.0.0 Google Drive BYOS — owned by เขียว (foundation only until plan revised)
 **State:** `building_foundation` (custom state — plan not formally approved + not yet revised for new branding, but user authorized parallel start)
