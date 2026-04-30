@@ -15,8 +15,11 @@
 **Authority:** ฟ้า may fix small UI bugs herself + commit + push (per user override)
 **Verdict:** ✅ APPROVE — ready for user to merge to master + deploy
 
-### 🟢 v7.0.0 Google Drive BYOS — owned by เขียว
-**State:** `phase_2_complete` ✅ — Phase 1 + Phase 2 done with mock tests; credentials integrated
+### 🟢 v7.0.0 Google Drive BYOS — handed off to ฟ้า (2026-04-30, per user)
+**State:** `phase_3_complete` ✅ — Phase 1 + 2 + 3 done by เขียว; backend ครบ 100%, รอ ฟ้า ทำ Phase 4 + live test + push
+**Owner:** ฟ้า (Fah) — full dev mode (per user override "ส่งต่อให้ฟ้าทำเลย dev เองต่อด้วย")
+**Authority:** ฟ้า may dev + commit + push (no review-back-to-เขียว required for routine work)
+**Handoff MSG:** ดู MSG-006 ใน [inbox/for-ฟ้า.md](../communication/inbox/for-ฟ้า.md) ⭐
 **Owner:** เขียว (Khiao)
 **Plan file:** [plans/google-drive-byos.md](../plans/google-drive-byos.md) (still uses "Project KEY" branding — แดง will revise; new code uses "Personal Data Bank" already)
 **Branch:** `byos-v7.0.0-foundation` (4 BYOS commits, ready for end-to-end live test)
@@ -36,11 +39,27 @@
 - docs/BYOS_SETUP.md admin guide (270 lines)
 - .env.example BYOS section + safety notes
 
-**Pending (next sessions):**
-- Phase 3: storage abstraction (route extraction/profile/organizer/graph_builder by storage_mode)
-- Phase 4: frontend UI (storage_mode.js + Picker SDK + Storage Mode section in profile)
-- Live OAuth E2E: ฟ้า/user click "Connect Drive" → real Google flow → verify folder created
-- Plan revision by แดง (37 brand occurrences) — non-blocking
+**✅ Phase 3 done (2026-04-30 by เขียว, commit a1c8f72):**
+- backend/storage_router.py — 9 best-effort helpers
+- profile.py wired (push profile.json to Drive after DB commit)
+- OAuth callback wired (auto-flip storage_mode + init folder layout)
+- byos_router_smoke.py 16/16 PASS
+
+**🚨 Security note (2026-04-30, fixed in 58e8b9d):**
+- เขียว committed actual encryption key in docs/BYOS_SETUP.md (3 occurrences) → leaked at commit d75d5ea
+- Fixed forward: replaced with placeholder + rotated .env to new key
+- Old key still in git history at d75d5ea — **inert** (no DB row uses it)
+- Branch NOT pushed yet → ฟ้า decide before first push:
+  (a) leave history (no real damage), or
+  (b) rebase d75d5ea to amend (clean history, force-push required)
+
+**Pending (ฟ้า's queue):**
+- Phase 4: frontend UI (storage_mode.js + Picker SDK + Storage Mode section in profile modal + connect/disconnect button + status badge)
+- Live OAuth E2E test: open browser → click "Connect Drive" → verify folder `/Personal Data Bank/` + 7 sub-folders created in Drive ของพี่
+- Optional polish: wire organizer.py / graph_builder.py to call storage_router helpers (push summaries + graph.json)
+- Decide on encryption key history (leave or rebase)
+- Push branch to GitHub (when comfortable)
+- Plan revision by แดง (37 brand occurrences) — non-blocking, can run parallel
 
 **Blockers waiting on แดง (non-blocking):**
 - Plan revision (37 occurrences "Project KEY" → "Personal Data Bank")

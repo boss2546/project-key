@@ -15,6 +15,205 @@ _ไม่มี_
 
 ## 👁️ Read (อ่านแล้ว — กำลัง review)
 
+### MSG-006 🟡 MEDIUM — Full handoff: BYOS Phase 4 + live test + push (you own dev now)
+**From:** เขียว (Khiao)
+**Date:** 2026-04-30
+**Re:** plans/google-drive-byos.md
+**Status:** 🔴 New
+
+สวัสดีฟ้า 🔵 — User สั่งให้ส่งต่อ BYOS ให้ฟ้าทำต่อทั้งหมด: dev + test + commit + push.
+ฟ้าจะเป็น **full dev** สำหรับงานที่เหลือ (ไม่ใช่แค่ review/test แล้ว)
+
+═══════════════════════════════════════════════════════════════
+✅ ที่เขียว build ไปแล้ว (Phase 1-3 + Credentials + Security fix)
+═══════════════════════════════════════════════════════════════
+
+**Branch:** `byos-v7.0.0-foundation` (13 commits ahead of master, working tree clean)
+
+**Backend ครบ 100%:**
+- `backend/drive_layout.py` — folder structure + path helpers (~150 lines)
+- `backend/drive_oauth.py` — OAuth flow + Fernet encrypt/decrypt + CSRF state cache (~280 lines)
+- `backend/drive_storage.py` — 15 CRUD methods (~300 lines)
+- `backend/drive_sync.py` — sync engine push/pull/conflict (~280 lines)
+- `backend/storage_router.py` — 9 best-effort helpers (~280 lines)
+- `backend/main.py` — 5 endpoints (drive/status, oauth/init, oauth/callback, disconnect, storage-mode)
+- `backend/database.py` — schema migration (storage_mode + drive_connections + files.drive_*)
+- `backend/profile.py` — wired to push profile.json after DB commit
+
+**Tests (mock-based, no real Drive call):** **182/182 PASS** ✅
+```
+scripts/rebrand_smoke_v6.1.0.py    76/76  (regression)
+scripts/byos_foundation_smoke.py   26/26  (env config + 503 fallback + DB schema)
+scripts/byos_storage_smoke.py      20/20  (CRUD round-trips)
+scripts/byos_sync_smoke.py         24/24  (push/pull/conflict)
+scripts/byos_oauth_smoke.py        20/20  (Fernet + CSRF + handle_callback)
+scripts/byos_router_smoke.py       16/16  (storage abstraction wired)
+```
+
+**Credentials integrated** (in .env, gitignored):
+- All 5 Google OAuth credentials from your GCP setup
+- DRIVE_TOKEN_ENCRYPTION_KEY (rotated after security fix below)
+
+**Docs:**
+- `docs/BYOS_SETUP.md` — admin setup guide (270 lines, 8 steps + troubleshooting)
+
+═══════════════════════════════════════════════════════════════
+🚨 SECURITY NOTE — Decision needed before push
+═══════════════════════════════════════════════════════════════
+
+เขียวพลาด: commit ค่าจริงของ encryption key ใน `docs/BYOS_SETUP.md` 3 จุด
+(commit `d75d5ea`). พบจาก confirmation check แล้วแก้ทันที:
+- Replaced 3 occurrences ใน docs ด้วย `<PASTE_GENERATED_KEY_HERE>` placeholder
+- Rotated .env เป็น key ใหม่
+- Verified Fernet round-trip + 182/182 tests ยัง pass
+- Commit fix: `58e8b9d`
+
+**Risk = 0 in practice** เพราะ:
+- Branch ยังไม่ push → leak อยู่แค่ local git history
+- DB ไม่มี data จริงที่ encrypt ด้วย key เก่า (test rows ใช้ literal "not-used-in-mock")
+- Old key inert (no remaining DB cipher uses it)
+
+**Decision before first `git push origin byos-v7.0.0-foundation`:**
+- 🅰️ **Leave history** — old key inert, ไม่มี real damage. Push as-is
+- 🅱️ **Rebase amend** `d75d5ea` ให้ใส่ placeholder ตั้งแต่ commit นั้น → clean history แต่ rewrite 5 commits ตามมา (force-push required)
+
+ผมเอนเอียงไป 🅰️ (simpler) แต่ฟ้าตัดสินใจตามใจชอบ — มี context ครบ.
+
+═══════════════════════════════════════════════════════════════
+📋 Phase 4 Scope (ฟ้าทำ)
+═══════════════════════════════════════════════════════════════
+
+**4.1 — Frontend UI** (~3-4 ชม.)
+
+ตามแผน plans/google-drive-byos.md section "Frontend (สร้างใหม่ 1 + แก้ 3)":
+
+- [ ] `legacy-frontend/storage_mode.js` (NEW, ~250 lines):
+  - Module ห่อ Picker SDK + OAuth callback handler
+  - Functions:
+    * `initStorageMode()` — fetch /api/drive/status → render UI state
+    * `connectDrive()` — call /api/drive/oauth/init → redirect to auth_url
+    * `disconnectDrive(keepFiles)` — call /api/drive/disconnect
+    * `openPicker(token)` — load gapi → show Google Picker → upload selected files
+    * `pollSyncStatus()` — show "syncing..." indicator + last sync time
+
+- [ ] `legacy-frontend/index.html` (modify, ~100 lines):
+  - Storage Mode section ใน profile modal:
+    ```
+    ┌─ Storage Mode ──────────────────────────────────┐
+    │ Current: [Managed Mode] / [BYOS — Connected]    │
+    │                                                  │
+    │ Managed Mode (default):                          │
+    │   ✓ ไฟล์เก็บใน server ของเรา                    │
+    │   [ Switch to BYOS ]                             │
+    │                                                  │
+    │ — OR —                                           │
+    │                                                  │
+    │ BYOS — Bring Your Own Storage:                   │
+    │   ✓ ไฟล์เก็บใน Drive ของคุณ                     │
+    │   📧 connected as: user@gmail.com                │
+    │   ⏱️  last sync: 2 min ago                       │
+    │   [ Disconnect ] [ Pick from Drive ]             │
+    └──────────────────────────────────────────────────┘
+    ```
+
+- [ ] `legacy-frontend/app.js` (modify, ~150 lines):
+  - Add `initStorageMode()` call ใน main bootstrap
+  - Listen for `?drive_connected=true|false` URL param หลัง OAuth callback
+  - Show toast on success/error
+  - Hook upload flow: ถ้า byos → upload to Drive ก่อน + create File row with storage_source="drive_uploaded"
+
+- [ ] `legacy-frontend/styles.css` (modify, ~100 lines):
+  - Storage Mode section styling (chips, badges, status indicator)
+
+**4.2 — Live OAuth E2E test** (~30 min)
+
+ฟ้า cuelocally:
+1. `python -m uvicorn backend.main:app --port 8000`
+2. Open browser http://localhost:8000
+3. Register / login
+4. Open profile → Storage Mode section → "Switch to BYOS" → "Connect Drive"
+5. Should redirect to Google OAuth → grant access → redirect back
+6. **Verify in Drive:**
+   - Folder `/Personal Data Bank/` exists
+   - 7 sub-folders: raw/ extracted/ summaries/ personal/ data/ _meta/ _backups/
+   - `_meta/version.txt` = "1.0"
+7. Update profile (e.g., set MBTI) → check Drive → `personal/profile.json` updated
+8. Disconnect → verify token revoked + cache mode reset to managed
+
+**4.3 — Optional polish** (~1 ชม.)
+
+Wire `organizer.py` + `graph_builder.py` to push summaries/graph to Drive:
+- ใน organizer.py หลัง summarize: `await push_summary_to_drive_if_byos(user_id, db, file_id, markdown)`
+- ใน graph_builder.py หลัง build: `await push_graph_to_drive_if_byos(user_id, db, graph_dict)`
+- Helpers พร้อม - แค่ insert call site
+
+**4.4 — Push + deploy**
+
+หลัง 4.1-4.3 เสร็จ + smoke test pass:
+1. **Decide encryption key history:** push as-is (🅰️) หรือ rebase (🅱️) — ดู Security Note ข้างบน
+2. `git push origin byos-v7.0.0-foundation`
+3. Open PR → merge to master ตอน rebrand เพื่อนแล้ว
+4. Set Fly.io secrets:
+   ```bash
+   flyctl secrets set GOOGLE_OAUTH_CLIENT_ID="..."
+   flyctl secrets set GOOGLE_OAUTH_CLIENT_SECRET="..."
+   flyctl secrets set GOOGLE_PICKER_API_KEY="..."
+   flyctl secrets set GOOGLE_PICKER_APP_ID="..."
+   flyctl secrets set GOOGLE_OAUTH_MODE="testing"
+   flyctl secrets set DRIVE_TOKEN_ENCRYPTION_KEY="..."  # ใช้ key ใน .env
+   ```
+   (User บอก credentials เลขใหม่ใน .env — copy ส่งให้ deploy)
+5. `flyctl deploy`
+6. Production smoke: `curl https://project-key.fly.dev/api/drive/status -H "Authorization: Bearer $JWT" | jq` → `feature_available: true`
+
+═══════════════════════════════════════════════════════════════
+🛠️ Tools / Commands ที่ฟ้าจะใช้บ่อย
+═══════════════════════════════════════════════════════════════
+
+```bash
+# Dev server (sandbox blocks port — ฟ้าใช้ Antigravity browser ได้)
+python -m uvicorn backend.main:app --reload --port 8000
+
+# Run all 6 smoke suites (regression check)
+for s in rebrand_smoke_v6.1.0 byos_foundation_smoke byos_storage_smoke \
+         byos_sync_smoke byos_oauth_smoke byos_router_smoke; do
+    echo "=== $s ==="; python "scripts/${s}.py" 2>&1 | grep "RESULT:"
+done
+
+# Generate fresh encryption key
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+# Verify no creds in tracked files (should be empty)
+git grep -l "GOCSPX-\|AIzaSy"
+```
+
+═══════════════════════════════════════════════════════════════
+🤝 Coordination
+═══════════════════════════════════════════════════════════════
+
+- **เขียว ออก loop แล้ว** — ฟ้ารับช่วงต่อ ไม่ต้องรอผม approve
+- ถ้าเจอ bug ใน backend ที่ผม build → ฟ้าแก้เองได้เลย + commit + report ใน inbox/for-User.md
+- ถ้าจำเป็นต้องการ design opinion ใหญ่ → ส่ง MSG กลับ inbox/for-เขียว.md (ผมจะ read ตอน user spawn เขียวอีกที)
+- **แดง อาจส่ง revised plan** มาในภายหลัง (37 brand changes) — ไม่ blocking, ฟ้า build ตามที่ผมใช้ "Personal Data Bank" ตั้งแต่ต้นได้เลย
+
+═══════════════════════════════════════════════════════════════
+📚 Reading list
+═══════════════════════════════════════════════════════════════
+
+อ่านตามลำดับเพื่อจับ context:
+1. **`.agent-memory/current/pipeline-state.md`** — overall state
+2. **`.agent-memory/plans/google-drive-byos.md`** — full BYOS plan (1,129 lines, ใช้ "Project KEY" ยังไม่ revise — แดงจะทำ)
+3. **`docs/BYOS_SETUP.md`** — admin guide (placeholder values, ของจริงใน .env)
+4. **`backend/storage_router.py`** — 9 helpers ที่ frontend จะ trigger ผ่าน endpoints
+5. **`git log --oneline master..HEAD`** — ดู history
+6. **`git diff master..HEAD -- backend/`** — ดู backend changes ทั้งหมด
+
+ขอบคุณฟ้า 🔵 — งานนี้สำเร็จได้ก็เพราะฟ้า GCP setup ให้ + version drift fix ก่อนหน้า!
+
+— เขียว (Khiao)
+
+---
+
 ### MSG-005 🟢 LOW — ขอบคุณ GCP setup + status update (BYOS Phase 1+2 done)
 **From:** เขียว (Khiao)
 **Date:** 2026-04-30
