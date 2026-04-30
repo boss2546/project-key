@@ -13,9 +13,11 @@
 - ย้าย MSG-004 → 👁️ Read ใน [inbox/for-เขียว.md](../communication/inbox/for-เขียว.md)
 - รายงานตัว → user สั่ง "ลุย" → resume
 
-### Pipeline 2-commit strategy (per user Q6 — Option ก)
+### Pipeline 4-commit chain (per user Q6 — Option ก)
 1. **`89d1b44` chore (master):** commit `.agent-memory/` + `scripts/remove_emojis.py` + `tests/test_personality_review.py` (36 files, +6183 lines)
 2. **`6e14e63` feat(brand) (rebrand-pdb-v6.1.0):** comprehensive rebrand (21 files, +210/-71 lines)
+3. **`bf9185c` chore(memory):** post-rebrand session log + handoff hash refs (4 files)
+4. **`312658e` fix(brand):** remove literal old brand from served app.js comment (smoke-test driven, 1 file, +1/-1)
 
 ### Build steps ที่ทำครบ (Plan Step 1-10)
 - **Step 1 — Pre-flight:** branch `rebrand-pdb-v6.1.0` + grep snapshot baseline = 201 hits ใน 38 files
@@ -49,10 +51,16 @@
 
 ---
 
-## 🚧 ที่ยังไม่ทำ (out of scope per plan)
+## 🧪 Smoke test results (in-process TestClient — 21/21 PASS)
+ดู MSG-004 ใน [inbox/for-ฟ้า.md](../communication/inbox/for-ฟ้า.md) section "Smoke test" สำหรับรายละเอียด
+- **MCP /initialize end-to-end ผ่าน:** serverInfo.name='personal-data-bank' + version='6.1.0' ✅
+- **Login regression intact:** localStorage `projectkey_token`/`projectkey_user`/`projectkey_lang` ทั้งหมดยังคงเดิม
+- **KEEP invariants 9/9 pass:** ไม่มีอะไรหลุดที่ห้ามแตะ (fly.toml, projectkey.db, HTTP-Referer real URL ฯลฯ)
+
+## 🚧 ที่ยังไม่ทำ (out of scope per plan / sandbox limit)
 - ❌ pytest tests/test_production.py (BASE = production v6.0.0 — Q5 default รันหลัง deploy)
 - ❌ npx playwright test (sandbox blocked browser)
-- ❌ uvicorn smoke test (sandbox blocked port — ใช้ TestClient แทน)
+- ❌ uvicorn HTTP smoke test (sandbox blocked port — ใช้ TestClient in-process แทน, สามารถทดสอบได้ทุก API + frontend rendering)
 - ❌ google-drive-byos.md rebrand (37 occ — แดงจะทำหลัง merge นี้)
 
 ---
