@@ -13,14 +13,18 @@
 - Branch: `rebrand-pdb-v6.1.0` (6 commits)
 - **Pending:** user merge to master + Fly.io deploy → state: `done`
 
-### 🟢 v7.0.0 Google Drive BYOS — **phase_3_complete** (owned by ฟ้า, full dev)
-- เขียว build Phase 1+2+3 เสร็จ + 182/182 self-test pass
-- ฟ้า takes over for Phase 4 + push (per user 2026-04-30 "ส่งต่อให้ฟ้าทำเลย dev เองต่อด้วย")
-- Branch: `byos-v7.0.0-foundation` (13 commits ahead of master, working tree clean)
-- **Pending:**
-  - Phase 4: frontend UI (`storage_mode.js` + Picker SDK + index.html section + app.js wire)
-  - Live OAuth E2E test (browser → Connect Drive → verify folder)
-  - Optional: wire `organizer.py` + `graph_builder.py` to storage_router
+### 🟢 v7.0.0 Google Drive BYOS — **phase_4_in_progress** (owned by ฟ้า, full dev)
+- เขียว build Phase 1+2+3 เสร็จ + 182/182 self-test pass (`27e6d23`, `a9e5209`, `a1c8f72`)
+- ฟ้า took over Phase 4 (per user 2026-04-30) → commit `5b80c52` substantial completion:
+  - ✅ storage_mode.js (296 lines) — connect/disconnect UI + OAuth callback
+  - ✅ Storage Mode section in profile modal + 133 lines CSS
+  - ✅ Wired organizer.py + graph_builder.py to push data to Drive
+  - ✅ APP_VERSION 6.1.0 → 7.0.0 + smoke test updated
+  - ✅ 182/182 regression still pass + visual E2E verified on localhost:8000
+- Branch: `byos-v7.0.0-foundation` (16 commits ahead of master)
+- **Pending (ฟ้า WIP in working tree):**
+  - Final polish on `drive_oauth.py` / `app.js` / `storage_mode.js`
+  - Live Google OAuth click-through E2E (real Drive folder creation in user's Drive)
   - Decide encryption key history option (leave vs rebase amend `d75d5ea`)
   - git push + Fly.io secrets + flyctl deploy + production smoke
 

@@ -4,8 +4,10 @@
 **Personal Data Bank (PDB)** เป็นพื้นที่ข้อมูลส่วนตัวที่ใช้ AI ช่วยจัดระเบียบ วิเคราะห์ และเชื่อมโยงข้อมูลของผู้ใช้
 
 **Production:** https://project-key.fly.dev/ (Fly.io app name `project-key` ยังคงเดิม — รอ custom domain ภายหลัง)
-**Current version:** 6.1.0 (rebrand) — deployed
-**Next version:** 7.0.0 BYOS — in development on `byos-v7.0.0-foundation` branch
+**Current deployed version:** 6.0.0 (Personality Profile)
+**Next versions in pipeline:**
+- 6.1.0 (rebrand) — review_passed, pending merge + deploy
+- 7.0.0 (BYOS) — Phase 4 substantially done by ฟ้า (commit `5b80c52`), final polish + live OAuth E2E + push pending. Branch `byos-v7.0.0-foundation` already has APP_VERSION = 7.0.0
 
 ## เป้าหมายหลัก
 - ผู้ใช้ upload ไฟล์ส่วนตัว (PDF, TXT, MD, DOCX) → AI จัดระเบียบให้อัตโนมัติ
@@ -29,8 +31,14 @@
 
 **In development (v7.0.0):**
 10. 🚧 **Google Drive BYOS** — ลูกค้าเลือก storage mode (managed | byos)
-    - Phase 1-3 done: backend foundation + storage + sync + storage routing
-    - Phase 4 pending: frontend UI + live OAuth E2E test + push + deploy
+    - Phase 1-3 done by เขียว: backend foundation + storage + sync + storage routing (mock-tested 90+/90+)
+    - Phase 4 substantially done by ฟ้า (commit `5b80c52`):
+      * storage_mode.js (296 lines) — UI module + OAuth callback handler
+      * Storage Mode section in profile modal + 133 lines CSS
+      * Wired organizer.py + graph_builder.py to push to Drive
+      * APP_VERSION bumped 6.1.0 → 7.0.0
+      * Visual E2E verified on localhost (real Google OAuth E2E pending)
+    - Pending: final polish + live click-through OAuth + push + deploy
     - Architecture: Hybrid (Drive = source of truth, server = cache/index)
 
 ## ผู้ใช้เป้าหมาย
@@ -45,12 +53,12 @@
 - Tests: `tests/test_*.py` + `tests/e2e-ui/*.spec.js` + `scripts/*_smoke.py` (in-process self-tests)
 - Docs: `/docs/`, `/DESIGN.md`, `/README.md`, `/docs/BYOS_SETUP.md` (v7.0)
 
-## สถานะปัจจุบัน
+## สถานะปัจจุบัน (2026-05-01)
 - ✅ Production live แล้ว at https://project-key.fly.dev/ (v6.0.0 — Personality Profile)
 - 🟡 v6.1.0 Rebrand: review_passed, pending merge + deploy
-- 🟢 v7.0.0 BYOS: Phase 3/4 done, ฟ้า takes over for Phase 4 (frontend + live test + push)
+- 🟢 v7.0.0 BYOS: Phase 4 substantial completion by ฟ้า, final polish + live OAuth + push pending
 - ✅ Stripe integration ทำงานได้
-- ✅ Smoke test suite (182/182 in-process tests) pass 100%
+- ✅ Smoke test suite (182/182 in-process tests) pass 100% — verified post-Phase 4
 - 🚧 Frontend ยังเป็น legacy (HTML+JS) ยังไม่ได้ migrate เป็น React/Vue (per FE-001 decision)
 
 ## สถาปัตยกรรม BYOS (v7.0 preview)

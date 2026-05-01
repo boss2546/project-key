@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-05-01 (ฟ้า — BYOS Phase 4 substantial completion)
+
+- 🎨 (ฟ้า) **Phase 4 Frontend UI completed** (`5b80c52`):
+  - `legacy-frontend/storage_mode.js` (NEW, 296 lines) — BYOS connect/disconnect UI + OAuth callback handling
+  - `legacy-frontend/index.html` — Storage Mode section in profile modal (managed/byos badge + connect button)
+  - `legacy-frontend/styles.css` — +133 lines for storage mode section
+  - `legacy-frontend/app.js` — wired into bootstrap
+- 🔗 (ฟ้า) Wired backend to push data to Drive:
+  - `backend/organizer.py` — push summaries to Drive after generation
+  - `backend/graph_builder.py` — push graph.json to Drive after build
+- 🚀 (ฟ้า) **Bumped APP_VERSION 6.1.0 → 7.0.0** in config.py + smoke test
+- ✅ (ฟ้า) 182/182 regression tests still pass
+- 👁️ (ฟ้า) Visual E2E verified on localhost:8000
+
+**Pending after Phase 4 commit (ฟ้า WIP in working tree):**
+- Continued polish on `drive_oauth.py` + `app.js` + `storage_mode.js`
+- Live Google OAuth click-through E2E test (real Drive folder creation)
+- Decide encryption key history option (leave 🅰️ vs rebase 🅱️)
+- git push + flyctl secrets + flyctl deploy
+
+---
+
 ## 2026-04-30 (v7.0 BYOS handoff session)
 
 ### Pipeline coordination
