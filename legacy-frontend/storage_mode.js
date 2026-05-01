@@ -49,6 +49,11 @@ function handleDriveCallbackParams() {
     );
     // Clean URL without reload
     window.history.replaceState({}, '', '/');
+    // Auto-open profile modal — return user to context before OAuth redirect
+    setTimeout(() => {
+      const modal = document.getElementById('profile-modal');
+      if (modal) modal.classList.remove('hidden');
+    }, 800);
   } else if (driveConnected === 'false') {
     const msg = error === 'access_denied'
       ? (getLang() === 'th' ? 'คุณปฏิเสธการเข้าถึง Google Drive' : 'You denied Google Drive access')

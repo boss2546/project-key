@@ -31,6 +31,7 @@ const state = {
 // ═══════════════════════════════════════════
 
 /** Wrapper for fetch() that adds JWT auth header */
+let _logoutDebounce = false;
 async function authFetch(url, options = {}) {
  if (!options.headers) options.headers = {};
  if (state.authToken) {
@@ -46,10 +47,14 @@ async function authFetch(url, options = {}) {
  throw err;
  }
  if (res.status === 401) {
- // Token expired or invalid — logout with message
- hideLoadingOverlay();
- doLogout();
- showToast(getLang() === 'th' ? ' เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่' : ' Session expired. Please log in again.', 'error');
+ // Token expired or invalid — logout ONCE (debounce ป้องกัน parallel fetch spam)
+ if (!_logoutDebounce && state.authToken) {
+  _logoutDebounce = true;
+  hideLoadingOverlay();
+  doLogout();
+  showToast(getLang() === 'th' ? ' เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่' : ' Session expired. Please log in again.', 'error');
+  setTimeout(() => { _logoutDebounce = false; }, 3000);
+ }
  throw new Error('Session expired');
  }
  return res;
@@ -255,9 +260,16 @@ async function doRegister() {
  localStorage.setItem('projectkey_token', data.token);
  localStorage.setItem('projectkey_user', JSON.stringify(data.user));
  document.getElementById('auth-modal').classList.add('hidden');
- // Redirect to pricing page immediately after registration
- window.location.href = '/pricing?welcome=1';
- return; // stop here — don't showApp/initAppData
+ // v7.0.1 — เข้า workspace ทันทีหลัง register (ไม่ redirect ไป pricing)
+ // user อัปเกรดได้ภายหลังจาก Profile modal
+ showApp();
+ initAppData();
+ showToast(
+  getLang() === 'th'
+    ? 'สมัครสำเร็จ! ยินดีต้อนรับสู่ Personal Data Bank'
+    : 'Welcome to Personal Data Bank!',
+  'success'
+ );
  } catch (e) {
  errorEl.textContent = 'Connection error';
  errorEl.classList.remove('hidden');
@@ -2500,6 +2512,8 @@ function initProfile() {
  // โหลด reference data (cached) → fill dropdowns ครั้งเดียว → fetch profile
  await ensurePersonalityReference();
  await loadProfile();
+ // v7.0 — Refresh Drive status ทุกครั้งที่เปิด modal (แก้ Loading... stuck)
+ if (typeof refreshDriveStatus === 'function') refreshDriveStatus();
  });
 
  document.getElementById('close-profile-modal')?.addEventListener('click', () => {

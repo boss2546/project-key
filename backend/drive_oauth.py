@@ -58,6 +58,7 @@ SCOPES: list[str] = [
 class _StateEntry(TypedDict):
     user_id: str
     expires: float
+    code_verifier: str
 
 
 # Module-level cache — TTL 10 นาที, cleanup lazy ตอน get
@@ -160,9 +161,17 @@ def init_oauth(user_id: str) -> dict[str, str]:
 
     flow = _build_flow()
     state = secrets.token_urlsafe(32)
+    # PKCE: generate code_verifier (Google mandates since 2025)
+    import hashlib, base64
+    code_verifier = secrets.token_urlsafe(64)  # 86 chars, URL-safe
+    code_challenge = base64.urlsafe_b64encode(
+        hashlib.sha256(code_verifier.encode()).digest()
+    ).rstrip(b"=").decode()
+
     _STATE_CACHE[state] = {
         "user_id": user_id,
         "expires": time.time() + _STATE_TTL_SECONDS,
+        "code_verifier": code_verifier,
     }
 
     auth_url, _ = flow.authorization_url(
@@ -170,6 +179,8 @@ def init_oauth(user_id: str) -> dict[str, str]:
         prompt="consent",         # บังคับ consent screen — ทำให้ refresh_token ออกมาแน่นอน
         include_granted_scopes="true",
         state=state,
+        code_challenge=code_challenge,
+        code_challenge_method="S256",
     )
     return {"auth_url": auth_url}
 
@@ -199,7 +210,8 @@ async def handle_callback(code: str, state: str) -> _CallbackResult:
         raise ValueError("INVALID_OAUTH_STATE — state ไม่ตรง / ใช้ไปแล้ว / หมดอายุ")
 
     flow = _build_flow()
-    flow.fetch_token(code=code)
+    # PKCE: pass code_verifier ที่ generate ตอน init
+    flow.fetch_token(code=code, code_verifier=state_info["code_verifier"])
     creds = flow.credentials
     if not creds.refresh_token:
         # ปกติ refresh_token จะออกมาเพราะเรา force prompt='consent' แต่ถ้าไม่มี = bug
