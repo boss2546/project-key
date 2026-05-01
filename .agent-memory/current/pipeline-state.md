@@ -53,13 +53,23 @@
   (a) leave history (no real damage), or
   (b) rebase d75d5ea to amend (clean history, force-push required)
 
-**Pending (ฟ้า's queue):**
-- Phase 4: frontend UI (storage_mode.js + Picker SDK + Storage Mode section in profile modal + connect/disconnect button + status badge)
-- Live OAuth E2E test: open browser → click "Connect Drive" → verify folder `/Personal Data Bank/` + 7 sub-folders created in Drive ของพี่
-- Optional polish: wire organizer.py / graph_builder.py to call storage_router helpers (push summaries + graph.json)
-- Decide on encryption key history (leave or rebase)
-- Push branch to GitHub (when comfortable)
-- Plan revision by แดง (37 brand occurrences) — non-blocking, can run parallel
+**Pending (final mile, requires user action since sandbox blocks production writes):**
+- Set Fly.io secrets: 6 BYOS env vars (commands ready in chat — user runs in their terminal)
+- `flyctl deploy` (user runs)
+- Production smoke test post-deploy
+- Live OAuth click-through E2E (real Drive folder creation — user/ฟ้า does in browser after deploy)
+
+**Already done in this session:**
+- ✅ Phase 1+2+3 backend (เขียว, mock-tested 90/90)
+- ✅ Phase 4 frontend (ฟ้า, commit `5b80c52`)
+- ✅ PKCE + logout debounce + UX (ฟ้า WIP committed by เขียว, `fb515db`)
+- ✅ 182/182 regression PASS (3 times this session)
+- ✅ Branch pushed to GitHub (origin/byos-v7.0.0-foundation = fb515db)
+- ✅ Memory updates (12 files refreshed)
+
+**Known issues (flagged):**
+- Encryption key in `d75d5ea` history — already on remote (was pushed by ฟ้า earlier). Old key inert (rotated). Rebase + force-push possible if user wants clean history.
+- Plan revision by แดง (37 brand occurrences in plan file) — non-blocking, can run parallel
 
 **Blockers waiting on แดง (non-blocking):**
 - Plan revision (37 occurrences "Project KEY" → "Personal Data Bank")
