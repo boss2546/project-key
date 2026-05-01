@@ -236,11 +236,25 @@ class DriveSync:
                     stats["errors"] += 1
                     continue
 
+                # แปลง filetype (extension) → MIME type สำหรับ Drive API
+                # f.filetype เก็บ extension เช่น "md", "pdf", "txt" ไม่ใช่ MIME type
+                _EXT_TO_MIME = {
+                    "pdf": "application/pdf",
+                    "txt": "text/plain",
+                    "md": "text/markdown",
+                    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "doc": "application/msword",
+                }
+                upload_mime = _EXT_TO_MIME.get(
+                    (f.filetype or "").lower(),
+                    "application/octet-stream",
+                )
+
                 drive_id = self._client.upload_file(
                     parent_id=raw_folder_id,
                     name=f"{f.id}_{f.filename}",
                     content=content,
-                    mime_type=f.filetype or "application/octet-stream",
+                    mime_type=upload_mime,
                 )
                 f.drive_file_id = drive_id
                 f.drive_modified_time = datetime.utcnow()
