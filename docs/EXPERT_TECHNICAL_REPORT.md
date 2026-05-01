@@ -3,7 +3,7 @@
 > **จัดทำสำหรับ:** ผู้เชี่ยวชาญ / Technical Reviewers / Architects  
 > **วันที่:** 19 เมษายน 2569  
 > **เวอร์ชัน:** v4.3  
-> **Production:** https://project-key.fly.dev/  
+> **Production:** https://personaldatabank.fly.dev/  
 > **Repository:** https://github.com/boss2546/project-key
 
 ---
@@ -407,7 +407,7 @@ python -m uvicorn backend.main:app --port 8000
 # ติดตั้ง flyctl แล้ว set secret
 flyctl secrets set OPENROUTER_API_KEY=sk-or-v1-xxx
 flyctl deploy --remote-only
-# Live: https://project-key.fly.dev/
+# Live: https://personaldatabank.fly.dev/
 ```
 
 ### C. เชื่อมต่อ Claude Desktop
@@ -419,7 +419,7 @@ flyctl deploy --remote-only
   "mcpServers": {
     "project-key": {
       "type": "streamable-http",
-      "url": "https://project-key.fly.dev/mcp/{SECRET_KEY}"
+      "url": "https://personaldatabank.fly.dev/mcp/{SECRET_KEY}"
     }
   }
 }

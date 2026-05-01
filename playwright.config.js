@@ -9,7 +9,7 @@ module.exports = defineConfig({
   retries: 0,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
-    baseURL: "https://project-key.fly.dev",
+    baseURL: "https://personaldatabank.fly.dev",
     screenshot: "only-on-failure",
     trace: "on-first-retry",
     viewport: { width: 1366, height: 768 },

@@ -319,11 +319,17 @@ async function doForgotPassword() {
  });
  const data = await res.json();
  if (!res.ok) {
- errorEl.textContent = data.detail || 'ไม่พบบัญชีนี้';
+ errorEl.textContent = data.detail || 'เกิดข้อผิดพลาด';
  errorEl.classList.remove('hidden');
  return;
  }
- // Save reset token and move to reset form
+ // Backend now responds with the same shape regardless of whether the email
+ // exists (anti-enumeration). reset_token is only present for real accounts.
+ if (!data.reset_token) {
+ errorEl.textContent = data.message || 'ถ้าอีเมลนี้มีบัญชีอยู่ ระบบจะส่งลิงก์รีเซ็ตให้';
+ errorEl.classList.remove('hidden');
+ return;
+ }
  _resetToken = data.reset_token;
  document.getElementById('reset-email-display').textContent = data.email;
  showAuthModal('reset');
@@ -462,7 +468,9 @@ function initAppData() {
  loadUsageInfo();
  initGuideSystem();
  initBilling();
- setTimeout(detectOnboardingProgress, 3000);
+ // Phase 1.6 — `detectOnboardingProgress` is referenced but never defined,
+ // so this setTimeout fired a ReferenceError 3s after every login. Remove
+ // until the onboarding feature is actually built.
  maybeShowRebrandNotice();
  // v7.0 — BYOS Storage Mode (loads Drive status for profile modal)
  if (typeof initStorageMode === 'function') initStorageMode();
@@ -3292,11 +3300,13 @@ async function testMCPConnection() {
  const btn = document.getElementById('btn-test-connection');
  const resultDiv = document.getElementById('mcp-test-result');
 
- // Need a token to test — check state first, then fallback to displayed token
+ // Need a token to test — check state first, then fallback to displayed token.
+ // Phase 1.5 fix: read from `mcp-token-value` (the <code> element holding only
+ // the raw token), NOT `mcp-token-display` (the wrapper that also contains the
+ // warning copy — concatenating both produced a malformed Bearer token → 401).
  let token = state.mcpLastToken;
  if (!token) {
- // Try to get from the token display element (if user just generated one)
- const tokenEl = document.getElementById('mcp-token-display');
+ const tokenEl = document.getElementById('mcp-token-value');
  if (tokenEl) token = tokenEl.textContent.trim();
  }
 

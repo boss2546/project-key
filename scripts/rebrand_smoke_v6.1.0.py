@@ -286,8 +286,8 @@ def t_mcp_info():
     j = r.json()
     mcp_ctx["secret"] = urlparse(j["mcp_connector_url"]).path.split("/")[-1]
     mcp_ctx["connector_path"] = urlparse(j["mcp_connector_url"]).path
-    return j.get("version", "") == "7.0.0" or "7.0.0" in str(j.get("version", ""))
-run("GET /api/mcp/info -> version 7.0.0 + connector_url has secret", t_mcp_info)
+    return j.get("version", "") == "7.0.1" or "7.0.1" in str(j.get("version", ""))
+run("GET /api/mcp/info -> version 7.0.1 + connector_url has secret", t_mcp_info)
 
 
 def t_mcp_tokens_create():
@@ -321,8 +321,8 @@ def t_mcp_initialize():
     if r.status_code != 200:
         return False
     s = r.json()["result"]["serverInfo"]
-    return s["name"] == "personal-data-bank" and s["version"] == "7.0.0"
-run("POST /mcp/{secret} initialize -> serverInfo.name='personal-data-bank' + v7.0.0", t_mcp_initialize)
+    return s["name"] == "personal-data-bank" and s["version"] == "7.0.1"
+run("POST /mcp/{secret} initialize -> serverInfo.name='personal-data-bank' + v7.0.1", t_mcp_initialize)
 
 
 def t_mcp_tools_list():
@@ -604,8 +604,8 @@ def t_brand_mcp_init():
         json={"jsonrpc": "2.0", "method": "initialize", "id": 100},
     )
     s = r.json().get("result", {}).get("serverInfo", {})
-    return s.get("name") == "personal-data-bank" and s.get("version") == "7.0.0"
-run("Brand: MCP serverInfo.name='personal-data-bank' + version='7.0.0'", t_brand_mcp_init)
+    return s.get("name") == "personal-data-bank" and s.get("version") == "7.0.1"
+run("Brand: MCP serverInfo.name='personal-data-bank' + version='7.0.1'", t_brand_mcp_init)
 
 
 def t_brand_mcp_tools_list_descriptions_clean():
@@ -642,11 +642,11 @@ run("KEEP: fly.toml volume source='project_key_data'",
 
 cfg = open("backend/config.py", encoding="utf-8").read()
 run("KEEP: config.py DATABASE_URL contains 'projectkey.db'", lambda: "projectkey.db" in cfg)
-run("BUMP: config.py APP_VERSION = '7.0.0'", lambda: 'APP_VERSION = "7.0.0"' in cfg)
+run("BUMP: config.py APP_VERSION = '7.0.1'", lambda: 'APP_VERSION = "7.0.1"' in cfg)
 
 llm = open("backend/llm.py", encoding="utf-8").read()
-run("KEEP: llm.py HTTP-Referer points to project-key.fly.dev (real URL)",
-    lambda: '"HTTP-Referer": "https://project-key.fly.dev"' in llm)
+run("KEEP: llm.py HTTP-Referer points to personaldatabank.fly.dev (real URL)",
+    lambda: '"HTTP-Referer": "https://personaldatabank.fly.dev"' in llm)
 run("CHANGE: llm.py X-Title = 'Personal Data Bank'",
     lambda: '"X-Title": "Personal Data Bank"' in llm)
 

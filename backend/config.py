@@ -50,8 +50,18 @@ JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", _generate_jwt_secret())
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))  # 24 hours default
 
-# ─── Admin Password (from env, no longer hardcoded) ───
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "1234")
+# ─── Admin Password (from env — fail closed if unset) ───
+# Used as override for disabled MCP tools. Default "1234" was guessable; now required.
+# Local dev: set ADMIN_PASSWORD in .env. Production: `fly secrets set ADMIN_PASSWORD=...`
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
+if not ADMIN_PASSWORD:
+    import sys
+    print(
+        "FATAL: ADMIN_PASSWORD env var is required (no default). "
+        "Set in .env locally or via `fly secrets set ADMIN_PASSWORD=...` in production.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 
 # MCP Secret — persists across restarts
 _MCP_SECRET_FILE = os.path.join(DATA_DIR, ".mcp_secret")

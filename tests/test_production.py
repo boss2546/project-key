@@ -12,7 +12,7 @@ import random
 import string
 import time
 
-BASE = "https://project-key.fly.dev"
+BASE = "https://personaldatabank.fly.dev"
 TIMEOUT = 15.0
 
 

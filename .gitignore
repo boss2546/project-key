@@ -10,12 +10,20 @@ venv/
 
 # Secrets
 .jwt_secret
+.jwt_secret*
 .mcp_secret
+.env
+.env.*
+!.env.example
+migration_backup/
 
 # Database (personal data — do not commit)
 projectkey.db
 projectkey.db-shm
 projectkey.db-wal
+*.db-journal
+*.sqlite
+*.sqlite-journal
 
 # Uploaded files & generated data (personal — do not commit)
 uploads/

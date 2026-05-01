@@ -6,7 +6,7 @@
 >
 > Personality Profile (MBTI / Enneagram / CliftonStrengths / VIA) + History + Stripe Billing + Plan Limits + Audit Log
 
-[![Production](https://img.shields.io/badge/Production-project--key.fly.dev-blue)](https://project-key.fly.dev/)
+[![Production](https://img.shields.io/badge/Production-project--key.fly.dev-blue)](https://personaldatabank.fly.dev/)
 [![Version](https://img.shields.io/badge/version-6.1.0-green)]()
 [![MCP Tools](https://img.shields.io/badge/MCP_Tools-30-purple)]()
 [![BYOS](https://img.shields.io/badge/BYOS-Phase_3_complete-orange)]()
@@ -179,7 +179,7 @@ python -m uvicorn backend.main:app --port 8000
 {
   "mcpServers": {
     "personal-data-bank": {
-      "url": "https://project-key.fly.dev/mcp/{YOUR_SECRET_KEY}"
+      "url": "https://personaldatabank.fly.dev/mcp/{YOUR_SECRET_KEY}"
     }
   }
 }
@@ -192,7 +192,7 @@ python -m uvicorn backend.main:app --port 8000
   "mcpServers": {
     "personal-data-bank": {
       "command": "npx",
-      "args": ["-y", "mcp-remote@latest", "https://project-key.fly.dev/mcp/{YOUR_SECRET_KEY}"]
+      "args": ["-y", "mcp-remote@latest", "https://personaldatabank.fly.dev/mcp/{YOUR_SECRET_KEY}"]
     }
   }
 }
@@ -336,7 +336,7 @@ flyctl secrets set OPENROUTER_API_KEY=your_api_key_here
 # Deploy
 flyctl deploy
 
-# เว็บไซต์: https://project-key.fly.dev/
+# เว็บไซต์: https://personaldatabank.fly.dev/
 ```
 
 ### ข้อควรรู้

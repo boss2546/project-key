@@ -46,9 +46,13 @@ logger = logging.getLogger(__name__)
 # App
 app = FastAPI(title="Personal Data Bank", version=APP_VERSION)
 
+# CORS — pinned to known origins. `*` + allow_credentials is unsafe (any site can
+# issue credentialed XHR with the user's JWT). Override via CORS_ORIGINS env (comma list).
+_default_origins = "https://personaldatabank.fly.dev,http://localhost:8000,http://127.0.0.1:8000"
+_cors_origins = [o.strip() for o in os.getenv("CORS_ORIGINS", _default_origins).split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -256,29 +260,33 @@ async def upload_files(
     pending_drive_pushes: list[tuple[str, str, bytes, str, str]] = []
 
     for upload_file in files:
+        # Strip any client-supplied directory components — `upload_file.filename`
+        # is attacker-controlled. `os.path.basename` defangs `../` traversal,
+        # absolute paths, and Windows-style `..\\` on POSIX servers.
+        original_name = os.path.basename(upload_file.filename or "") or "unnamed"
         # Validate type
-        ext = upload_file.filename.rsplit(".", 1)[-1].lower() if "." in upload_file.filename else ""
+        ext = original_name.rsplit(".", 1)[-1].lower() if "." in original_name else ""
         if ext not in allowed_types:
-            skipped.append({"filename": upload_file.filename, "reason": f"ไม่รองรับไฟล์ .{ext}"})
+            skipped.append({"filename": original_name, "reason": f"ไม่รองรับไฟล์ .{ext}"})
             continue
 
         # v5.9.3 — check file count
         if current_count + len(uploaded) >= file_limit:
-            skipped.append({"filename": upload_file.filename, "reason": f"ถึงขีดจำกัดไฟล์แล้ว ({file_limit} ไฟล์)"})
+            skipped.append({"filename": original_name, "reason": f"ถึงขีดจำกัดไฟล์แล้ว ({file_limit} ไฟล์)"})
             continue
 
         # Save raw file — per-user directory (v5.1)
         file_id = gen_id()
         user_upload_dir = os.path.join(UPLOAD_DIR, current_user.id)
         os.makedirs(user_upload_dir, exist_ok=True)
-        safe_filename = f"{file_id}_{upload_file.filename}"
+        safe_filename = f"{file_id}_{original_name}"
         raw_path = os.path.join(user_upload_dir, safe_filename)
 
         contents = await upload_file.read()
 
         # Validate size
         if len(contents) > max_bytes:
-            skipped.append({"filename": upload_file.filename, "reason": f"ไฟล์ใหญ่เกิน {MAX_FILE_SIZE_MB}MB"})
+            skipped.append({"filename": original_name, "reason": f"ไฟล์ใหญ่เกิน {MAX_FILE_SIZE_MB}MB"})
             continue
 
         with open(raw_path, "wb") as f:
@@ -291,7 +299,7 @@ async def upload_files(
         db_file = File(
             id=file_id,
             user_id=current_user.id,
-            filename=upload_file.filename,
+            filename=original_name,
             filetype=ext,
             raw_path=raw_path,
             extracted_text=extracted,
@@ -300,12 +308,12 @@ async def upload_files(
         db.add(db_file)
 
         # v7.0.1 — schedule Drive push for BYOS users (best-effort, after commit)
-        mime_guess = upload_file.content_type or f"application/{ext}" if ext else "application/octet-stream"
-        pending_drive_pushes.append((file_id, upload_file.filename, contents, mime_guess, extracted))
+        mime_guess = _guess_mime(ext, upload_file.content_type)
+        pending_drive_pushes.append((file_id, original_name, contents, mime_guess, extracted))
 
         uploaded.append({
             "id": file_id,
-            "filename": upload_file.filename,
+            "filename": original_name,
             "filetype": ext,
             "uploaded_at": datetime.utcnow().isoformat(),
             "processing_status": "uploaded",
@@ -324,6 +332,26 @@ async def upload_files(
         )
 
     return {"uploaded": uploaded, "count": len(uploaded), "skipped": skipped}
+
+
+_MIME_BY_EXT = {
+    "pdf": "application/pdf",
+    "txt": "text/plain",
+    "md": "text/markdown",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "doc": "application/msword",
+    "csv": "text/csv",
+    "json": "application/json",
+    "html": "text/html",
+    "rtf": "application/rtf",
+}
+
+
+def _guess_mime(ext: str, header_hint: str | None) -> str:
+    """Pick a safe Drive MIME — prefer browser-provided, fall back to extension map."""
+    if header_hint and "/" in header_hint:
+        return header_hint
+    return _MIME_BY_EXT.get(ext.lower(), "application/octet-stream")
 
 
 async def _push_uploads_to_drive(

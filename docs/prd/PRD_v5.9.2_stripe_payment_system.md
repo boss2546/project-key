@@ -10,7 +10,7 @@
 | Related PRD | PRD v5.9.1 — Frontend Pricing Update |
 | Next PRD | PRD v5.9.3 — Post-Payment Access & Usage Limits |
 | Status | **✅ Done** — Implemented 2026-04-27 |
-| Stripe Account ID | `acct_1TQfbLI4gLQRQja3` |
+| Stripe Account ID | `<REDACTED — see Stripe dashboard>` |
 | Stripe Mode | **Test Mode** |
 | Keys Location | `.env` (local) / Fly.io secrets (production) |
 | Last Updated | 2026-04-27 (v2 — added Pricing Page) |
@@ -95,33 +95,33 @@ Trial: None for v1
 ### 5.1 Stripe Account Info (Actual)
 
 ```text
-Stripe Account ID: acct_1TQfbLI4gLQRQja3
+Stripe Account ID: <REDACTED — see Stripe dashboard>
 Mode: Test
-Publishable Key: pk_test_51TQfbLI4gLQRQja3gGd...v23o (stored in .env)
-Secret Key: sk_test_51TQfbLI4gLQRQja3LGa...fEPu (stored in .env)
-Webhook Secret: whsec_F2uW6KmwqIaxLp0D0LffC6bkgvRfEK7p (stored in .env)
-Starter Product ID: prod_UPWB6zKjzwEvkL
-Starter Price ID: price_1TQh8sI4gLQRQja3JGygPtGz (stored in .env)
-Webhook Endpoint ID: we_1TQh9bI4gLQRQja3iXJeZs85
-Portal Config ID: bpc_1TQhAMI4gLQRQja3oAUOEm5H
+Publishable Key: <REDACTED — see .env>
+Secret Key: <REDACTED — see .env / Fly secrets>
+Webhook Secret: <REDACTED — see .env / Fly secrets>
+Starter Product ID: <REDACTED — see Stripe dashboard>
+Starter Price ID: <REDACTED — see .env>
+Webhook Endpoint ID: <REDACTED — see Stripe dashboard>
+Portal Config ID: <REDACTED — see Stripe dashboard>
 ```
 
 ### 5.2 สิ่งที่ต้องทำใน Stripe Dashboard
 
 1. ✅ สร้าง Stripe Account แล้ว
 2. ✅ ได้ Test API Keys แล้ว (บันทึกใน `.env`)
-3. ✅ สร้าง Product "Personal AI Context — Starter" → `prod_UPWB6zKjzwEvkL`
-4. ✅ สร้าง Price 99 THB/month Recurring → `price_1TQh8sI4gLQRQja3JGygPtGz`
-5. ✅ สร้าง Webhook Endpoint → `whsec_F2uW6KmwqIaxLp0D0LffC6bkgvRfEK7p`
-6. ✅ ตั้งค่า Customer Portal → `bpc_1TQhAMI4gLQRQja3oAUOEm5H`
+3. ✅ สร้าง Product "Personal AI Context — Starter" → `<REDACTED>`
+4. ✅ สร้าง Price 99 THB/month Recurring → `<REDACTED>`
+5. ✅ สร้าง Webhook Endpoint → `<REDACTED>` (rotated 2026-05-01)
+6. ✅ ตั้งค่า Customer Portal → `<REDACTED>`
 
 ระบบต้องเก็บค่า mapping ไว้ใน environment variables:
 
 ```text
 STRIPE_PUBLISHABLE_KEY    ← ✅ มีแล้ว
 STRIPE_SECRET_KEY         ← ✅ มีแล้ว
-STRIPE_STARTER_PRICE_ID   ← ✅ price_1TQh8sI4gLQRQja3JGygPtGz
-STRIPE_WEBHOOK_SECRET     ← ✅ whsec_F2uW6KmwqIaxLp0D0LffC6bkgvRfEK7p
+STRIPE_STARTER_PRICE_ID   ← ✅ <REDACTED — see .env>
+STRIPE_WEBHOOK_SECRET     ← ✅ <REDACTED — see .env / Fly secrets>
 APP_BASE_URL              ← ✅ ตั้งไว้ http://localhost:8000
 ```
 
@@ -622,10 +622,10 @@ Production: Stripe live mode
 
 | Variable | Status | Location | Value |
 |---|---|---|---|
-| `STRIPE_PUBLISHABLE_KEY` | ✅ บันทึกแล้ว | `.env` | `pk_test_51TQfbLI4gLQRQja3...` |
-| `STRIPE_SECRET_KEY` | ✅ บันทึกแล้ว | `.env` | `sk_test_51TQfbLI4gLQRQja3...` |
-| `STRIPE_WEBHOOK_SECRET` | ✅ บันทึกแล้ว | `.env` | `whsec_F2uW6KmwqIax...` |
-| `STRIPE_STARTER_PRICE_ID` | ✅ บันทึกแล้ว | `.env` | `price_1TQh8sI4gLQRQja3JGygPtGz` |
+| `STRIPE_PUBLISHABLE_KEY` | ✅ บันทึกแล้ว | `.env` | `<REDACTED>` |
+| `STRIPE_SECRET_KEY` | ✅ บันทึกแล้ว | `.env` | `<REDACTED>` |
+| `STRIPE_WEBHOOK_SECRET` | ✅ บันทึกแล้ว | `.env` | `<REDACTED — rotated 2026-05-01>` |
+| `STRIPE_STARTER_PRICE_ID` | ✅ บันทึกแล้ว | `.env` | `<REDACTED>` |
 | `APP_BASE_URL` | ✅ ตั้งแล้ว | `.env` | `http://localhost:8000` |
 
 ### 19.2 Production (Fly.io)
@@ -637,7 +637,7 @@ fly secrets set STRIPE_SECRET_KEY=sk_live_xxx
 fly secrets set STRIPE_PUBLISHABLE_KEY=pk_live_xxx
 fly secrets set STRIPE_WEBHOOK_SECRET=whsec_xxx
 fly secrets set STRIPE_STARTER_PRICE_ID=price_xxx
-fly secrets set APP_BASE_URL=https://project-key.fly.dev
+fly secrets set APP_BASE_URL=https://personaldatabank.fly.dev
 ```
 
 ---

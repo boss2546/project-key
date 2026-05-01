@@ -70,7 +70,7 @@ echo "═══ Step 4/4 — Production smoke test ═══"
 sleep 5   # give app a moment to settle
 echo ""
 echo "  GET / (landing page should contain 'Personal Data Bank')"
-curl -s -o /tmp/pdb_landing.html -w "    HTTP %{http_code}\n" https://project-key.fly.dev/
+curl -s -o /tmp/pdb_landing.html -w "    HTTP %{http_code}\n" https://personaldatabank.fly.dev/
 if grep -q "Personal Data Bank" /tmp/pdb_landing.html; then
     echo "    ✓ Contains 'Personal Data Bank'"
 else
@@ -85,12 +85,12 @@ rm -f /tmp/pdb_landing.html
 
 echo ""
 echo "  GET /api/mcp/info (no auth — should return 401 Unauthorized)"
-status=$(curl -s -o /dev/null -w "%{http_code}" https://project-key.fly.dev/api/mcp/info)
+status=$(curl -s -o /dev/null -w "%{http_code}" https://personaldatabank.fly.dev/api/mcp/info)
 echo "    HTTP ${status} (expected 401)"
 
 echo ""
 echo "  Note: BYOS endpoints require JWT — manual test via UI:"
-echo "    1. Login at https://project-key.fly.dev/"
+echo "    1. Login at https://personaldatabank.fly.dev/"
 echo "    2. Profile modal → Storage Mode section → 'Connect Drive'"
 echo "    3. Verify folder /Personal Data Bank/ created in your Drive"
 
@@ -99,7 +99,7 @@ echo "════════════════════════�
 echo "  ✅ DEPLOY v7.0.0 COMPLETE"
 echo "═══════════════════════════════════════════════════════════"
 echo "  Version:     7.0.0"
-echo "  Production:  https://project-key.fly.dev/"
+echo "  Production:  https://personaldatabank.fly.dev/"
 echo "  Features:"
 echo "    • Personal Data Bank rebrand (v6.1.0)"
 echo "    • Google Drive BYOS (v7.0.0)"

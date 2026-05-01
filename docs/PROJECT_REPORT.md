@@ -4,7 +4,7 @@
 > **อัพเดทล่าสุด:** 25 เมษายน 2569  
 > **เวอร์ชันปัจจุบัน:** v5.6 — In-App Guide System + Smart Organize + 30 Tools  
 > **Git Tags:** `MVPV1` → `v3.0` → `v4.2`  
-> **สถานะ:** ✅ Production (https://project-key.fly.dev/)  
+> **สถานะ:** ✅ Production (https://personaldatabank.fly.dev/)  
 > **จัดทำโดย:** Antigravity AI + ทีมพัฒนา  
 > **Repository:** https://github.com/boss2546/project-key
 
@@ -88,7 +88,7 @@ v5.6  → In-App Guide — คู่มือในเว็บ 3 แท็บ +
 
 | ฟีเจอร์ใหม่ | รายละเอียด |
 |-------------|-----------|
-| 🚀 Fly.io Deployment | Production at `project-key.fly.dev` |
+| 🚀 Fly.io Deployment | Production at `personaldatabank.fly.dev` |
 | 🐳 Docker | Multi-stage build, persistent volume |
 | 🔌 MCP Connector | Claude Custom Connector (MCP Streamable HTTP) |
 | 🔑 Bearer Token Auth | Token generation + revocation |
@@ -245,7 +245,7 @@ v5.6  → In-App Guide — คู่มือในเว็บ 3 แท็บ +
 │  Fly.io (shared-cpu-1x, 256MB) — Auto-stop/start                      │
 │  Persistent Volume: /data/ (1 GB)                                      │
 │  Docker: python:3.10-slim multi-stage build (64 MB image)              │
-│  Domain: https://project-key.fly.dev/                                  │
+│  Domain: https://personaldatabank.fly.dev/                                  │
 │  HTTPS: Automatic via Fly.io proxy                                     │
 └───────────────────────┬──────────────────────────────────────────────┘
                         │
@@ -474,7 +474,7 @@ Project KEY/
 
 ### Production URL
 ```
-https://project-key.fly.dev/
+https://personaldatabank.fly.dev/
 ```
 
 ### Docker Image
@@ -508,7 +508,7 @@ primary_region = "sin"  # Singapore
   "mcpServers": {
     "project-key": {
       "type": "streamable-http",
-      "url": "https://project-key.fly.dev/mcp/{SECRET_KEY}"
+      "url": "https://personaldatabank.fly.dev/mcp/{SECRET_KEY}"
     }
   }
 }
@@ -727,7 +727,7 @@ flyctl ssh console
 {
   "mcpServers": {
     "project-key": {
-      "url": "https://project-key.fly.dev/mcp/{YOUR_SECRET_KEY}"
+      "url": "https://personaldatabank.fly.dev/mcp/{YOUR_SECRET_KEY}"
     }
   }
 }
@@ -739,7 +739,7 @@ flyctl ssh console
   "mcpServers": {
     "project-key": {
       "command": "npx",
-      "args": ["-y", "mcp-remote@latest", "https://project-key.fly.dev/mcp/{YOUR_SECRET_KEY}"]
+      "args": ["-y", "mcp-remote@latest", "https://personaldatabank.fly.dev/mcp/{YOUR_SECRET_KEY}"]
     }
   }
 }

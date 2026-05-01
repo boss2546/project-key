@@ -247,35 +247,39 @@ def decode_reset_token(token: str) -> dict | None:
 
 
 async def request_password_reset(db: AsyncSession, email: str) -> dict:
-    """Request a password reset. Returns reset token if email exists.
-    
-    In production, this would send an email. For this deployment,
-    we return the token directly for the frontend flow.
+    """Request a password reset.
+
+    SECURITY (Phase 1.3): Anti-enumeration — never reveals whether the email
+    exists. Always returns a uniform success-shaped response so attackers can't
+    map registered emails by probing this endpoint.
+
+    NOTE: still returns `reset_token` directly because there is no email
+    sending pipeline yet. TODO (Phase 2): wire SMTP/SendGrid, drop
+    `reset_token` from response, and email a one-shot signed link instead.
     """
     email = email.lower().strip()
     result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
 
+    # Generic success — same shape whether the email exists or not.
+    # Only emit a token when a real, active account is found.
+    response = {
+        "message": "ถ้าอีเมลนี้มีบัญชีอยู่ ระบบจะส่งลิงก์รีเซ็ตให้",
+        "email": email,
+    }
+
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="ไม่พบบัญชีที่ใช้อีเมลนี้"
-        )
+        logger.info(f"Password reset requested for unknown email: {email}")
+        return response
 
     if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="บัญชีนี้ถูกปิดใช้งาน"
-        )
+        logger.info(f"Password reset requested for inactive account: {email}")
+        return response
 
     token = create_reset_token(user.id, user.email)
     logger.info(f"Password reset requested for: {user.email}")
-
-    return {
-        "message": "ยืนยันตัวตนสำเร็จ — ตั้งรหัสผ่านใหม่ได้เลย",
-        "reset_token": token,
-        "email": user.email,
-    }
+    response["reset_token"] = token  # TODO Phase 2: deliver via email, not JSON
+    return response
 
 
 async def reset_password(db: AsyncSession, token: str, new_password: str) -> dict:
