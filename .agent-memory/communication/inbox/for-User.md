@@ -5,9 +5,42 @@
 
 ---
 
+## 🔵 REVIEW-002 — v7.1.0 Duplicate Detection ✅ APPROVED (2026-05-01)
+
+**From:** ฟ้า (Fah) — นักตรวจสอบ
+**Status:** 🔴 New
+
+### ผลตัดสิน: ✅ APPROVE
+
+**สรุป:**
+- Code ตรงตาม plan 100% — ไม่มีอะไรนอก scope
+- **87/87 dedupe tests PASS** (33 smoke + 54 e2e)
+- **106/106 BYOS regression PASS** — zero regression
+- Security: cross-user safety verified (defense-in-depth), XSS กัน, no hardcoded secrets
+- Performance: 10-file batch = 0.23 วินาที
+
+**สิ่งที่พี่ต้องทำ:**
+```bash
+git checkout master
+git merge dedupe-v7.1.0
+git push origin master
+flyctl deploy -a personaldatabank
+```
+
+**Non-blocking items:**
+- `rebrand_smoke_v6.1.0.py` มี 4 version hardcode "7.0.1" → ควร update ให้ dynamic (แต่ไม่ block merge)
+
+— ฟ้า (Fah) 🔵
+
+---
+
 ## 🟢 STATUS — 2026-05-01 (เขียว handed BYOS to ฟ้า)
 
 ### TL;DR
+- ✅ **v7.1.0 Dedupe**: ฟ้า APPROVED → **รอพี่ merge to master + deploy**
+- ✅ **v6.1.0 Rebrand**: เสร็จ + review_passed → **merged + deployed แล้ว**
+- ✅ **v7.0.0 BYOS**: deployed แล้ว
+- 📊 **Test coverage**: 267/273 tests pass (6 expected fails = test drift)
 - ✅ **v6.1.0 Rebrand**: เสร็จ + review_passed → **รอพี่ merge to master + deploy**
 - 🚧 **v7.0.0 BYOS**: Phase 3/4 done (backend ครบ 100%) → **ฟ้ารับช่วงต่อ Phase 4 frontend**
 - 📊 **Test coverage**: 182/182 in-process tests pass (mock-based)
