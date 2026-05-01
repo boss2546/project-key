@@ -192,15 +192,19 @@ class DriveSync:
         """Upload ไฟล์ที่ user เพิ่ง upload ผ่าน UI (BYOS mode) ขึ้น Drive.
 
         เลือกเฉพาะ files ที่:
-          - storage_source = drive_uploaded (ตั้งใจไป Drive)
-          - drive_file_id IS NULL (ยังไม่เคยส่งขึ้น) — ตัวอย่าง edge case: เพิ่ง switch
-            จาก managed → byos แล้ว files เก่ายังไม่ถูก upload
+          - drive_file_id IS NULL (ยังไม่เคยส่งขึ้น Drive)
+          - storage_source = drive_uploaded (ตั้งใจไป Drive) หรือ
+          - storage_source = local (ไฟล์เก่าก่อนเปิด BYOS — ต้อง push ขึ้นด้วย)
+          - มี raw_path ที่อ่านได้ (กัน crash ถ้าไฟล์ถูกลบจาก disk แล้ว)
         """
         assert self._client is not None
         result = await self.db.execute(
             select(File).where(
                 File.user_id == self.user_id,
-                File.storage_source == STORAGE_SOURCE_DRIVE_UPLOADED,
+                File.storage_source.in_([
+                    STORAGE_SOURCE_DRIVE_UPLOADED,
+                    "local",  # ไฟล์เก่าก่อนเปิด BYOS — push ขึ้น Drive ด้วย
+                ]),
                 File.drive_file_id.is_(None),
             )
         )
@@ -211,8 +215,17 @@ class DriveSync:
         raw_folder_id = self._folder_layout["raw"]
         for f in pending:
             try:
-                # อ่าน raw bytes จาก local volume (ตอนนี้ยังเป็น managed-style storage —
-                # หลัง Phase 3 จะ migrate ทุกไฟล์ไปอยู่ Drive)
+                # Guard: ข้าม files ที่ไม่มี raw_path หรือ file ถูกลบจาก disk
+                import os
+                if not f.raw_path or not os.path.exists(f.raw_path):
+                    logger.warning(
+                        "BYOS push skip — no raw_path for file %s (%s)",
+                        f.id, f.filename,
+                    )
+                    stats["errors"] += 1
+                    continue
+
+                # อ่าน raw bytes จาก local volume
                 with open(f.raw_path, "rb") as fh:
                     content = fh.read()
 
@@ -224,6 +237,10 @@ class DriveSync:
                 )
                 f.drive_file_id = drive_id
                 f.drive_modified_time = datetime.utcnow()
+                # อัพเดท storage_source จาก 'local' → 'drive_uploaded'
+                # เพื่อให้ UI แสดง "บน Drive ของคุณ" แทน "บนเซิร์ฟเวอร์"
+                if f.storage_source == "local":
+                    f.storage_source = STORAGE_SOURCE_DRIVE_UPLOADED
                 stats["pushed_new"] += 1
             except Exception as e:
                 logger.warning(
