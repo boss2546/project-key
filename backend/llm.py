@@ -17,7 +17,7 @@ async def _call_openrouter(model: str, system_prompt: str, user_prompt: str, tem
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://project-key.fly.dev",
+        "HTTP-Referer": "https://personaldatabank.fly.dev",
         "X-Title": "Personal Data Bank"
     }
 

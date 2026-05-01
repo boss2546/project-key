@@ -1,4 +1,4 @@
-app = "project-key"
+app = "personaldatabank"
 primary_region = "sin"
 
 [build]

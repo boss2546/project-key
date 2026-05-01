@@ -49,5 +49,5 @@ def get_share_link(token: str) -> dict | None:
 
 def build_share_url(token: str) -> str:
     """Build a full share URL from a token."""
-    base_url = os.getenv("BASE_URL", "https://project-key.fly.dev")
+    base_url = os.getenv("BASE_URL", "https://personaldatabank.fly.dev")
     return f"{base_url}/api/shared/{token}"
