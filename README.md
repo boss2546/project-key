@@ -1,12 +1,15 @@
 # 🔑 Personal Data Bank (PDB)
 
 > พื้นที่ข้อมูลส่วนตัวที่ใช้ AI จัดระเบียบ วิเคราะห์ และเชื่อมโยงข้อมูลของคุณ  
-> **v6.1.0** — Brand refresh: Project KEY → Personal Data Bank (PDB)
-> เนื้อหา: Personality Profile (MBTI / Enneagram / CliftonStrengths / VIA) + History + Stripe Billing + Plan Limits + Audit Log
+> **Live: v6.1.0** — Brand refresh: Project KEY → Personal Data Bank (PDB)
+> **In dev: v7.0.0** — Google Drive BYOS (Bring Your Own Storage) — see [docs/BYOS_SETUP.md](docs/BYOS_SETUP.md)
+>
+> Personality Profile (MBTI / Enneagram / CliftonStrengths / VIA) + History + Stripe Billing + Plan Limits + Audit Log
 
 [![Production](https://img.shields.io/badge/Production-project--key.fly.dev-blue)](https://project-key.fly.dev/)
 [![Version](https://img.shields.io/badge/version-6.1.0-green)]()
 [![MCP Tools](https://img.shields.io/badge/MCP_Tools-30-purple)]()
+[![BYOS](https://img.shields.io/badge/BYOS-Phase_3_complete-orange)]()
 
 ---
 
@@ -16,10 +19,13 @@
 - [คู่มือการใช้งาน](#-คู่มือการใช้งาน)
 - [ฟีเจอร์ทั้งหมด](#-ฟีเจอร์ทั้งหมด)
 - [เชื่อมต่อ MCP](#-เชื่อมต่อ-mcp)
+- [BYOS — Bring Your Own Storage (v7.0 preview)](#-byos--bring-your-own-storage-v70-preview)
 - [โครงสร้างโปรเจกต์](#-โครงสร้างโปรเจกต์)
 - [เทคโนโลยี](#-เทคโนโลยี)
 - [Deploy ขึ้น Production](#-deploy-ขึ้น-production)
 - [ประวัติเวอร์ชัน](#-ประวัติเวอร์ชัน)
+
+> 🟢 **v7.0.0 BYOS** กำลัง develop — ลูกค้าจะเลือกได้ว่าเก็บข้อมูลใน server เรา (Managed Mode) หรือใน Google Drive ของตัวเอง (BYOS Mode). ดู [docs/BYOS_SETUP.md](docs/BYOS_SETUP.md) สำหรับ admin setup guide
 
 ---
 
@@ -208,6 +214,51 @@ python -m uvicorn backend.main:app --port 8000
 > *"ค้นหาข้อมูลเกี่ยวกับ Knowledge Graph จากไฟล์ของฉัน"*
 
 Claude จะเรียก `search_knowledge` → ได้ข้อมูลจากไฟล์ที่เกี่ยวข้อง → ตอบพร้อมอ้างอิง
+
+---
+
+## 🟢 BYOS — Bring Your Own Storage (v7.0 preview)
+
+**สถานะ:** Backend Phase 3/4 done • Frontend Phase 4 in progress (by ฟ้า)
+
+### ลูกค้าจะเลือกได้ 2 modes:
+
+| Mode | ข้อมูลเก็บที่ไหน | เหมาะกับ |
+|---|---|---|
+| **Managed (default)** | Fly.io volume ของเรา | User ทั่วไป — sign up + ใช้งานทันที |
+| **BYOS** | Google Drive ของ user เอง | Privacy-conscious / Workspace policy / power users |
+
+### Architecture (Hybrid)
+
+```
+User's Google Drive (source of truth)         PDB Server (cache + index)
+/Personal Data Bank/                            SQLite — เก็บแค่
+├── raw/         ต้นฉบับ                           • OAuth refresh_token (encrypted)
+├── extracted/   text                              • file index + drive_file_id ↔ id
+├── summaries/   AI .md      ←── 5-min sync ──→   • vector embeddings (rebuildable)
+├── personal/    profile.json                      • personality cache
+├── data/        graph/clusters.json               • query optimization
+└── _meta/       version + manifest
+```
+
+- ✅ ลูกค้าเปิด Drive ดูเองได้ — "Open your Drive right now and verify — we hide nothing"
+- ✅ ถ้า PDB ปิดบริการ → ลูกค้ายังมีข้อมูลครบใน Drive
+- ✅ Drive folder = transparent JSON + markdown (ไม่ encrypt content)
+- ✅ Server เก็บแค่ encrypted refresh_token + cache (rebuildable)
+- ⚠️ Phase 1 = `drive.file` scope (test users mode, max 100 beta users, 7-day token expiry)
+- ⚠️ Phase 2 (post-launch) = full `drive` scope after CASA verification
+
+### Setup (admin)
+
+ดู **[docs/BYOS_SETUP.md](docs/BYOS_SETUP.md)** — 8-step Google Cloud Console walkthrough (~30 min)
+
+ที่ต้อง config (env vars):
+- `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`
+- `GOOGLE_PICKER_API_KEY`, `GOOGLE_PICKER_APP_ID`
+- `GOOGLE_OAUTH_MODE` (`testing` | `production`)
+- `DRIVE_TOKEN_ENCRYPTION_KEY` (Fernet 44-char base64)
+
+ถ้า env vars ว่าง → BYOS endpoints คืน `503 GOOGLE_OAUTH_NOT_CONFIGURED` → Managed Mode ทำงานปกติ
 
 ---
 
