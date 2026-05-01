@@ -53,11 +53,10 @@
   (a) leave history (no real damage), or
   (b) rebase d75d5ea to amend (clean history, force-push required)
 
-**Pending (final mile, requires user action since sandbox blocks production writes):**
-- Set Fly.io secrets: 6 BYOS env vars (commands ready in chat — user runs in their terminal)
-- `flyctl deploy` (user runs)
-- Production smoke test post-deploy
-- Live OAuth click-through E2E (real Drive folder creation — user/ฟ้า does in browser after deploy)
+**Pending (BYOS feature activation — sandbox blocks secret writes):**
+- Set 6 Fly.io secrets (user runs `flyctl secrets set` in own terminal — script ready)
+- After secrets set → Fly auto-restarts → BYOS endpoints transition from 503 → 200
+- Live OAuth click-through E2E (browser-based, by user/ฟ้า)
 
 **Already done in this session:**
 - ✅ Phase 1+2+3 backend (เขียว, mock-tested 90/90)
