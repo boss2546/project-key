@@ -42,6 +42,10 @@ const state = {
  currentUser: JSON.parse(localStorage.getItem('pdb_user') || 'null'),
 };
 
+// v7.1 — Duplicate detection: pending matches รอให้ user ตัดสินใจ keep/skip
+// ─── เก็บไว้นอก state object เพราะ ephemeral (modal-scoped — ไม่ persist ข้าม session)
+let _pendingDuplicates = [];
+
 // ═══════════════════════════════════════════
 // AUTH — v5.0
 // ═══════════════════════════════════════════
@@ -931,6 +935,16 @@ const I18N = {
  'logs.colLatency': 'เวลาตอบ',
  'logs.colDetails': 'รายละเอียด',
  'logs.empty': 'ยังไม่มีบันทึก — การใช้งาน connector จะแสดงที่นี่',
+
+ // Duplicate detection (v7.1)
+ 'dup.title': '⚠ พบไฟล์คล้ายกัน',
+ 'dup.subtitle': 'ไฟล์ที่อัปโหลดใหม่บางไฟล์มีเนื้อหาคล้ายกับไฟล์ที่มีอยู่แล้ว',
+ 'dup.skip': '✗ ข้ามที่ซ้ำ — ใช้ของเก่า',
+ 'dup.keep': '✓ เก็บทั้งหมด',
+ 'dup.labelNew': '(ใหม่)',
+ 'dup.labelSimilar': 'คล้าย',
+ 'dup.labelExact': '(ตรงเป๊ะ)',
+ 'dup.labelMatched': 'ตรงกัน',
  },
 
  en: {
@@ -1110,6 +1124,16 @@ const I18N = {
  'logs.colLatency': 'Latency',
  'logs.colDetails': 'Details',
  'logs.empty': 'No logs yet — connector usage will appear here',
+
+ // Duplicate detection (v7.1)
+ 'dup.title': '⚠ Similar files detected',
+ 'dup.subtitle': 'Some uploaded files have content similar to existing files',
+ 'dup.skip': '✗ Skip duplicates — use existing',
+ 'dup.keep': '✓ Keep all',
+ 'dup.labelNew': '(new)',
+ 'dup.labelSimilar': 'similar to',
+ 'dup.labelExact': '(exact)',
+ 'dup.labelMatched': 'matched',
  }
 };
 
@@ -1264,6 +1288,10 @@ function initUpload() {
  document.getElementById('btn-organize-all')?.addEventListener('click', runOrganizeAll);
  document.getElementById('btn-organize-new')?.addEventListener('click', runOrganizeNew);
  loadUnprocessedCount();
+
+ // v7.1 — Duplicate detection modal buttons (เก็บใน upload init เพราะ trigger จาก upload)
+ document.getElementById('dup-skip-btn')?.addEventListener('click', () => resolveDuplicates('skip'));
+ document.getElementById('dup-keep-btn')?.addEventListener('click', () => resolveDuplicates('keep'));
 }
 
 async function uploadFiles(fileList) {
@@ -1287,12 +1315,126 @@ async function uploadFiles(fileList) {
  setTimeout(() => showToast(` ${getLang() === 'th' ? 'ข้ามไฟล์' : 'Skipped'}: ${names}`, 'error'), 500);
  }
  }
+ // v7.1 — เปิด popup ถ้า backend เจอไฟล์ซ้ำ
+ // ⚠️ data.duplicates_found อาจไม่มี (เก่าก่อน v7.1) → optional chaining + length check
+ if (data.duplicates_found && data.duplicates_found.length > 0) {
+ _pendingDuplicates = data.duplicates_found;
+ showDuplicateModal();
+ }
  loadFiles();
  loadStats();
  loadUnprocessedCount();
  loadUsageInfo();
  } catch (e) { /* authFetch handles toast */ }
  hideLoadingOverlay();
+}
+
+// ═══════════════════════════════════════════
+// DUPLICATE DETECTION MODAL (v7.1)
+// ═══════════════════════════════════════════
+
+/**
+ * แสดง modal popup เมื่อ backend detect ไฟล์ซ้ำในรอบ upload ปัจจุบัน.
+ * อ่าน _pendingDuplicates (ตั้งค่าใน uploadFiles หลัง upload สำเร็จ).
+ *
+ * Render: row ละ 1 match — filename ใหม่, filename ของไฟล์ที่ซ้ำ, similarity bar,
+ * matched topics (ถ้ามี). ใช้ escapeHtml กัน XSS เพราะ filename มาจาก user input.
+ */
+function showDuplicateModal() {
+ const modal = document.getElementById('dup-modal-overlay');
+ if (!modal) return;
+ const list = document.getElementById('dup-list');
+ if (!list) return;
+
+ const isTH = getLang() === 'th';
+ const newLabel = t('dup.labelNew');
+ const similarLabel = t('dup.labelSimilar');
+ const exactLabel = t('dup.labelExact');
+ const matchedLabel = t('dup.labelMatched');
+
+ list.innerHTML = _pendingDuplicates.map(d => {
+ const pct = Math.round((d.similarity || 0) * 100);
+ const kindLabel = d.match_kind === 'exact' ? ` ${exactLabel}` : '';
+ const topics = (d.matched_topics && d.matched_topics.length > 0)
+ ? `<div class="dup-topics">${matchedLabel}: ${d.matched_topics.map(escapeHtml).join(', ')}</div>`
+ : '';
+ return `
+ <div class="dup-row">
+ <div class="dup-new">📄 <strong>${escapeHtml(d.new_filename || '')}</strong> ${newLabel}</div>
+ <div class="dup-old">
+ <div class="dup-arrow">↪ ${similarLabel} <strong>${escapeHtml(d.match_filename || '')}</strong></div>
+ <div class="dup-bar">
+ <div class="dup-bar-fill" style="width:${pct}%"></div>
+ <div class="dup-bar-label">${pct}%${kindLabel}</div>
+ </div>
+ ${topics}
+ </div>
+ </div>
+ `;
+ }).join('');
+
+ modal.classList.remove('hidden');
+}
+
+/**
+ * ปิด modal + clear state. Caller ต้องเรียกหลัง resolve action เสมอ.
+ */
+function hideDuplicateModal() {
+ const modal = document.getElementById('dup-modal-overlay');
+ if (modal) modal.classList.add('hidden');
+ _pendingDuplicates = [];
+}
+
+/**
+ * Handle ปุ่ม "ข้ามที่ซ้ำ" / "เก็บทั้งหมด" จาก modal.
+ *
+ * action='skip': call /api/files/skip-duplicates ลบไฟล์ใหม่ที่ซ้ำ + refresh list
+ * action='keep': close modal เฉยๆ (ไฟล์อยู่ใน DB แล้วจาก upload — ไม่ต้องทำอะไร)
+ *
+ * Why catch ทุก error: modal popup ถ้า hang ค้างจะ block UI — ต้องปิดให้ได้เสมอ
+ */
+async function resolveDuplicates(action) {
+ const isTH = getLang() === 'th';
+ if (action === 'skip') {
+ const fileIds = _pendingDuplicates.map(d => d.new_file_id).filter(Boolean);
+ if (fileIds.length === 0) {
+ hideDuplicateModal();
+ return;
+ }
+ try {
+ const res = await authFetch('/api/files/skip-duplicates', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ file_ids: fileIds }),
+ });
+ if (res.ok) {
+ const data = await res.json();
+ showToast(
+ isTH ? `ข้าม ${data.count} ไฟล์ที่ซ้ำแล้ว` : `Skipped ${data.count} duplicate files`,
+ 'success'
+ );
+ // Refresh list + stats หลังลบ
+ loadFiles();
+ loadStats();
+ loadUnprocessedCount();
+ loadUsageInfo();
+ } else {
+ showToast(
+ isTH ? 'ไม่สามารถลบไฟล์ที่ซ้ำได้' : 'Failed to skip duplicates',
+ 'error'
+ );
+ }
+ } catch (e) {
+ showToast(isTH ? 'เกิดข้อผิดพลาด' : 'Error', 'error');
+ }
+ } else {
+ // keep — ไม่ต้องทำอะไร ไฟล์อยู่ใน DB อยู่แล้ว
+ showToast(
+ isTH ? 'เก็บไฟล์ทั้งหมดเรียบร้อย' : 'All files kept',
+ 'success'
+ );
+ }
+ hideDuplicateModal();
 }
 
 async function loadFiles() {

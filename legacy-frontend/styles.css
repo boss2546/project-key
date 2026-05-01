@@ -4395,3 +4395,123 @@ body.show-landing {
 @media (max-width: 600px) {
   .personality-fields { grid-template-columns: 1fr; }
 }
+
+/* ═══════════════════════════════════════════
+   DUPLICATE DETECTION MODAL (v7.1)
+   ═══════════════════════════════════════════ */
+.dup-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+.dup-modal-overlay.hidden { display: none; }
+
+.dup-modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.dup-modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+}
+.dup-modal-header h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.dup-modal-body {
+  padding: 16px 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+.dup-modal-subtitle {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+.dup-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dup-row {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+}
+.dup-new {
+  color: var(--text-primary);
+  font-size: 14px;
+  margin-bottom: 8px;
+  word-break: break-word;
+}
+.dup-arrow {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin-bottom: 6px;
+  word-break: break-word;
+}
+
+.dup-bar {
+  position: relative;
+  background: var(--surface-2);
+  border-radius: 4px;
+  height: 18px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.dup-bar-fill {
+  /* Gradient เหลือง→แดง — เน้นว่าเป็น "warning" UI ไม่ใช่ success */
+  background: linear-gradient(90deg, var(--warning), var(--error));
+  height: 100%;
+  transition: width 0.3s ease;
+}
+.dup-bar-label {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 18px;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
+}
+
+.dup-topics {
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin-top: 4px;
+  font-style: italic;
+  word-break: break-word;
+}
+
+.dup-modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 600px) {
+  .dup-modal { width: 95%; max-height: 90vh; }
+  .dup-modal-footer { flex-direction: column-reverse; }
+  .dup-modal-footer .btn { width: 100%; }
+}

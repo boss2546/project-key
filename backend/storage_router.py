@@ -398,6 +398,52 @@ async def fetch_file_bytes(file: File, db: AsyncSession) -> bytes:
 
 
 # ═══════════════════════════════════════════════════════════════
+# Drive file deletion (per-file) — best-effort trash for BYOS
+# ═══════════════════════════════════════════════════════════════
+async def delete_drive_file_if_byos(
+    user_id: str,
+    db: AsyncSession,
+    drive_file_id: str,
+) -> bool:
+    """Best-effort: trash a file ใน user's Drive ถ้า user เป็น byos + connected.
+
+    ใช้โดย skip-duplicates endpoint (v7.1) — เมื่อ user เลือกข้ามไฟล์ที่ซ้ำ
+    + ไฟล์นั้นถูก mirror ไป Drive แล้ว → ลบจาก Drive ด้วยเพื่อไม่ให้ orphan.
+
+    Behavior:
+      - Trash (ไม่ใช่ permanent delete) — recoverable 30 วันใน Drive's bin
+      - Best-effort: log warning ถ้า fail แต่ไม่ raise → caller ทำ DB delete ต่อได้
+      - No-op สำหรับ managed users / not configured / not connected
+
+    Args:
+        user_id: เจ้าของไฟล์ (สำหรับ filter byos status)
+        db: async DB session
+        drive_file_id: Google Drive file ID ที่จะ trash
+
+    Returns:
+        True  = trashed สำเร็จ
+        False = no-op (managed/not configured/not connected) หรือ Drive failure
+    """
+    pair = await _get_byos_user_with_connection(user_id, db)
+    if not pair:
+        return False
+    _user, conn = pair
+    try:
+        client = await _build_drive_client(conn)
+        client.delete_file(drive_file_id)
+        logger.info(
+            "BYOS: trashed Drive file %s for user %s", drive_file_id, user_id
+        )
+        return True
+    except Exception as e:
+        logger.warning(
+            "BYOS: delete_drive_file failed for user %s file %s (%s)",
+            user_id, drive_file_id, e,
+        )
+        return False
+
+
+# ═══════════════════════════════════════════════════════════════
 # Folder layout init (called by oauth/callback after first connect)
 # ═══════════════════════════════════════════════════════════════
 async def init_drive_folder_layout(

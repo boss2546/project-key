@@ -24,6 +24,10 @@ from .database import (
 from .extraction import extract_text, cleanup_extracted_text
 from .organizer import organize_files
 from .retriever import chat_with_retrieval
+from .duplicate_detector import (
+    compute_content_hash,
+    detect_duplicates_for_batch,
+)
 from .profile import get_profile, update_profile, is_profile_complete
 from .context_packs import list_packs, get_pack, create_pack, delete_pack, regenerate_pack
 from .graph_builder import build_full_graph, get_graph_data, get_node_detail, get_neighborhood
@@ -240,10 +244,19 @@ class MetadataUpdateRequest(BaseModel):
 async def upload_files(
     files: list[UploadFile],
     background_tasks: BackgroundTasks,
+    detect_duplicates: bool = Query(True),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Upload one or more files, extract text, save to database."""
+    """Upload one or more files, extract text, save to database.
+
+    v7.1: เพิ่ม duplicate detection — return field `duplicates_found` ใน response.
+    User เลือก keep all (ไม่ทำอะไร) หรือ skip duplicates (call /api/files/skip-duplicates)
+
+    Args:
+        detect_duplicates: ตั้ง false เพื่อ skip duplicate check (สำหรับ programmatic
+            upload หรือ batch ใหญ่ที่ user รู้อยู่แล้วว่าไม่มีซ้ำ).
+    """
     uploaded = []
     skipped = []
     # v5.9.3 — get plan-specific limits
@@ -259,6 +272,8 @@ async def upload_files(
 
     # v7.0.1 — track per-file payloads so we can push to Drive after DB commit
     pending_drive_pushes: list[tuple[str, str, bytes, str, str]] = []
+    # v7.1 — track id ของไฟล์ใหม่เพื่อรัน duplicate detection หลัง commit
+    new_file_ids: list[str] = []
 
     for upload_file in files:
         # Strip any client-supplied directory components — `upload_file.filename`
@@ -296,6 +311,11 @@ async def upload_files(
         # Extract text
         extracted = extract_text(raw_path, ext)
 
+        # v7.1 — compute SHA-256 hash ของ normalized text สำหรับ exact-match
+        # คืน None ถ้า text สั้นเกิน / extraction error → ลง DB เป็น NULL
+        # (NULL ≠ NULL ใน SQL → ไฟล์เหล่านี้จะไม่ false-match กันเอง)
+        content_hash = compute_content_hash(extracted)
+
         # Save to DB
         db_file = File(
             id=file_id,
@@ -304,9 +324,11 @@ async def upload_files(
             filetype=ext,
             raw_path=raw_path,
             extracted_text=extracted,
-            processing_status="uploaded"
+            processing_status="uploaded",
+            content_hash=content_hash,  # v7.1
         )
         db.add(db_file)
+        new_file_ids.append(file_id)  # v7.1 — สำหรับ duplicate detection หลัง commit
 
         # v7.0.1 — schedule Drive push for BYOS users (best-effort, after commit)
         mime_guess = _guess_mime(ext, upload_file.content_type)
@@ -323,6 +345,21 @@ async def upload_files(
 
     await db.commit()
 
+    # v7.1 — Run duplicate detection sync (post-commit so exact-match SQL เห็นไฟล์ใหม่)
+    # ⚠️ ห้าม index uploaded files เข้า vector_search ตรงนี้ — จะทำลาย invariant ของ
+    # retriever.py:91 + mcp_tools.py:743 ที่คาดว่า indexed = "ready" only.
+    # → Intra-batch SEMANTIC จะ miss (Risk #9 — accepted MVP trade-off)
+    # → Intra-batch EXACT ยังครอบคลุมผ่าน SQL บน content_hash column
+    # ห้าม raise — upload สำเร็จไปแล้ว ถ้า detection พังต้องไม่กระทบ user
+    duplicates_found: list = []
+    if detect_duplicates and new_file_ids:
+        try:
+            duplicates_found = await detect_duplicates_for_batch(
+                db, current_user.id, new_file_ids,
+            )
+        except Exception as e:
+            logger.warning(f"Duplicate detection failed: {e}")
+
     # v7.0.1 — schedule Drive pushes after commit so the DB row exists when the
     # background task opens its own session. No-op for managed users.
     if pending_drive_pushes:
@@ -332,7 +369,12 @@ async def upload_files(
             pending_drive_pushes,
         )
 
-    return {"uploaded": uploaded, "count": len(uploaded), "skipped": skipped}
+    return {
+        "uploaded": uploaded,
+        "count": len(uploaded),
+        "skipped": skipped,
+        "duplicates_found": duplicates_found,  # v7.1
+    }
 
 
 _MIME_BY_EXT = {
@@ -882,6 +924,110 @@ async def delete_file(file_id: str, current_user: User = Depends(get_current_use
     await db.delete(file)
     await db.commit()
     return {"status": "ok"}
+
+
+# ─── v7.1 — Duplicate Detection ─────────────────────────────────────────
+class SkipDuplicatesRequest(BaseModel):
+    """Request body สำหรับ /api/files/skip-duplicates."""
+    file_ids: list[str]
+
+
+@app.post("/api/files/skip-duplicates")
+async def skip_duplicates(
+    req: SkipDuplicatesRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """ลบไฟล์ที่ user เลือก "ข้ามที่ซ้ำ" หลังเห็น duplicate popup (v7.1).
+
+    Validation:
+      - file_ids ต้องไม่ว่าง (400 EMPTY_FILE_IDS)
+      - ทุก file_id ต้องเป็นของ current_user — กัน cross-user delete leak
+      - file ที่ไม่มี / ไม่ใช่ของ user → silently skip (ใส่ใน `skipped` array
+        เพื่อให้ frontend แสดง partial-success แทน hard fail)
+
+    Cleanup ที่ทำต่อ 1 ไฟล์:
+      1. ลบ raw_path จาก disk (ถ้ามี + exists)
+      2. BYOS-aware: ถ้า file.drive_file_id != NULL → trash บน Drive ด้วย
+         (best-effort ผ่าน storage_router.delete_drive_file_if_byos)
+      3. ลบจาก vector_search index (ถ้าไฟล์เคย organize แล้ว index อยู่)
+      4. DB delete → cascade ลบ FileInsight, FileSummary, FileClusterMap (FK)
+
+    Errors เฉพาะ:
+      - 400 EMPTY_FILE_IDS — array ว่าง
+      - 401 — JWT missing / expired (handled โดย Depends(get_current_user))
+    """
+    if not req.file_ids:
+        raise HTTPException(status_code=400, detail={
+            "error": {
+                "code": "EMPTY_FILE_IDS",
+                "message": "ต้องระบุ file_ids อย่างน้อย 1 ไฟล์",
+            }
+        })
+
+    deleted: list[str] = []
+    skipped_ids: list[str] = []
+
+    for file_id in req.file_ids:
+        result = await db.execute(
+            select(File).where(
+                File.id == file_id,
+                File.user_id == current_user.id,
+            )
+        )
+        f = result.scalar_one_or_none()
+        if not f:
+            # file ไม่มี / ไม่ใช่ของ user → silently skip (ไม่ leak ว่ามีอยู่ที่ user อื่น)
+            skipped_ids.append(file_id)
+            continue
+
+        # 1. Best-effort: ลบ raw file จาก disk
+        if f.raw_path and os.path.exists(f.raw_path):
+            try:
+                os.remove(f.raw_path)
+            except OSError as e:
+                logger.warning(f"skip-duplicates: failed to remove raw_path {f.raw_path}: {e}")
+
+        # 2. Best-effort: BYOS — trash ไฟล์บน Drive ด้วย ถ้ามี drive_file_id
+        # (no-op สำหรับ managed users / not configured / not connected)
+        if f.drive_file_id:
+            try:
+                from .storage_router import delete_drive_file_if_byos
+                await delete_drive_file_if_byos(
+                    current_user.id, db, f.drive_file_id,
+                )
+            except Exception as e:
+                # Defensive: helper ภายในไม่ควร raise แต่ wrap กัน edge case
+                logger.warning(
+                    f"skip-duplicates: BYOS Drive delete failed for {file_id}: {e}"
+                )
+
+        # 3. ลบจาก vector_search index (no-op ถ้า file ยังไม่ organize)
+        try:
+            from . import vector_search as _vs
+            _vs.remove_file(f.id, user_id=current_user.id)
+        except Exception as e:
+            logger.warning(
+                f"skip-duplicates: vector_search remove failed for {file_id}: {e}"
+            )
+
+        # 4. ลบ DB row → cascade ลบ FileInsight + FileSummary + FileClusterMap
+        await db.delete(f)
+        deleted.append(file_id)
+
+    await db.commit()
+
+    logger.info(
+        f"skip-duplicates: user {current_user.id[:8]}.. deleted {len(deleted)} "
+        f"files, skipped {len(skipped_ids)}"
+    )
+
+    return {
+        "status": "ok",
+        "deleted": deleted,
+        "count": len(deleted),
+        "skipped": skipped_ids,
+    }
 
 
 # ═══════════════════════════════════════════

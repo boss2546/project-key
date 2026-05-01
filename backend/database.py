@@ -74,6 +74,11 @@ class File(Base):
     drive_modified_time = Column(DateTime, nullable=True)
     storage_source = Column(String, default="local")
 
+    # v7.1 — Duplicate detection: SHA-256 hex ของ normalized extracted_text
+    # NULL ถ้า text สั้นเกิน (< 50 chars) / extraction error / ไฟล์เก่าก่อน v7.1
+    # Indexed เพื่อ exact-match lookup เร็วตอน upload (ดู duplicate_detector.py)
+    content_hash = Column(String(64), nullable=True, index=True)
+
     owner = relationship("User", back_populates="files")
     insight = relationship("FileInsight", uselist=False, back_populates="file", cascade="all, delete-orphan")
     summary = relationship("FileSummary", uselist=False, back_populates="file", cascade="all, delete-orphan")
@@ -617,6 +622,26 @@ async def init_db():
                 )
             except Exception as e:
                 print(f"  ⚠️ files.drive_file_id index creation warning: {e}")
+
+            # v7.1 Migration — Duplicate detection content hash
+            # ⚠️ เพิ่ม column "content_hash" ใน files (SHA-256 ของ normalized extracted_text)
+            # ไฟล์เก่าก่อน v7.1 จะมี content_hash = NULL → exact-match query ไม่ดึง
+            #     (NULL ≠ NULL ใน SQL — ตามที่ต้องการ) → ยังเทียบ semantic ผ่าน TF-IDF ได้
+            cursor = await db.execute("PRAGMA table_info(files)")
+            file_cols_v71 = [row[1] for row in await cursor.fetchall()]
+            if "content_hash" not in file_cols_v71:
+                await db.execute("ALTER TABLE files ADD COLUMN content_hash TEXT")
+                migrated = True
+                print("  → Added: files.content_hash (duplicate detection)")
+
+            # Index สำหรับ exact-match query (lookup file ที่ hash ตรงกัน)
+            try:
+                await db.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_files_content_hash "
+                    "ON files(content_hash)"
+                )
+            except Exception as e:
+                print(f"  ⚠️ files.content_hash index creation warning: {e}")
 
             if migrated:
                 await db.commit()

@@ -300,6 +300,35 @@ def hybrid_search(
     return results[:n_results]
 
 
+def remove_file(file_id: str, user_id: str = "") -> None:
+    """ลบไฟล์ออกจาก per-user TF-IDF index (v7.1).
+
+    ใช้โดย skip-duplicates endpoint — เมื่อ user ลบไฟล์ที่อัพโหลด ถ้าไฟล์เคย organize
+    ไปแล้ว (จะ index อยู่ใน vector_search) ต้องลบ index entry ด้วย กัน orphan +
+    กัน chat/MCP search hit ไฟล์ที่ลบไปแล้ว.
+
+    No-op ถ้า:
+      - file_id ไม่อยู่ใน user's index (ไฟล์ที่ยังไม่ organize หรือ user ไม่มี index)
+
+    Why rebuild IDF: IDF = log(total_docs / doc_freq[term]) → docs ลดลงต้อง recompute
+    ไม่งั้น scoring ของ chunks ที่เหลือจะเพี้ยน
+    """
+    if not user_id:
+        user_id = "__global__"
+    if user_id not in _user_indexes:
+        return
+    if file_id not in _user_indexes[user_id]:
+        return
+    del _user_indexes[user_id][file_id]
+    _user_doc_counts[user_id] = sum(
+        len(c) for c in _user_indexes[user_id].values()
+    )
+    _rebuild_idf(user_id)
+    logger.info(
+        f"Removed file {file_id} from search index (user={user_id[:8]}..)"
+    )
+
+
 def is_available() -> bool:
     """Always available since it's pure Python."""
     return True
