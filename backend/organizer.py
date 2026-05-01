@@ -426,7 +426,13 @@ async def organize_new_files(db: AsyncSession, user_id: str) -> dict:
 
         await db.commit()
         logger.info(f"New files organized: {len(new_files)} files for user {user_id}")
-        return {"skipped": False, "count": len(new_files)}
+        # v7.1 — return file_ids เพื่อให้ caller รัน duplicate detection ต่อ
+        # (ตอนนี้ทุกไฟล์ใหม่ index เข้า vector_search แล้ว → semantic detection ใช้งานได้เต็ม)
+        return {
+            "skipped": False,
+            "count": len(new_files),
+            "file_ids": [f.id for f in new_files],
+        }
 
     except Exception as e:
         logger.error(f"Organize new files failed: {e}")

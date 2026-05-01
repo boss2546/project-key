@@ -54,7 +54,7 @@
 ### 📁 Files / Data
 | Method | Path | Description | Auth |
 |--------|------|-------------|------|
-| POST | `/api/upload` | Upload file (v7.1: เพิ่ม `?detect_duplicates=true` + return `duplicates_found`) | ✅ |
+| POST | `/api/upload` | Upload file (v7.1: เก็บ `content_hash` สำหรับใช้ใน organize-new) | ✅ |
 | GET  | `/api/files` | List files | ✅ |
 | GET  | `/api/files/{id}/content` | ดู text content | ✅ |
 | GET  | `/api/files/{id}/download` | Download raw file | ✅ |
@@ -214,14 +214,27 @@ Pydantic raises 422 for invalid type/source/core/wing. Service raises 400 for IN
 
 ## 🔁 Duplicate Detection (v7.1, NEW)
 
-### `POST /api/upload` — additions in v7.1
-- **Query param:** `detect_duplicates` (bool, default `true`) — set false เพื่อ skip duplicate check
+> **Trigger pivot 2026-05-01:** Detection ย้ายจาก `/api/upload` → `/api/organize-new`
+> ตามที่ user override (หลัง v7.1 round แรก approved). เหตุผล: ตอน organize เสร็จ
+> vector_search index มีไฟล์ใหม่แล้ว → semantic detection ทำงานเต็ม + intra-batch
+> SEMANTIC ไม่ miss แล้ว (Risk #9 ของ round แรกหายไป). ดู DUP-003 ใน decisions.md
+
+### `POST /api/upload` — v7.1 changes
+- **Compute + store** `content_hash` (SHA-256 ของ normalized extracted_text) ลง
+  `files.content_hash` column สำหรับใช้ตอน organize-new
+- **NO detection ตรงนี้** — `duplicates_found` ไม่อยู่ใน response (contract เดิมใน round แรก
+  ถูก revert ตาม user override)
+- Response shape เหมือน v7.0: `{ uploaded, count, skipped }`
+
+### `POST /api/organize-new` — v7.1 additions
+- รัน duplicate detection หลัง organize เสร็จ (post `vector_search.index_file` + summary commit)
 - **Response field added:** `duplicates_found` (array, อาจว่าง)
   ```json
   {
-    "uploaded": [...],
-    "count": 1,
-    "skipped": [],
+    "status": "ok",
+    "message": "จัดระเบียบไฟล์ใหม่ N ไฟล์เรียบร้อย",
+    "new_files": N,
+    "graph": {...},
     "duplicates_found": [
       {
         "new_file_id": "abc123",
@@ -235,8 +248,9 @@ Pydantic raises 422 for invalid type/source/core/wing. Service raises 400 for IN
     ]
   }
   ```
+- **Skipped path** (ไม่มีไฟล์ใหม่) — `duplicates_found: []` (always present สำหรับ contract consistency)
 - **Algorithm:** SHA-256 exact (file.content_hash) + TF-IDF cosine semantic (≥ 0.80 threshold) — ไม่เรียก LLM
-- **Detection ทำหลัง DB commit** — ไฟล์ทุกตัว upload สำเร็จก่อนเสมอ; popup เป็น UX hint ไม่ใช่ blocker
+- **Best-effort** — ห้าม raise; ถ้า detection พัง response ยังกลับ + `duplicates_found: []`
 
 ### `POST /api/files/skip-duplicates` (NEW)
 **Request:**

@@ -1315,12 +1315,8 @@ async function uploadFiles(fileList) {
  setTimeout(() => showToast(` ${getLang() === 'th' ? 'ข้ามไฟล์' : 'Skipped'}: ${names}`, 'error'), 500);
  }
  }
- // v7.1 — เปิด popup ถ้า backend เจอไฟล์ซ้ำ
- // ⚠️ data.duplicates_found อาจไม่มี (เก่าก่อน v7.1) → optional chaining + length check
- if (data.duplicates_found && data.duplicates_found.length > 0) {
- _pendingDuplicates = data.duplicates_found;
- showDuplicateModal();
- }
+ // v7.1: duplicate detection ย้ายไป /api/organize-new — ดูใน runOrganizeNew()
+ // (ตอน upload vector_search ยังไม่ index ไฟล์ใหม่ → semantic detect ไม่ทำงาน)
  loadFiles();
  loadStats();
  loadUnprocessedCount();
@@ -1745,6 +1741,12 @@ async function runOrganizeNew() {
  showToast(`${t('toast.organizedNew')} (${data.new_files} ไฟล์)`, 'success');
  loadFiles();
  loadStats();
+ }
+ // v7.1 — เปิด popup ถ้า backend เจอไฟล์ซ้ำหลัง organize
+ // ⚠️ data.duplicates_found อาจไม่มี (response เก่าก่อน v7.1) → optional chaining
+ if (data.duplicates_found && data.duplicates_found.length > 0) {
+ _pendingDuplicates = data.duplicates_found;
+ showDuplicateModal();
  }
  loadUnprocessedCount();
  loadUsageInfo();

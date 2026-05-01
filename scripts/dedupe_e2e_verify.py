@@ -2,10 +2,14 @@
 
 Run: python scripts/dedupe_e2e_verify.py
 
+**v7.1 user override (2026-05-01):** trigger ของ duplicate detection ย้ายจาก
+`/api/upload` → `/api/organize-new` (หลัง vector_search index ไฟล์ใหม่ครบ).
+Section C + G อัพเดทให้ trigger detection ผ่าน organize-new endpoint แทน upload.
+
 Coverage ที่ smoke test ของจริง (duplicate_detection_smoke.py) ยังไม่ครอบคลุม:
   Section A: Schema verification — content_hash + indexes มีจริงใน DB
   Section B: APP_VERSION runtime visibility (Swagger/MCP info)
-  Section C: End-to-end /api/upload via TestClient — multipart + duplicates_found field
+  Section C: End-to-end upload → organize → duplicates_found via TestClient
   Section D: Cascade FK delete — file → summary/insight/cluster_map ลบตาม
   Section E: i18n parity — TH + EN ครบทุก dup.* key
   Section F: HTML modal structure check — element + button IDs ครบ
@@ -113,14 +117,16 @@ async def section_b_version():
 
 
 # ═══════════════════════════════════════════════════════════════
-# Section C: End-to-end /api/upload via TestClient
+# Section C: End-to-end upload → organize → duplicates_found
 # ═══════════════════════════════════════════════════════════════
-async def section_c_upload_e2e():
-    print("\n=== Section C: End-to-end /api/upload + skip flow ===")
+async def section_c_organize_e2e():
+    print("\n=== Section C: End-to-end /api/upload + /api/organize-new + skip ===")
 
     from fastapi.testclient import TestClient
     from backend.main import app
     from backend.auth import create_access_token
+    from backend import organizer as _organizer
+    from backend import main as _main_mod
 
     client = TestClient(app)
 
@@ -138,10 +144,9 @@ async def section_c_upload_e2e():
         token = create_access_token(user_id, f"e2e_{user_id[:6]}@test.local", "E2E Test")
         return user_id, token
 
+    # ── C.1: Upload — response ห้ามมี duplicates_found field (contract change) ──
     user_id, token = await _make_user()
     headers = {"Authorization": f"Bearer {token}"}
-
-    # ── C.1: Upload 1 file → no duplicates_found ────
     file_content = b"This is unique content for E2E test alpha. " * 5
     res = client.post(
         "/api/upload",
@@ -150,93 +155,118 @@ async def section_c_upload_e2e():
     )
     expect("C.1a status 200", res.status_code, 200)
     data = res.json()
-    expect_true("C.1b 'duplicates_found' field exists", "duplicates_found" in data)
-    expect("C.1c no duplicates", len(data.get("duplicates_found", [])), 0)
-    expect("C.1d 1 file uploaded", data.get("count"), 1)
+    expect_true("C.1b upload response NO 'duplicates_found' field (contract: detection moved to organize-new)",
+                "duplicates_found" not in data)
+    expect("C.1c 1 file uploaded", data.get("count"), 1)
     first_file_id = data["uploaded"][0]["id"]
 
-    # Verify content_hash actually populated in DB (not NULL)
+    # content_hash ยังต้องถูก compute + เก็บ (สำหรับใช้ตอน organize)
     async with AsyncSessionLocal() as db:
         from sqlalchemy import select
         f = (await db.execute(select(File).where(File.id == first_file_id))).scalar_one()
-    expect_true("C.1e content_hash populated in DB (not NULL)", f.content_hash is not None)
-    expect("C.1f content_hash is 64-char hex", len(f.content_hash or ""), 64)
+    expect_true("C.1d content_hash populated in DB (still computed at upload)",
+                f.content_hash is not None)
+    expect("C.1e content_hash is 64-char hex", len(f.content_hash or ""), 64)
 
-    # ── C.2: Upload identical content (different filename) → 1 exact match ────
-    res2 = client.post(
-        "/api/upload",
-        files=[("files", ("alpha_copy.txt", io.BytesIO(file_content), "text/plain"))],
-        headers=headers,
+    # ── C.2: organize-new — empty case (no new files) ──
+    # ตอนนี้ user ยังไม่มี FileSummary → organize_new_files จะหาไฟล์เจอ + พยายาม organize
+    # แต่ organize เรียก LLM จริง → ใน sandbox ไม่ได้ผล → mock organize_new_files ทั้ง func
+    # เพื่อให้มันเป็น no-op ที่ return file_ids ที่ "เพิ่ง organize" (เลียนแบบ post-organize state)
+
+    # Setup: index ไฟล์ที่ upload ไปก่อนหน้านี้เข้า vector_search (เลียนแบบ organize เสร็จ)
+    vector_search.index_file(
+        file_id=first_file_id, filename="alpha.txt",
+        text=file_content.decode(), user_id=user_id,
     )
-    expect("C.2a status 200", res2.status_code, 200)
-    data2 = res2.json()
-    dups = data2.get("duplicates_found", [])
-    expect("C.2b duplicates_found has 1 match", len(dups), 1)
-    if dups:
-        expect("C.2c match_kind = 'exact'", dups[0].get("match_kind"), "exact")
-        expect("C.2d similarity = 1.0", dups[0].get("similarity"), 1.0)
-        expect("C.2e match_filename = 'alpha.txt'", dups[0].get("match_filename"), "alpha.txt")
 
-    second_file_id = data2["uploaded"][0]["id"]
+    # Mock 4 functions ที่ organize_new endpoint เรียก เพื่อ skip LLM call
+    original_organize = _organizer.organize_new_files
+    original_enrich = _main_mod.enrich_all_files
+    original_graph = _main_mod.build_full_graph
+    original_suggest = _main_mod.generate_suggestions
 
-    # ── C.3: detect_duplicates=false → skip detection ────
-    res3 = client.post(
-        "/api/upload?detect_duplicates=false",
-        files=[("files", ("alpha_no_check.txt", io.BytesIO(file_content), "text/plain"))],
-        headers=headers,
-    )
-    expect("C.3a status 200", res3.status_code, 200)
-    data3 = res3.json()
-    expect("C.3b detect_duplicates=false → empty duplicates_found",
-           len(data3.get("duplicates_found", [])), 0)
+    async def mock_organize_returns_file_ids(db, user_id):
+        """Stub — บอกว่า organize เสร็จแล้ว (ไฟล์ index แล้วในข้างบน) + return file_ids"""
+        return {"skipped": False, "count": 1, "file_ids": [first_file_id]}
 
-    third_file_id = data3["uploaded"][0]["id"]
+    async def mock_noop(*args, **kwargs):
+        return {"nodes": 0, "edges": 0}  # graph stub
 
-    # ── C.4: Skip-duplicates → file removed ────
-    res4 = client.post(
-        "/api/files/skip-duplicates",
-        json={"file_ids": [second_file_id]},
-        headers=headers,
-    )
-    expect("C.4a status 200", res4.status_code, 200)
-    expect("C.4b file in deleted[]", second_file_id in res4.json().get("deleted", []), True)
+    async def mock_noop_void(*args, **kwargs):
+        return None
 
-    # Verify gone from DB + raw_path removed (was created at /tmp/uploads/...)
-    async with AsyncSessionLocal() as db:
-        from sqlalchemy import select
-        f_check = (await db.execute(select(File).where(File.id == second_file_id))).scalar_one_or_none()
-    expect_true("C.4c file gone from DB", f_check is None)
+    _organizer.organize_new_files = mock_organize_returns_file_ids
+    _main_mod.enrich_all_files = mock_noop_void
+    _main_mod.build_full_graph = mock_noop
+    _main_mod.generate_suggestions = mock_noop_void
 
-    # First file still exists (didn't accidentally delete neighbor)
-    async with AsyncSessionLocal() as db:
-        from sqlalchemy import select
-        f1_check = (await db.execute(select(File).where(File.id == first_file_id))).scalar_one_or_none()
-    expect_true("C.4d original file still in DB", f1_check is not None)
+    try:
+        # Upload ไฟล์ที่ 2 (identical content) → ตอน upload ยังไม่ตรวจ
+        res2 = client.post(
+            "/api/upload",
+            files=[("files", ("alpha_copy.txt", io.BytesIO(file_content), "text/plain"))],
+            headers=headers,
+        )
+        expect("C.2a upload status 200", res2.status_code, 200)
+        second_file_id = res2.json()["uploaded"][0]["id"]
+        # Index ไฟล์ที่ 2 ด้วย (เลียนแบบ organize)
+        vector_search.index_file(
+            file_id=second_file_id, filename="alpha_copy.txt",
+            text=file_content.decode(), user_id=user_id,
+        )
 
-    # ── C.5: Intra-batch — 3 identical files in same upload ────
-    user_id5, token5 = await _make_user()
-    same_content = b"Identical content for intra-batch test " * 10
-    res5 = client.post(
-        "/api/upload",
-        files=[
-            ("files", ("dup1.txt", io.BytesIO(same_content), "text/plain")),
-            ("files", ("dup2.txt", io.BytesIO(same_content), "text/plain")),
-            ("files", ("dup3.txt", io.BytesIO(same_content), "text/plain")),
-        ],
-        headers={"Authorization": f"Bearer {token5}"},
-    )
-    expect("C.5a status 200", res5.status_code, 200)
-    data5 = res5.json()
-    expect("C.5b 3 files uploaded", data5.get("count"), 3)
-    intra_dups = data5.get("duplicates_found", [])
-    # ทุกไฟล์ที่ 2-3 จะมี content_hash เดียวกับไฟล์ที่ 1 → exact match ผ่าน SQL
-    # → ผลคือ 2 หรือ 3 matches (ขึ้นกับว่า DB เห็นไฟล์ก่อนหรือหลังตัวเอง)
-    # อย่างน้อยต้องมี ≥ 2 matches (ไฟล์ที่ 2 + ไฟล์ที่ 3 เจอ ไฟล์ที่ 1)
-    expect_true(f"C.5c intra-batch matches ≥ 2 (got {len(intra_dups)})",
-                len(intra_dups) >= 2)
-    if intra_dups:
-        all_exact = all(d["match_kind"] == "exact" for d in intra_dups)
-        expect_true("C.5d all intra-batch matches are exact", all_exact)
+        # Mock organize_new_files ให้ return ทั้ง 2 file_ids (เลียนแบบ organize batch)
+        async def mock_organize_two(db, user_id_arg):
+            return {"skipped": False, "count": 2, "file_ids": [first_file_id, second_file_id]}
+        _organizer.organize_new_files = mock_organize_two
+
+        # ── C.3: organize-new → response ต้องมี duplicates_found ──
+        res3 = client.post("/api/organize-new", headers=headers)
+        expect("C.3a organize-new status 200", res3.status_code, 200)
+        data3 = res3.json()
+        expect_true("C.3b 'duplicates_found' field exists ใน organize response",
+                    "duplicates_found" in data3)
+        dups = data3.get("duplicates_found", [])
+        expect_true(f"C.3c found ≥ 1 duplicate (got {len(dups)})", len(dups) >= 1)
+        if dups:
+            expect("C.3d match_kind = 'exact'", dups[0].get("match_kind"), "exact")
+            expect("C.3e similarity = 1.0", dups[0].get("similarity"), 1.0)
+
+        # ── C.4: organize-new skipped path (no new files) → empty duplicates_found ──
+        async def mock_organize_skipped(db, user_id_arg):
+            return {"skipped": True, "count": 0}
+        _organizer.organize_new_files = mock_organize_skipped
+
+        res4 = client.post("/api/organize-new", headers=headers)
+        expect("C.4a organize-new (skipped) status 200", res4.status_code, 200)
+        data4 = res4.json()
+        expect("C.4b new_files = 0", data4.get("new_files"), 0)
+        expect_true("C.4c 'duplicates_found' field still present (= [])",
+                    "duplicates_found" in data4)
+        expect("C.4d duplicates_found is empty list",
+               data4.get("duplicates_found"), [])
+
+        # ── C.5: skip-duplicates ลบไฟล์ duplicate ──
+        res5 = client.post(
+            "/api/files/skip-duplicates",
+            json={"file_ids": [second_file_id]},
+            headers=headers,
+        )
+        expect("C.5a skip-duplicates status 200", res5.status_code, 200)
+        expect("C.5b file in deleted[]",
+               second_file_id in res5.json().get("deleted", []), True)
+
+        async with AsyncSessionLocal() as db:
+            from sqlalchemy import select
+            check = (await db.execute(select(File).where(File.id == second_file_id))).scalar_one_or_none()
+        expect_true("C.5c file gone from DB", check is None)
+
+    finally:
+        # Restore originals — ห้ามให้ Section อื่นโดน mock ค้าง
+        _organizer.organize_new_files = original_organize
+        _main_mod.enrich_all_files = original_enrich
+        _main_mod.build_full_graph = original_graph
+        _main_mod.generate_suggestions = original_suggest
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -377,18 +407,16 @@ def section_f_html():
 
 
 # ═══════════════════════════════════════════════════════════════
-# Section G: Stress — batch ใหญ่ + performance
+# Section G: Stress — detect_duplicates_for_batch (10-file post-organize)
 # ═══════════════════════════════════════════════════════════════
 async def section_g_stress():
-    print("\n=== Section G: Stress (10-file batch + performance) ===")
+    print("\n=== Section G: Stress (10-file post-organize batch + performance) ===")
 
-    from fastapi.testclient import TestClient
-    from backend.main import app
-    from backend.auth import create_access_token
+    from backend.duplicate_detector import (
+        detect_duplicates_for_batch, compute_content_hash,
+    )
 
-    client = TestClient(app)
-
-    # Setup user
+    # Setup user + 5 seed files (จำลอง library เดิม)
     user_id = gen_id()
     async with AsyncSessionLocal() as db:
         u = User(id=user_id, email=f"stress_{user_id[:6]}@t.local",
@@ -396,55 +424,75 @@ async def section_g_stress():
                 subscription_status="free", storage_mode="managed")
         db.add(u)
         await db.commit()
-    token = create_access_token(user_id, f"stress_{user_id[:6]}@t.local", "Stress")
 
-    # Pre-seed 5 ไฟล์ใน DB ก่อน
-    from backend.duplicate_detector import compute_content_hash
     seed_texts = [f"Seed file content number {i} " + "x" * 100 for i in range(5)]
+    seed_ids: list[str] = []
     async with AsyncSessionLocal() as db:
         for i, text in enumerate(seed_texts):
+            sid = gen_id()
             f = File(
-                id=gen_id(), user_id=user_id, filename=f"seed_{i}.txt",
+                id=sid, user_id=user_id, filename=f"seed_{i}.txt",
                 filetype="txt", raw_path=f"/tmp/seed_{i}",
                 extracted_text=text, processing_status="ready",
                 content_hash=compute_content_hash(text),
             )
             db.add(f)
+            seed_ids.append(sid)
         await db.commit()
 
-    # Upload 10 ไฟล์: 3 ตรงกับ seed + 7 unique
-    files_payload = []
-    # 3 duplicates of existing
-    for i in range(3):
-        files_payload.append(
-            ("files", (f"dup_seed_{i}.txt",
-                       io.BytesIO(seed_texts[i].encode()), "text/plain"))
-        )
-    # 7 unique
-    for i in range(7):
-        unique_text = f"Stress unique content {i} " + "y" * 100
-        files_payload.append(
-            ("files", (f"unique_{i}.txt",
-                       io.BytesIO(unique_text.encode()), "text/plain"))
-        )
+    # Index seeds เข้า vector_search (เลียนแบบ organize เสร็จ)
+    for sid, text in zip(seed_ids, seed_texts):
+        vector_search.index_file(file_id=sid, filename=f"seed_{sid[:6]}.txt",
+                                  text=text, user_id=user_id)
 
+    # Insert 10 ไฟล์ "ใหม่" (3 ซ้ำ seed + 7 unique) — เลียนแบบ post-organize state
+    new_ids: list[str] = []
+    async with AsyncSessionLocal() as db:
+        # 3 duplicates of seed
+        for i in range(3):
+            nid = gen_id()
+            f = File(
+                id=nid, user_id=user_id, filename=f"dup_seed_{i}.txt",
+                filetype="txt", raw_path=f"/tmp/dup_{i}",
+                extracted_text=seed_texts[i], processing_status="ready",
+                content_hash=compute_content_hash(seed_texts[i]),
+            )
+            db.add(f)
+            new_ids.append(nid)
+        # 7 unique
+        for i in range(7):
+            nid = gen_id()
+            unique_text = f"Stress unique content {i} " + "y" * 100
+            f = File(
+                id=nid, user_id=user_id, filename=f"unique_{i}.txt",
+                filetype="txt", raw_path=f"/tmp/u_{i}",
+                extracted_text=unique_text, processing_status="ready",
+                content_hash=compute_content_hash(unique_text),
+            )
+            db.add(f)
+            new_ids.append(nid)
+        await db.commit()
+
+    # Index ทั้ง 10 ไฟล์ใหม่ (เลียนแบบ organize เสร็จ — ทุกไฟล์อยู่ใน vector_search แล้ว)
+    for nid in new_ids:
+        async with AsyncSessionLocal() as db:
+            from sqlalchemy import select
+            f = (await db.execute(select(File).where(File.id == nid))).scalar_one()
+        vector_search.index_file(file_id=nid, filename=f.filename,
+                                  text=f.extracted_text or "", user_id=user_id)
+
+    # รัน detection — เลียนแบบที่ /api/organize-new เรียก
     start = time.time()
-    res = client.post(
-        "/api/upload",
-        files=files_payload,
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    async with AsyncSessionLocal() as db:
+        matches = await detect_duplicates_for_batch(db, user_id, new_ids)
     elapsed = time.time() - start
 
-    expect("G.1 status 200", res.status_code, 200)
-    data = res.json()
-    expect("G.2 10 files uploaded", data.get("count"), 10)
-    dups = data.get("duplicates_found", [])
-    expect_true(f"G.3 found 3 duplicates (got {len(dups)})", len(dups) == 3)
-    if dups:
-        all_exact = all(d["match_kind"] == "exact" for d in dups)
-        expect_true("G.4 all 3 are exact matches", all_exact)
-    expect_true(f"G.5 batch detection completed in < 5s (took {elapsed:.2f}s)",
+    expect_true(f"G.1 found ≥ 3 duplicates (got {len(matches)})", len(matches) >= 3)
+    if matches:
+        # ทั้งหมดควรเป็น exact (เพราะ hash ตรงกับ seed)
+        exact_count = sum(1 for m in matches if m["match_kind"] == "exact")
+        expect_true(f"G.2 ≥ 3 exact matches (got {exact_count})", exact_count >= 3)
+    expect_true(f"G.3 detection completed in < 5s (took {elapsed:.2f}s)",
                 elapsed < 5.0)
 
 
@@ -456,7 +504,7 @@ async def main():
 
     await section_a_schema()
     await section_b_version()
-    await section_c_upload_e2e()
+    await section_c_organize_e2e()
     await section_d_cascade()
     section_e_i18n()
     section_f_html()

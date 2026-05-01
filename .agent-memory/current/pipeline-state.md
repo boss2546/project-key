@@ -136,13 +136,21 @@
 
 ## 📋 Up Next (Queue)
 
-### v7.1.0 — Duplicate Detection on Upload
-**State:** `built_pending_review` ✅ — เขียว build เสร็จ + self-test 33/33 PASS — รอฟ้า review
-**Owner (build):** เขียว (Khiao) — done 2026-05-01
-**Branch:** `dedupe-v7.1.0` (จาก master clean)
-**Plan file:** [plans/duplicate-detection.md](../plans/duplicate-detection.md)
-**Handoff MSG (เขียว → ฟ้า):** ดู MSG-008 ใน [inbox/for-ฟ้า.md](../communication/inbox/for-ฟ้า.md)
-**ETA:** ฟ้า ~1-2 ชม. (review + tests)
+### v7.1.0 — Duplicate Detection on Organize-new (PIVOTED 2026-05-01)
+**State:** `built_pending_review` 🔄 — Round 2: เขียว rebuild หลัง user override → รอฟ้า re-review
+**Owner (build):** เขียว (Khiao) — round 2 done 2026-05-01
+**Reviewer (round 1):** ฟ้า (Fah) — APPROVE round 1 (upload-time) 2026-05-01 — REVIEW-002
+**Branch:** `dedupe-v7.1.0` (4 commits ahead of master — feat + docs + e2e_test + pivot)
+**Plan file:** [plans/duplicate-detection.md](../plans/duplicate-detection.md) (implementation deviates per DUP-003 — user override, plan untouched)
+**Handoff MSG (round 2):** ดู MSG-009 ใน [inbox/for-ฟ้า.md](../communication/inbox/for-ฟ้า.md)
+**ETA:** ฟ้า ~1 ชม. (re-review delta — logic เดิมไม่เปลี่ยน, แค่ trigger ย้าย upload→organize-new)
+
+**Pivot reason (DUP-003):**
+- Round 1 (upload-time): ฟ้า approved 2026-05-01 (review_passed) — 87/87 PASS
+- User feedback: "อยากให้ทำงานตอนกดปุ่มจัดระเบียบไฟล์ใหม่" (organize-new) แทน upload
+- Round 2 (organize-time, this commit set): trigger ย้ายไป `/api/organize-new` หลัง vector_search index ครบ
+  → Risk #9 หาย (intra-batch SEMANTIC ทำงานได้แล้ว)
+  → 82/82 PASS (smoke 33 + e2e 49) + 106/106 BYOS regression
 
 ### Scope
 - ตอน upload ไฟล์ → เช็ค similar/duplicate vs library ของ user

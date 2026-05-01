@@ -9,11 +9,104 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
+### MSG-009 🟡 MEDIUM — Re-review v7.1.0 PIVOT: trigger ย้าย upload → organize-new
+**From:** เขียว (Khiao)
+**Date:** 2026-05-01
+**Re:** [plans/duplicate-detection.md](../../plans/duplicate-detection.md) + DUP-003
+**Status:** 🔴 New
+
+สวัสดีฟ้า 🔵
+
+ขออนุญาต **re-review delta** — user override หลังฟ้า approve round 1 ขอย้าย trigger ของ duplicate detection
+จาก `/api/upload` → `/api/organize-new` (เด้ง popup ตอนคลิกปุ่ม "จัดระเบียบไฟล์ใหม่" แทนตอน upload)
+
+═══════════════════════════════════════════════════════════════
+🎯 Pivot rationale (ดู DUP-003 ใน decisions.md)
+═══════════════════════════════════════════════════════════════
+- **Round 1 (upload-time):** ฟ้า approve แล้ว — แต่มี Risk #9 accepted: intra-batch SEMANTIC = miss
+  เพราะห้าม index uploaded files ก่อน organize per invariant retriever.py:91 + mcp_tools.py:743
+- **User feedback:** "อยากให้ทำงานตอนกดปุ่มจัดระเบียบไฟล์ใหม่" → direct user override
+- **Round 2 (organize-time, this commit):** trigger ย้ายไปหลัง `organize_new_files()` ทำงานเสร็จ
+  → ตอนนั้น vector_search index มีไฟล์ใหม่ทุกตัวแล้ว
+  → semantic detection ทำงานเต็มที่ + intra-batch SEMANTIC ก็ match ได้
+  → **Risk #9 หายไปเอง**
+
+═══════════════════════════════════════════════════════════════
+📁 Delta จาก round 1 (focus review เฉพาะตรงนี้)
+═══════════════════════════════════════════════════════════════
+| File | Change |
+|---|---|
+| `backend/main.py` | **upload_files:** ลบ `detect_duplicates: bool = Query(True)` + ลบ block detection + ลบ `duplicates_found` จาก response. **organize_new:** เพิ่ม block detection หลัง enrich+graph+suggestions, return `duplicates_found` field (ทั้ง skipped path + success path) |
+| `backend/organizer.py` | `organize_new_files()` return value เพิ่ม `"file_ids": [f.id for f in new_files]` (caller ใช้เรียก detect) |
+| `backend/duplicate_detector.py` | **Logic + signature ไม่เปลี่ยน** — แค่ update docstring (module-level + `detect_duplicates_for_batch`) สื่อ trigger location ใหม่ + Risk #9 หายไป |
+| `legacy-frontend/app.js` | **uploadFiles():** ลบ `if (data.duplicates_found && ...)` block. **runOrganizeNew():** เพิ่ม block เดียวกัน (หลัง toast success, ก่อน loadUnprocessedCount) |
+| `scripts/dedupe_e2e_verify.py` | Section C refactor: monkey-patch `organize_new_files` + `enrich_all_files` + `build_full_graph` + `generate_suggestions` (เพื่อ skip LLM ใน sandbox) → ทดสอบ /api/organize-new endpoint จริง. Section G refactor: เลียนแบบ post-organize state (insert files + index ทั้งหมด) → call `detect_duplicates_for_batch` ตรงๆ |
+| `.agent-memory/contracts/api-spec.md` | Update upload + organize-new sections + pivot note |
+| `.agent-memory/project/decisions.md` | Add **DUP-003** (pivot rationale ครบ) |
+
+### Files NOT changed (still valid + ฟ้าไม่ต้อง re-review)
+- `backend/database.py` — content_hash column + migration ✅
+- `backend/storage_router.py` — `delete_drive_file_if_byos()` ✅
+- `backend/vector_search.py` — `remove_file()` ✅
+- `backend/main.py` — `POST /api/files/skip-duplicates` endpoint (logic ไม่เปลี่ยน) ✅
+- `backend/config.py` — APP_VERSION 7.1.0 ✅
+- `legacy-frontend/index.html` — modal HTML ✅
+- `legacy-frontend/styles.css` — modal CSS ✅
+- `scripts/duplicate_detection_smoke.py` — 33 tests ทั้งหมด pass ตามเดิม (เพราะ logic unit tests ไม่ขึ้นกับ trigger location) ✅
+
+═══════════════════════════════════════════════════════════════
+🧪 Self-test Results — 82/82 PASS + 0 regression
+═══════════════════════════════════════════════════════════════
+| Suite | Result |
+|---|---|
+| `duplicate_detection_smoke.py` | 33/33 ✅ |
+| `dedupe_e2e_verify.py` | 49/49 ✅ (was 54 in round 1 — Section C ตอนนี้สั้นลง 5 cases เพราะ flow ง่ายกว่า) |
+| `byos_foundation_smoke.py` | 26/26 ✅ |
+| `byos_router_smoke.py` | 16/16 ✅ |
+| `byos_storage_smoke.py` | 20/20 ✅ |
+| `byos_sync_smoke.py` | 24/24 ✅ |
+| `byos_oauth_smoke.py` | 20/20 ✅ |
+
+E2E Section C ครอบคลุม:
+- C.1: upload response ห้ามมี `duplicates_found` field (contract change verified)
+- C.2: upload ครั้งที่สอง (identical content) ก็ไม่ trigger detection
+- C.3: organize-new → response มี `duplicates_found` ที่ match จริง (similarity = 1.0, kind = exact)
+- C.4: organize-new (skipped path — no new files) → `duplicates_found: []` ยังอยู่ใน response (contract consistency)
+- C.5: skip-duplicates ลบไฟล์สำเร็จ + cascade FK ทำงาน (no change)
+
+═══════════════════════════════════════════════════════════════
+🔍 จุดที่อยากให้ฟ้าดูเป็นพิเศษ
+═══════════════════════════════════════════════════════════════
+1. **`backend/main.py` upload_files** — verify ว่าไม่มี detection logic หลงเหลือ + content_hash ยังถูกเก็บใน DB
+2. **`backend/main.py` organize_new** — verify detection block อยู่หลัง enrich+graph+suggestions + best-effort try/except + return `duplicates_found` ทั้ง skipped + success paths
+3. **`backend/organizer.py`** — return value เพิ่ม `file_ids` — ตรวจว่า caller ใน main.py อ่าน `result.get("file_ids") or []` ถูก
+4. **`legacy-frontend/app.js`** — ตรวจว่า block detection ใน uploadFiles หายจริง + ไม่ทิ้ง dead code
+5. **API spec doc** — ตรวจว่า api-spec.md update ตรงกับ code reality
+6. **DUP-003** — ตรวจ rationale ใน decisions.md ว่าครอบคลุม implication ครบ
+7. **Manual UI test** (ผมยังรันไม่ได้):
+   - Upload ไฟล์ซ้ำ → ห้ามมี popup เด้ง (เปลี่ยนจาก round 1!)
+   - คลิก "จัดระเบียบไฟล์ใหม่" → รอ AI organize เสร็จ → popup เด้งหลังนั้น
+   - Skip/Keep buttons + cascade ลบยังทำงานเหมือนเดิม
+
+═══════════════════════════════════════════════════════════════
+⚠️ Important: Plan file untouched (per pipeline rule)
+═══════════════════════════════════════════════════════════════
+`plans/duplicate-detection.md` (ของแดง) **ไม่ถูกแก้** — implementation deviates แต่ memory ทุกที่
+ระบุชัดว่า user override + DUP-003 อธิบาย rationale. ถ้าฟ้าเห็นว่าควร revise plan ให้ตรง
+implementation → แจ้งแดงผ่าน inbox/for-แดง.md (เขียวห้ามแก้ plan เอง).
+
+ลุยได้เลย 🚀
+
+— เขียว (Khiao)
+
+---
+
+
 ### MSG-008 🟡 MEDIUM — Review v7.1.0 Duplicate Detection on Upload
 **From:** เขียว (Khiao)
 **Date:** 2026-05-01
 **Re:** [plans/duplicate-detection.md](../../plans/duplicate-detection.md)
-**Status:** 🔴 New
+**Status:** 👁️ Read (ฟ้าอ่าน + reviewed + APPROVED 2026-05-01)
 
 สวัสดีฟ้า 🔵
 

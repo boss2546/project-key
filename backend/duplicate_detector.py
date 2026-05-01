@@ -1,27 +1,29 @@
-"""Duplicate detection — หา similar/identical files ใน library ของ user ตอน upload (v7.1).
+"""Duplicate detection — หา similar/identical files ใน library ของ user (v7.1).
+
+**Trigger location (v7.1 user override 2026-05-01):** เรียกจาก `/api/organize-new`
+หลัง organize เสร็จ (ไม่ใช่ตอน upload เหมือน round แรก) — เพราะตรงนี้ไฟล์ใหม่
+ทุกตัวถูก index เข้า vector_search แล้ว → semantic detection ทำงานเต็ม +
+intra-batch SEMANTIC detection ก็ทำได้ (Risk #9 ของ round แรกหายไปแล้ว). ดู
+DUP-003 ใน decisions.md สำหรับ rationale.
 
 อัลกอริทึม (MVP — ไม่ใช้ LLM):
-1. **Exact match (SHA-256):** hash normalized extracted_text → similarity = 1.0 ผ่าน SQL query
-   บน `files.content_hash` column (per-user filter ผ่าน `user_id`)
-2. **Semantic match (TF-IDF cosine):** เรียก `vector_search.hybrid_search()` ที่มี per-user
-   isolation อยู่แล้ว → similarity ≥ 0.80 ถือว่า duplicate
+1. **Exact match (SHA-256):** hash normalized extracted_text → similarity = 1.0 ผ่าน
+   SQL query บน `files.content_hash` column (per-user filter ผ่าน `user_id`).
+   Hash ถูกคำนวณ + เก็บตอน upload เพื่อให้ exact match ทำงานได้แม้ user ยังไม่ organize
+2. **Semantic match (TF-IDF cosine):** เรียก `vector_search.hybrid_search()` ที่มี
+   per-user isolation อยู่แล้ว → similarity ≥ 0.80 ถือว่า duplicate. ตอน organize-time
+   ไฟล์ใหม่ทุกตัวอยู่ใน vector_search index แล้ว → intra-batch + cross-existing
+   ครอบคลุมทั้งคู่
 3. ไม่เรียก LLM — cost = ฿0
 
 Why hash + TF-IDF (ไม่ใช่ LLM):
   - Free + fast (≤ 100ms ต่อไฟล์ ใน batch ~5 ไฟล์)
   - Reuses existing per-user vector index ที่ build ตอน organize อยู่แล้ว
-  - ดีพอสำหรับ ≥ 80% similar — paraphrase หนัก (50-80%) จะ miss แต่ user ยอมรับแล้ว (Risk #9)
-
-ข้อจำกัดที่ยอมรับ (MVP — Risk #9 ใน plan):
-  - Intra-batch SEMANTIC = miss (ไฟล์ paraphrase ใน batch เดียวกัน) — เพราะไฟล์ใหม่ยังไม่ถูก
-    index เข้า vector_search (เพื่อรักษา invariant ของ retriever.py:91 + mcp_tools.py:743 ที่
-    คาดว่า indexed = "ready" only)
-  - Intra-batch EXACT ยังครอบคลุม (SQL query บน content_hash → ไฟล์ใน batch เดียวกันเทียบกันได้
-    ผ่าน DB ไม่พึ่ง vector_search)
+  - ดีพอสำหรับ ≥ 80% similar — paraphrase หนัก (50-80%) จะ miss (Phase 2 = LLM diff)
 
 Reused infrastructure:
   - backend/vector_search.py — hybrid_search() with per-user isolation
-  - backend/database.py — File model with new content_hash column (v7.1 migration)
+  - backend/database.py — File model with content_hash column (v7.1 migration)
 """
 from __future__ import annotations
 
@@ -261,19 +263,21 @@ async def detect_duplicates_for_batch(
     user_id: str,
     new_file_ids: list[str],
 ) -> list[DuplicateMatch]:
-    """หา duplicates สำหรับ batch ของไฟล์ที่เพิ่ง upload.
+    """หา duplicates สำหรับ batch ของไฟล์ที่เพิ่ง organize.
 
-    Caller (upload endpoint) ต้อง:
-      1. Save File rows + commit ก่อน (เพื่อ exact-match query บน content_hash เห็น)
-      2. ไม่ต้อง index เข้า vector_search ก่อน — เพื่อรักษา invariant ที่
-         retriever.py:91 + mcp_tools.py:743 คาดว่า indexed = "ready" only.
-         → Intra-batch SEMANTIC จะ miss (Risk #9 ที่ user accept) — แต่ intra-batch
-         EXACT ครอบคลุมผ่าน SQL query บน content_hash
+    Caller (`/api/organize-new` endpoint) ต้อง:
+      1. รัน organize_new_files() จนเสร็จ (commit summaries + index เข้า vector_search)
+         → ตรงนี้ทุกไฟล์ใหม่ทั้ง content_hash + vector index พร้อมใช้
+      2. ส่ง list of file_ids ที่เพิ่ง organize เข้ามา → function จะหา match ของแต่ละ
+         ไฟล์เทียบกับ library ทั้งหมดของ user (รวมไฟล์เก่า + intra-batch กันเอง)
+
+    เพราะเรียกหลัง organize → semantic detection ทำงานเต็ม + intra-batch SEMANTIC
+    เจอด้วย (ต่างจาก v7.1 round แรกที่ trigger ตอน upload แล้วต้อง accept Risk #9)
 
     Args:
-        db: async DB session (must have new files committed)
+        db: async DB session (must have organize complete + committed)
         user_id: เจ้าของ batch
-        new_file_ids: list ของ file_id ที่เพิ่ง upload (ลำดับเดิมเสมอ)
+        new_file_ids: list ของ file_id ที่เพิ่ง organize (ลำดับเดิมเสมอ)
 
     Returns:
         List ของ DuplicateMatch — อาจว่างถ้าไม่มีไฟล์ไหนซ้ำ

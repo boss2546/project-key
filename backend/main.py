@@ -28,6 +28,8 @@ from .duplicate_detector import (
     compute_content_hash,
     detect_duplicates_for_batch,
 )
+# v7.1: detect_duplicates_for_batch ถูกเรียกใน /api/organize-new (post-organize)
+# compute_content_hash ยังเรียกใน /api/upload เพื่อเก็บ hash สำหรับ exact-match query
 from .profile import get_profile, update_profile, is_profile_complete
 from .context_packs import list_packs, get_pack, create_pack, delete_pack, regenerate_pack
 from .graph_builder import build_full_graph, get_graph_data, get_node_detail, get_neighborhood
@@ -244,18 +246,14 @@ class MetadataUpdateRequest(BaseModel):
 async def upload_files(
     files: list[UploadFile],
     background_tasks: BackgroundTasks,
-    detect_duplicates: bool = Query(True),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Upload one or more files, extract text, save to database.
 
-    v7.1: เพิ่ม duplicate detection — return field `duplicates_found` ใน response.
-    User เลือก keep all (ไม่ทำอะไร) หรือ skip duplicates (call /api/files/skip-duplicates)
-
-    Args:
-        detect_duplicates: ตั้ง false เพื่อ skip duplicate check (สำหรับ programmatic
-            upload หรือ batch ใหญ่ที่ user รู้อยู่แล้วว่าไม่มีซ้ำ).
+    v7.1: คำนวณ + เก็บ content_hash (SHA-256 ของ normalized extracted_text) ใน DB
+    สำหรับใช้ใน duplicate detection ตอน /api/organize-new (ไม่ detect ตรงนี้
+    เพราะ vector_search ยังไม่ index ไฟล์ใหม่ → semantic ไม่ทำงานเต็มที่)
     """
     uploaded = []
     skipped = []
@@ -272,8 +270,6 @@ async def upload_files(
 
     # v7.0.1 — track per-file payloads so we can push to Drive after DB commit
     pending_drive_pushes: list[tuple[str, str, bytes, str, str]] = []
-    # v7.1 — track id ของไฟล์ใหม่เพื่อรัน duplicate detection หลัง commit
-    new_file_ids: list[str] = []
 
     for upload_file in files:
         # Strip any client-supplied directory components — `upload_file.filename`
@@ -328,7 +324,6 @@ async def upload_files(
             content_hash=content_hash,  # v7.1
         )
         db.add(db_file)
-        new_file_ids.append(file_id)  # v7.1 — สำหรับ duplicate detection หลัง commit
 
         # v7.0.1 — schedule Drive push for BYOS users (best-effort, after commit)
         mime_guess = _guess_mime(ext, upload_file.content_type)
@@ -345,21 +340,6 @@ async def upload_files(
 
     await db.commit()
 
-    # v7.1 — Run duplicate detection sync (post-commit so exact-match SQL เห็นไฟล์ใหม่)
-    # ⚠️ ห้าม index uploaded files เข้า vector_search ตรงนี้ — จะทำลาย invariant ของ
-    # retriever.py:91 + mcp_tools.py:743 ที่คาดว่า indexed = "ready" only.
-    # → Intra-batch SEMANTIC จะ miss (Risk #9 — accepted MVP trade-off)
-    # → Intra-batch EXACT ยังครอบคลุมผ่าน SQL บน content_hash column
-    # ห้าม raise — upload สำเร็จไปแล้ว ถ้า detection พังต้องไม่กระทบ user
-    duplicates_found: list = []
-    if detect_duplicates and new_file_ids:
-        try:
-            duplicates_found = await detect_duplicates_for_batch(
-                db, current_user.id, new_file_ids,
-            )
-        except Exception as e:
-            logger.warning(f"Duplicate detection failed: {e}")
-
     # v7.0.1 — schedule Drive pushes after commit so the DB row exists when the
     # background task opens its own session. No-op for managed users.
     if pending_drive_pushes:
@@ -373,7 +353,6 @@ async def upload_files(
         "uploaded": uploaded,
         "count": len(uploaded),
         "skipped": skipped,
-        "duplicates_found": duplicates_found,  # v7.1
     }
 
 
@@ -492,7 +471,13 @@ async def unprocessed_count(current_user: User = Depends(get_current_user), db: 
 
 @app.post("/api/organize-new")
 async def organize_new(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    """Run the organization pipeline only on NEW files that don't have summaries yet."""
+    """Run the organization pipeline only on NEW files that don't have summaries yet.
+
+    v7.1: รัน duplicate detection หลัง organize เสร็จ (ตรงนี้ vector_search index
+    มีไฟล์ใหม่แล้ว → semantic detection ทำงานเต็ม + intra-batch SEMANTIC ไม่ miss
+    ต่างจาก v7.1 round แรกที่ detect ตอน upload แล้ว Risk #9 บังคับ accept)
+    Return field `duplicates_found` ให้ frontend แสดง popup ให้ user ตัดสินใจ keep/skip.
+    """
     # v5.9.3 — check summary quota
     limit_err = await check_summary_allowed(db, current_user)
     if limit_err:
@@ -501,7 +486,12 @@ async def organize_new(current_user: User = Depends(get_current_user), db: Async
     try:
         result = await organize_new_files(db, current_user.id)
         if result.get("skipped"):
-            return {"status": "ok", "message": "ไม่มีไฟล์ใหม่ที่ต้องจัดระเบียบ", "new_files": 0}
+            return {
+                "status": "ok",
+                "message": "ไม่มีไฟล์ใหม่ที่ต้องจัดระเบียบ",
+                "new_files": 0,
+                "duplicates_found": [],  # v7.1 — empty array เพื่อ contract consistency
+            }
 
         await log_usage(db, current_user.id, "ai_summary")
         await db.commit()
@@ -511,11 +501,29 @@ async def organize_new(current_user: User = Depends(get_current_user), db: Async
         graph_result = await build_full_graph(db, current_user.id)
         await generate_suggestions(db, current_user.id)
 
+        # v7.1 — Duplicate detection หลัง organize เสร็จ
+        # ตอนนี้ทุกไฟล์ใหม่ถูก index เข้า vector_search แล้ว (ใน organize_new_files
+        # → vector_search.index_file ทุก file ที่ summary สำเร็จ) → semantic detection
+        # ทำงานเต็ม + intra-batch SEMANTIC = match ได้ (Risk #9 ของ v7.1 round แรก
+        # หายไปแล้วเพราะ detect หลัง index)
+        # Best-effort: ห้าม raise — organize สำเร็จไปแล้ว ถ้า detection พังต้องไม่
+        # กระทบ user (return empty array แทน)
+        duplicates_found: list = []
+        new_file_ids = result.get("file_ids") or []
+        if new_file_ids:
+            try:
+                duplicates_found = await detect_duplicates_for_batch(
+                    db, current_user.id, new_file_ids,
+                )
+            except Exception as e:
+                logger.warning(f"Duplicate detection failed post-organize: {e}")
+
         return {
             "status": "ok",
             "message": f"จัดระเบียบไฟล์ใหม่ {result.get('count', 0)} ไฟล์เรียบร้อย",
             "new_files": result.get("count", 0),
-            "graph": graph_result
+            "graph": graph_result,
+            "duplicates_found": duplicates_found,  # v7.1
         }
     except Exception as e:
         logger.error(f"Organize new files failed: {e}")

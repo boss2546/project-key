@@ -128,3 +128,16 @@
 - BYOS-aware ผ่าน public helper `storage_router.delete_drive_file_if_byos()` (ตาม pattern `push_*_to_drive_if_byos`) — ห้าม use private `_get_byos_user_with_connection` จาก main.py
 - Drive delete = trash (recoverable 30 วัน) ไม่ใช่ permanent — เผื่อ user เปลี่ยนใจ
 - Best-effort: ทุก step (raw, Drive, index) ห้าม raise — ถ้า fail ขั้นใดให้ log warning + ดำเนินต่อ (DB delete เป็น primary success criterion)
+
+## DUP-003: Duplicate detection trigger = organize-time (not upload-time) (v7.1, user override 2026-05-01)
+**Why:** Original plan trigger ตอน upload — แต่ user override ให้ย้ายไป organize-new หลังจากที่ฟ้า approve round แรกแล้ว. เหตุผลของ trigger location ใหม่:
+1. **vector_search index พร้อมเต็ม** — ตอน organize เสร็จ ทุกไฟล์ใหม่ถูก index แล้ว → semantic detection ทำงานได้เต็มที่
+2. **Risk #9 หาย** — intra-batch SEMANTIC detection ทำได้ (ตอน upload-time ไม่ทำได้เพราะห้าม index ก่อน organize per invariant retriever.py:91 + mcp_tools.py:743)
+3. **UX trade-off ที่ user ยอมรับ** — popup เด้งช้าลง (organize-time vs upload-time) แต่ผลลัพธ์ครอบคลุมกว่า + ไฟล์ที่ organize แล้วมี summary/topics ครบ → modal แสดง matched_topics ที่ meaningful
+**Implication:**
+- `compute_content_hash` ยังถูกเรียกตอน upload (เก็บ hash ใน DB เพื่อใช้ตอน organize)
+- `detect_duplicates_for_batch` ถูกเรียกใน `/api/organize-new` หลัง `organize_new_files()` + post enrich/graph/suggestions
+- Frontend hook ย้ายจาก `uploadFiles()` → `runOrganizeNew()`
+- Response field `duplicates_found` ย้ายจาก upload response → organize-new response
+- `organize_new_files()` return value เพิ่ม `file_ids` array (เพื่อให้ caller รัน detection ตามได้)
+- **ห้าม** ใส่ `duplicates_found` กลับเข้า upload response (frontend จะสับสน 2 จุด)
