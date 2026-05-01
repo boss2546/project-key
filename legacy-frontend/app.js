@@ -1292,15 +1292,27 @@ function renderFileList(files) {
  const sot = f.source_of_truth ? '<span class="sot-badge"> Source of Truth</span>' : '';
  const locked = f.is_locked ? '<span class="locked-badge" title="' + (f.locked_reason || 'Locked') + '"></span>' : '';
  const lockedClass = f.is_locked ? ' file-locked' : '';
+ // v7.0.1 — storage badge: "On Drive" link or "On server" text
+ const isThai = getLang() === 'th';
+ let storageBadge = '';
+ if (f.storage_location === 'drive' && f.drive_web_link) {
+ const driveLabel = isThai ? '☁️ บน Drive ของคุณ' : '☁️ On your Drive';
+ const driveTip = isThai ? 'เปิดไฟล์ใน Google Drive (แท็บใหม่)' : 'Open file in Google Drive (new tab)';
+ storageBadge = `<a class="storage-badge storage-drive" href="${f.drive_web_link}" target="_blank" rel="noopener" title="${driveTip}" onclick="event.stopPropagation()">${driveLabel}</a>`;
+ } else {
+ const serverLabel = isThai ? '🗄️ บนเซิร์ฟเวอร์' : '🗄️ On server';
+ const serverTip = isThai ? 'ไฟล์เก็บบนระบบของเรา (managed mode)' : 'File stored on our system (managed mode)';
+ storageBadge = `<span class="storage-badge storage-server" title="${serverTip}">${serverLabel}</span>`;
+ }
  return `
  <div class="file-item${lockedClass}" data-id="${f.id}" onclick="openFileDetail('${f.id}')">
  <div class="file-icon ${f.filetype}">${f.filetype.toUpperCase()}${locked}</div>
  <div class="file-info">
- <div class="file-name">${f.filename}${f.is_locked ? ' <span class="locked-label">' + (getLang() === 'th' ? 'ล็อค' : 'Locked') + '</span>' : ''}</div>
+ <div class="file-name">${f.filename}${f.is_locked ? ' <span class="locked-label">' + (isThai ? 'ล็อค' : 'Locked') + '</span>' : ''}</div>
  <div class="file-meta">
  <span>${f.text_length?.toLocaleString() || 0} chars</span>
  <span class="status-dot ${f.processing_status}"></span>
- ${freshness} ${sot}
+ ${freshness} ${sot} ${storageBadge}
  </div>
  ${tags ? `<div class="file-tags">${tags}</div>` : ''}
  </div>

@@ -35,10 +35,32 @@ from .drive_layout import (
     PROFILE_JSON,
     RELATIONS_JSON,
     STORAGE_MODE_BYOS,
+    STORAGE_SOURCE_DRIVE_UPLOADED,
     STORAGE_SOURCE_LOCAL,
     extracted_path_for,
+    raw_path_for,
     summary_path_for,
 )
+
+
+# Public URL templates — Drive serves files at stable URLs by file_id / folder_id.
+# We construct them client-side instead of storing per-row to avoid extra Drive API calls.
+DRIVE_FILE_VIEW_URL = "https://drive.google.com/file/d/{file_id}/view"
+DRIVE_FOLDER_VIEW_URL = "https://drive.google.com/drive/folders/{folder_id}"
+
+
+def drive_file_link(drive_file_id: str | None) -> str | None:
+    """Build a public webViewLink for a Drive file ID — None if no ID."""
+    if not drive_file_id:
+        return None
+    return DRIVE_FILE_VIEW_URL.format(file_id=drive_file_id)
+
+
+def drive_folder_link(drive_folder_id: str | None) -> str | None:
+    """Build a public link to a Drive folder."""
+    if not drive_folder_id:
+        return None
+    return DRIVE_FOLDER_VIEW_URL.format(folder_id=drive_folder_id)
 
 logger = logging.getLogger(__name__)
 
@@ -290,6 +312,57 @@ async def push_extracted_text_to_drive_if_byos(
             user_id, file_id, e,
         )
         return False
+
+
+# ═══════════════════════════════════════════════════════════════
+# Raw file projection (per-file) — push original bytes to Drive raw/
+# ═══════════════════════════════════════════════════════════════
+async def push_raw_file_to_drive_if_byos(
+    user_id: str,
+    db: AsyncSession,
+    file_id: str,
+    filename: str,
+    content: bytes,
+    mime_type: str,
+) -> str | None:
+    """Best-effort: upload raw user file to Drive's /raw/ folder + update DB.
+
+    On success, sets file.drive_file_id + file.storage_source='drive_uploaded' so
+    future reads route through Drive. On managed/disconnected users → no-op.
+
+    Returns:
+        Drive file ID if pushed, None otherwise (managed mode / not configured /
+        not connected / Drive failure)
+    """
+    pair = await _get_byos_user_with_connection(user_id, db)
+    if not pair:
+        return None
+    _user, conn = pair
+
+    try:
+        client = await _build_drive_client(conn)
+        raw_id = client.ensure_folder("raw", parent_id=conn.drive_root_folder_id)
+        # Format: raw/{file_id}_{original_name} — matches drive_sync expectations
+        drive_name = raw_path_for(file_id, filename).split("/", 1)[-1]
+        drive_file_id = client.upload_file(raw_id, drive_name, content, mime_type)
+
+        # Update File row so future reads + UI know it's on Drive
+        from datetime import datetime as _dt
+        file_q = await db.execute(select(File).where(File.id == file_id))
+        file_row = file_q.scalar_one_or_none()
+        if file_row:
+            file_row.drive_file_id = drive_file_id
+            file_row.drive_modified_time = _dt.utcnow()
+            file_row.storage_source = STORAGE_SOURCE_DRIVE_UPLOADED
+            await db.commit()
+        logger.info("BYOS: pushed raw file %s to Drive for user %s", file_id, user_id)
+        return drive_file_id
+    except Exception as e:
+        logger.warning(
+            "BYOS: raw file push failed for user %s file %s (%s)",
+            user_id, file_id, e,
+        )
+        return None
 
 
 # ═══════════════════════════════════════════════════════════════

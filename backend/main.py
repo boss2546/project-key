@@ -252,6 +252,9 @@ async def upload_files(
     current_count = await _fc(db, current_user.id)
     file_limit = _limits["file_limit"]
 
+    # v7.0.1 — track per-file payloads so we can push to Drive after DB commit
+    pending_drive_pushes: list[tuple[str, str, bytes, str, str]] = []
+
     for upload_file in files:
         # Validate type
         ext = upload_file.filename.rsplit(".", 1)[-1].lower() if "." in upload_file.filename else ""
@@ -296,6 +299,10 @@ async def upload_files(
         )
         db.add(db_file)
 
+        # v7.0.1 — schedule Drive push for BYOS users (best-effort, after commit)
+        mime_guess = upload_file.content_type or f"application/{ext}" if ext else "application/octet-stream"
+        pending_drive_pushes.append((file_id, upload_file.filename, contents, mime_guess, extracted))
+
         uploaded.append({
             "id": file_id,
             "filename": upload_file.filename,
@@ -307,7 +314,48 @@ async def upload_files(
 
     await db.commit()
 
+    # v7.0.1 — schedule Drive pushes after commit so the DB row exists when the
+    # background task opens its own session. No-op for managed users.
+    if pending_drive_pushes:
+        background_tasks.add_task(
+            _push_uploads_to_drive,
+            current_user.id,
+            pending_drive_pushes,
+        )
+
     return {"uploaded": uploaded, "count": len(uploaded), "skipped": skipped}
+
+
+async def _push_uploads_to_drive(
+    user_id: str,
+    payloads: list[tuple[str, str, bytes, str, str]],
+) -> None:
+    """Background task — push raw file + extracted text to Drive for BYOS users.
+
+    Opens its own DB session (the request session is already closed when this runs).
+    Each payload: (file_id, filename, raw_bytes, mime_type, extracted_text).
+    Failures are logged + swallowed — DB is the source of truth, Drive is mirror.
+    """
+    from .database import AsyncSessionLocal
+    from .storage_router import (
+        push_extracted_text_to_drive_if_byos,
+        push_raw_file_to_drive_if_byos,
+    )
+    async with AsyncSessionLocal() as bg_db:
+        for file_id, filename, content, mime_type, extracted in payloads:
+            try:
+                drive_id = await push_raw_file_to_drive_if_byos(
+                    user_id, bg_db, file_id, filename, content, mime_type,
+                )
+                if drive_id and extracted:
+                    await push_extracted_text_to_drive_if_byos(
+                        user_id, bg_db, file_id, extracted,
+                    )
+            except Exception as e:
+                logger.warning(
+                    "Background Drive push failed for user %s file %s: %s",
+                    user_id, file_id, e,
+                )
 
 
 @app.post("/api/organize")
@@ -1476,6 +1524,16 @@ async def api_set_permissions(request: Request, current_user: User = Depends(get
 # ─── HELPERS ───
 
 def _serialize_file(f: File) -> dict:
+    # v7.0.1 — surface storage location so UI can show "on Drive" badge + open link
+    drive_id = getattr(f, "drive_file_id", None)
+    storage_source = getattr(f, "storage_source", "local") or "local"
+    if drive_id:
+        drive_link: str | None = f"https://drive.google.com/file/d/{drive_id}/view"
+        storage_location = "drive"
+    else:
+        drive_link = None
+        storage_location = "server"
+
     return {
         "id": f.id,
         "filename": f.filename,
@@ -1496,6 +1554,11 @@ def _serialize_file(f: File) -> dict:
         # v5.9.3 — locked data
         "is_locked": getattr(f, "is_locked", False) or False,
         "locked_reason": getattr(f, "locked_reason", None),
+        # v7.0.1 — BYOS storage location surface
+        "storage_location": storage_location,    # "drive" | "server"
+        "storage_source": storage_source,        # "local" | "drive_uploaded" | "drive_picked"
+        "drive_file_id": drive_id,
+        "drive_web_link": drive_link,
     }
 
 
@@ -1996,6 +2059,55 @@ async def api_set_storage_mode(
     user.storage_mode = mode
     await db.commit()
     return {"status": "ok", "storage_mode": mode}
+
+
+@app.post("/api/drive/sync")
+async def api_drive_sync(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Manually trigger a bi-directional sync between Drive and local cache.
+
+    Push: any local files (storage_source='drive_uploaded' but no drive_file_id)
+          → upload to /Personal Data Bank/raw/
+    Pull: any new/updated/deleted files in /Personal Data Bank/raw/
+          → reflect into local cache (Drive wins on conflict)
+
+    Returns sync stats (files pulled/pushed, conflicts, errors, duration).
+    Requires: BYOS configured + user.storage_mode='byos' + Drive connected.
+    """
+    if not _byos_cfg.is_byos_configured():
+        _byos_503_error()
+
+    if user.storage_mode != STORAGE_MODE_BYOS:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": {
+                    "code": "NOT_BYOS_MODE",
+                    "message": "Sync is only available in BYOS storage mode",
+                }
+            },
+        )
+
+    conn_q = await db.execute(
+        select(DriveConnection).where(DriveConnection.user_id == user.id)
+    )
+    if not conn_q.scalar_one_or_none():
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": {
+                    "code": "NO_DRIVE_CONNECTION",
+                    "message": "ยังไม่ได้เชื่อมต่อ Drive — กดปุ่ม Connect Drive ก่อน",
+                }
+            },
+        )
+
+    from .drive_sync import sync_user_drive
+    stats = await sync_user_drive(user.id, db)
+    return {"status": "ok", "stats": stats}
+
 
 # Billing page routes (serve index.html for SPA-style handling)
 @app.get("/billing/success")

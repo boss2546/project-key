@@ -241,6 +241,10 @@ function renderStorageModeUI() {
   if (actionsEl) {
     if (isBYOS && isConnected) {
       actionsEl.innerHTML = `
+        <button class="btn btn-primary btn-sm" id="btn-sync-drive" onclick="syncDriveNow()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+          ${isTH ? 'ซิงค์ตอนนี้' : 'Sync now'}
+        </button>
         <button class="btn btn-outline btn-sm" id="btn-disconnect-drive" onclick="disconnectDrive()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           ${isTH ? 'ยกเลิกการเชื่อมต่อ' : 'Disconnect'}
@@ -260,6 +264,48 @@ function renderStorageModeUI() {
   const noticeEl = document.getElementById('storage-mode-notice');
   if (noticeEl && _driveStatus.oauth_mode === 'testing') {
     noticeEl.classList.remove('hidden');
+  }
+}
+
+
+// ═══════════════════════════════════════════
+// Sync Drive Now (manual trigger)
+// ═══════════════════════════════════════════
+
+async function syncDriveNow() {
+  const btn = document.getElementById('btn-sync-drive');
+  const isTH = getLang() === 'th';
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = isTH ? 'กำลังซิงค์...' : 'Syncing...';
+  }
+
+  try {
+    const res = await authFetch('/api/drive/sync', { method: 'POST' });
+    if (res.ok) {
+      const data = await res.json();
+      const s = data.stats || {};
+      const summary = isTH
+        ? `ซิงค์เสร็จ — ดึงใหม่ ${s.pulled_new || 0}, อัปเดต ${s.pulled_updated || 0}, ส่ง ${s.pushed_new || 0}, ข้อผิดพลาด ${s.errors || 0}`
+        : `Sync done — pulled ${s.pulled_new || 0}, updated ${s.pulled_updated || 0}, pushed ${s.pushed_new || 0}, errors ${s.errors || 0}`;
+      showToast(summary, s.errors > 0 ? 'warning' : 'success');
+      await refreshDriveStatus();
+      // Refresh files list so storage badges update
+      if (typeof loadFiles === 'function') loadFiles();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      showToast(data?.detail?.error?.message || (isTH ? 'ซิงค์ล้มเหลว' : 'Sync failed'), 'error');
+    }
+  } catch {
+    showToast(isTH ? 'ไม่สามารถซิงค์ได้' : 'Cannot sync', 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+        ${isTH ? 'ซิงค์ตอนนี้' : 'Sync now'}
+      `;
+    }
   }
 }
 

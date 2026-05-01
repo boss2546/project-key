@@ -519,6 +519,29 @@ body.show-landing {
 .sensitivity-badge.confidential { color: var(--error); }
 .sot-badge { color: var(--accent); background: rgba(99, 102, 241, 0.1); }
 
+/* v7.0.1 — Storage location badges (BYOS Drive vs server) */
+.storage-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  display: inline-block;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.storage-badge.storage-drive {
+  color: #1a73e8;
+  background: rgba(26, 115, 232, 0.1);
+  cursor: pointer;
+}
+.storage-badge.storage-drive:hover {
+  background: rgba(26, 115, 232, 0.2);
+  text-decoration: underline;
+}
+.storage-badge.storage-server {
+  color: var(--text-muted, #888);
+  background: rgba(128, 128, 128, 0.1);
+}
+
 /* v5.9.3 — Locked file styles */
 .file-item.file-locked {
   opacity: 0.6;
