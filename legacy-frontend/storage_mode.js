@@ -70,7 +70,7 @@ function handleDriveCallbackParams() {
 
 async function refreshDriveStatus() {
   try {
-    const res = await authFetch('/api/drive/status');
+    const res = await authFetch('/api/drive/status', { _background: true });
     if (res.ok) {
       _driveStatus = await res.json();
     } else {

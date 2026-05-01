@@ -30,32 +30,43 @@ const state = {
 // AUTH — v5.0
 // ═══════════════════════════════════════════
 
-/** Wrapper for fetch() that adds JWT auth header */
+/**
+ * Wrapper for fetch() that adds JWT auth header.
+ * IMPORTANT: background=true ใช้สำหรับ data-loading calls ที่ไม่ควร logout user
+ * ถ้า server ยังไม่พร้อม (cold start). เฉพาะ explicit user actions
+ * (เช่น upload, delete) ถึงจะ trigger session-expired logout.
+ */
 let _logoutDebounce = false;
+let _isInitVerified = false; // true หลัง /api/auth/me สำเร็จครั้งแรก
 async function authFetch(url, options = {}) {
  if (!options.headers) options.headers = {};
  if (state.authToken) {
  options.headers['Authorization'] = `Bearer ${state.authToken}`;
  }
+ const isBackground = options._background === true;
+ delete options._background; // ไม่ส่งไป fetch จริง
  let res;
  try {
  res = await fetch(url, options);
  } catch (err) {
  // Network error — server down or no internet
- hideLoadingOverlay();
- showToast(getLang() === 'th' ? ' ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่' : ' Cannot connect to server. Please try again.', 'error');
+ if (!isBackground) {
+  hideLoadingOverlay();
+  showToast(getLang() === 'th' ? 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่' : 'Cannot connect to server. Please try again.', 'error');
+ }
  throw err;
  }
- if (res.status === 401) {
- // Token expired or invalid — logout ONCE (debounce ป้องกัน parallel fetch spam)
- if (!_logoutDebounce && state.authToken) {
+ if (res.status === 401 && _isInitVerified) {
+ // Token ถูก sign ด้วย key ที่ valid (เพราะ init verify ผ่านแล้ว)
+ // แต่ตอนนี้ server reject → token หมดอายุจริง
+ if (!_logoutDebounce && state.authToken && !isBackground) {
   _logoutDebounce = true;
   hideLoadingOverlay();
   doLogout();
-  showToast(getLang() === 'th' ? ' เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่' : ' Session expired. Please log in again.', 'error');
-  setTimeout(() => { _logoutDebounce = false; }, 3000);
+  showToast(getLang() === 'th' ? 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่' : 'Session expired. Please log in again.', 'error');
+  setTimeout(() => { _logoutDebounce = false; }, 5000);
  }
- throw new Error('Session expired');
+ if (!isBackground) throw new Error('Session expired');
  }
  return res;
 }
@@ -227,6 +238,7 @@ async function doLogin() {
  localStorage.setItem('projectkey_token', data.token);
  localStorage.setItem('projectkey_user', JSON.stringify(data.user));
  document.getElementById('auth-modal').classList.add('hidden');
+ _isInitVerified = true;
  showApp();
  initAppData();
  } catch (e) {
@@ -260,6 +272,7 @@ async function doRegister() {
  localStorage.setItem('projectkey_token', data.token);
  localStorage.setItem('projectkey_user', JSON.stringify(data.user));
  document.getElementById('auth-modal').classList.add('hidden');
+ _isInitVerified = true;
  // v7.0.1 — เข้า workspace ทันทีหลัง register (ไม่ redirect ไป pricing)
  // user อัปเกรดได้ภายหลังจาก Profile modal
  showApp();
@@ -410,23 +423,31 @@ function initAuth() {
 
  // Check if already logged in
  if (state.authToken && state.currentUser) {
- // Verify token is still valid — retry up to 3 times for cold-start
+ // Show app shell immediately (ไม่ให้ user เห็น landing page flash)
+ showApp();
+ // Verify token is still valid — retry up to 5 times for Fly.io cold-start
  (async () => {
   let verified = false;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 5; attempt++) {
   try {
    const r = await fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${state.authToken}` } });
    if (r.ok) { verified = true; break; }
    if (r.status === 401) { break; } // definitive: token invalid
    // 502/503/500 = server waking up — retry
-   await new Promise(ok => setTimeout(ok, 1500));
+   console.log(`[auth] verify attempt ${attempt+1}/5 failed (${r.status}), retrying...`);
+   await new Promise(ok => setTimeout(ok, 2000));
   } catch (e) {
    // network error (cold start) — retry
-   await new Promise(ok => setTimeout(ok, 1500));
+   console.log(`[auth] verify attempt ${attempt+1}/5 network error, retrying...`);
+   await new Promise(ok => setTimeout(ok, 2000));
   }
   }
-  if (verified) { showApp(); initAppData(); }
-  else { doLogout(); }
+  if (verified) {
+  _isInitVerified = true;
+  initAppData();
+  } else {
+  doLogout(); // token หมดอายุจริง → กลับ landing
+  }
  })();
  } else {
  showLanding();
@@ -434,6 +455,7 @@ function initAuth() {
 }
 
 function initAppData() {
+ // ทุก function ด้านล่างใช้ authFetch — fire-and-forget, ไม่ logout ถ้า fail
  loadStats();
  loadFiles();
  loadBillingInfo();
@@ -464,7 +486,7 @@ function maybeShowRebrandNotice() {
 // ═══════════════════════════════════════════
 async function loadUsageInfo() {
  try {
- const res = await authFetch('/api/usage');
+ const res = await authFetch('/api/usage', { _background: true });
  if (!res.ok) return;
  const data = await res.json();
  window._usageData = data;
@@ -567,7 +589,7 @@ function closePlanModal() {
 
 async function loadBillingInfo() {
  try {
- const res = await authFetch('/api/billing/info');
+ const res = await authFetch('/api/billing/info', { _background: true });
  if (!res.ok) return;
  const info = await res.json();
  updateBillingUI(info);
@@ -1184,7 +1206,7 @@ function switchPage(page) {
 // ═══════════════════════════════════════════
 async function loadStats() {
  try {
- const res = await authFetch('/api/stats');
+ const res = await authFetch('/api/stats', { _background: true });
  const data = await res.json();
  // Note: stat-files and stat-packs get overridden by loadUsageInfo with limits
  document.getElementById('stat-files').textContent = data.total_files;
@@ -1251,7 +1273,7 @@ async function uploadFiles(fileList) {
 
 async function loadFiles() {
  try {
- const res = await authFetch('/api/files');
+ const res = await authFetch('/api/files', { _background: true });
  const data = await res.json();
  renderFileList(data.files);
  document.getElementById('file-count-badge').textContent = data.files.length;
