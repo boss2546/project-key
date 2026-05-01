@@ -1,107 +1,78 @@
 # 📅 Last Session Summary
 
-**Date:** 2026-04-30
-**Agents active:** 🟢 เขียว (full session — Phase 1+2+3 + handoff to ฟ้า)
-**Pipeline state:** v7.0.0 BYOS — `phase_3_complete` → ฟ้า takes over for Phase 4 + push
+**Date:** 2026-05-01
+**Agents active:** 🔵 ฟ้า (full session — BYOS Phase 4 live E2E + critical bug fixes + UX improvements)
+**Pipeline state:** v7.0.0 BYOS — `e2e_verified` ✅ — ready for commit + push + deploy
 
 ---
 
-## ✅ ที่เพิ่งทำเสร็จ — BYOS v7.0.0 Phase 1+2+3 (เขียว)
+## ✅ ที่เพิ่งทำเสร็จ — BYOS v7.0.0 Phase 4 E2E + UX Fixes (ฟ้า)
 
-### Backend (~1,300 lines new code, 7 BYOS commits)
-- `backend/drive_layout.py` — folder structure + path helpers
-- `backend/drive_oauth.py` — OAuth flow + Fernet encrypt/decrypt + CSRF state cache
-- `backend/drive_storage.py` — 15 CRUD methods (Drive API wrapper)
-- `backend/drive_sync.py` — sync engine (push/pull/conflict resolution per Drive-wins rule)
-- `backend/storage_router.py` — 9 best-effort helpers branching on storage_mode
-- `backend/main.py` — 5 endpoints (drive/status, oauth/init, oauth/callback, disconnect, storage-mode) + dynamic config resolution
-- `backend/database.py` — schema migration: storage_mode + drive_connections + files.drive_*
-- `backend/profile.py` — wired to push profile.json after DB commit
+### 🔴 Critical Bug Fix: PKCE (OAuth Token Exchange)
+- **Symptom:** OAuth callback → `Internal Server Error` (500)
+- **Root cause:** Google mandates PKCE (code_verifier) since 2025 — `flow.fetch_token()` ไม่มี verifier
+- **Fix:** `backend/drive_oauth.py` — generate `code_verifier` + `code_challenge` ตอน init, store in state cache, pass ตอน callback
+- **Result:** OAuth token exchange สำเร็จ 100%
 
-### Tests (mock-based, no real Drive call) — **182/182 PASS**
-- `scripts/rebrand_smoke_v6.1.0.py` 76/76 (regression — rebrand still good)
-- `scripts/byos_foundation_smoke.py` 26/26
-- `scripts/byos_storage_smoke.py` 20/20
-- `scripts/byos_sync_smoke.py` 24/24
-- `scripts/byos_oauth_smoke.py` 20/20
-- `scripts/byos_router_smoke.py` 16/16
+### 🟡 UX Bug Fix: Storage Mode "Loading..." stuck
+- **Symptom:** Profile modal → Storage Mode section ค้าง "Loading..." ไม่แสดง UI จริง
+- **Root cause:** `refreshDriveStatus()` ถูกเรียกแค่ตอน page load แต่ไม่ถูกเรียกตอนเปิด profile modal
+- **Fix:** `legacy-frontend/app.js` L2504 — เรียก `refreshDriveStatus()` ทุกครั้งที่เปิด modal
 
-### Docs + memory
-- `docs/BYOS_SETUP.md` — 270-line admin guide (8 steps + troubleshooting)
-- `.env.example` — BYOS section + safety notes
-- `.env` — 6 BYOS env vars (gitignored, rotated key after security fix)
+### 🟡 UX Bug Fix: 401 Spam Logout
+- **Symptom:** Parallel background fetch (drive/status, profile) ที่ได้ 401 → `doLogout()` ลบ token → user ต้อง login ใหม่
+- **Root cause:** `authFetch` ทุก 401 → `doLogout()` ทันทีไม่มี guard
+- **Fix:** `legacy-frontend/app.js` L34 — เพิ่ม debounce + `state.authToken` guard ก่อน logout
 
-### Security incident + fix (within session)
-- **Found:** เขียว committed actual encryption key in docs/BYOS_SETUP.md (3 occurrences) at commit `d75d5ea`
-- **Fixed forward:** replaced with `<PASTE_GENERATED_KEY_HERE>` placeholder, rotated .env, verified 182/182 still pass — commit `58e8b9d`
-- **Status:** Branch not pushed, no real damage, old key inert. Decision before push: leave history (🅰️) or rebase amend (🅱️) — flagged in MSG-006 for ฟ้า
+### 🟡 UX Bug Fix: Post-OAuth Return Context
+- **Symptom:** หลัง connect Drive สำเร็จ → redirect /?drive_connected=true → user ไม่กลับหน้า profile
+- **Fix:** `legacy-frontend/storage_mode.js` — auto-open profile modal หลัง callback redirect (setTimeout 800ms)
+
+### 🟡 UX Bug Fix: Register → Pricing → Login Again
+- **Symptom:** สมัครเสร็จ → redirect ไป /pricing → เลือก Free → กลับมา / ต้อง login ใหม่
+- **Fix:** `legacy-frontend/app.js` L262 — register สำเร็จ → เข้า workspace ทันทีไม่ redirect pricing
+
+### 🟢 GCP Live E2E Verified
+- Google Cloud Console → Project "Personal Data Bank" ✅
+- OAuth consent screen → test users: bossok2546@gmail.com + axis.solutions.team@gmail.com ✅
+- Full OAuth flow: Login → Profile → Connect → Google Consent → Callback → BYOS mode ✅
+- Drive folder `/Personal Data Bank/` created with layout initialized ✅
+- API status: `storage_mode: byos`, `drive_connected: true`, `drive_email: bossok2546@gmail.com` ✅
 
 ---
 
-## 🤝 Handoff to ฟ้า (per user 2026-04-30)
+## 📁 Files Modified (this session)
 
-User said: "ส่งต่อให้ฟ้าทำเลย dev เองต่อด้วย"
-→ ฟ้า takes over as **full dev** (no longer review-only)
-
-### What ฟ้า will own:
-- **Phase 4 — Frontend UI** (~3-4 ชม.):
-  - `legacy-frontend/storage_mode.js` (NEW)
-  - `legacy-frontend/index.html` — Storage Mode section
-  - `legacy-frontend/app.js` — OAuth callback + upload flow hook
-  - `legacy-frontend/styles.css` — UI styling
-- **Live OAuth E2E test** (~30 min) — ฟ้าใช้ browser คลิก Connect Drive → verify folder created
-- **Optional polish** — wire organizer.py + graph_builder.py to push summaries/graph
-- **Push + deploy** — decide encryption key history option, git push, fly secrets, fly deploy
-- **Smoke test prod** — curl /api/drive/status → feature_available=true
-
-### Authority granted to ฟ้า:
-- Dev + commit + push (no review-back required for routine work)
-- Bug fix in backend (เขียว's code) → just commit + flag in inbox/for-User.md
-- Decide encryption key history option (leave or rebase)
-
-### Detailed handoff:
-ดู [`inbox/for-ฟ้า.md`](../communication/inbox/for-ฟ้า.md) MSG-006 — full context + reading list
+| File | Changes |
+|---|---|
+| `backend/drive_oauth.py` | +PKCE (code_verifier + code_challenge S256) |
+| `legacy-frontend/app.js` | +authFetch debounce, +register direct entry, +refreshDriveStatus on modal open |
+| `legacy-frontend/storage_mode.js` | +auto-open profile modal after OAuth callback |
 
 ---
 
 ## 📦 Branch state
 
-**Branch:** `byos-v7.0.0-foundation` (13 commits ahead of master, working tree clean, NOT pushed)
+**Branch:** `byos-v7.0.0-foundation` (uncommitted changes in working tree — pending commit)
 
-**Commits (เก่าสุด → ใหม่สุด):**
-1. `6e14e63` feat(brand): rename → Personal Data Bank v6.1.0
-2. `bf9185c` chore(memory): post-rebrand session log
-3. `312658e` fix(brand): remove literal old brand from comment
-4. `7c3d9cd` chore(memory): record smoke test results
-5. `a9d0a32` chore(test): add backend self-test script (76/76)
-6. `c5febe3` chore(memory): switch pipeline to PARALLEL mode
-7. `27e6d23` feat(byos): foundation v7.0.0 — OAuth scaffolding
-8. `1b7fd98` fix(brand): align footer+CSS to v6.1.0 (by ฟ้า)
-9. `a9e5209` feat(byos): Phase 2 — storage layer + sync engine
-10. `d75d5ea` docs(byos): admin setup guide + OAuth tests ⚠️ contains old key
-11. `7add112` chore(memory): credentials integrated milestone
-12. `a1c8f72` feat(byos): Phase 3 — storage routing wired into profile + OAuth callback
-13. `58e8b9d` fix(byos): replace example encryption key with placeholder
+**Working tree changes (ฟ้า — not yet committed):**
+- `backend/drive_oauth.py` — PKCE fix
+- `backend/graph_builder.py` — Drive sync wiring (previous session)
+- `legacy-frontend/app.js` — UX fixes (debounce + register + modal refresh)
+- `legacy-frontend/storage_mode.js` — auto-open profile after OAuth
 
 ---
 
-## 🔮 What's queued (ฟ้า + แดง parallel)
+## 🔮 Next steps
 
-| Owner | Task |
-|---|---|
-| 🔵 ฟ้า | Phase 4 UI + live test + push + deploy |
-| 🔴 แดง | Revise plan google-drive-byos.md (37 brand occurrences) — non-blocking |
-
----
-
-## 📌 Session ต่อไปต้องรู้
-
-- **เขียว ออก loop** — ฟ้า ดูแล BYOS ต่อทั้งหมด
-- **เขียว spawn อีกครั้งเมื่อไหร่** — รอ user trigger ใหม่ (เช่น new feature)
-- **Branch local-only** — ห้ามคนอื่น push จนกว่า ฟ้า decide key history option
-- **ทุก credential ใน .env** — gitignored, ห้าม commit ไม่ว่ากรณีใด
+1. **Commit** all working tree changes as 1 or 2 commits
+2. **Push** branch to remote
+3. **Merge** byos-v7.0.0-foundation → master (or user merges)
+4. **Deploy:** `flyctl secrets set` (BYOS env vars) + `flyctl deploy`
+5. **Smoke test prod:** curl /api/drive/status → feature_available=true
+6. **Switch oauth_mode** → "production" after Google app verification
 
 ---
 
-> เมื่อจบ session ให้ overwrite ไฟล์นี้ด้วยสรุปใหม่ (เขียวใส่ closing handoff)
+> เมื่อจบ session ให้ overwrite ไฟล์นี้ด้วยสรุปใหม่
 > รักษา format นี้ไว้เพื่อให้ agent ตัวต่อไปอ่านง่าย

@@ -13,20 +13,17 @@
 - Branch: `rebrand-pdb-v6.1.0` (6 commits)
 - **Pending:** user merge to master + Fly.io deploy → state: `done`
 
-### 🟢 v7.0.0 Google Drive BYOS — **phase_4_in_progress** (owned by ฟ้า, full dev)
-- เขียว build Phase 1+2+3 เสร็จ + 182/182 self-test pass (`27e6d23`, `a9e5209`, `a1c8f72`)
-- ฟ้า took over Phase 4 (per user 2026-04-30) → commit `5b80c52` substantial completion:
-  - ✅ storage_mode.js (296 lines) — connect/disconnect UI + OAuth callback
-  - ✅ Storage Mode section in profile modal + 133 lines CSS
-  - ✅ Wired organizer.py + graph_builder.py to push data to Drive
-  - ✅ APP_VERSION 6.1.0 → 7.0.0 + smoke test updated
-  - ✅ 182/182 regression still pass + visual E2E verified on localhost:8000
-- Branch: `byos-v7.0.0-foundation` (16 commits ahead of master)
-- **Pending (ฟ้า WIP in working tree):**
-  - Final polish on `drive_oauth.py` / `app.js` / `storage_mode.js`
-  - Live Google OAuth click-through E2E (real Drive folder creation in user's Drive)
-  - Decide encryption key history option (leave vs rebase amend `d75d5ea`)
-  - git push + Fly.io secrets + flyctl deploy + production smoke
+### 🟢 v7.0.0 Google Drive BYOS — **e2e_verified** ✅ (owned by ฟ้า, full dev)
+- เขียว build Phase 1+2+3 เสร็จ + 182/182 self-test pass
+- ฟ้า took over Phase 4 + live E2E → critical fixes applied:
+  - ✅ PKCE fix (code_verifier for Google OAuth token exchange)
+  - ✅ Storage Mode "Loading..." fix
+  - ✅ 401 spam logout debounce
+  - ✅ Post-OAuth context restore (auto-open profile modal)
+  - ✅ Register → workspace direct (skip pricing redirect)
+  - ✅ Full OAuth E2E: Login → Connect → Google Consent → BYOS mode → Drive folder created
+- Branch: `byos-v7.0.0-foundation` (uncommitted changes — pending commit + push + deploy)
+- **Remaining:** commit + push + flyctl secrets + flyctl deploy + prod smoke test
 
 ---
 
@@ -77,11 +74,11 @@
 
 ## 🚧 In Progress
 
-- [⏳] **v7.0.0 — Google Drive BYOS** (Phase 3 of 4 done)
-  - Plan: [plans/google-drive-byos.md](../plans/google-drive-byos.md) (1,129 lines, แดงจะ revise 37 brand occurrences — non-blocking)
-  - Built by: เขียว (Phase 1+2+3 — 7 BYOS commits, 182/182 mock tests)
-  - Continuing: ฟ้า (Phase 4 frontend + live test + push + deploy)
-  - Branch: `byos-v7.0.0-foundation` (parented off rebrand HEAD)
+- [⏳] **v7.0.0 — Google Drive BYOS** (E2E verified — pending commit + deploy)
+  - Plan: [plans/google-drive-byos.md](../plans/google-drive-byos.md)
+  - Built by: เขียว (Phase 1+2+3) + ฟ้า (Phase 4 + E2E + fixes)
+  - Status: `e2e_verified` — pending commit + push + deploy
+  - Branch: `byos-v7.0.0-foundation`
   - Credentials: integrated in `.env` (gitignored)
 
 ---

@@ -4,27 +4,23 @@
 
 ---
 
-## 2026-05-01 (ฟ้า — BYOS Phase 4 substantial completion)
+## 2026-05-01 (ฟ้า — BYOS Phase 4 E2E verified + critical fixes)
 
-- 🎨 (ฟ้า) **Phase 4 Frontend UI completed** (`5b80c52`):
-  - `legacy-frontend/storage_mode.js` (NEW, 296 lines) — BYOS connect/disconnect UI + OAuth callback handling
-  - `legacy-frontend/index.html` — Storage Mode section in profile modal (managed/byos badge + connect button)
-  - `legacy-frontend/styles.css` — +133 lines for storage mode section
-  - `legacy-frontend/app.js` — wired into bootstrap
-- 🔗 (ฟ้า) Wired backend to push data to Drive:
-  - `backend/organizer.py` — push summaries to Drive after generation
-  - `backend/graph_builder.py` — push graph.json to Drive after build
-- 🚀 (ฟ้า) **Bumped APP_VERSION 6.1.0 → 7.0.0** in config.py + smoke test
-- ✅ (ฟ้า) 182/182 regression tests still pass
-- 👁️ (ฟ้า) Visual E2E verified on localhost:8000
-
-**Pending after Phase 4 commit (ฟ้า WIP in working tree):**
-- Continued polish on `drive_oauth.py` + `app.js` + `storage_mode.js`
-- Live Google OAuth click-through E2E test (real Drive folder creation)
-- Decide encryption key history option (leave 🅰️ vs rebase 🅱️)
-- git push + flyctl secrets + flyctl deploy
+- 🐛 (ฟ้า) **PKCE fix** — `backend/drive_oauth.py`: Google mandates `code_verifier` since 2025; added S256 challenge generation + storage in state cache + pass on token exchange. **This fixed the 500 error on OAuth callback.**
+- 🐛 (ฟ้า) **Storage Mode "Loading..." fix** — `app.js`: call `refreshDriveStatus()` every time profile modal opens (not just on page load)
+- 🐛 (ฟ้า) **401 spam logout fix** — `app.js`: debounce `doLogout()` in `authFetch` to prevent parallel background fetches from clearing session
+- 🐛 (ฟ้า) **Post-OAuth context restore** — `storage_mode.js`: auto-open profile modal after `/?drive_connected=true` redirect
+- 🐛 (ฟ้า) **Register → workspace direct** — `app.js`: skip pricing redirect, enter workspace immediately after registration
+- ✅ (ฟ้า) **Full OAuth E2E verified on localhost:8000:**
+  - Login → Profile → Connect Drive → Google Consent → Callback → BYOS mode
+  - Drive folder `/Personal Data Bank/` created + layout initialized
+  - API: `storage_mode: byos`, `drive_connected: true`, `drive_email: bossok2546@gmail.com`
+  - Storage Mode UI: BYOS badge (green) + disconnect button + testing mode notice
+- 🔧 (ฟ้า) GCP Console: added `bossok2546@gmail.com` as test user in OAuth consent screen
 
 ---
+
+## 2026-05-01 (ฟ้า — BYOS Phase 4 substantial completion, earlier)
 
 ## 2026-04-30 (v7.0 BYOS handoff session)
 

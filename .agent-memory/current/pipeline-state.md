@@ -15,14 +15,12 @@
 **Authority:** ฟ้า may fix small UI bugs herself + commit + push (per user override)
 **Verdict:** ✅ APPROVE — ready for user to merge to master + deploy
 
-### 🟢 v7.0.0 Google Drive BYOS — handed off to ฟ้า (2026-04-30, per user)
-**State:** `phase_4_ui_complete` ✅ — Phase 4.1 (Frontend UI) + 4.3 (Drive wiring) DONE by ฟ้า (2026-04-30); 182/182 tests PASS; Visual E2E OK
-**Owner:** ฟ้า (Fah) — full dev mode (per user override "ส่งต่อให้ฟ้าทำเลย dev เองต่อด้วย")
-**Authority:** ฟ้า may dev + commit + push (no review-back-to-เขียว required for routine work)
-**Handoff MSG:** ดู MSG-006 ใน [inbox/for-ฟ้า.md](../communication/inbox/for-ฟ้า.md) ⭐
-**Owner:** เขียว (Khiao)
-**Plan file:** [plans/google-drive-byos.md](../plans/google-drive-byos.md) (still uses "Project KEY" branding — แดง will revise; new code uses "Personal Data Bank" already)
-**Branch:** `byos-v7.0.0-foundation` (4 BYOS commits, ready for end-to-end live test)
+### 🟢 v7.0.0 Google Drive BYOS — E2E verified ✅ (2026-05-01, by ฟ้า)
+**State:** `e2e_verified` ✅ — Full OAuth E2E passed on localhost; PKCE fix + 4 UX fixes applied; ready for commit + push + deploy
+**Owner:** ฟ้า (Fah) — full dev mode (per user override)
+**Authority:** ฟ้า may dev + commit + push (no review-back-to-เขียว required)
+**Plan file:** [plans/google-drive-byos.md](../plans/google-drive-byos.md)
+**Branch:** `byos-v7.0.0-foundation` (uncommitted changes in working tree — pending commit)
 
 **✅ Credentials integrated 2026-04-30:**
 - ฟ้า GCP setup ผ่านครบ 6 steps (Project / APIs / OAuth Consent / Client ID / API Key / Project Number)
