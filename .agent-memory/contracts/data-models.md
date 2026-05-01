@@ -34,18 +34,20 @@
   - `managed`: เก็บใน Fly.io volume (default, backward-compat)
   - `byos`: เก็บใน Google Drive ของ user (Phase 1 = `drive.file` scope)
 
-### files (extended through v7.0)
+### files (extended through v7.1)
 ข้อมูลไฟล์ที่ผู้ใช้ upload + processing state
 - `id`, `user_id` (FK → users)
 - `filename`, `filetype`, `raw_path`
 - `uploaded_at`, `extracted_text`, `processing_status`
 - v3 metadata: `tags` (JSON), `aliases` (JSON), `sensitivity`, `freshness`, `source_of_truth`, `version`
 - v5.9.3 locked-data: `is_locked`, `locked_reason`
-- **NEW v7.0:** Drive linkage (NULL ถ้า managed)
+- **v7.0:** Drive linkage (NULL ถ้า managed)
   - `drive_file_id` (TEXT, indexed) — Google Drive file ID
   - `drive_modified_time` (DateTime) — last modified timestamp from Drive (drift detection)
   - `storage_source` (TEXT, default 'local') — `"local"` | `"drive_uploaded"` | `"drive_picked"`
-- Index: `idx_files_drive_file_id` (สำหรับ sync lookup)
+- **NEW v7.1:** Duplicate detection
+  - `content_hash` (TEXT, nullable, indexed) — SHA-256 hex ของ normalized extracted_text. NULL ถ้า text สั้น (< 50 chars) / extraction error / ไฟล์เก่าก่อน v7.1
+- Indexes: `idx_files_drive_file_id` (v7.0), `idx_files_content_hash` (v7.1)
 
 ### clusters / file_cluster_map / file_insights / file_summaries
 Collections + AI insights + summaries (no v7.0 changes — JSON projections to Drive via storage_router)
@@ -179,7 +181,8 @@ OAuth connection ของ user ไปยัง Google Drive
 | v5.9.2 | Stripe subscription columns | 2025 |
 | v5.9.3 | files.is_locked + context_packs.is_locked | 2026 |
 | v6.0 | user_profiles personality columns + personality_history table + index | 2026-04-30 |
-| **v7.0** | **users.storage_mode + drive_connections table + files.drive_* + idx_files_drive_file_id** | **2026-04-30** |
+| v7.0 | users.storage_mode + drive_connections table + files.drive_* + idx_files_drive_file_id | 2026-04-30 |
+| **v7.1** | **files.content_hash + idx_files_content_hash (duplicate detection)** | **2026-05-01** |
 
 ---
 

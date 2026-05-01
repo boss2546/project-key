@@ -136,11 +136,58 @@
 
 ## 📋 Up Next (Queue)
 
-### v7.0.0 — Google Drive BYOS (Bring Your Own Storage)
-**State:** `plan_pending_approval` (rebrand finishes first)
+### v7.1.0 — Duplicate Detection on Upload
+**State:** `built_pending_review` ✅ — เขียว build เสร็จ + self-test 33/33 PASS — รอฟ้า review
+**Owner (build):** เขียว (Khiao) — done 2026-05-01
+**Branch:** `dedupe-v7.1.0` (จาก master clean)
+**Plan file:** [plans/duplicate-detection.md](../plans/duplicate-detection.md)
+**Handoff MSG (เขียว → ฟ้า):** ดู MSG-008 ใน [inbox/for-ฟ้า.md](../communication/inbox/for-ฟ้า.md)
+**ETA:** ฟ้า ~1-2 ชม. (review + tests)
+
+### Scope
+- ตอน upload ไฟล์ → เช็ค similar/duplicate vs library ของ user
+- Threshold ≥ 80% similarity → popup เตือน
+- 2 ปุ่ม: "ข้ามที่ซ้ำ" / "เก็บทั้งหมด"
+- Algorithm: SHA-256 (exact) + TF-IDF cosine (semantic) — **ไม่ใช้ LLM**
+- Cross-format: เปรียบที่ extracted_text (PDF↔DOCX content เดียวกัน detect ได้)
+- Both managed + BYOS modes
+
+### Defer to Phase 2 (Q-A through Q-F ใน plan)
+- Replace existing button (preserve cluster/tags)
+- LLM deep diff (side-by-side text)
+- Library scan endpoint (หา dup ในไฟล์เก่า)
+- User-configurable threshold
+- MCP `find_duplicates` tool
+- Knowledge graph `duplicate_of` edge
+
+### Timeline
+- 2026-05-01 — User บอก feature → แดงถามคำถาม Tier 1-3 (13 ข้อ default)
+- 2026-05-01 — User เลือก simplest version + 80% threshold
+- 2026-05-01 — แดงเขียน plan ครบ → state: `plan_pending_approval`
+- 2026-05-01 — User ขอ audit plan vs โค้ดจริง → แดงเจอ 2 issues (immediate-index side effect + private API access) → revise plan
+- 2026-05-01 — User approve → state: `plan_approved` → ส่ง MSG-007 ให้เขียว → รอ user เปิดเขียว
+- 2026-05-01 — เขียว session: audit plan vs code reality (verified ทุก line ref + พบ memory drift: branch=master + APP_VERSION=7.0.1 + localStorage=pdb_*) → branch `dedupe-v7.1.0` จาก master
+- 2026-05-01 — เขียว build Step 1-9 ครบ:
+  - Step 1: Schema migration `files.content_hash` + `idx_files_content_hash`
+  - Step 2: `backend/duplicate_detector.py` (new ~280 lines) — `compute_content_hash`, `find_duplicate_for_file`, `detect_duplicates_for_batch`
+  - Step 2.5: `storage_router.delete_drive_file_if_byos()` (public helper, ตาม pattern `push_*`)
+  - Step 3: `vector_search.remove_file()` (per-user index cleanup + IDF rebuild)
+  - Step 4: Modify `POST /api/upload` — `?detect_duplicates=true` + `content_hash` field + post-commit detection (try/except, never raises) + `duplicates_found` ใน response
+  - Step 5: New `POST /api/files/skip-duplicates` — Pydantic body, per-user validation, BYOS Drive trash + index removal + cascade DB delete
+  - Step 6: HTML modal `dup-modal-overlay` (index.html)
+  - Step 7: JS handler — state `_pendingDuplicates`, `showDuplicateModal/hideDuplicateModal/resolveDuplicates`, hooked ใน `uploadFiles()`, wire skip/keep buttons ใน `initUpload()`, i18n keys `dup.*` (TH+EN)
+  - Step 8: CSS — ใช้ design tokens (`--bg-secondary`, `--accent`, `--warning`, `--error`) + responsive
+  - Bump APP_VERSION 7.0.1 → 7.1.0 ใน config.py + 5 จุดใน index.html (cache busters + footer + logo)
+  - Step 9: Self-test — `scripts/duplicate_detection_smoke.py` (33 cases, 7 sections) → **33/33 PASS**
+- 2026-05-01 — Regression check: BYOS smoke 6 ไฟล์ (126/126 PASS) — no regression. Pre-existing fail ที่ยอมรับ: byos_v7_0_1 `_guess_mime` (1) + rebrand_smoke (8 = 4 pre-existing บน master + 4 จาก version bump 7.0.1→7.1.0 ที่ test hardcode ไว้)
+- 2026-05-01 — เขียว state: `built_pending_review` → ส่ง MSG-008 ใน inbox/for-ฟ้า.md → รอ user สั่งเปิดฟ้า
+
+---
+
+### v7.0.0 — Google Drive BYOS (DEPLOYED)
+**State:** `e2e_verified` ✅ (deployed 2026-05-01 — ดู Current Features ด้านบน)
 **Plan file:** [plans/google-drive-byos.md](../plans/google-drive-byos.md)
-**ETA:** ~1 สัปดาห์ dev (หลัง rebrand) — Testing Mode skip Google verification
-**Branding หลัง rebrand:** ต้อง update plan ก่อน (37 occ)
+**Branding update needed:** plan file ยังใช้ "Project KEY" 37 จุด (defer revision)
 
 ### Timeline
 - 2026-04-30 — User ปรึกษาเรื่องใช้ Google Drive 5TB Pro เป็น storage

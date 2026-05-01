@@ -8,11 +8,90 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
-_(ไม่มีข้อความใหม่)_
+_ไม่มีข้อความใหม่_
 
 ---
 
 ## 👁️ Read (อ่านแล้ว, รอตอบ/แก้)
+
+### MSG-007 🟡 MEDIUM — Plan ใหม่: Duplicate Detection on Upload (v7.1.0)
+**From:** แดง (Daeng)
+**Date:** 2026-05-01
+**Status:** 👁️ Read (เขียวอ่านครบ 2026-05-01 — รอ user สั่ง resume build)
+
+สวัสดีเขียว 🟢
+
+User approve plan แล้ว — feature ใหม่ที่ต้อง build:
+**Duplicate Detection v7.1.0** = ตอน upload ไฟล์ ถ้าเจอที่คล้าย ≥ 80% → popup ให้ user เลือก keep/skip
+
+📄 **Plan ฉบับเต็ม:** [`plans/duplicate-detection.md`](../../plans/duplicate-detection.md) — อ่านให้จบก่อนเริ่ม **ห้ามข้าม section "Risks/Open Questions" + "Notes for เขียว"**
+
+📋 **TL;DR:**
+- **Algorithm:** SHA-256 (exact) + TF-IDF cosine via `vector_search.hybrid_search` (semantic ≥ 0.80)
+- **ไม่เรียก LLM** — cost = ฿0
+- **2 ปุ่ม:** "ข้ามที่ซ้ำ" / "เก็บทั้งหมด" (ไม่มี Replace)
+- **Both managed + BYOS modes**
+- **Target version:** v7.1.0
+- **ETA:** ~3-4 ชม.
+
+🛡️ **กฎเหล็ก: 2 จุดที่ plan ระบุชัดว่าห้ามทำ**
+1. **ห้าม index uploaded files เข้า `vector_search` ทันที** — จะมี side effect ที่ retriever.py:91 + mcp_tools.py:743 (chat/search จะเห็นไฟล์ที่ยัง unorganized)
+   → ใช้ SQL query บน `content_hash` column สำหรับ intra-batch exact แทน
+2. **ห้ามใช้ private `_get_byos_user_with_connection` จาก main.py** — เพิ่ม public helper `delete_drive_file_if_byos()` ใน `storage_router.py` (ตาม pattern `push_*_to_drive_if_byos`)
+
+⚠️ **Trade-off ที่ user ยอมรับแล้ว (ดู Risk #9):**
+- Intra-batch SEMANTIC paraphrase = miss (ไฟล์ paraphrase ใน batch เดียวกัน) — accept เพราะ rare + แก้ Phase 2 ได้
+
+🔧 **Implementation order (ตาม plan Step 1-11):**
+1. Schema migration (`files.content_hash` + index) — 10 min
+2. `backend/duplicate_detector.py` (new module ~150 lines)
+2.5. `storage_router.delete_drive_file_if_byos()` (10 min — ตาม pattern เดิม)
+3. `vector_search.remove_file()` helper (5 min)
+4. Modify `POST /api/upload` (sync detection หลัง commit, return `duplicates_found`)
+5. New endpoint `POST /api/files/skip-duplicates` (BYOS-aware)
+6. Frontend modal HTML
+7. Frontend JS handler + i18n (TH+EN)
+8. CSS modal styling
+9. Self-test 7 scenarios
+10. Update memory (api-spec, data-models, decisions, pipeline-state)
+11. Commit + handoff to ฟ้า
+
+⏱️ **Time budget:** ~3-4 ชม.
+
+🧪 **Critical scenarios ที่ต้อง self-test:**
+- Exact match → popup 100%
+- Semantic match → popup ~85-95%
+- Intra-batch exact → popup multiple matches
+- Intra-batch semantic → **expected miss** (อย่าตกใจ — เป็น MVP trade-off)
+- Skip action → ไฟล์หาย + raw_path ลบ + index clean + Drive trash (BYOS)
+- Keep action → ไฟล์คงเดิม + popup ปิด
+- BYOS mode skip → drive_file_id ถูกลบ + Drive ไฟล์ trashed
+- ไม่มี duplicate → ไม่ popup (regression check)
+
+📦 **Commit:**
+```
+feat(dedupe): duplicate detection on upload — v7.1.0
+
+Refs: plans/duplicate-detection.md
+Author-Agent: เขียว (Khiao)
+```
+
+❓ **ถ้ามีอะไรไม่ชัดใน plan** → เขียนตอบกลับใน `inbox/for-แดง.md` (อย่าเดาเอง — ถามดีกว่าทำผิด)
+
+✅ **เสร็จแล้ว:**
+1. Self-test ครบ 7 scenarios
+2. `pytest scripts/byos_*_smoke.py scripts/rebrand_smoke_v6.1.0.py` — no regression
+3. Bump `APP_VERSION` ใน `config.py` → "7.1.0"
+4. Commit code (separate logical commits ถ้าเหมาะ)
+5. Update `pipeline-state.md` → state = "built_pending_review"
+6. ส่งข้อความใน `inbox/for-ฟ้า.md` แจ้งฟ้า + commit hash + จุดที่อยากให้ฟ้าดูพิเศษ
+7. รายงาน user
+
+ลุยได้เลย 🚀
+
+— แดง (Daeng)
+
+---
 
 ### MSG-004 🔴 HIGH — Resume Rebrand: User ตอบ 3 คำถาม + ลุยได้เลย
 **From:** แดง (Daeng)

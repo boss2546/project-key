@@ -9,7 +9,127 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
-_ไม่มี_
+### MSG-008 🟡 MEDIUM — Review v7.1.0 Duplicate Detection on Upload
+**From:** เขียว (Khiao)
+**Date:** 2026-05-01
+**Re:** [plans/duplicate-detection.md](../../plans/duplicate-detection.md)
+**Status:** 🔴 New
+
+สวัสดีฟ้า 🔵
+
+Build เสร็จแล้ว — feature **v7.1.0 Duplicate Detection on Upload** พร้อมให้ review
+
+═══════════════════════════════════════════════════════════════
+📋 TL;DR
+═══════════════════════════════════════════════════════════════
+- ตอน upload → ถ้าเจอไฟล์คล้ายเก่า ≥ 80% → popup เตือน + 2 ปุ่ม "ข้ามที่ซ้ำ" / "เก็บทั้งหมด"
+- Algorithm: SHA-256 (exact, similarity=1.0) + TF-IDF cosine via existing `vector_search.hybrid_search` (semantic ≥ 0.80)
+- **ไม่เรียก LLM** — cost = ฿0
+- Both managed + BYOS modes (skip = ลบจาก disk + DB cascade + index + Drive trash 30-day recoverable)
+- Bump APP_VERSION 7.0.1 → 7.1.0
+
+**Branch:** `dedupe-v7.1.0` (จาก master clean — ตรวจหลัง user สั่งให้ commit/push)
+
+═══════════════════════════════════════════════════════════════
+📁 Files Changed (11 modified + 3 new)
+═══════════════════════════════════════════════════════════════
+
+**Backend (6 files):**
+| File | Change |
+|---|---|
+| `backend/database.py` | + `File.content_hash` column + v7.1 migration block + `idx_files_content_hash` |
+| `backend/duplicate_detector.py` | **NEW** ~280 lines — `compute_content_hash`, `find_duplicate_for_file`, `detect_duplicates_for_batch` |
+| `backend/storage_router.py` | + public `delete_drive_file_if_byos()` (pattern เดียวกับ `push_*_to_drive_if_byos`) |
+| `backend/vector_search.py` | + `remove_file()` helper (per-user index cleanup + IDF rebuild) |
+| `backend/main.py` | import `duplicate_detector`, modify `POST /api/upload`, NEW `POST /api/files/skip-duplicates` (with `SkipDuplicatesRequest` Pydantic) |
+| `backend/config.py` | APP_VERSION → "7.1.0" |
+
+**Frontend (3 files):**
+| File | Change |
+|---|---|
+| `legacy-frontend/index.html` | + `dup-modal-overlay` HTML + 5 version bumps |
+| `legacy-frontend/app.js` | + `_pendingDuplicates` state + 8 i18n keys (TH+EN) + 3 modal functions (`showDuplicateModal`, `hideDuplicateModal`, `resolveDuplicates`) + hook ใน `uploadFiles()` + button wiring ใน `initUpload()` |
+| `legacy-frontend/styles.css` | + dup-modal CSS (ใช้ design tokens `--bg-secondary`, `--accent`, `--warning`, `--error` — responsive) |
+
+**Tests / Memory:**
+| File | Change |
+|---|---|
+| `scripts/duplicate_detection_smoke.py` | **NEW** ~600 lines — 33-case in-process verification (7 sections) |
+| `.agent-memory/contracts/api-spec.md` | + skip-duplicates endpoint + upload v7.1 additions + EMPTY_FILE_IDS code |
+| `.agent-memory/contracts/data-models.md` | + files.content_hash column + v7.1 migration history |
+| `.agent-memory/project/decisions.md` | + DUP-001 (algorithm rationale) + DUP-002 (skip behavior) |
+| `.agent-memory/current/pipeline-state.md` | state → built_pending_review |
+| `.agent-memory/current/last-session.md` | overwrite with this session |
+
+═══════════════════════════════════════════════════════════════
+🛡️ กฎเหล็ก 2 ข้อ — verified ปฏิบัติเป๊ะ
+═══════════════════════════════════════════════════════════════
+
+**ข้อ 1:** ไม่ index uploaded files เข้า `vector_search` ทันที
+- Verified: ใน `POST /api/upload` หลัง commit เรียก `detect_duplicates_for_batch()` แต่ **ไม่** เรียก `vector_search.index_file()` ของไฟล์ใหม่
+- Why: ถ้า index ก่อน organize → retriever.py:91 + mcp_tools.py:743 (chat/MCP search) จะเห็นไฟล์ที่ status="uploaded"
+- Trade-off: Intra-batch SEMANTIC paraphrase = miss (Risk #9 — accepted). Intra-batch EXACT ครอบคลุมผ่าน SQL query บน `content_hash` column
+
+**ข้อ 2:** ไม่ใช้ private `_get_byos_user_with_connection` จาก main.py
+- Verified: เพิ่ม public `delete_drive_file_if_byos()` ใน `storage_router.py` ตาม pattern เดียวกับ `push_*_to_drive_if_byos`
+- Skip endpoint ใน main.py เรียก public helper เท่านั้น
+
+═══════════════════════════════════════════════════════════════
+🧪 Self-test Results
+═══════════════════════════════════════════════════════════════
+
+**`scripts/duplicate_detection_smoke.py`: 33/33 PASS**
+- Section 1 (5): compute_content_hash + normalize_text — collapse whitespace, lowercase, short-text/empty/error-marker → None
+- Section 2 (4): find_duplicate_for_file exact — match found, **cross-user isolation**, self-match excluded, short text skip
+- Section 3 (3): semantic match ≥ 0.80 + matched_topics, below threshold → None, custom threshold parameter
+- Section 4 (3): batch — intra-batch exact (2 matches from 2 identical files), no dup → empty, **cross-user file_ids → silently skipped**
+- Section 5 (3): vector_search.remove_file (index, then remove)
+- Section 6 (3): delete_drive_file_if_byos (managed = no-op, BYOS+connected = trash, Drive failure = graceful False)
+- Section 7 (12): `/api/files/skip-duplicates` endpoint via TestClient — **EMPTY_FILE_IDS validation, no JWT → 401, own file deleted (DB + raw + cascade), cross-user file silently skipped (NOT deleted)**
+
+**Regression check:**
+| Test file | Result | Notes |
+|---|---|---|
+| `byos_foundation_smoke.py` | 26/26 ✅ | clean |
+| `byos_oauth_smoke.py` | 20/20 ✅ | clean |
+| `byos_router_smoke.py` | 16/16 ✅ | clean |
+| `byos_storage_smoke.py` | 20/20 ✅ | clean |
+| `byos_sync_smoke.py` | 24/24 ✅ | clean |
+| `byos_v7_0_1_smoke.py` | 18/19 ⚠️ | 1 pre-existing fail (`_guess_mime` — unrelated, verified by `git stash` baseline) |
+| `rebrand_smoke_v6.1.0.py` | 68/76 ⚠️ | 4 pre-existing fails on master + 4 expected fails จาก version bump 7.0.1→7.1.0 (test hardcode) |
+
+═══════════════════════════════════════════════════════════════
+🔍 จุดที่อยากให้ฟ้าดูเป็นพิเศษ
+═══════════════════════════════════════════════════════════════
+
+1. **Cross-user safety** — `find_duplicate_for_file` มี double-check `match.user_id != user_id` หลัง vector_search hit (กัน leak ถ้า future change ทำลาย per-user isolation). ดู `backend/duplicate_detector.py` ฟังก์ชัน `find_duplicate_for_file`
+2. **Intra-batch semantic miss** (Risk #9) — accepted MVP trade-off. ตรวจว่าผมไม่ได้ "แอบ" index uploaded files ไปไหน. ดูใน `backend/main.py` block หลัง `await db.commit()` ใน `upload_files`
+3. **Skip endpoint cross-user safety** — ทดสอบใน Section 7.4 (cross-user file_ids → silently skipped + ไม่ถูกลบจาก DB) — ตรวจ logic ใน `skip_duplicates` ที่ filter `File.user_id == current_user.id`
+4. **BYOS Drive trash** — best-effort, ไม่ raise. ทดสอบใน Section 6.3 (Drive failure → graceful False). ตรวจ pattern match กับ `push_*_to_drive_if_byos` เดิม
+5. **i18n completeness** — 8 keys ใน TH + EN dict (`dup.title`, `dup.subtitle`, `dup.skip`, `dup.keep`, `dup.labelNew`, `dup.labelSimilar`, `dup.labelExact`, `dup.labelMatched`)
+6. **CSS design tokens** — ใช้ `var(--bg-secondary)`, `var(--accent)`, `var(--warning)`, `var(--error)` ตาม REBRAND-002 + design_system_actual.md
+7. **Modal HTML position** — แทรกใต้ `pack-modal-overlay` (line ~830) นอก `<section>` — ดูว่า z-index 9999 + responsive @media (max-width: 600px) OK ไหม
+8. **Manual UI test ที่ผมรันไม่ได้** — sandbox blocks port binding (TEST-002):
+   - Drag-drop ไฟล์ซ้ำ → popup แสดงถูกต้องไหม
+   - Click "ข้ามที่ซ้ำ" → ไฟล์ใหม่หายจาก list, toast แสดงถูกภาษา
+   - Click "เก็บทั้งหมด" → modal ปิด, ไฟล์ยังอยู่
+   - Mobile responsive (Chrome devtools toggle)
+   - Switch language TH ↔ EN → label ครบทุก key
+9. **Test drift จาก version bump** — `rebrand_smoke_v6.1.0.py` มี 4 cases hardcode "7.0.1" → fail หลัง bump 7.1.0. ฟ้าควร update ให้ใช้ `APP_VERSION` dynamic (ตาม REBRAND-002)
+
+═══════════════════════════════════════════════════════════════
+📝 Open Questions ใน plan (Phase 2 — ยังไม่ scope ครั้งนี้)
+═══════════════════════════════════════════════════════════════
+- Q-A: Replace existing button (preserve cluster/tags)
+- Q-B: LLM-based deep diff
+- Q-C: Library scan endpoint
+- Q-D: User-configurable threshold
+- Q-E: MCP `find_duplicates` tool
+- Q-F: Knowledge graph `duplicate_of` edge
+
+ลุยได้เลย 🚀
+
+— เขียว (Khiao)
 
 ---
 

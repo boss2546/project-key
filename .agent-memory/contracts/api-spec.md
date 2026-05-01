@@ -54,7 +54,7 @@
 ### 📁 Files / Data
 | Method | Path | Description | Auth |
 |--------|------|-------------|------|
-| POST | `/api/upload` | Upload file | ✅ |
+| POST | `/api/upload` | Upload file (v7.1: เพิ่ม `?detect_duplicates=true` + return `duplicates_found`) | ✅ |
 | GET  | `/api/files` | List files | ✅ |
 | GET  | `/api/files/{id}/content` | ดู text content | ✅ |
 | GET  | `/api/files/{id}/download` | Download raw file | ✅ |
@@ -62,6 +62,7 @@
 | GET  | `/api/shared/{token}` | Public share view | ❌ |
 | POST | `/api/files/{id}/reprocess` | Re-extract text | ✅ |
 | DELETE | `/api/files/{id}` | ลบไฟล์ | ✅ |
+| POST | `/api/files/skip-duplicates` | **v7.1** — ลบไฟล์ใหม่ที่ user เลือก "ข้ามที่ซ้ำ" หลัง duplicate popup | ✅ |
 | GET  | `/api/unprocessed-count` | `{unprocessed, total, processed}` | ✅ |
 | GET  | `/api/stats` | User stats summary | ✅ |
 
@@ -211,6 +212,52 @@ Pydantic raises 422 for invalid type/source/core/wing. Service raises 400 for IN
 
 ---
 
+## 🔁 Duplicate Detection (v7.1, NEW)
+
+### `POST /api/upload` — additions in v7.1
+- **Query param:** `detect_duplicates` (bool, default `true`) — set false เพื่อ skip duplicate check
+- **Response field added:** `duplicates_found` (array, อาจว่าง)
+  ```json
+  {
+    "uploaded": [...],
+    "count": 1,
+    "skipped": [],
+    "duplicates_found": [
+      {
+        "new_file_id": "abc123",
+        "new_filename": "thesis_v3.pdf",
+        "match_file_id": "old456",
+        "match_filename": "thesis_v2.pdf",
+        "similarity": 0.87,
+        "match_kind": "exact" | "semantic",
+        "matched_topics": ["AI", "deep learning"]
+      }
+    ]
+  }
+  ```
+- **Algorithm:** SHA-256 exact (file.content_hash) + TF-IDF cosine semantic (≥ 0.80 threshold) — ไม่เรียก LLM
+- **Detection ทำหลัง DB commit** — ไฟล์ทุกตัว upload สำเร็จก่อนเสมอ; popup เป็น UX hint ไม่ใช่ blocker
+
+### `POST /api/files/skip-duplicates` (NEW)
+**Request:**
+```json
+{ "file_ids": ["abc123", "def789"] }
+```
+**Response 200:**
+```json
+{ "status": "ok", "deleted": ["abc123", "def789"], "count": 2, "skipped": [] }
+```
+**Behavior:**
+- Validate ทุก `file_id` ต้องเป็นของ current user (ของ user อื่น → silently `skipped[]`, ไม่ leak existence)
+- ลบ raw_path จาก disk + cascade ลบ FileInsight/FileSummary/FileClusterMap (FK)
+- ลบจาก vector_search index ถ้าเคย organize แล้ว
+- **BYOS-aware:** ถ้า `file.drive_file_id != NULL` → trash file บน Drive ผ่าน `storage_router.delete_drive_file_if_byos()` (best-effort, ไม่ raise)
+**Errors:**
+- 400 `EMPTY_FILE_IDS` — `file_ids` array ว่าง
+- 401 — JWT missing/expired
+
+---
+
 ## Common Error Codes
 
 | Code | HTTP | Meaning |
@@ -228,6 +275,7 @@ Pydantic raises 422 for invalid type/source/core/wing. Service raises 400 for IN
 | `INVALID_STORAGE_MODE` | 400 | mode not in {managed, byos} (v7.0) |
 | `BYOS_REQUIRES_DRIVE_CONNECTION` | 400 | switch to byos w/o Drive (v7.0) |
 | `NO_DRIVE_CONNECTION` | 404 | disconnect w/o connection (v7.0) |
+| `EMPTY_FILE_IDS` | 400 | skip-duplicates `file_ids` array ว่าง (v7.1) |
 
 ---
 

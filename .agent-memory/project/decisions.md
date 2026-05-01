@@ -111,3 +111,20 @@
 **Implication:**
 - `backend/config.py:APP_VERSION` is canonical
 - All version strings exposed to clients should read from here (current minor exception: `legacy-frontend/index.html:509` `<span class="logo-version">` is hardcoded — flagged as drift, manual sync until refactored)
+
+## DUP-001: SHA-256 + TF-IDF (no LLM) for duplicate detection (v7.1)
+**Why:** Free + fast (≤ 100ms ต่อไฟล์), reuses existing `vector_search` per-user index ที่ build ตอน organize, ดีพอสำหรับ ≥ 80% similar
+**Implication:**
+- ไม่เจอ paraphrase หนัก (similarity 50-80%) — เป็น MVP trade-off, deep diff via LLM = Phase 2
+- `files.content_hash` indexed column → exact-match lookup O(1) per query
+- Algorithm reused: `backend/vector_search.hybrid_search()` — same per-user isolation as chat retrieval
+- **Critical invariant:** ไฟล์ที่ status="uploaded" (ยังไม่ organize) **ห้าม** index เข้า vector_search — จะแตกที่ retriever.py:91 + mcp_tools.py:743 ที่คาดว่า indexed = "ready" only. Plan Risk #9: intra-batch SEMANTIC = miss (accepted).
+- Cost = ฿0 (no LLM call ทั้ง upload-time detection)
+
+## DUP-002: Skip action does soft delete + BYOS Drive trash (v7.1)
+**Why:** Skip = user เลือก "ไม่เอาไฟล์ใหม่" → ต้องลบครบทุกที่ที่ไฟล์ถูก mirror ไปแล้ว (disk + DB + index + Drive)
+**Implication:**
+- DB delete ใช้ cascade FK → FileInsight + FileSummary + FileClusterMap ลบเองอัตโนมัติ
+- BYOS-aware ผ่าน public helper `storage_router.delete_drive_file_if_byos()` (ตาม pattern `push_*_to_drive_if_byos`) — ห้าม use private `_get_byos_user_with_connection` จาก main.py
+- Drive delete = trash (recoverable 30 วัน) ไม่ใช่ permanent — เผื่อ user เปลี่ยนใจ
+- Best-effort: ทุก step (raw, Drive, index) ห้าม raise — ถ้า fail ขั้นใดให้ log warning + ดำเนินต่อ (DB delete เป็น primary success criterion)

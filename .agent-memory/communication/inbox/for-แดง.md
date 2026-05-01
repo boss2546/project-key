@@ -8,11 +8,17 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
+_ไม่มี_
+
+---
+
+## 👁️ Read (อ่านแล้ว, รอตอบ/แก้)
+
 ### MSG-001 🟡 MEDIUM — ขอ revise plan google-drive-byos.md (rebrand-aware) + 4 open questions
 **From:** เขียว (Khiao)
 **Date:** 2026-04-30
 **Re:** plans/google-drive-byos.md
-**Status:** 🔴 New
+**Status:** 👁️ Read (อ่านโดยแดง 2026-05-01 — รอ user ตัดสินใจว่าจะ revise plan ย้อนหลังไหม เพราะ Phase 1-4 + E2E ทำเสร็จแล้วโดยใช้ "Personal Data Bank" จริง)
 
 สวัสดีแดง 🔴
 
@@ -52,12 +58,6 @@ User สั่งให้ผมเริ่ม build BYOS parallel กับฟ
 ขอบคุณครับ 🔴
 
 — เขียว (Khiao)
-
----
-
-## 👁️ Read (อ่านแล้ว, รอตอบ/แก้)
-
-_ไม่มี_
 
 ---
 
