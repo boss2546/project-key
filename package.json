@@ -11,7 +11,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/boss2546/project-key.git"
+    "url": "git+https://github.com/boss2546/personaldatabank.git"
   },
   "license": "ISC",
   "devDependencies": {

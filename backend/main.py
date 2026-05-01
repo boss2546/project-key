@@ -1,5 +1,6 @@
 """Personal Data Bank (PDB) — FastAPI Backend (v5.0 — Multi-User + Auth)"""
 import os
+import re
 import json
 import logging
 from datetime import datetime
@@ -347,11 +348,29 @@ _MIME_BY_EXT = {
 }
 
 
+# Phase 1.11 — strict MIME pattern: type/subtype, no params/whitespace.
+# Anything else (e.g. crafted `text/html; <script>`) is treated as untrusted
+# and dropped in favour of the extension map.
+_MIME_RE = re.compile(r"^[\w.+-]+/[\w.+-]+$")
+
+
 def _guess_mime(ext: str, header_hint: str | None) -> str:
-    """Pick a safe Drive MIME — prefer browser-provided, fall back to extension map."""
-    if header_hint and "/" in header_hint:
-        return header_hint
-    return _MIME_BY_EXT.get(ext.lower(), "application/octet-stream")
+    """Pick a safe Drive MIME.
+
+    Strategy: trust the extension map first (server-known, deterministic).
+    Only fall back to the browser-provided Content-Type when the extension
+    is unknown AND the header value matches a strict `type/subtype` regex.
+    `Content-Type` is attacker-controlled (multipart upload header), so we
+    never let it override a known-safe MIME for a recognised extension.
+    """
+    ext_norm = (ext or "").lower()
+    if ext_norm in _MIME_BY_EXT:
+        return _MIME_BY_EXT[ext_norm]
+    if header_hint:
+        candidate = header_hint.split(";", 1)[0].strip()
+        if _MIME_RE.match(candidate):
+            return candidate
+    return "application/octet-stream"
 
 
 async def _push_uploads_to_drive(

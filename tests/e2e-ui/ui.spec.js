@@ -23,8 +23,8 @@ test.describe("Landing Page", () => {
     // Clear auth so we see the landing page
     await page.goto("/");
     await page.evaluate(() => {
-      localStorage.removeItem("projectkey_token");
-      localStorage.removeItem("projectkey_user");
+      localStorage.removeItem("pdb_token");
+      localStorage.removeItem("pdb_user");
     });
     await page.reload();
     await page.waitForLoadState("networkidle");
@@ -100,8 +100,8 @@ test.describe("Auth Modal", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
     await page.evaluate(() => {
-      localStorage.removeItem("projectkey_token");
-      localStorage.removeItem("projectkey_user");
+      localStorage.removeItem("pdb_token");
+      localStorage.removeItem("pdb_user");
     });
     await page.reload();
     await page.waitForLoadState("networkidle");
@@ -174,8 +174,8 @@ test.describe("Full Auth Journey", () => {
     // ─── Step 1: Go to landing ───
     await page.goto("/");
     await page.evaluate(() => {
-      localStorage.removeItem("projectkey_token");
-      localStorage.removeItem("projectkey_user");
+      localStorage.removeItem("pdb_token");
+      localStorage.removeItem("pdb_user");
     });
     await page.reload();
     await page.waitForLoadState("networkidle");
@@ -235,8 +235,8 @@ test.describe("Workspace Navigation", () => {
     const data = await res.json();
     await page.evaluate(
       ({ token, user }) => {
-        localStorage.setItem("projectkey_token", token);
-        localStorage.setItem("projectkey_user", JSON.stringify(user));
+        localStorage.setItem("pdb_token", token);
+        localStorage.setItem("pdb_user", JSON.stringify(user));
       },
       { token: data.token, user: data.user }
     );
@@ -328,8 +328,8 @@ test.describe("Sidebar", () => {
     const data = await res.json();
     await page.evaluate(
       ({ token, user }) => {
-        localStorage.setItem("projectkey_token", token);
-        localStorage.setItem("projectkey_user", JSON.stringify(user));
+        localStorage.setItem("pdb_token", token);
+        localStorage.setItem("pdb_user", JSON.stringify(user));
       },
       { token: data.token, user: data.user }
     );
@@ -371,9 +371,9 @@ test.describe("Language Toggle", () => {
     const data = await res.json();
     await page.evaluate(
       ({ token, user }) => {
-        localStorage.setItem("projectkey_token", token);
-        localStorage.setItem("projectkey_user", JSON.stringify(user));
-        localStorage.setItem("projectkey_lang", "th");
+        localStorage.setItem("pdb_token", token);
+        localStorage.setItem("pdb_user", JSON.stringify(user));
+        localStorage.setItem("pdb_lang", "th");
       },
       { token: data.token, user: data.user }
     );
@@ -425,8 +425,8 @@ test.describe("My Data Page", () => {
     const data = await res.json();
     await page.evaluate(
       ({ token, user }) => {
-        localStorage.setItem("projectkey_token", token);
-        localStorage.setItem("projectkey_user", JSON.stringify(user));
+        localStorage.setItem("pdb_token", token);
+        localStorage.setItem("pdb_user", JSON.stringify(user));
       },
       { token: data.token, user: data.user }
     );
@@ -468,8 +468,8 @@ test.describe("AI Chat Page", () => {
     const data = await res.json();
     await page.evaluate(
       ({ token, user }) => {
-        localStorage.setItem("projectkey_token", token);
-        localStorage.setItem("projectkey_user", JSON.stringify(user));
+        localStorage.setItem("pdb_token", token);
+        localStorage.setItem("pdb_user", JSON.stringify(user));
       },
       { token: data.token, user: data.user }
     );
@@ -518,8 +518,8 @@ test.describe("Graph Page", () => {
     const data = await res.json();
     await page.evaluate(
       ({ token, user }) => {
-        localStorage.setItem("projectkey_token", token);
-        localStorage.setItem("projectkey_user", JSON.stringify(user));
+        localStorage.setItem("pdb_token", token);
+        localStorage.setItem("pdb_user", JSON.stringify(user));
       },
       { token: data.token, user: data.user }
     );
@@ -568,8 +568,8 @@ test.describe("MCP Setup Page", () => {
     const data = await res.json();
     await page.evaluate(
       ({ token, user }) => {
-        localStorage.setItem("projectkey_token", token);
-        localStorage.setItem("projectkey_user", JSON.stringify(user));
+        localStorage.setItem("pdb_token", token);
+        localStorage.setItem("pdb_user", JSON.stringify(user));
       },
       { token: data.token, user: data.user }
     );
@@ -610,8 +610,8 @@ test.describe("Knowledge View Page", () => {
     const data = await res.json();
     await page.evaluate(
       ({ token, user }) => {
-        localStorage.setItem("projectkey_token", token);
-        localStorage.setItem("projectkey_user", JSON.stringify(user));
+        localStorage.setItem("pdb_token", token);
+        localStorage.setItem("pdb_user", JSON.stringify(user));
       },
       { token: data.token, user: data.user }
     );

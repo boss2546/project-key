@@ -4,6 +4,7 @@ Handles Stripe Checkout, Customer Portal, and Webhook processing.
 Stripe Webhook is the source of truth for subscription status.
 """
 import logging
+import os
 from datetime import datetime
 
 import stripe
@@ -88,7 +89,20 @@ async def process_webhook(request: Request, db: AsyncSession) -> dict:
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature", "")
 
-    # Verify signature
+    # Phase 1.10 — fail closed when STRIPE_WEBHOOK_SECRET is unset.
+    # The previous "dev mode" branch accepted unsigned JSON, which means a
+    # misconfigured Fly secret would let anyone POST a forged
+    # `checkout.session.completed` and grant themselves a paid plan. To
+    # bypass signature verification locally with the Stripe CLI, set the
+    # explicit env STRIPE_WEBHOOK_DEV_BYPASS=1 (off by default).
+    _dev_bypass = os.getenv("STRIPE_WEBHOOK_DEV_BYPASS") == "1"
+    if not STRIPE_WEBHOOK_SECRET and not _dev_bypass:
+        logger.error(
+            "Webhook received but STRIPE_WEBHOOK_SECRET is unset. "
+            "Set the env var (production) or STRIPE_WEBHOOK_DEV_BYPASS=1 (local CLI)."
+        )
+        raise HTTPException(status_code=500, detail="Webhook not configured")
+
     if STRIPE_WEBHOOK_SECRET:
         try:
             event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
@@ -99,7 +113,7 @@ async def process_webhook(request: Request, db: AsyncSession) -> dict:
             logger.warning(f"Webhook construct error: {e}")
             raise HTTPException(status_code=400, detail="Invalid payload")
     else:
-        # Dev mode — no signature verification (for Stripe CLI testing)
+        # Explicit dev bypass for `stripe listen` testing locally.
         import json as _json
         try:
             raw = _json.loads(payload)

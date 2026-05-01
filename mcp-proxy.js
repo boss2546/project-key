@@ -19,7 +19,13 @@ if (!REMOTE_URL) {
 const parsedUrl = new URL(REMOTE_URL);
 const transport = parsedUrl.protocol === 'https:' ? https : http;
 
-process.stderr.write(`MCP Proxy: → ${parsedUrl.hostname}${parsedUrl.pathname}\n`);
+// Phase 1.9 — pathname is `/mcp/{secret}`; logging it leaks the bearer token
+// to anyone who sees the user's terminal/CI output. Redact before printing.
+function redactedPath(p) {
+  return p.replace(/\/mcp\/[^/?#]+/, '/mcp/<redacted>');
+}
+
+process.stderr.write(`MCP Proxy: → ${parsedUrl.hostname}${redactedPath(parsedUrl.pathname)}\n`);
 
 function forwardRequest(request) {
   return new Promise((resolve, reject) => {

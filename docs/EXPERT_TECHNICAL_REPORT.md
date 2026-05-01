@@ -1,16 +1,16 @@
-# 📘 Project KEY — รายงานเทคนิคฉบับสมบูรณ์ (v4.3)
+# 📘 Personal Data Bank — รายงานเทคนิคฉบับสมบูรณ์ (v4.3)
 
 > **จัดทำสำหรับ:** ผู้เชี่ยวชาญ / Technical Reviewers / Architects  
 > **วันที่:** 19 เมษายน 2569  
 > **เวอร์ชัน:** v4.3  
 > **Production:** https://personaldatabank.fly.dev/  
-> **Repository:** https://github.com/boss2546/project-key
+> **Repository:** https://github.com/boss2546/personaldatabank
 
 ---
 
 ## 1. Executive Summary
 
-**Project KEY** คือ Personal Knowledge Workspace ที่แก้ปัญหา "ข้อมูลกระจัดกระจาย + AI ไม่เข้าใจบริบทส่วนตัว"
+**Personal Data Bank** คือ Personal Knowledge Workspace ที่แก้ปัญหา "ข้อมูลกระจัดกระจาย + AI ไม่เข้าใจบริบทส่วนตัว"
 
 ระบบแปลงไฟล์ดิบ (PDF, TXT, MD, DOCX) ผ่าน AI Pipeline ให้กลายเป็น:
 - **Knowledge Graph** — ความเชื่อมโยงระหว่าง entities
@@ -330,7 +330,7 @@ CMD ["python", "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port
 - **Region:** Singapore (`sin`)
 - **VM:** shared-cpu-1x, 512MB RAM
 - **Auto-stop:** machines stop when idle, auto-start on request
-- **Persistent Volume:** `project_key_data` → `/app/data/` (DB + uploads + summaries)
+- **Persistent Volume:** `personaldatabank_data` → `/app/data/` (DB + uploads + summaries)
 - **HTTPS:** forced
 
 ### Startup Sequence
@@ -394,8 +394,8 @@ CMD ["python", "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port
 
 ### A. ติดตั้ง Local
 ```bash
-git clone https://github.com/boss2546/project-key.git
-cd project-key
+git clone https://github.com/boss2546/personaldatabank.git
+cd personaldatabank
 pip install -r requirements.txt
 echo OPENROUTER_API_KEY=sk-or-v1-xxx > .env
 python -m uvicorn backend.main:app --port 8000
@@ -417,14 +417,14 @@ flyctl deploy --remote-only
 ```json
 {
   "mcpServers": {
-    "project-key": {
+    "personaldatabank": {
       "type": "streamable-http",
       "url": "https://personaldatabank.fly.dev/mcp/{SECRET_KEY}"
     }
   }
 }
 ```
-4. Restart Claude → ทดสอบ: "สแกนฐานความรู้ของฉันผ่าน Project KEY"
+4. Restart Claude → ทดสอบ: "สแกนฐานความรู้ของฉันผ่าน Personal Data Bank"
 
 ### D. Workflow แนะนำ
 ```
@@ -492,4 +492,4 @@ flyctl deploy --remote-only
 
 ---
 
-*รายงานจัดทำโดย Antigravity AI · Project KEY v4.3 · 19 เมษายน 2569*
+*รายงานจัดทำโดย Antigravity AI · Personal Data Bank v4.3 · 19 เมษายน 2569*

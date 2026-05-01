@@ -12,6 +12,9 @@ python-dotenv>=1.0.0
 passlib[bcrypt]>=1.7.4
 python-jose[cryptography]>=3.3.0
 
+# Stripe Payment (v5.9.2) — keep aligned with requirements-fly.txt
+stripe>=8.0.0
+
 # Document parsing (Docling - IBM)
 docling>=2.80.0
 PyPDF2==3.0.1

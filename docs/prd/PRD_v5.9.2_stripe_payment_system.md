@@ -4,7 +4,7 @@
 
 | Item | Detail |
 |---|---|
-| Project | Personal Data Bank / Project KEY |
+| Project | Personal Data Bank / Personal Data Bank |
 | PRD | v5.9.2 — Stripe Payment System |
 | Scope | ระบบชำระเงินสำหรับ Starter Plan 99 บาท/เดือน |
 | Related PRD | PRD v5.9.1 — Frontend Pricing Update |
@@ -522,9 +522,9 @@ Standalone page สำหรับเลือกแพลน แสดง 2 ก
 
 | Plan | Price | CTA | Action |
 |---|---|---|---|
-| Core | ฿12,000/เดือน | "Book Private Demo" | mailto:boss@projectkey.dev |
-| Pro | ฿25,000/เดือน | "Book Private Demo" | mailto:boss@projectkey.dev |
-| Elite | ฿45,000/เดือน | "Request Elite Access" | mailto:boss@projectkey.dev |
+| Core | ฿12,000/เดือน | "Book Private Demo" | mailto:boss@personaldatabank.dev |
+| Pro | ฿25,000/เดือน | "Book Private Demo" | mailto:boss@personaldatabank.dev |
+| Elite | ฿45,000/เดือน | "Request Elite Access" | mailto:boss@personaldatabank.dev |
 
 ### 16.2 Profile Modal Billing Section
 

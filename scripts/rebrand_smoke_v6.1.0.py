@@ -593,8 +593,8 @@ def t_brand_in_pricing():
     r = c.get("/legacy/pricing.html")
     # Email rebrand: Q1 confirmed user-answer
     return ("axis.solutions.team@gmail.com" in r.text
-            and "boss@projectkey.dev" not in r.text)
-run("Brand: pricing page has new email + no old 'boss@projectkey.dev'", t_brand_in_pricing)
+            and "boss@personaldatabank.dev" not in r.text)
+run("Brand: pricing page has new email + no old 'boss@personaldatabank.dev'", t_brand_in_pricing)
 
 
 def t_brand_mcp_init():
@@ -636,9 +636,9 @@ run("Brand: MCP tools/call get_overview -> 'Personal Data Bank' + no 'Project KE
 section("9. KEEP invariants (plan rules — must NOT be touched)")
 # ─────────────────────────────────────────────────────────────────
 fly = open("fly.toml", encoding="utf-8").read()
-run("KEEP: fly.toml app='project-key'", lambda: 'app = "project-key"' in fly)
-run("KEEP: fly.toml volume source='project_key_data'",
-    lambda: 'project_key_data' in fly)
+run("KEEP: fly.toml app='personaldatabank'", lambda: 'app = "personaldatabank"' in fly)
+run("KEEP: fly.toml volume source='personaldatabank_data'",
+    lambda: 'personaldatabank_data' in fly)
 
 cfg = open("backend/config.py", encoding="utf-8").read()
 run("KEEP: config.py DATABASE_URL contains 'projectkey.db'", lambda: "projectkey.db" in cfg)
@@ -655,7 +655,7 @@ run("KEEP: app.js localStorage 'projectkey_token'", lambda: "'projectkey_token'"
 run("KEEP: app.js localStorage 'projectkey_user'", lambda: "'projectkey_user'" in appjs)
 run("KEEP: app.js localStorage 'projectkey_lang'", lambda: "'projectkey_lang'" in appjs)
 run("CHANGE: app.js MCP template key 'personal-data-bank'", lambda: '"personal-data-bank":' in appjs)
-run("CHANGE: app.js no leftover MCP template 'project-key'", lambda: '"project-key":' not in appjs)
+run("CHANGE: app.js no leftover MCP template 'personaldatabank'", lambda: '"personaldatabank":' not in appjs)
 
 main_py = open("backend/main.py", encoding="utf-8").read()
 run("CHANGE: main.py FastAPI title='Personal Data Bank'",

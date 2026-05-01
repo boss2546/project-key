@@ -1,6 +1,6 @@
 # 📄 PRD v5.5 — Context Memory System (Cross-Platform)
 
-> **Product:** Project KEY — Personal Data Bank  
+> **Product:** Personal Data Bank — Personal Data Bank  
 > **Feature:** Context Memory (ระบบจำบริบทข้ามแพลตฟอร์ม)  
 > **Version:** v5.5  
 > **Author:** Antigravity AI + ทีมพัฒนา  
@@ -12,7 +12,7 @@
 
 ## 1. สรุปผู้บริหาร (Executive Summary)
 
-ปัจจุบัน Project KEY รองรับการเชื่อมต่อ AI ผ่าน MCP หลายแพลตฟอร์ม (Claude Desktop, Antigravity, ChatGPT) แต่ทุกครั้งที่ผู้ใช้เปิดแพลตฟอร์มใหม่หรือเริ่มสนทนาใหม่ **AI ไม่รู้ว่าก่อนหน้านี้ผู้ใช้ทำอะไรอยู่** ทำให้ต้องอธิบายซ้ำทุกครั้ง
+ปัจจุบัน Personal Data Bank รองรับการเชื่อมต่อ AI ผ่าน MCP หลายแพลตฟอร์ม (Claude Desktop, Antigravity, ChatGPT) แต่ทุกครั้งที่ผู้ใช้เปิดแพลตฟอร์มใหม่หรือเริ่มสนทนาใหม่ **AI ไม่รู้ว่าก่อนหน้านี้ผู้ใช้ทำอะไรอยู่** ทำให้ต้องอธิบายซ้ำทุกครั้ง
 
 **Context Memory** จะทำให้ PDB.ME เป็น **"สมองกลาง"** ที่เก็บบริบทการทำงานไว้ เมื่อผู้ใช้เปลี่ยนแพลตฟอร์มหรือเริ่มสนทนาใหม่ AI สามารถดึง context กลับมาใช้ต่อได้ทันที
 
@@ -334,9 +334,9 @@ The user only needs to confirm — AI handles the rest.
 │                                             │
 │ 📌 Pinned                                   │
 │ ┌─────────────────────────────────────┐     │
-│ │ 📌 สรุปงาน Project KEY v5.4        │     │
+│ │ 📌 สรุปงาน Personal Data Bank v5.4        │     │
 │ │ ทำ export_file_to_chat + annotations│     │
-│ │ 🏷️ project-key | antigravity       │     │
+│ │ 🏷️ personaldatabank | antigravity       │     │
 │ │ [แก้ไข] [ถอดหมุด]                  │     │
 │ └─────────────────────────────────────┘     │
 │                                             │
@@ -436,7 +436,7 @@ The user only needs to confirm — AI handles the rest.
 
 ---
 
-*PRD จัดทำโดย Antigravity AI · Project KEY v5.5 · 25 เมษายน 2569*
+*PRD จัดทำโดย Antigravity AI · Personal Data Bank v5.5 · 25 เมษายน 2569*
 
 ---
 

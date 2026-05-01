@@ -1,4 +1,4 @@
-# 📋 Project KEY — รายงานสรุปโปรเจกต์ (v0.1 → v5.5)
+# 📋 Personal Data Bank — รายงานสรุปโปรเจกต์ (v0.1 → v5.5)
 
 > **วันที่จัดทำ:** 19 เมษายน 2569  
 > **อัพเดทล่าสุด:** 25 เมษายน 2569  
@@ -6,7 +6,7 @@
 > **Git Tags:** `MVPV1` → `v3.0` → `v4.2`  
 > **สถานะ:** ✅ Production (https://personaldatabank.fly.dev/)  
 > **จัดทำโดย:** Antigravity AI + ทีมพัฒนา  
-> **Repository:** https://github.com/boss2546/project-key
+> **Repository:** https://github.com/boss2546/personaldatabank
 
 ---
 
@@ -391,7 +391,7 @@ mcp_logs           → id, user_id, tool_name, caller, arguments, status, ...
 ## 7. โครงสร้างไฟล์โปรเจกต์ (v4.2)
 
 ```
-Project KEY/
+Personal Data Bank/
 ├── .env                         # 🔒 API key (ไม่ commit)
 ├── .gitignore
 ├── Dockerfile                   # 🆕 v4 — Production container
@@ -432,7 +432,7 @@ Project KEY/
 │   ├── testsprite/              # TestSprite 29 TCs
 │   └── fixtures/                # Test data
 │
-└── Project_KEY_PRD_MVP_v4.md    # PRD v4 — MCP Connector
+└── personaldatabank_PRD_MVP_v4.md    # PRD v4 — MCP Connector
 ```
 
 ---
@@ -486,7 +486,7 @@ FROM python:3.10-slim
 
 ### Fly.io Config
 ```toml
-app = "project-key"
+app = "personaldatabank"
 primary_region = "sin"  # Singapore
 [http_service]
   internal_port = 8000
@@ -506,7 +506,7 @@ primary_region = "sin"  # Singapore
 ```json
 {
   "mcpServers": {
-    "project-key": {
+    "personaldatabank": {
       "type": "streamable-http",
       "url": "https://personaldatabank.fly.dev/mcp/{SECRET_KEY}"
     }
@@ -726,7 +726,7 @@ flyctl ssh console
 ```json
 {
   "mcpServers": {
-    "project-key": {
+    "personaldatabank": {
       "url": "https://personaldatabank.fly.dev/mcp/{YOUR_SECRET_KEY}"
     }
   }
@@ -737,7 +737,7 @@ flyctl ssh console
 ```json
 {
   "mcpServers": {
-    "project-key": {
+    "personaldatabank": {
       "command": "npx",
       "args": ["-y", "mcp-remote@latest", "https://personaldatabank.fly.dev/mcp/{YOUR_SECRET_KEY}"]
     }
@@ -747,4 +747,4 @@ flyctl ssh console
 
 ---
 
-*รายงานจัดทำโดย Antigravity AI · Project KEY v5.6 · 26 เมษายน 2569*
+*รายงานจัดทำโดย Antigravity AI · Personal Data Bank v5.6 · 26 เมษายน 2569*

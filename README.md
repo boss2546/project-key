@@ -1,7 +1,7 @@
 # 🔑 Personal Data Bank (PDB)
 
 > พื้นที่ข้อมูลส่วนตัวที่ใช้ AI จัดระเบียบ วิเคราะห์ และเชื่อมโยงข้อมูลของคุณ  
-> **Live: v6.1.0** — Brand refresh: Project KEY → Personal Data Bank (PDB)
+> **Live: v6.1.0** — Brand refresh: Personal Data Bank → Personal Data Bank (PDB)
 > **In dev: v7.0.0** — Google Drive BYOS (Bring Your Own Storage) — see [docs/BYOS_SETUP.md](docs/BYOS_SETUP.md)
 >
 > Personality Profile (MBTI / Enneagram / CliftonStrengths / VIA) + History + Stripe Billing + Plan Limits + Audit Log

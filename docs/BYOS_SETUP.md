@@ -11,7 +11,7 @@
 
 By default, PDB stores user data on the **server** (managed mode):
 - ไฟล์ที่ user upload → `/uploads/` folder บน Fly.io volume
-- AI summaries, profile, knowledge graph → `projectkey.db` SQLite
+- AI summaries, profile, knowledge graph → `pdb.db` SQLite
 
 In **BYOS mode**, user data lives on **the user's own Google Drive**:
 - Folder `/Personal Data Bank/` ใน Drive ของ user

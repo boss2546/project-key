@@ -4,6 +4,22 @@
  */
 
 // ═══════════════════════════════════════════
+// ═══════════════════════════════════════════
+// LOCALSTORAGE MIGRATION (v7.1 rebrand)
+// ย้าย key เก่า (projectkey_*) → key ใหม่ (pdb_*)
+// เพื่อไม่ให้ผู้ใช้เดิมถูก logout หลัง rebrand
+// ═══════════════════════════════════════════
+(() => {
+ const migrations = [['pdb_token','pdb_token'],['pdb_user','pdb_user'],['pdb_lang','pdb_lang']];
+ migrations.forEach(([oldKey, newKey]) => {
+  if (!localStorage.getItem(newKey) && localStorage.getItem(oldKey)) {
+  localStorage.setItem(newKey, localStorage.getItem(oldKey));
+  localStorage.removeItem(oldKey);
+  }
+ });
+})();
+
+// ═══════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════
 const state = {
@@ -22,8 +38,8 @@ const state = {
  mcpInfo: null,
  mcpLastToken: null,
  // v5.0 — Auth state
- authToken: localStorage.getItem('projectkey_token') || null,
- currentUser: JSON.parse(localStorage.getItem('projectkey_user') || 'null'),
+ authToken: localStorage.getItem('pdb_token') || null,
+ currentUser: JSON.parse(localStorage.getItem('pdb_user') || 'null'),
 };
 
 // ═══════════════════════════════════════════
@@ -235,8 +251,8 @@ async function doLogin() {
  // Save auth
  state.authToken = data.token;
  state.currentUser = data.user;
- localStorage.setItem('projectkey_token', data.token);
- localStorage.setItem('projectkey_user', JSON.stringify(data.user));
+ localStorage.setItem('pdb_token', data.token);
+ localStorage.setItem('pdb_user', JSON.stringify(data.user));
  document.getElementById('auth-modal').classList.add('hidden');
  _isInitVerified = true;
  showApp();
@@ -269,8 +285,8 @@ async function doRegister() {
  // Save auth
  state.authToken = data.token;
  state.currentUser = data.user;
- localStorage.setItem('projectkey_token', data.token);
- localStorage.setItem('projectkey_user', JSON.stringify(data.user));
+ localStorage.setItem('pdb_token', data.token);
+ localStorage.setItem('pdb_user', JSON.stringify(data.user));
  document.getElementById('auth-modal').classList.add('hidden');
  _isInitVerified = true;
  // v7.0.1 — เข้า workspace ทันทีหลัง register (ไม่ redirect ไป pricing)
@@ -292,8 +308,8 @@ async function doRegister() {
 function doLogout() {
  state.authToken = null;
  state.currentUser = null;
- localStorage.removeItem('projectkey_token');
- localStorage.removeItem('projectkey_user');
+ localStorage.removeItem('pdb_token');
+ localStorage.removeItem('pdb_user');
  showLanding();
 }
 
@@ -372,8 +388,8 @@ async function doResetPassword() {
  // Auto-login
  state.authToken = data.token;
  state.currentUser = data.user;
- localStorage.setItem('projectkey_token', data.token);
- localStorage.setItem('projectkey_user', JSON.stringify(data.user));
+ localStorage.setItem('pdb_token', data.token);
+ localStorage.setItem('pdb_user', JSON.stringify(data.user));
  document.getElementById('auth-modal').classList.add('hidden');
  showToast(' เปลี่ยนรหัสผ่านสำเร็จ!', 'success');
  _resetToken = null;
@@ -1099,7 +1115,7 @@ const I18N = {
 
 // Get current language — default TH
 function getLang() {
- return localStorage.getItem('projectkey_lang') || 'th';
+ return localStorage.getItem('pdb_lang') || 'th';
 }
 
 // Get translation string
@@ -1110,7 +1126,7 @@ function t(key) {
 
 // Apply translations to all [data-i18n] elements
 function applyLanguage(lang) {
- localStorage.setItem('projectkey_lang', lang);
+ localStorage.setItem('pdb_lang', lang);
  document.documentElement.lang = lang;
 
  // Update all data-i18n elements
