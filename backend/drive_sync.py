@@ -215,19 +215,26 @@ class DriveSync:
         raw_folder_id = self._folder_layout["raw"]
         for f in pending:
             try:
-                # Guard: ข้าม files ที่ไม่มี raw_path หรือ file ถูกลบจาก disk
+                # Guard: ข้าม files ที่ไม่มี raw_path + ไม่มี extracted_text
                 import os
-                if not f.raw_path or not os.path.exists(f.raw_path):
+                if f.raw_path and os.path.exists(f.raw_path):
+                    with open(f.raw_path, "rb") as fh:
+                        content = fh.read()
+                elif f.extracted_text:
+                    # Fallback: ไฟล์เก่าที่ raw file หายไป (deploy/volume recreate)
+                    # แต่ยังมี extracted_text → ใช้ text เป็น content ขึ้น Drive
+                    content = f.extracted_text.encode("utf-8")
+                    logger.info(
+                        "BYOS push fallback — using extracted_text for file %s (%s)",
+                        f.id, f.filename,
+                    )
+                else:
                     logger.warning(
-                        "BYOS push skip — no raw_path for file %s (%s)",
+                        "BYOS push skip — no raw_path and no text for file %s (%s)",
                         f.id, f.filename,
                     )
                     stats["errors"] += 1
                     continue
-
-                # อ่าน raw bytes จาก local volume
-                with open(f.raw_path, "rb") as fh:
-                    content = fh.read()
 
                 drive_id = self._client.upload_file(
                     parent_id=raw_folder_id,
