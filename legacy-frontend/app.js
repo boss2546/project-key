@@ -410,13 +410,24 @@ function initAuth() {
 
  // Check if already logged in
  if (state.authToken && state.currentUser) {
- // Verify token is still valid
- fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${state.authToken}` } })
- .then(r => {
- if (r.ok) { showApp(); initAppData(); }
- else { doLogout(); }
- })
- .catch(() => doLogout());
+ // Verify token is still valid — retry up to 3 times for cold-start
+ (async () => {
+  let verified = false;
+  for (let attempt = 0; attempt < 3; attempt++) {
+  try {
+   const r = await fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${state.authToken}` } });
+   if (r.ok) { verified = true; break; }
+   if (r.status === 401) { break; } // definitive: token invalid
+   // 502/503/500 = server waking up — retry
+   await new Promise(ok => setTimeout(ok, 1500));
+  } catch (e) {
+   // network error (cold start) — retry
+   await new Promise(ok => setTimeout(ok, 1500));
+  }
+  }
+  if (verified) { showApp(); initAppData(); }
+  else { doLogout(); }
+ })();
  } else {
  showLanding();
  }
