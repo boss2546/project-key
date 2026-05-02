@@ -531,9 +531,43 @@
   text-align: center;
 }
 
+/* v7.4.0 — Mobile card layout for file rows + show/hide kebab vs inline.
+   `.file-actions { position: relative }` lives in the original rule
+   below so the dropdown anchor works on both desktop and mobile. */
+.file-action-mobile { display: none; }
+
+@media (max-width: 768px) {
+  .file-item {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 14px 16px;
+    gap: 10px;
+    position: relative;
+  }
+  .file-item .file-icon {
+    width: 44px;
+    height: 44px;
+    align-self: flex-start;
+  }
+  .file-item .file-name {
+    white-space: normal;
+    font-size: 15px;
+    line-height: 1.35;
+  }
+  .file-item .file-meta { flex-wrap: wrap; font-size: 12px; }
+  .file-item .file-actions {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+  }
+  .file-action-desktop { display: none; }
+  .file-action-mobile { display: inline-flex; }
+}
+
 .file-actions {
   display: flex;
   gap: 4px;
+  position: relative; /* anchor for the kebab dropdown menu */
 }
 
 .status-dot {
@@ -2746,8 +2780,21 @@
 }
 .ctx-card-actions button svg { stroke: currentColor; }
 
+/* v7.4.0 — Kebab anchor for ctx-card. Position absolute to the card. */
+.ctx-card { /* already position: relative */ }
+.ctx-kebab {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1; /* above card content */
+}
+
 @media (max-width: 768px) {
   .ctx-grid { grid-template-columns: 1fr; }
+  /* On mobile the legacy hover-only flyout never appears — kebab handles
+     all card-level actions. Hide the legacy DOM if any future render
+     re-introduces it. */
+  .ctx-card-actions { display: none !important; }
 }
 
 

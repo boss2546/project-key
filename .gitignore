@@ -60,5 +60,6 @@ tests/baseline/
 tests/phase5-visual/
 tests/thorough-screenshots/
 tests/v7.3.0-visual/
+tests/v7.4.0-visual/
 tests/current/
 tests/visual-diff-out/

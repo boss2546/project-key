@@ -963,6 +963,57 @@ function applyLanguage(lang) {
 }
 
 // ═══════════════════════════════════════════
+// v7.4.0 — Kebab menu (3-dots dropdown) — generic for cards
+// ═══════════════════════════════════════════
+// `toggleKebab(event, id)` opens/closes the menu with id=`kebab-{id}`.
+// Only one menu can be open at a time. Outside-click and ESC close it.
+let _openKebabId = null;
+
+function toggleKebab(event, id) {
+ event?.stopPropagation();
+ const menu = document.getElementById(`kebab-${id}`);
+ if (!menu) return;
+ // Close any other open kebab first
+ if (_openKebabId && _openKebabId !== id) {
+  document.getElementById(`kebab-${_openKebabId}`)?.classList.add('hidden');
+ }
+ menu.classList.toggle('hidden');
+ _openKebabId = menu.classList.contains('hidden') ? null : id;
+}
+
+function initKebabMenus() {
+ // Outside-click closes the open kebab. We let the click bubble — the
+ // kebab button itself uses event.stopPropagation() so its open click
+ // does NOT reach this handler.
+ document.addEventListener('click', () => {
+  if (!_openKebabId) return;
+  const open = document.getElementById(`kebab-${_openKebabId}`);
+  if (open && !open.classList.contains('hidden')) open.classList.add('hidden');
+  _openKebabId = null;
+ });
+ // ESC closes
+ document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || !_openKebabId) return;
+  document.getElementById(`kebab-${_openKebabId}`)?.classList.add('hidden');
+  _openKebabId = null;
+ });
+}
+
+// ═══════════════════════════════════════════
+// v7.4.0 — Page Floating Action Buttons (mobile)
+// ═══════════════════════════════════════════
+// Each FAB just forwards its click to the matching desktop button so
+// the underlying handler stays the single source of truth.
+function initPageFABs() {
+ document.getElementById('fab-my-data')?.addEventListener('click', () => {
+  document.getElementById('btn-organize-new')?.click();
+ });
+ document.getElementById('fab-ctx')?.addEventListener('click', () => {
+  document.getElementById('btn-new-context')?.click();
+ });
+}
+
+// ═══════════════════════════════════════════
 // v7.3.0 — Mobile sidebar (hamburger + slide-out)
 // ═══════════════════════════════════════════
 // On screens ≤ 768px the sidebar is hidden by default. The hamburger
@@ -1085,6 +1136,8 @@ document.addEventListener('DOMContentLoaded', () => {
  if (document.getElementById('app')) {
   try { initGlobalModalUX(); } catch (e) { console.warn('[init] initGlobalModalUX:', e); }
   try { initSidebarMobile(); } catch (e) { console.warn('[init] initSidebarMobile:', e); }
+  try { initPageFABs(); } catch (e) { console.warn('[init] initPageFABs:', e); }
+  try { initKebabMenus(); } catch (e) { console.warn('[init] initKebabMenus:', e); }
   try { initNavigation(); } catch (e) { console.warn('[init] initNavigation:', e); }
   try { initUpload(); } catch (e) { console.warn('[init] initUpload:', e); }
   try { initProfile(); } catch (e) { console.warn('[init] initProfile:', e); }
@@ -1567,6 +1620,8 @@ function renderFileList(files) {
  const serverTip = isThai ? 'ไฟล์เก็บบนระบบของเรา (managed mode)' : 'File stored on our system (managed mode)';
  storageBadge = `<span class="storage-badge storage-server" title="${serverTip}">${serverLabel}</span>`;
  }
+ // v7.4.0 — Inline Delete on desktop; kebab dropdown on mobile.
+ const deleteLabel = t('myData.delete');
  return `
  <div class="file-item${lockedClass}" data-id="${f.id}" onclick="openFileDetail('${f.id}')">
  <div class="file-icon ${f.filetype}">${f.filetype.toUpperCase()}${locked}</div>
@@ -1580,7 +1635,11 @@ function renderFileList(files) {
  ${tags ? `<div class="file-tags">${tags}</div>` : ''}
  </div>
  <div class="file-actions">
- <button class="btn-sm" onclick="event.stopPropagation(); deleteFile('${f.id}')">${t('myData.delete')}</button>
+ <button class="btn-sm file-action-desktop" onclick="event.stopPropagation(); window.deleteFile('${f.id}')">${deleteLabel}</button>
+ <button class="kebab-btn file-action-mobile" onclick="event.stopPropagation(); window.toggleKebab(event, 'file-${f.id}')" aria-label="${isThai ? 'การกระทำเพิ่มเติม' : 'More actions'}">⋮</button>
+ <div class="kebab-menu hidden" id="kebab-file-${f.id}">
+ <button class="kebab-menu-item danger" onclick="event.stopPropagation(); document.getElementById('kebab-file-${f.id}')?.classList.add('hidden'); window.deleteFile('${f.id}')">${deleteLabel}</button>
+ </div>
  </div>
  </div>`;
  }).join('');
@@ -3894,7 +3953,24 @@ function _renderCtxCard(c) {
  const summary = escapeHtml(c.summary || '').substring(0, 180);
  const cid = c.context_id;
 
- return `<div class="ctx-card${pinnedClass}" onclick="viewContext('${cid}')">
+ // v7.4.0 — kebab menu (Edit / Pin / Delete). On desktop the kebab is
+ // visible at the top-right of the card; on mobile it's the only way
+ // to reach card-level actions (no flyout-on-hover).
+ const isTH = getLang() === 'th';
+ const editLabel = isTH ? 'แก้ไข' : 'Edit';
+ const pinLabel = c.is_pinned ? (isTH ? 'ถอดหมุด' : 'Unpin') : (isTH ? 'ปักหมุด' : 'Pin');
+ const delLabel = isTH ? 'ลบ' : 'Delete';
+
+ // NOTE: inline-onclick scope on a <button> uses an implicit `with`
+ // on the form/element, which can shadow global function names like
+ // `name`. Use `window.` explicitly so the lookup always falls through.
+ return `<div class="ctx-card${pinnedClass}" onclick="window.viewContext('${cid}')">
+ <button class="kebab-btn ctx-kebab" onclick="event.stopPropagation(); window.toggleKebab(event, 'ctx-${cid}')" aria-label="${isTH ? 'การกระทำเพิ่มเติม' : 'More actions'}">⋮</button>
+ <div class="kebab-menu hidden" id="kebab-ctx-${cid}">
+ <button class="kebab-menu-item" onclick="event.stopPropagation(); document.getElementById('kebab-ctx-${cid}')?.classList.add('hidden'); window.editContext('${cid}')">${editLabel}</button>
+ <button class="kebab-menu-item" onclick="event.stopPropagation(); document.getElementById('kebab-ctx-${cid}')?.classList.add('hidden'); window.togglePin('${cid}', ${!c.is_pinned})">${pinLabel}</button>
+ <button class="kebab-menu-item danger" onclick="event.stopPropagation(); document.getElementById('kebab-ctx-${cid}')?.classList.add('hidden'); window.deleteCtx('${cid}')">${delLabel}</button>
+ </div>
  <div class="ctx-card-header">
  <span class="ctx-card-title">${escapeHtml(c.title)}</span>
  ${pinIcon ? `<span class="ctx-pin-badge">${pinIcon}</span>` : ''}

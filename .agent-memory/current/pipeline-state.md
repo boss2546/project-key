@@ -5,11 +5,11 @@
 
 ---
 
-## 🎯 Current Pipeline State: `plan_pending_approval`
+## 🎯 Current Pipeline State: `idle`
 
-### 🟡 v7.4.0 SaaS Responsive Design & Mobile UX — JUMP THE QUEUE (2026-05-02)
+### 🟢 v7.4.0 SaaS Responsive Design & Mobile UX — DONE ✅ (2026-05-02)
 
-**State:** `plan_pending_approval` 🟡 — แดงเขียนแผน → user authorize full dev mode → เขียวเริ่ม build
+**State:** `done` ✅ — implemented + 14 v7.4.0 + 103 frontend regression + 52 backend pytest = **169/169 tests pass**
 **Plan file:** [plans/saas-responsive-v7.4.0.md](../plans/saas-responsive-v7.4.0.md)
 **Owner (build):** เขียว (Khiao) — full dev mode
 **Priority:** 🟡 High — Mobile usability + SaaS UX standards 2025

@@ -252,6 +252,101 @@ body.show-landing {
   }
 }
 
+/* v7.4.0 — Generic Kebab menu (3-dots dropdown).
+   Used by file-list and ctx-card cards on mobile (and as a future
+   pattern on desktop). The menu is position:absolute relative to its
+   parent, so any wrapper that contains a `.kebab-menu` must be
+   `position: relative`. */
+.kebab-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+  user-select: none;
+}
+.kebab-btn:hover { background: var(--surface-2); color: var(--text-primary); }
+
+.kebab-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 160px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  padding: 4px;
+  z-index: 1500;
+  animation: fadeIn 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.kebab-menu.hidden { display: none; }
+
+.kebab-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.kebab-menu-item:hover { background: var(--surface-2); }
+.kebab-menu-item.danger { color: var(--error); }
+.kebab-menu-item.danger:hover { background: rgba(239, 68, 68, 0.12); }
+
+/* v7.4.0 — Touch ergonomics on phones: WCAG / Apple HIG recommend a
+   minimum 44×44px tap target. Bump padding + min-height inside the
+   mobile media query so desktop UI stays compact. */
+@media (max-width: 768px) {
+  .btn,
+  .btn-primary,
+  .btn-outline,
+  .btn-danger,
+  .btn-ghost,
+  .btn-glass {
+    min-height: 44px;
+    padding: 10px 18px;
+    font-size: 14px;
+  }
+  .btn-sm {
+    min-height: 38px;     /* secondary actions a touch smaller, still finger-friendly */
+    padding: 8px 14px;
+    font-size: 12px;
+  }
+  .btn-close {
+    min-width: 44px;
+    min-height: 44px;
+    font-size: 22px;
+  }
+  .form-input,
+  textarea.form-input,
+  select.form-input {
+    min-height: 44px;
+    padding: 12px 14px;
+    font-size: 14px;
+  }
+  /* Bigger kebab tap target + bigger menu items on phones */
+  .kebab-btn { min-width: 44px; min-height: 44px; font-size: 22px; }
+  .kebab-menu-item { min-height: 44px; font-size: 15px; padding: 12px 14px; }
+}
+
 .modal-header {
   display: flex;
   justify-content: space-between;
