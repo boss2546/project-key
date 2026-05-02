@@ -332,11 +332,31 @@ class DriveSync:
         name_in_drive: str = drive_f["name"]
         local_id, original_name = self._split_drive_name(name_in_drive)
 
+        # แปลง Drive mimeType → extension สำหรับ filetype column
+        # filetype column เก็บ extension (เช่น "txt", "md", "pdf") ไม่ใช่ MIME type
+        _MIME_TO_EXT = {
+            "text/plain": "txt",
+            "text/markdown": "txt",  # Drive ไม่มี markdown MIME → มักได้ text/plain
+            "application/pdf": "pdf",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+            "application/msword": "doc",
+            "text/csv": "csv",
+            "application/json": "json",
+            "text/html": "html",
+            "application/rtf": "rtf",
+            "application/octet-stream": "",
+        }
+        drive_mime = drive_f.get("mimeType", "application/octet-stream")
+        # ลอง MIME map ก่อน, ถ้าไม่เจอ ดึงจาก filename extension
+        filetype_ext = _MIME_TO_EXT.get(drive_mime, "")
+        if not filetype_ext and "." in original_name:
+            filetype_ext = original_name.rsplit(".", 1)[-1].lower()
+
         new_row = File(
             id=local_id,
             user_id=self.user_id,
             filename=original_name,
-            filetype=drive_f.get("mimeType", "application/octet-stream"),
+            filetype=filetype_ext or "txt",  # fallback เป็น txt ถ้าไม่รู้
             raw_path="",  # ไม่มีไฟล์ local — จะ download on-demand
             drive_file_id=drive_f["id"],
             drive_modified_time=_parse_drive_time(drive_f["modifiedTime"]),
