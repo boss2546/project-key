@@ -7,6 +7,25 @@
 
 ## 🎯 Current Pipeline State: `idle`
 
+### 🟢 v7.3.0 UX Edge-Cases & Mobile Fixes — DONE ✅ (2026-05-02)
+
+**State:** `done` ✅ — implemented + 14 v7.3.0 tests + 89 regression all pass = 103 tests 100%
+**Plan file:** [plans/ux-edgecases-v7.3.0.md](../plans/ux-edgecases-v7.3.0.md)
+**Build:** เขียว (this session) — full dev mode per user override
+
+**3 fixes shipped:**
+1. ✅ Mobile Responsive — `.sidebar-toggle` hamburger + slide-out sidebar + backdrop + 92vw modals at ≤768px (auto-close on nav click + ESC)
+2. ✅ Form Validation UX — `.is-invalid` red border + box-shadow + auto-focus first empty field in ctx-modal; clears `.is-invalid` on user input
+3. ✅ Z-index Hierarchy — modal-overlay 10500 / loading 10800 / toast 11000; all bumped above guide-drawer (10000)
+
+**Tests:** 14 new v7.3.0 + 12 v7.2.0 + 89 regression = 103 tests pass 100% on local
+**Visual smoke:** 8 screenshots captured (mobile sidebar open/closed/profile-modal/ctx-create + desktop validation states + modal-above-guide)
+**Files changed:** 6 (app.html, app.js, shared.css, styles.css + 2 new test specs)
+
+**Last update:** 2026-05-02 (เขียว implement + verify; ready to commit + push)
+
+---
+
 ### 🟢 v7.2.0 UX Critical Hotfixes — DONE ✅ (2026-05-02)
 
 **State:** `done` ✅ — implemented + 12 v7.2.0 tests + 89 regression all pass
@@ -30,16 +49,23 @@
 
 ## 📥 Queued (รอคิว — หลัง v7.2.0 เสร็จ)
 
-### v7.1.5 — Dedupe UX Quick Wins (NEW — 2026-05-02)
-**State:** `plan_pending_approval` ⏳
+### v7.1.5 — Dedupe UX Quick Wins (v2 research-backed — 2026-05-02)
+**State:** `plan_pending_approval` ⏳ — v7.2.0 ship แล้ว เป็น next in queue
 **Owner (plan):** แดง (Daeng)
-**Plan file:** [plans/dedupe-ux-v7.1.5.md](../plans/dedupe-ux-v7.1.5.md)
-**Foundation:** patch บน v7.1.0 dedupe (commits `cd114dd` + `0adcaf1`) — frontend-only
+**Plan file:** [plans/dedupe-ux-v7.1.5.md](../plans/dedupe-ux-v7.1.5.md) (v2 — wording ผ่าน UX research)
+**Foundation:** patch บน v7.1.0 dedupe (`cd114dd` + `0adcaf1`) + ใช้ toast/modal pattern จาก v7.2.0 ที่เพิ่ง ship
 **ETA:** เขียว ~2-3 ชม. + ฟ้า ~1 ชม.
 
 ### Scope (2 fixes แก้ pain ใหญ่ที่สุด)
 - **P1 → A1:** Per-file action ใน popup — radio per row + 2 quick actions (เก็บทั้งหมด/ข้ามทั้งหมด)
-- **P2 → A2:** Undo toast 5 วิ — กดผิดได้ (client-side delay, ยังไม่เรียก API)
+- **P2 → A2:** Undo toast **10 วิ** + ปุ่ม X dismiss (ไม่ใช่ 5s) — Material 3 + WCAG 2.2.1
+
+### Wording ผ่าน UX research (v2)
+- **NN/G** [Cancel-vs-Close](https://www.nngroup.com/articles/cancel-vs-close/) + [Confirmation Dialogs](https://www.nngroup.com/articles/confirmation-dialog/)
+- **OS standards** — Win11 + macOS Finder ใช้ "Skip" / "Keep both" สำหรับ batch (idiomatic)
+- **Material 3 + WCAG 2.2.1** — toast ≥10s + manual dismiss สำหรับ destructive
+- **Thai mobile convention** (K+/SCB Easy/LINE) — "เลิกทำ" สำหรับ undo, "ปิด"/"ไว้ทีหลัง" สำหรับ non-destructive close
+- **Key changes:** "ข้ามไฟล์ใหม่" (ไม่ใช่ "ลบใหม่"), ปุ่ม close = "ไว้ทีหลัง" (ไม่ใช่ "ยกเลิก"), undo = "เลิกทำ" (ไม่ใช่ "เอาคืน"), confirm = verb+count+object ("ข้ามไฟล์ใหม่ 3 ไฟล์")
 
 ### Why frontend-only
 - Backend `/api/files/skip-duplicates` รับ `file_ids: list` อยู่แล้ว → per-file selector แค่ส่ง subset
@@ -57,7 +83,8 @@
 - 2026-05-02 — User ถามว่าระบบรองรับ multi-file upload ไหม → แดงสำรวจ implementation จริง (post-pivot DUP-003)
 - 2026-05-02 — User ขอ proactive UX plan → แดงเสนอ 4 phase (~5 วัน)
 - 2026-05-02 — User ขอ "ง่ายไม่ซับซ้อน แก้จุดปวดใจหลัก" → แดง strip เหลือ 2 fixes (~3 ชม.)
-- รอ user approve → queue หลัง v7.2.0
+- 2026-05-02 — User ขอ research wording ที่ดีที่สุด → แดง delegate research → revise plan v2 ตาม NN/G + OS standards + Material 3 + Thai mobile convention
+- รอ user approve → เริ่ม build (v7.2.0 done แล้ว ไม่ต้อง queue ต่อ)
 
 ---
 

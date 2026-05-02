@@ -931,6 +931,48 @@ function applyLanguage(lang) {
 }
 
 // ═══════════════════════════════════════════
+// v7.3.0 — Mobile sidebar (hamburger + slide-out)
+// ═══════════════════════════════════════════
+// On screens ≤ 768px the sidebar is hidden by default. The hamburger
+// button toggles `.sidebar-open` on the .app-container, which the CSS
+// uses to slide the sidebar in and reveal the backdrop.
+//
+// We also auto-close the sidebar when the user navigates (so the new
+// page is visible behind it) and when ESC is pressed.
+function initSidebarMobile() {
+ const toggle = document.getElementById('sidebar-toggle');
+ const backdrop = document.getElementById('sidebar-backdrop');
+ const container = document.querySelector('.app-container');
+ if (!toggle || !backdrop || !container) return;
+
+ const isOpen = () => container.classList.contains('sidebar-open');
+ const open = () => {
+  container.classList.add('sidebar-open');
+  toggle.setAttribute('aria-expanded', 'true');
+ };
+ const close = () => {
+  container.classList.remove('sidebar-open');
+  toggle.setAttribute('aria-expanded', 'false');
+ };
+
+ toggle.addEventListener('click', () => isOpen() ? close() : open());
+ backdrop.addEventListener('click', close);
+
+ // After the user picks a nav item on mobile, close the sidebar so the
+ // newly active page is visible without an extra tap.
+ document.querySelectorAll('.nav-item[data-page]').forEach(link => {
+  link.addEventListener('click', () => {
+   if (window.innerWidth <= 768) close();
+  });
+ });
+
+ // ESC closes the sidebar (in addition to closing modals via initGlobalModalUX)
+ document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && isOpen()) close();
+ });
+}
+
+// ═══════════════════════════════════════════
 // v7.2.0 — Global Modal UX (ESC + backdrop click)
 // ═══════════════════════════════════════════
 // Closes any open `.modal-overlay`, `.pack-modal-overlay`, or
@@ -1010,6 +1052,7 @@ document.addEventListener('DOMContentLoaded', () => {
  // unconditionally; guard by app existence as a belt-and-braces.
  if (document.getElementById('app')) {
   try { initGlobalModalUX(); } catch (e) { console.warn('[init] initGlobalModalUX:', e); }
+  try { initSidebarMobile(); } catch (e) { console.warn('[init] initSidebarMobile:', e); }
   try { initNavigation(); } catch (e) { console.warn('[init] initNavigation:', e); }
   try { initUpload(); } catch (e) { console.warn('[init] initUpload:', e); }
   try { initProfile(); } catch (e) { console.warn('[init] initProfile:', e); }
@@ -3722,15 +3765,31 @@ function editContext(id) { openCtxModal(id); }
 
 async function saveCtxModal() {
  const editId = document.getElementById('ctx-edit-id').value;
- const title = document.getElementById('ctx-input-title').value.trim();
- const content = document.getElementById('ctx-input-content').value.trim();
+ const titleEl = document.getElementById('ctx-input-title');
+ const contentEl = document.getElementById('ctx-input-content');
+ const title = titleEl.value.trim();
+ const content = contentEl.value.trim();
  const ctxType = document.getElementById('ctx-input-type').value;
  const tagsStr = document.getElementById('ctx-input-tags').value;
  const isPinned = document.getElementById('ctx-input-pinned').checked;
  const tags = tagsStr ? tagsStr.split(',').map(t => t.trim()).filter(Boolean) : [];
 
+ // v7.3.0 — clear any leftover invalid state from a previous attempt
+ titleEl.classList.remove('is-invalid');
+ contentEl.classList.remove('is-invalid');
+
+ // v7.3.0 — validate required fields; mark + focus the first empty
+ const isTH = getLang() === 'th';
  if (!title) {
- showToast('กรุณาใส่ชื่อ Context', 'error');
+ titleEl.classList.add('is-invalid');
+ titleEl.focus();
+ showToast(isTH ? 'กรุณาใส่ชื่อ Context' : 'Please enter a context title', 'error');
+ return;
+ }
+ if (!content) {
+ contentEl.classList.add('is-invalid');
+ contentEl.focus();
+ showToast(isTH ? 'กรุณาใส่เนื้อหา Context' : 'Please enter context content', 'error');
  return;
  }
 
@@ -3812,6 +3871,13 @@ document.addEventListener('DOMContentLoaded', () => {
  document.getElementById('ctx-modal-close')?.addEventListener('click', () => document.getElementById('ctx-modal').classList.add('hidden'));
  document.getElementById('ctx-modal-cancel')?.addEventListener('click', () => document.getElementById('ctx-modal').classList.add('hidden'));
  document.getElementById('ctx-modal-save')?.addEventListener('click', saveCtxModal);
+
+ // v7.3.0 — clear `.is-invalid` as soon as the user types in the field
+ ['ctx-input-title', 'ctx-input-content'].forEach(id => {
+ document.getElementById(id)?.addEventListener('input', (e) => {
+  e.target.classList.remove('is-invalid');
+ });
+ });
 
  // View modal controls
  document.getElementById('ctx-view-close')?.addEventListener('click', () => document.getElementById('ctx-view-modal').classList.add('hidden'));

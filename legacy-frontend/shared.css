@@ -215,6 +215,12 @@ body.show-landing {
 .btn-gold:hover { filter: brightness(1.12); transform: translateY(-1px); }
 
 /* ─── MODALS (universal) ─── */
+/* v7.3.0 — z-index hierarchy:
+     guide-drawer    : 10000   (styles.css)
+     modal-overlay   : 10500   ← above guide drawer, was 100
+     loading-overlay : 10800   (styles.css, was 10000)
+     toast-container : 11000   (below, was 10000)
+   Lets users open modals on top of an open guide drawer. */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -222,7 +228,7 @@ body.show-landing {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  z-index: 10500;
   backdrop-filter: blur(4px);
 }
 
@@ -235,6 +241,15 @@ body.show-landing {
   display: flex;
   flex-direction: column;
   animation: fadeIn 0.2s ease;
+}
+
+/* v7.3.0 — On phones, ensure every modal (incl. ones that pass an
+   inline `style="max-width:600px"` or similar) collapses to viewport. */
+@media (max-width: 768px) {
+  .modal {
+    width: 92vw !important;
+    max-height: 88vh;
+  }
 }
 
 .modal-header {
@@ -310,14 +325,26 @@ body.show-landing {
   border-color: var(--accent);
 }
 
+/* v7.3.0 — Invalid field highlight.
+   `!important` is needed because some legacy modals (notably the
+   Context create modal) define `border` as inline styles which
+   would otherwise win the cascade over a class rule. */
+.is-invalid,
+input.is-invalid,
+textarea.is-invalid,
+select.is-invalid {
+  border-color: var(--error) !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18) !important;
+}
+
 /* ─── TOAST (universal) ─── */
-/* z-index 10000 ensures the close (X) button stays clickable above the
-   guide-fab FAB (z-index 9998) which lives in the same corner. */
+/* v7.3.0 — bumped to 11000 so toasts (especially errors during a save in
+   a modal) stay above modal-overlay (10500) and loading-overlay (10800). */
 #toast-container {
   position: fixed;
   bottom: 20px;
   right: 20px;
-  z-index: 10000;
+  z-index: 11000;
   display: flex;
   flex-direction: column;
   gap: 8px;
