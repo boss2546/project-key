@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-05-02 (Claude multi-role Phase 1+2 — health-report-driven cleanup)
+
+- 🔧 **Phase 1 (memory + version sync):**
+  - `active-tasks.md` overwrite — Pipeline state aligned to `idle` (ตรงกับ pipeline-state.md), Completed Features เพิ่ม v7.4.0/v7.3.0/v7.2.0/v7.1.5
+  - `package.json` version 6.1.0 → 7.1.5 (sync กับ APP_VERSION ใน backend/config.py)
+  - `last-session.md` + `changelog.md` updated
+  - Result: 3 sources of truth (config.py / package.json / pipeline-state) อยู่ในแนวเดียวกัน
+- 🗂️ **Phase 2 (archive 9 shipped plans):**
+  - ย้าย 9 plans ไป `plans/archive/` ตาม convention `[YYYY-MM-DD]-[name].md`:
+    - 2026-04-30: personality-profile (v6.0.0)
+    - 2026-05-01: rebrand-pdb + readiness-notes (v6.1.0), google-drive-byos (v7.0.0), duplicate-detection (v7.1.0)
+    - 2026-05-02: dedupe-ux-v7.1.5, ux-hotfixes-v7.2.0, ux-edgecases-v7.3.0, saas-responsive-v7.4.0
+  - Update plan refs ใน pipeline-state.md + active-tasks.md (Inbox/session-logs ที่เป็น historical record ไม่แก้)
+  - Result: `plans/` มีแค่ README.md (active plans = 0), พร้อมรับ feature ใหม่
+- 📊 **Health report findings (driver ของ session นี้):**
+  - Backend 12,284 LOC / Frontend 12,519 LOC (main.py + app.js เป็น mega files)
+  - Security: zero hardcoded secrets, zero SQL injection risk, zero async/sync mixing
+  - Production gap: 17 commits ค้างยังไม่ deploy (master = v7.1.5+v7.2-7.4, prod = v7.1.0)
+  - Identified BACKLOG-008/009 เป็น production launch gates (NOT silent tech debt)
+
+---
+
 ## 2026-05-02 (Claude multi-role cleanup — autonomous "ดำเนินงานด้วยตัว" session)
 
 - 🧹 (Claude) **Memory drift cleanup** — sync pipeline-state.md / active-tasks.md / 4 inboxes / last-session.md ให้ตรงกับ master จริง (lag อยู่ที่ 2026-05-01 — งานทั้งหมด v6.1.0 / v7.0.0 / v7.0.1 / v7.1.0 + frontend split deploy ไปแล้ว)
