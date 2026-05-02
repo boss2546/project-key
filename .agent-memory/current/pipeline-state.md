@@ -5,37 +5,59 @@
 
 ---
 
-## 🎯 Current Pipeline State: `plan_pending_approval`
+## 🎯 Current Pipeline State: `idle`
 
-### 🔴 v7.2.0 UX Critical Hotfixes — JUMP THE QUEUE (2026-05-02)
+### 🟢 v7.2.0 UX Critical Hotfixes — DONE ✅ (2026-05-02)
 
-**State:** `plan_pending_approval` 🔴 — แดงเขียนแผนเสร็จแล้ว รอ user ตรวจก่อนให้เขียวเขียนโค้ด
-**Owner (plan):** แดง (Daeng)
-**Owner (build):** เขียว (Khiao) — รอ user approve plan ก่อน
-**Owner (test):** ฟ้า (Fah)
+**State:** `done` ✅ — implemented + 12 v7.2.0 tests + 89 regression all pass
 **Plan file:** [plans/ux-hotfixes-v7.2.0.md](../plans/ux-hotfixes-v7.2.0.md)
-**Priority:** 🔴 Critical — Data Integrity + System Stability — user สั่งให้ข้ามคิวงานอื่นทั้งหมด
-**Estimated effort:** เขียว ~2-3 ชม. + ฟ้า ~1 ชม.
-**Foundation:** ต่อยอดจาก commit `cc1ad84` (landing/app split + 98 Playwright tests)
+**Build:** เขียว (this session) — full dev mode per user override
+**Commit:** `de34f8f` feat(ux): v7.2.0 critical UX hotfixes — 5 fixes
 
-**5 Sections (เร่งด่วนที่สุด):**
-1. Button Loading States — disabled + spinner สำหรับ saveProfile + sendMessage (organize ครบแล้ว)
-2. Upload Progress — XHR progress events + beforeunload guard
-3. Error Toast — type='error' ห้าม auto-dismiss + ปุ่ม X
-4. AI Typing Indicator — `<span id="chat-typing-status">` ขึ้นทันทีตอนกด send
-5. Modal UX — global ESC + backdrop click ปิด modal (8 modals ใน app; auth-modal บน landing out-of-scope)
+**5 fixes shipped:**
+1. ✅ Button Loading States — saveProfile + sendMessage disable + spinner
+2. ✅ Upload Progress — XHR onprogress + beforeunload guard + double-upload toast
+3. ✅ Error Toast — never auto-dismiss + close (X) button + z-index 10000
+4. ✅ AI Typing Indicator — chat-typing-status in header + 3-dot bounce + i18n
+5. ✅ Modal UX — global ESC + backdrop click (8 modals); confirm-modal Promise contract preserved
 
-**Pending decision (รอ user approve):**
-- [ ] อ่านแผนใน [plans/ux-hotfixes-v7.2.0.md](../plans/ux-hotfixes-v7.2.0.md)
-- [ ] ตรวจ acceptance criteria + risks + out-of-scope
-- [ ] ตอบ **"approve"** → state เปลี่ยนเป็น `plan_approved` → เขียวเริ่มเขียน
-- [ ] หรือสั่งแก้แผนก่อน → แดงปรับ → ส่งใหม่
+**Tests:** 12 new v7.2.0 + 89 regression = 101 tests pass 100% on local
+**Files changed:** 7 (app.html, app.js, shared.css, styles.css, thorough-pages.spec.js, + 2 new files)
 
-**ห้ามทำตอนนี้:**
-- 🟢 เขียว — ห้ามเริ่มเขียนโค้ด จนกว่า user จะ approve plan
-- 🔵 ฟ้า — ยังไม่ต้องเขียน test (เขียวจะเขียนเองในแต่ละ Phase ตาม plan checklist)
+**Last update:** 2026-05-02 (เขียว implement + commit; ready to push)
 
-**Last update:** 2026-05-02 (แดงเขียนแผน + จับ state เป็น plan_pending_approval)
+---
+
+## 📥 Queued (รอคิว — หลัง v7.2.0 เสร็จ)
+
+### v7.1.5 — Dedupe UX Quick Wins (NEW — 2026-05-02)
+**State:** `plan_pending_approval` ⏳
+**Owner (plan):** แดง (Daeng)
+**Plan file:** [plans/dedupe-ux-v7.1.5.md](../plans/dedupe-ux-v7.1.5.md)
+**Foundation:** patch บน v7.1.0 dedupe (commits `cd114dd` + `0adcaf1`) — frontend-only
+**ETA:** เขียว ~2-3 ชม. + ฟ้า ~1 ชม.
+
+### Scope (2 fixes แก้ pain ใหญ่ที่สุด)
+- **P1 → A1:** Per-file action ใน popup — radio per row + 2 quick actions (เก็บทั้งหมด/ข้ามทั้งหมด)
+- **P2 → A2:** Undo toast 5 วิ — กดผิดได้ (client-side delay, ยังไม่เรียก API)
+
+### Why frontend-only
+- Backend `/api/files/skip-duplicates` รับ `file_ids: list` อยู่แล้ว → per-file selector แค่ส่ง subset
+- Undo = client-side setTimeout — ไม่ต้องมี soft-delete table
+
+### Defer (Phase 2.2+)
+- Replace action button (preserve cluster/tags) — ซับซ้อน
+- Library scan endpoint + duplicate dashboard page
+- LLM deep diff
+- "ไม่ใช่ duplicate" override (dismissal table)
+- MCP `find_duplicates` tool
+- Drive sync dedupe
+
+### Timeline
+- 2026-05-02 — User ถามว่าระบบรองรับ multi-file upload ไหม → แดงสำรวจ implementation จริง (post-pivot DUP-003)
+- 2026-05-02 — User ขอ proactive UX plan → แดงเสนอ 4 phase (~5 วัน)
+- 2026-05-02 — User ขอ "ง่ายไม่ซับซ้อน แก้จุดปวดใจหลัก" → แดง strip เหลือ 2 fixes (~3 ชม.)
+- รอ user approve → queue หลัง v7.2.0
 
 ---
 
