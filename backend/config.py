@@ -18,7 +18,17 @@ LLM_MODEL = "google/gemini-3-flash-preview"            # Chat & lightweight task
 LLM_MODEL_PRO = "google/gemini-3-flash-preview"          # ⚡ TEMP: ใช้ Flash แทน Pro เพื่อเทสเร็ว (เดิม: google/gemini-3.1-pro-preview)
 
 # Limits
-MAX_FILE_SIZE_MB = 10
+MAX_FILE_SIZE_MB = 10  # legacy — superseded by plan_limits.max_file_size_mb (per-plan)
+
+# v7.5.0 — Big File map-reduce threshold (chars in extracted_text, not file size)
+# Files where extracted_text exceeds this trigger chunking + map-reduce summary
+# (raw file is preserved unchanged regardless of size).
+LARGE_FILE_THRESHOLD = 30_000
+
+# v7.5.0 — Hard upper cap on raw file size (bytes). Even with plan_limits set
+# higher, this guards against memory blowup at extraction time. Adjust as
+# Fly.io machine RAM allows (1024MB → 200MB safe; 2048MB → 400MB).
+ABSOLUTE_MAX_FILE_SIZE_MB = 200
 
 # Paths
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

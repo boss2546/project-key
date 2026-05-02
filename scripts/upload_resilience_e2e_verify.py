@@ -203,7 +203,96 @@ def _summary():
     return 0 if FAIL == 0 else 1
 
 
-# Sections B/C/D get added in their respective phases
-print("\n[Sections B, C, D will be added as Phase 4/2/3 ship]")
+# ─── Section B: Phase 4 — Big File ──────────────────────────────────
+
+
+print("\n═══ SECTION B — Phase 4: Big File Support ═══")
+
+# B.1 — DB schema includes new v7.5.0 columns
+import asyncio as _asyncio
+from sqlalchemy import text as _sql
+
+async def _check_schema():
+    from backend.database import AsyncSessionLocal
+    async with AsyncSessionLocal() as db:
+        cur = await db.execute(_sql("PRAGMA table_info(files)"))
+        cols = [row[1] for row in cur.fetchall()]
+        return cols
+
+cols = _asyncio.run(_check_schema())
+expect_true("B.1 files.extraction_status column exists",
+            "extraction_status" in cols, hint=f"cols={sorted(cols)}")
+expect_true("B.2 files.chunk_count column exists",
+            "chunk_count" in cols)
+expect_true("B.3 files.is_truncated column exists",
+            "is_truncated" in cols)
+
+# B.4 — text_chunker imports + handles big text
+from backend.text_chunker import chunk_text as _chunk
+from backend.config import LARGE_FILE_THRESHOLD
+
+small_chunks = _chunk("hello " * 100)
+expect_true("B.4 chunk_text small text returns 1 chunk",
+            len(small_chunks) == 1)
+
+big_text = "## Heading {n}\n".format(n=0) + "\n\n".join(
+    f"## Heading {i}\nUNIQUE_MARK_{i:03d} " + ("content " * 1000) for i in range(1, 8)
+)
+big_chunks = _chunk(big_text)
+expect_true("B.5 chunk_text big text returns multiple chunks",
+            len(big_chunks) > 1, hint=f"got {len(big_chunks)} chunks for {len(big_text)} chars")
+
+# B.6 — every UNIQUE_MARK present somewhere in chunks
+all_text = "".join(big_chunks)
+markers_found = sum(1 for i in range(1, 8) if f"UNIQUE_MARK_{i:03d}" in all_text)
+expect_true("B.6 all 7 UNIQUE_MARK preserved across chunks",
+            markers_found == 7, hint=f"found {markers_found}/7")
+
+# B.7 — bumped size limit (200MB testing)
+from backend.plan_limits import PLAN_LIMITS
+expect("B.7 free.max_file_size_mb bumped to 200",
+       PLAN_LIMITS["free"]["max_file_size_mb"], 200)
+expect("B.8 starter.max_file_size_mb bumped to 200",
+       PLAN_LIMITS["starter"]["max_file_size_mb"], 200)
+
+# B.9 — allowed types extended
+allowed = PLAN_LIMITS["free"]["allowed_file_types"]
+new_types = {"xlsx", "pptx", "html", "json", "rtf", "jpeg", "webp"}
+missing = new_types - allowed
+expect_true("B.9 allowed_types includes xlsx/pptx/html/json/rtf/jpeg/webp",
+            not missing, hint=f"missing={missing}")
+
+# B.10 — LARGE_FILE_THRESHOLD = 30000 (per Q-A user decision)
+expect("B.10 LARGE_FILE_THRESHOLD = 30000", LARGE_FILE_THRESHOLD, 30000)
+
+# B.11 — File model accepts new columns via ORM (sanity insert + read)
+async def _orm_roundtrip():
+    from backend.database import AsyncSessionLocal, File, gen_id
+    from sqlalchemy import select
+    fid = gen_id()
+    async with AsyncSessionLocal() as db:
+        f = File(
+            id=fid, user_id="dummy_user", filename="x.txt",
+            filetype="txt", raw_path="/dev/null",
+            extracted_text="test", extraction_status="ok",
+            chunk_count=5, is_truncated=False,
+        )
+        db.add(f)
+        await db.commit()
+        r = await db.execute(select(File).where(File.id == fid))
+        got = r.scalar_one_or_none()
+        await db.delete(got)
+        await db.commit()
+        return got
+
+got = _asyncio.run(_orm_roundtrip())
+expect("B.11 ORM roundtrip preserves chunk_count", got.chunk_count, 5)
+expect("B.12 ORM roundtrip preserves extraction_status", got.extraction_status, "ok")
+expect_true("B.13 ORM roundtrip preserves is_truncated default",
+            got.is_truncated in (False, 0))
+
+
+# Sections C/D get added in their respective phases
+print("\n[Sections C, D will be added as Phase 2/3 ship]")
 
 sys.exit(_summary())

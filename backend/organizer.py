@@ -247,8 +247,20 @@ Rules:
 
 
 async def _generate_summary(file: File, cluster_title: str, importance: dict) -> dict:
-    """Generate a rich markdown summary for a single file."""
+    """Generate a rich markdown summary for a single file.
 
+    v7.5.0: routes to map-reduce for big files (extracted_text > LARGE_FILE_THRESHOLD).
+    Sets file.chunk_count + file.is_truncated for caller to commit.
+    """
+    from .config import LARGE_FILE_THRESHOLD
+    text = file.extracted_text or ""
+    if len(text) > LARGE_FILE_THRESHOLD:
+        return await _generate_summary_mapreduce(file, cluster_title, importance)
+    return await _generate_summary_simple(file, cluster_title, importance)
+
+
+async def _generate_summary_simple(file: File, cluster_title: str, importance: dict) -> dict:
+    """Original single-LLM-call path for files ≤ LARGE_FILE_THRESHOLD chars."""
     text_preview = file.extracted_text[:6000] if file.extracted_text else "[No text]"
 
     system_prompt = """You are a document summarization AI. Create a structured summary of the given file.
@@ -277,6 +289,122 @@ Rules:
         f"FULL TEXT:\n{text_preview}"
     )
 
+    return await call_llm_json(system_prompt, user_prompt)
+
+
+async def _generate_summary_mapreduce(file: File, cluster_title: str, importance: dict) -> dict:
+    """Big-file summary via map-reduce: chunk → mini-summary per chunk → merge.
+
+    Why map-reduce vs single-call truncation:
+      - Old behavior truncated at 6K chars → 96% loss for a 150K-char document
+      - LLM context bloat (Gemini Flash 32K) means single-call can't fit big files
+      - Per-chunk → final merge captures content from beginning, middle, AND end
+
+    Cost model (Q-F decision):
+      - 10 chunks = 10 map calls + 1 reduce call = 11 LLM calls
+      - Logged as 1 AI summary quota (not 10) — fairness, user uploads 1 file = 1 count
+      - Reduce step receives 10 mini-summaries (~200 chars each = ~2K total — fits easily)
+
+    Sets:
+      file.chunk_count = N (so file card UI shows "📚 N ส่วน")
+      file.is_truncated = True if any chunk failed (partial result)
+    """
+    from .text_chunker import chunk_text
+    chunks = chunk_text(file.extracted_text or "")
+    file.chunk_count = len(chunks)
+    file.is_truncated = False  # may flip to True if a map call fails
+
+    logger.info(
+        f"Big file map-reduce: {file.filename} ({len(file.extracted_text)} chars → {len(chunks)} chunks)"
+    )
+
+    # ─── Map: per-chunk mini-summary ──────────────────────────────────
+    mini_summaries: list[dict] = []
+    for i, chunk in enumerate(chunks):
+        try:
+            mini = await _summarize_chunk(chunk, file.filename, i + 1, len(chunks))
+            mini_summaries.append(mini)
+        except Exception as e:
+            logger.error(f"Chunk {i+1}/{len(chunks)} of {file.filename} failed: {e}")
+            file.is_truncated = True
+            mini_summaries.append({
+                "summary": f"[ส่วนที่ {i+1} อ่านไม่ได้: {type(e).__name__}]",
+                "key_topics": [],
+                "key_facts": [],
+            })
+
+    # ─── Reduce: merge mini-summaries into final ──────────────────────
+    return await _merge_summaries(
+        mini_summaries, file, cluster_title, importance,
+    )
+
+
+async def _summarize_chunk(chunk: str, filename: str, chunk_n: int, total: int) -> dict:
+    """Map step: summarize one chunk into structured mini-summary."""
+    system_prompt = """You are a document summarization AI processing one chunk of a larger file.
+
+Respond with ONLY valid JSON:
+{
+  "summary": "Concise 1-2 sentence summary of THIS chunk only (Thai)",
+  "key_topics": ["topic1", "topic2"],
+  "key_facts": ["fact1", "fact2"]
+}
+
+Rules:
+- Write in THAI
+- Stay focused on what's in THIS chunk (don't speculate about the whole document)
+- Keep summary brief (will be merged with other chunks later)
+- key_topics: 1-4 items per chunk
+- key_facts: 1-5 specific items per chunk"""
+
+    user_prompt = (
+        f"FILENAME: {filename}\n"
+        f"CHUNK: {chunk_n} of {total}\n\n"
+        f"CONTENT:\n{chunk}"
+    )
+    return await call_llm_json(system_prompt, user_prompt)
+
+
+async def _merge_summaries(mini_summaries: list[dict], file: File, cluster_title: str, importance: dict) -> dict:
+    """Reduce step: merge per-chunk summaries into one comprehensive summary.
+
+    Inputs are small (each ~200 chars × 10 chunks = ~2K) so single LLM call works fine.
+    Output schema matches _generate_summary_simple for downstream compatibility.
+    """
+    # Format mini-summaries as a structured input for the reducer
+    chunks_text = "\n\n".join(
+        f"=== ส่วนที่ {i+1} ===\nสรุป: {m.get('summary', '')}\n"
+        f"หัวข้อ: {', '.join(m.get('key_topics', []))}\n"
+        f"ข้อเท็จจริง: {'; '.join(m.get('key_facts', []))}"
+        for i, m in enumerate(mini_summaries)
+    )
+
+    system_prompt = """You are a document summarization AI merging chunk summaries from a large document.
+
+Respond with ONLY valid JSON:
+{
+  "summary": "Comprehensive 3-5 paragraph summary covering content from ALL chunks (Thai)",
+  "key_topics": ["Topic 1", "Topic 2", "Topic 3"],
+  "key_facts": ["Specific fact 1", "Specific fact 2", "Specific fact 3"],
+  "why_important": "Why this file matters and when to use it (Thai)",
+  "suggested_usage": "How AI should use this file (Thai)"
+}
+
+Rules:
+- Write in THAI
+- summary should reflect the WHOLE document — pull highlights from beginning, middle, AND end
+- key_topics: 4-8 items, deduplicated across chunks
+- key_facts: 5-10 specific items — prefer concrete (numbers, dates, names) over vague
+- If a chunk says "[ส่วนที่ N อ่านไม่ได้]" → mention that gap in summary"""
+
+    user_prompt = (
+        f"FILENAME: {file.filename}\n"
+        f"FILETYPE: {file.filetype}\n"
+        f"CLUSTER: {cluster_title}\n"
+        f"IMPORTANCE: {importance.get('label', 'medium')} ({importance.get('score', 50)}/100)\n"
+        f"TOTAL CHUNKS: {len(mini_summaries)}\n\n"
+        f"CHUNK SUMMARIES TO MERGE:\n{chunks_text}"
+    )
     return await call_llm_json(system_prompt, user_prompt)
 
 

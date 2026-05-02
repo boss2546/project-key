@@ -79,6 +79,17 @@ class File(Base):
     # Indexed เพื่อ exact-match lookup เร็วตอน upload (ดู duplicate_detector.py)
     content_hash = Column(String(64), nullable=True, index=True)
 
+    # v7.5.0 — Extraction status (Phase 2 ground; populated in Phase 2 properly)
+    # Values: "ok" | "empty" | "encrypted" | "ocr_failed" | "unsupported" | "partial"
+    # "ok" = backfill default for existing rows (Phase 4 only adds the column)
+    extraction_status = Column(String, default="ok")
+
+    # v7.5.0 — Big-file map-reduce processing
+    # chunk_count: 0 = ไม่ chunk (ปกติ), >0 = ไฟล์ใหญ่ที่ผ่าน map-reduce แล้ว
+    # is_truncated: True = เนื้อหาเกินความสามารถ chunk แม้แล้ว ตัดทิ้งบางส่วน
+    chunk_count = Column(Integer, default=0)
+    is_truncated = Column(Boolean, default=False)
+
     owner = relationship("User", back_populates="files")
     insight = relationship("FileInsight", uselist=False, back_populates="file", cascade="all, delete-orphan")
     summary = relationship("FileSummary", uselist=False, back_populates="file", cascade="all, delete-orphan")
@@ -642,6 +653,30 @@ async def init_db():
                 )
             except Exception as e:
                 print(f"  ⚠️ files.content_hash index creation warning: {e}")
+
+            # v7.5.0 Migration — Big File support (extraction_status + chunk metadata)
+            # All existing files default to extraction_status="ok" + chunk_count=0
+            # → no auto-resummarize triggered, user opts in via reprocess button
+            cursor = await db.execute("PRAGMA table_info(files)")
+            file_cols_v750 = [row[1] for row in await cursor.fetchall()]
+            if "extraction_status" not in file_cols_v750:
+                await db.execute(
+                    "ALTER TABLE files ADD COLUMN extraction_status TEXT DEFAULT 'ok'"
+                )
+                migrated = True
+                print("  → Added: files.extraction_status (v7.5.0 — Phase 2/4)")
+            if "chunk_count" not in file_cols_v750:
+                await db.execute(
+                    "ALTER TABLE files ADD COLUMN chunk_count INTEGER DEFAULT 0"
+                )
+                migrated = True
+                print("  → Added: files.chunk_count (v7.5.0 — big file map-reduce)")
+            if "is_truncated" not in file_cols_v750:
+                await db.execute(
+                    "ALTER TABLE files ADD COLUMN is_truncated INTEGER DEFAULT 0"
+                )
+                migrated = True
+                print("  → Added: files.is_truncated (v7.5.0 — big file overflow flag)")
 
             if migrated:
                 await db.commit()

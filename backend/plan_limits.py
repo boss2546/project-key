@@ -14,30 +14,33 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 # ⚠️ TESTING MODE — all limits removed for all accounts
 # TODO: Restore original limits before production launch
+# v7.5.0 — bumped max_file_size_mb 100→200, added xlsx/pptx/html/json/rtf to allowed
 PLAN_LIMITS = {
     "free": {
         "context_pack_limit": 999999,
         "file_limit": 999999,
         "storage_limit_mb": 999999,
-        "max_file_size_mb": 100,
+        "max_file_size_mb": 200,
         "ai_summary_limit_monthly": 999999,
         "export_limit_monthly": 999999,
         "refresh_limit_monthly": 999999,
         "semantic_search_enabled": True,
         "version_history_days": 30,
-        "allowed_file_types": {"pdf", "docx", "txt", "md", "csv", "png", "jpg"},
+        "allowed_file_types": {"pdf", "docx", "txt", "md", "csv", "png", "jpg", "jpeg", "webp",
+                               "xlsx", "pptx", "html", "json", "rtf"},
     },
     "starter": {
         "context_pack_limit": 999999,
         "file_limit": 999999,
         "storage_limit_mb": 999999,
-        "max_file_size_mb": 100,
+        "max_file_size_mb": 200,
         "ai_summary_limit_monthly": 999999,
         "export_limit_monthly": 999999,
         "refresh_limit_monthly": 999999,
         "semantic_search_enabled": True,
         "version_history_days": 30,
-        "allowed_file_types": {"pdf", "docx", "txt", "md", "csv", "png", "jpg"},
+        "allowed_file_types": {"pdf", "docx", "txt", "md", "csv", "png", "jpg", "jpeg", "webp",
+                               "xlsx", "pptx", "html", "json", "rtf"},
     },
 }
 
