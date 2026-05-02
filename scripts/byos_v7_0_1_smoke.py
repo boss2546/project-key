@@ -324,7 +324,15 @@ def test_5_guess_mime():
         (("md", None), "text/markdown"),
         (("docx", None), "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
         (("xyz", None), "application/octet-stream"),
-        (("pdf", "application/x-custom"), "application/x-custom"),  # browser hint wins
+        # Server-side ext map MUST win over browser hint (Content-Type is attacker-
+        # controlled in multipart uploads — never trust it to override a known type)
+        (("pdf", "application/x-custom"), "application/pdf"),
+        # When ext is unknown AND hint is well-formed → fall back to hint
+        (("xyz", "application/x-custom"), "application/x-custom"),
+        # Hint with parameters → strip params before matching
+        (("xyz", "text/plain; charset=utf-8"), "text/plain"),
+        # Malformed hint → ignore + return octet-stream
+        (("xyz", "not-a-mime"), "application/octet-stream"),
         (("", None), "application/octet-stream"),
     ]
     for (ext, hint), expected in cases:
