@@ -7,7 +7,7 @@ from datetime import datetime
 
 from fastapi import FastAPI, UploadFile, File as FastAPIFile, Depends, HTTPException, BackgroundTasks, Query, Header, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import select
@@ -2082,7 +2082,7 @@ async def api_drive_oauth_callback(
     # User denied consent → Google redirect with ?error=access_denied
     if error:
         return RedirectResponse(
-            url=f"/?drive_connected=false&error={error}",
+            url=f"/app?drive_connected=false&error={error}",
             status_code=302,
         )
 
@@ -2150,7 +2150,7 @@ async def api_drive_oauth_callback(
     except Exception as e:
         logger.warning("BYOS: layout init wrapper failed (non-fatal): %s", e)
 
-    return RedirectResponse(url="/?drive_connected=true", status_code=302)
+    return RedirectResponse(url="/app?drive_connected=true", status_code=302)
 
 
 @app.post("/api/drive/disconnect")
@@ -2310,14 +2310,12 @@ async def api_drive_sync(
     return {"status": "ok", "stats": stats}
 
 
-# Billing page routes (serve index.html for SPA-style handling)
+# Billing redirects → land on /app where the success/cancelled toast is shown.
 @app.get("/billing/success")
 async def serve_billing_success():
-    """Billing success page."""
-    index_path = os.path.join(BASE_DIR, "legacy-frontend", "index.html")
-    if os.path.exists(index_path):
-        return FileResponse(index_path, media_type="text/html")
-    raise HTTPException(status_code=404)
+    """Stripe redirects here on success → forward to /app."""
+    return RedirectResponse(url="/app?billing=success", status_code=302)
+
 
 @app.get("/pricing")
 async def serve_pricing():
@@ -2332,11 +2330,8 @@ async def serve_pricing():
 
 @app.get("/billing/cancelled")
 async def serve_billing_cancelled():
-    """Billing cancelled page."""
-    index_path = os.path.join(BASE_DIR, "legacy-frontend", "index.html")
-    if os.path.exists(index_path):
-        return FileResponse(index_path, media_type="text/html")
-    raise HTTPException(status_code=404)
+    """Stripe redirects here on cancel → forward to /app."""
+    return RedirectResponse(url="/app?billing=cancelled", status_code=302)
 
 
 # ─── SERVE FRONTEND (legacy-frontend/) ───
@@ -2344,19 +2339,32 @@ async def serve_billing_cancelled():
 FRONTEND_DIR = os.path.join(BASE_DIR, "legacy-frontend")
 
 
+def _serve_html(filename: str):
+    """Helper: serve a frontend HTML file with no-cache headers."""
+    path = os.path.join(FRONTEND_DIR, filename)
+    if os.path.exists(path):
+        resp = FileResponse(path, media_type="text/html")
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return resp
+    raise HTTPException(status_code=404, detail=f"{filename} not found")
+
+
 @app.get("/")
-async def serve_index():
-    """Serve the main frontend."""
-    index_path = os.path.join(FRONTEND_DIR, "index.html")
-    if os.path.exists(index_path):
-        return FileResponse(index_path, media_type="text/html")
-    raise HTTPException(status_code=404, detail="No frontend found")
+async def serve_landing():
+    """Public landing page — for unauthenticated visitors."""
+    return _serve_html("landing.html")
+
+
+@app.get("/app")
+async def serve_app():
+    """Authenticated workspace shell — JS guards redirect to / if no token."""
+    return _serve_html("app.html")
 
 
 @app.get("/legacy")
 async def serve_legacy():
     """Alias — same as root (backward compatibility)."""
-    return await serve_index()
+    return _serve_html("landing.html")
 
 
 @app.get("/legacy/{filename}")

@@ -55,3 +55,9 @@ tests/testsprite/
 test-results/
 playwright-report/
 blob-report/
+# Screenshots are regenerable via the spec files; keep repo lean.
+tests/baseline/
+tests/phase5-visual/
+tests/thorough-screenshots/
+tests/current/
+tests/visual-diff-out/
