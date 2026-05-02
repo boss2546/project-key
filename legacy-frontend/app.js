@@ -139,6 +139,78 @@ function showUpgradeModal(message) {
 }
 
 // ═══════════════════════════════════════════
+// UPLOAD RESULT MODAL (v7.5.0 — per-file actionable skip)
+// ═══════════════════════════════════════════
+// Why per-file modal vs comma-join toast:
+//  - Toast cuts off after ~3 entries on mobile
+//  - User can't tell which file failed why → can't act
+//  - Each entry now shows code + message + concrete suggestion (e.g. "save as CSV")
+
+function showUploadResultModal(uploaded, skipped) {
+ // uploaded: list of {filename, ...} (only need .length for success count)
+ // skipped:  list of {filename, code, message, suggestion}
+ document.getElementById('upload-result-modal-overlay')?.remove();
+ const isTH = getLang() === 'th';
+ const successCount = (uploaded || []).length;
+ const skipCount = (skipped || []).length;
+
+ const skipIcon = (code) => {
+   if (code === 'UNSUPPORTED_TYPE') return '📄';
+   if (code === 'FILE_TOO_LARGE') return '📦';
+   if (code === 'EMPTY_FILE') return '📭';
+   if (code === 'QUOTA_EXCEEDED') return '🔒';
+   return '⚠️';
+ };
+
+ const successHtml = successCount > 0
+   ? `<div class="upload-result-success">
+        <div class="upload-result-icon-success">✓</div>
+        <div class="upload-result-success-text">${t('upload.successCount').replace('{count}', successCount)}</div>
+      </div>`
+   : '';
+
+ const skipsHtml = (skipped || []).map(s => `
+   <div class="upload-result-skip-card" data-skip-code="${escapeHtml(s.code || 'UNKNOWN')}">
+     <div class="upload-result-skip-icon">${skipIcon(s.code)}</div>
+     <div class="upload-result-skip-body">
+       <div class="upload-result-skip-filename">${escapeHtml(s.filename)}</div>
+       <div class="upload-result-skip-message">${escapeHtml(s.message || s.reason || '')}</div>
+       ${s.suggestion ? `<div class="upload-result-skip-suggestion"><strong>${t('upload.suggestionLabel')}:</strong> ${escapeHtml(s.suggestion)}</div>` : ''}
+     </div>
+   </div>
+ `).join('');
+
+ const overlay = document.createElement('div');
+ overlay.id = 'upload-result-modal-overlay';
+ overlay.className = 'modal-overlay upload-result-modal-overlay';
+ overlay.style.display = 'flex';
+ overlay.innerHTML = `
+   <div class="modal upload-result-modal" role="dialog" aria-modal="true" aria-labelledby="upload-result-title">
+     <div class="modal-header">
+       <h3 id="upload-result-title">${t('upload.resultTitle')}</h3>
+     </div>
+     <div class="modal-body">
+       ${successHtml}
+       ${skipCount > 0 ? `<div class="upload-result-skip-header">${t('upload.skippedCount').replace('{count}', skipCount)}</div>` : ''}
+       <div class="upload-result-skip-list">${skipsHtml}</div>
+     </div>
+     <div class="modal-footer">
+       <button class="btn btn-primary" id="upload-result-close-btn">${t('upload.understand')}</button>
+     </div>
+   </div>
+ `;
+
+ const close = () => overlay.remove();
+ overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+ document.body.appendChild(overlay);
+ document.getElementById('upload-result-close-btn')?.addEventListener('click', close);
+
+ // ESC key dismiss (v7.2.0 modal pattern)
+ const escHandler = (e) => { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', escHandler); } };
+ document.addEventListener('keydown', escHandler);
+}
+
+// ═══════════════════════════════════════════
 // LOADING OVERLAY — v5.1 Premium animations
 // ═══════════════════════════════════════════
 
@@ -592,6 +664,17 @@ const I18N = {
  'confirm.cancel': 'ยกเลิก',
  'confirm.ok': 'ยืนยัน',
 
+ // v7.5.0 — Upload Result Modal (per-file skip with actionable suggestion)
+ 'upload.resultTitle': 'ผลการอัปโหลด',
+ 'upload.successCount': 'อัปโหลดสำเร็จ {count} ไฟล์',
+ 'upload.skippedCount': 'ข้าม {count} ไฟล์',
+ 'upload.understand': 'เข้าใจแล้ว',
+ 'upload.skipUnsupported': 'ไฟล์ไม่รองรับ',
+ 'upload.skipTooLarge': 'ไฟล์ใหญ่เกิน',
+ 'upload.skipQuota': 'เกินจำนวนที่เก็บได้',
+ 'upload.skipEmpty': 'ไฟล์ว่างเปล่า',
+ 'upload.suggestionLabel': 'คำแนะนำ',
+
  // Toasts / dynamic
  'toast.uploaded': 'อัปโหลดเรียบร้อย',
  'toast.deleted': 'ลบเรียบร้อย',
@@ -822,6 +905,17 @@ const I18N = {
  // Confirm modal
  'confirm.cancel': 'Cancel',
  'confirm.ok': 'Confirm',
+
+ // v7.5.0 — Upload Result Modal
+ 'upload.resultTitle': 'Upload Result',
+ 'upload.successCount': '{count} file(s) uploaded',
+ 'upload.skippedCount': '{count} file(s) skipped',
+ 'upload.understand': 'Got it',
+ 'upload.skipUnsupported': 'Unsupported file',
+ 'upload.skipTooLarge': 'File too large',
+ 'upload.skipQuota': 'Quota exceeded',
+ 'upload.skipEmpty': 'Empty file',
+ 'upload.suggestionLabel': 'Suggestion',
 
  // Toasts / dynamic
  'toast.uploaded': 'Upload complete',
@@ -1280,18 +1374,19 @@ async function uploadFiles(fileList) {
   xhr.send(form);
  });
 
- if (data.count > 0) {
- showToast(`${t('toast.uploaded')} ${data.count} ${t('stat.files').toLowerCase()}`, 'success');
+ // v7.5.0 — show toast briefly + open per-file result modal if anything skipped
+ if (data.count > 0 && (!data.skipped || data.skipped.length === 0)) {
+   showToast(`${t('toast.uploaded')} ${data.count} ${t('stat.files').toLowerCase()}`, 'success');
  }
- // Show skipped files — check if quota-related
  if (data.skipped && data.skipped.length > 0) {
- const quotaSkip = data.skipped.find(s => s.reason && s.reason.includes('ขีดจำกัด'));
- if (quotaSkip) {
- setTimeout(() => showUpgradeModal(quotaSkip.reason), 300);
- } else {
- const names = data.skipped.map(s => `${s.filename}: ${s.reason}`).join(', ');
- setTimeout(() => showToast(` ${isTH ? 'ข้ามไฟล์' : 'Skipped'}: ${names}`, 'error'), 500);
- }
+   // Quota-related → upgrade modal (preserve v5.9.x flow)
+   const quotaSkip = data.skipped.find(s => s.code === 'QUOTA_EXCEEDED');
+   if (quotaSkip) {
+     setTimeout(() => showUpgradeModal(quotaSkip.message || quotaSkip.reason), 300);
+   } else {
+     // v7.5.0 — per-file actionable modal with code + suggestion
+     setTimeout(() => showUploadResultModal(data.uploaded || [], data.skipped), 300);
+   }
  }
  // v7.1: duplicate detection ย้ายไป /api/organize-new — ดูใน runOrganizeNew()
  // (ตอน upload vector_search ยังไม่ index ไฟล์ใหม่ → semantic detect ไม่ทำงาน)

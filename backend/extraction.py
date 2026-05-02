@@ -35,10 +35,17 @@ except ImportError:
 
 
 def extract_text(filepath: str, filetype: str) -> str:
-    """
-    Extract text from a file.
-    Uses Docling for PDF/DOCX (structured Markdown output).
-    Falls back to basic extraction + OCR if needed.
+    """Extract text from a file.
+
+    Supported (v7.5.0):
+      - pdf, docx (Docling structured + PyPDF2/python-docx fallbacks)
+      - txt, md (encoding-tolerant)
+      - png, jpg, jpeg, webp (Tesseract OCR — Thai+English)
+      - csv (treated as txt)
+
+    Returns extracted text. Error markers are wrapped in `[brackets]` so
+    downstream `compute_content_hash()` skips hashing them (avoids
+    false-positive matches between failed extractions).
     """
     try:
         if filetype in ("pdf", "docx") and _HAS_DOCLING:
@@ -53,8 +60,10 @@ def extract_text(filepath: str, filetype: str) -> str:
             return _extract_pdf_with_fallbacks(filepath)
         elif filetype == "docx":
             return _extract_docx_basic(filepath)
-        elif filetype in ("txt", "md"):
+        elif filetype in ("txt", "md", "csv"):
             return _extract_txt(filepath)
+        elif filetype in ("png", "jpg", "jpeg", "webp"):
+            return _extract_image_ocr(filepath)
         else:
             return f"[Unsupported file type: {filetype}]"
     except Exception as e:
@@ -65,9 +74,41 @@ def extract_text(filepath: str, filetype: str) -> str:
                 return _extract_pdf_with_fallbacks(filepath)
             elif filetype == "docx":
                 return _extract_docx_basic(filepath)
-        except:
+            elif filetype in ("png", "jpg", "jpeg", "webp"):
+                return _extract_image_ocr(filepath)
+        except Exception:
             pass
         return f"[Extraction error: {str(e)}]"
+
+
+def _extract_image_ocr(filepath: str) -> str:
+    """OCR text from png/jpg/jpeg/webp via pytesseract (Thai + English).
+
+    v7.5.0: รองรับ image upload จริง (ก่อนหน้านี้ png/jpg ถูกตั้งใน allowed_types
+    แต่ extraction.py reject กลับเป็น "[Unsupported file type]" → orphan ใน DB)
+
+    Returns:
+      - Extracted text (post-processed for Thai) ถ้าเจอ
+      - "[Image: no text detected]" ถ้า OCR สำเร็จแต่ไม่มี text
+      - "[Image: OCR not available]" ถ้า pytesseract / tesseract binary หาย
+      - "[OCR error: ...]" ถ้า exception อื่น
+    """
+    if not _HAS_OCR:
+        return "[Image: OCR not available]"
+    try:
+        from PIL import Image
+        img = Image.open(filepath)
+        # Convert mode if needed (RGBA / palette → RGB for tesseract)
+        if img.mode not in ("RGB", "L"):
+            img = img.convert("RGB")
+        text = pytesseract.image_to_string(img, lang="tha+eng")
+        if text and text.strip():
+            logger.info(f"Image OCR: extracted {len(text)} chars from {os.path.basename(filepath)}")
+            return _postprocess_thai(text.strip())
+        return "[Image: no text detected]"
+    except Exception as e:
+        logger.error(f"Image OCR failed for {filepath}: {e}")
+        return f"[OCR error: {str(e)}]"
 
 
 def _extract_pdf_with_fallbacks(filepath: str) -> str:

@@ -35,7 +35,7 @@ from .context_packs import list_packs, get_pack, create_pack, delete_pack, regen
 from .graph_builder import build_full_graph, get_graph_data, get_node_detail, get_neighborhood
 from .relations import get_backlinks, get_outgoing, get_suggestions, accept_suggestion, dismiss_suggestion, generate_suggestions
 from .metadata import enrich_file_metadata, enrich_all_files, get_file_metadata, update_file_metadata
-from .config import UPLOAD_DIR, BASE_DIR, MAX_FILE_SIZE_MB, ADMIN_PASSWORD, APP_VERSION
+from .config import UPLOAD_DIR, BASE_DIR, ADMIN_PASSWORD, APP_VERSION
 from .mcp_tokens import generate_token, validate_token, list_tokens, revoke_token, get_active_token_count
 from .mcp_tools import call_tool, get_usage_logs, TOOL_REGISTRY
 from .auth import register_user, login_user, get_current_user, get_optional_user, request_password_reset, reset_password
@@ -242,6 +242,42 @@ class MetadataUpdateRequest(BaseModel):
 # FILE APIs (v1 — preserved)
 # ═══════════════════════════════════════════
 
+# v7.5.0 — Structured skip schema
+# `reason` (legacy str) ถูกแทนด้วย `{filename, code, message, suggestion}` เพื่อให้
+# frontend แสดง per-file actionable card แทน flat toast comma-join
+SKIP_TEMPLATES = {
+    "UNSUPPORTED_TYPE": {
+        "message": "ไฟล์ .{ext} ยังไม่รองรับ",
+        "suggestion": "ลองบันทึกเป็น PDF, Word, หรือ TXT แล้วอัปอีกครั้ง",
+    },
+    "FILE_TOO_LARGE": {
+        "message": "ไฟล์ใหญ่เกิน {limit}MB",
+        "suggestion": "บีบอัดด้วย Smallpdf หรือแยกเป็นไฟล์ย่อย",
+    },
+    "QUOTA_EXCEEDED": {
+        "message": "ครบจำนวนไฟล์ที่เก็บได้แล้ว ({limit} ไฟล์)",
+        "suggestion": "ลบไฟล์เก่าที่ไม่ใช้ หรืออัปเกรดแพลน",
+    },
+    "EMPTY_FILE": {
+        "message": "ไฟล์ว่างเปล่า",
+        "suggestion": "ตรวจว่าไฟล์ไม่เสียหายก่อนอัปใหม่",
+    },
+}
+
+
+def _make_skip(code: str, filename: str, **fmt_args) -> dict:
+    """Build per-file skip entry with structured code + actionable suggestion (v7.5.0)."""
+    tpl = SKIP_TEMPLATES[code]
+    return {
+        "filename": filename,
+        "code": code,
+        "message": tpl["message"].format(**fmt_args),
+        "suggestion": tpl["suggestion"],
+        # legacy field — kept for backward compat กับ test/script เดิมที่ยัง parse "reason"
+        "reason": tpl["message"].format(**fmt_args),
+    }
+
+
 @app.post("/api/upload")
 async def upload_files(
     files: list[UploadFile],
@@ -254,6 +290,9 @@ async def upload_files(
     v7.1: คำนวณ + เก็บ content_hash (SHA-256 ของ normalized extracted_text) ใน DB
     สำหรับใช้ใน duplicate detection ตอน /api/organize-new (ไม่ detect ตรงนี้
     เพราะ vector_search ยังไม่ index ไฟล์ใหม่ → semantic ไม่ทำงานเต็มที่)
+
+    v7.5.0: skip entries มี structured `{code, message, suggestion}` schema
+    + รองรับ image OCR (png/jpg/jpeg/webp) + EMPTY_FILE detection
     """
     uploaded = []
     skipped = []
@@ -279,12 +318,12 @@ async def upload_files(
         # Validate type
         ext = original_name.rsplit(".", 1)[-1].lower() if "." in original_name else ""
         if ext not in allowed_types:
-            skipped.append({"filename": original_name, "reason": f"ไม่รองรับไฟล์ .{ext}"})
+            skipped.append(_make_skip("UNSUPPORTED_TYPE", original_name, ext=ext or "unknown"))
             continue
 
         # v5.9.3 — check file count
         if current_count + len(uploaded) >= file_limit:
-            skipped.append({"filename": original_name, "reason": f"ถึงขีดจำกัดไฟล์แล้ว ({file_limit} ไฟล์)"})
+            skipped.append(_make_skip("QUOTA_EXCEEDED", original_name, limit=file_limit))
             continue
 
         # Save raw file — per-user directory (v5.1)
@@ -296,9 +335,14 @@ async def upload_files(
 
         contents = await upload_file.read()
 
-        # Validate size
+        # v7.5.0 — empty file detection
+        if len(contents) == 0:
+            skipped.append(_make_skip("EMPTY_FILE", original_name))
+            continue
+
+        # Validate size — use plan-specific limit (v7.5.0 fix: was using stale config constant)
         if len(contents) > max_bytes:
-            skipped.append({"filename": original_name, "reason": f"ไฟล์ใหญ่เกิน {MAX_FILE_SIZE_MB}MB"})
+            skipped.append(_make_skip("FILE_TOO_LARGE", original_name, limit=_limits["max_file_size_mb"]))
             continue
 
         with open(raw_path, "wb") as f:

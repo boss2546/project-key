@@ -21,6 +21,13 @@ python-docx==1.1.2
 pytesseract>=0.3.10
 pdf2image>=1.16.0
 
+# v7.5.0 — image OCR (Pillow needed for png/jpg) + format handlers
+Pillow>=10.0.0
+openpyxl>=3.1.0
+python-pptx>=0.6.23
+beautifulsoup4>=4.12.0
+striprtf>=0.0.26
+
 # Stripe Payment (v5.9.2)
 stripe>=8.0.0
 

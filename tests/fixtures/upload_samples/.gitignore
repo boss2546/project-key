@@ -1,0 +1,10 @@
+# Generated test fixtures (regenerate with generate_fixtures.py)
+*.png
+*.pdf
+*.xlsx
+*.pptx
+*.html
+*.json
+*.rtf
+*.xyz
+*.txt
