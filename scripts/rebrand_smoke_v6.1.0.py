@@ -21,6 +21,7 @@ sys.path.insert(0, '.')
 
 from fastapi.testclient import TestClient
 from backend.main import app
+from backend.config import APP_VERSION
 
 c = TestClient(app)
 PASS = 0
@@ -66,8 +67,10 @@ def t_root():
     )
 run("GET / -> 200 + 'Personal Data Bank' + 0 'Project KEY'", t_root)
 
-run("GET /legacy/index.html -> 200 + rebranded",
-    lambda: (lambda r: r.status_code == 200 and "Personal Data Bank" in r.text and "Project KEY" not in r.text)(c.get("/legacy/index.html")))
+run("GET /legacy/landing.html -> 200 + rebranded (post-cc1ad84 split: was index.html)",
+    lambda: (lambda r: r.status_code == 200 and "Personal Data Bank" in r.text and "Project KEY" not in r.text)(c.get("/legacy/landing.html")))
+run("GET /legacy/app.html -> 200 + rebranded (post-cc1ad84 split: authenticated workspace)",
+    lambda: (lambda r: r.status_code == 200 and "Personal Data Bank" in r.text and "Project KEY" not in r.text)(c.get("/legacy/app.html")))
 
 run("GET /legacy/app.js -> 200 + rebranded (smoke-test fix)",
     lambda: (lambda r: r.status_code == 200 and "Personal Data Bank" in r.text and "Project KEY" not in r.text)(c.get("/legacy/app.js")))
@@ -286,8 +289,9 @@ def t_mcp_info():
     j = r.json()
     mcp_ctx["secret"] = urlparse(j["mcp_connector_url"]).path.split("/")[-1]
     mcp_ctx["connector_path"] = urlparse(j["mcp_connector_url"]).path
-    return j.get("version", "") == "7.0.1" or "7.0.1" in str(j.get("version", ""))
-run("GET /api/mcp/info -> version 7.0.1 + connector_url has secret", t_mcp_info)
+    # /api/mcp/info returns "v{APP_VERSION}" (with 'v' prefix), unlike serverInfo which is bare
+    return j.get("version", "").lstrip("v") == APP_VERSION
+run(f"GET /api/mcp/info -> version v{APP_VERSION} + connector_url has secret", t_mcp_info)
 
 
 def t_mcp_tokens_create():
@@ -321,8 +325,8 @@ def t_mcp_initialize():
     if r.status_code != 200:
         return False
     s = r.json()["result"]["serverInfo"]
-    return s["name"] == "personal-data-bank" and s["version"] == "7.0.1"
-run("POST /mcp/{secret} initialize -> serverInfo.name='personal-data-bank' + v7.0.1", t_mcp_initialize)
+    return s["name"] == "personal-data-bank" and s["version"] == APP_VERSION
+run(f"POST /mcp/{{secret}} initialize -> serverInfo.name='personal-data-bank' + v{APP_VERSION}", t_mcp_initialize)
 
 
 def t_mcp_tools_list():
@@ -604,8 +608,8 @@ def t_brand_mcp_init():
         json={"jsonrpc": "2.0", "method": "initialize", "id": 100},
     )
     s = r.json().get("result", {}).get("serverInfo", {})
-    return s.get("name") == "personal-data-bank" and s.get("version") == "7.0.1"
-run("Brand: MCP serverInfo.name='personal-data-bank' + version='7.0.1'", t_brand_mcp_init)
+    return s.get("name") == "personal-data-bank" and s.get("version") == APP_VERSION
+run(f"Brand: MCP serverInfo.name='personal-data-bank' + version='{APP_VERSION}'", t_brand_mcp_init)
 
 
 def t_brand_mcp_tools_list_descriptions_clean():
@@ -637,12 +641,12 @@ section("9. KEEP invariants (plan rules — must NOT be touched)")
 # ─────────────────────────────────────────────────────────────────
 fly = open("fly.toml", encoding="utf-8").read()
 run("KEEP: fly.toml app='personaldatabank'", lambda: 'app = "personaldatabank"' in fly)
-run("KEEP: fly.toml volume source='personaldatabank_data'",
-    lambda: 'personaldatabank_data' in fly)
+run("KEEP: fly.toml volume source='project_key_data' (Fly volume rename = data loss risk — KEEP)",
+    lambda: 'source = "project_key_data"' in fly)
 
 cfg = open("backend/config.py", encoding="utf-8").read()
 run("KEEP: config.py DATABASE_URL contains 'projectkey.db'", lambda: "projectkey.db" in cfg)
-run("BUMP: config.py APP_VERSION = '7.0.1'", lambda: 'APP_VERSION = "7.0.1"' in cfg)
+run(f"BUMP: config.py APP_VERSION = '{APP_VERSION}'", lambda: f'APP_VERSION = "{APP_VERSION}"' in cfg)
 
 llm = open("backend/llm.py", encoding="utf-8").read()
 run("KEEP: llm.py HTTP-Referer points to personaldatabank.fly.dev (real URL)",
@@ -651,9 +655,12 @@ run("CHANGE: llm.py X-Title = 'Personal Data Bank'",
     lambda: '"X-Title": "Personal Data Bank"' in llm)
 
 appjs = open("legacy-frontend/app.js", encoding="utf-8").read()
-run("KEEP: app.js localStorage 'projectkey_token'", lambda: "'projectkey_token'" in appjs)
-run("KEEP: app.js localStorage 'projectkey_user'", lambda: "'projectkey_user'" in appjs)
-run("KEEP: app.js localStorage 'projectkey_lang'", lambda: "'projectkey_lang'" in appjs)
+run("RENAMED: app.js localStorage 'pdb_token' (was 'projectkey_token' pre-d2f92da migration)",
+    lambda: "'pdb_token'" in appjs)
+run("RENAMED: app.js localStorage 'pdb_user' (was 'projectkey_user' pre-d2f92da migration)",
+    lambda: "'pdb_user'" in appjs)
+run("RENAMED: app.js localStorage 'pdb_lang' (was 'projectkey_lang' pre-d2f92da migration)",
+    lambda: "'pdb_lang'" in appjs)
 run("CHANGE: app.js MCP template key 'personal-data-bank'", lambda: '"personal-data-bank":' in appjs)
 run("CHANGE: app.js no leftover MCP template 'personaldatabank'", lambda: '"personaldatabank":' not in appjs)
 
@@ -673,8 +680,8 @@ def t_no_stray_brand():
         "backend/main.py", "backend/llm.py", "backend/mcp_tools.py",
         "backend/billing.py", "backend/auth.py", "backend/database.py",
         "backend/config.py", "backend/__init__.py",
-        "legacy-frontend/index.html", "legacy-frontend/pricing.html",
-        "legacy-frontend/app.js",
+        "legacy-frontend/landing.html", "legacy-frontend/app.html",
+        "legacy-frontend/pricing.html", "legacy-frontend/app.js",
         "tests/test_production.py", "tests/e2e-ui/ui.spec.js", "tests/e2e/test_full_e2e.py",
         "package.json", ".env.example",
         "docs/guides/USER_GUIDE_V3.md",
