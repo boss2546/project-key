@@ -170,7 +170,10 @@ test.describe("Thorough / 5. Context Memory page", () => {
   test("empty state visible when no contexts", async ({ page }) => {
     await registerAndEnterApp(page);
     await page.click("#nav-context-memory");
-    await expect(page.locator("#ctx-empty")).toBeVisible();
+    // loadContexts() replaces #ctx-grid innerHTML with a fresh .empty-state
+    // (without the id) when count=0. Wait for either the original or the
+    // replacement to settle, then check for the empty-state copy.
+    await expect(page.locator("#ctx-grid .empty-state")).toBeVisible({ timeout: 10000 });
   });
 });
 

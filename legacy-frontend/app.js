@@ -548,6 +548,7 @@ const I18N = {
  'chat.placeholder': 'ถามเกี่ยวกับข้อมูลของคุณ...',
  'chat.profileNotSet': 'ยังไม่ตั้งค่า',
  'chat.profileActive': 'เปิดใช้งาน',
+ 'chat.thinking': 'AI กำลังคิด...',
 
  // Sources panel
  'sources.title': 'หลักฐานที่ใช้',
@@ -759,6 +760,7 @@ const I18N = {
  'chat.placeholder': 'Ask about your data...',
  'chat.profileNotSet': 'Not set',
  'chat.profileActive': 'Active',
+ 'chat.thinking': 'AI is thinking...',
 
  // Sources panel
  'sources.title': 'Evidence Used',
@@ -929,6 +931,57 @@ function applyLanguage(lang) {
 }
 
 // ═══════════════════════════════════════════
+// v7.2.0 — Global Modal UX (ESC + backdrop click)
+// ═══════════════════════════════════════════
+// Closes any open `.modal-overlay`, `.pack-modal-overlay`, or
+// `.dup-modal-overlay` when the user presses ESC or clicks on the
+// backdrop (the overlay element itself, not its inner `.modal` box).
+//
+// Special case: `#confirm-modal` is driven by `showConfirm()` which
+// returns a Promise; closing it via class toggle alone would leak the
+// Promise forever. We click `#confirm-cancel` instead so existing
+// cleanup runs and the Promise resolves with `false` (Cancel).
+//
+// Out of scope: `auth-modal` lives on landing.html (handled by
+// landing.js), and `file-detail-panel` uses a different DOM pattern
+// (`.fd-backdrop`) — both are intentionally untouched here.
+function initGlobalModalUX() {
+ const OVERLAY_SELECTOR =
+  '.modal-overlay:not(.hidden), .pack-modal-overlay:not(.hidden), .dup-modal-overlay:not(.hidden)';
+
+ const closeOverlay = (overlay) => {
+  if (!overlay || overlay.classList.contains('hidden')) return;
+  if (overlay.id === 'confirm-modal') {
+   document.getElementById('confirm-cancel')?.click();
+  } else {
+   overlay.classList.add('hidden');
+  }
+ };
+
+ // ESC closes the topmost open overlay
+ document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  const overlays = document.querySelectorAll(OVERLAY_SELECTOR);
+  if (!overlays.length) return;
+  closeOverlay(overlays[overlays.length - 1]);
+ });
+
+ // Backdrop click — only fires when the click target IS the overlay
+ // element (clicks inside `.modal` bubble through `e.target = .modal`)
+ document.addEventListener('click', (e) => {
+  const target = e.target;
+  if (!(target instanceof Element)) return;
+  if (
+   target.classList.contains('modal-overlay') ||
+   target.classList.contains('pack-modal-overlay') ||
+   target.classList.contains('dup-modal-overlay')
+  ) {
+   closeOverlay(target);
+  }
+ });
+}
+
+// ═══════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
@@ -956,6 +1009,7 @@ document.addEventListener('DOMContentLoaded', () => {
  // Each init wraps its own queries in `?.` but a few touch DOM
  // unconditionally; guard by app existence as a belt-and-braces.
  if (document.getElementById('app')) {
+  try { initGlobalModalUX(); } catch (e) { console.warn('[init] initGlobalModalUX:', e); }
   try { initNavigation(); } catch (e) { console.warn('[init] initNavigation:', e); }
   try { initUpload(); } catch (e) { console.warn('[init] initUpload:', e); }
   try { initProfile(); } catch (e) { console.warn('[init] initProfile:', e); }
@@ -1042,14 +1096,53 @@ function initUpload() {
  document.getElementById('dup-keep-btn')?.addEventListener('click', () => resolveDuplicates('keep'));
 }
 
+// v7.2.0 — track upload in-flight + warn user before unload
+var _uploadInFlight = false;
+window.addEventListener('beforeunload', (e) => {
+ if (!_uploadInFlight) return;
+ // Browsers ignore custom messages but still show their own warning
+ // when returnValue is a non-empty string.
+ e.preventDefault();
+ e.returnValue = '';
+ return '';
+});
+
 async function uploadFiles(fileList) {
+ if (_uploadInFlight) {
+  showToast(getLang() === 'th' ? 'กำลังอัปโหลดอยู่ กรุณารอให้เสร็จก่อน' : 'Upload already in progress, please wait', 'info');
+  return;
+ }
  const form = new FormData();
  for (const f of fileList) form.append('files', f);
  const count = fileList.length;
- showLoadingOverlay(getLang() === 'th' ? `กำลังอัปโหลด ${count} ไฟล์...` : `Uploading ${count} file(s)...`, 'upload');
+ const isTH = getLang() === 'th';
+ const baseMsg = (pct) => isTH ? `กำลังอัปโหลด ${count} ไฟล์... ${pct}%` : `Uploading ${count} file(s)... ${pct}%`;
+
+ _uploadInFlight = true;
+ showLoadingOverlay(baseMsg(0), 'upload');
+
  try {
- const res = await authFetch('/api/upload', { method: 'POST', body: form });
- const data = await res.json();
+ // XHR (not authFetch) so we get upload.onprogress events
+ const data = await new Promise((resolve, reject) => {
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/upload');
+  if (state.authToken) xhr.setRequestHeader('Authorization', `Bearer ${state.authToken}`);
+  xhr.upload.onprogress = (ev) => {
+   if (!ev.lengthComputable) return;
+   const pct = Math.round((ev.loaded / ev.total) * 100);
+   const msgEl = document.querySelector('.loading-overlay-card .loading-message');
+   if (msgEl) msgEl.textContent = baseMsg(pct);
+  };
+  xhr.onload = () => {
+   if (xhr.status === 401) { reject(Object.assign(new Error('UNAUTHORIZED'), { status: 401 })); return; }
+   if (xhr.status >= 400) { reject(Object.assign(new Error(`HTTP ${xhr.status}`), { status: xhr.status, body: xhr.responseText })); return; }
+   try { resolve(JSON.parse(xhr.responseText)); }
+   catch (e) { reject(new Error('INVALID_JSON')); }
+  };
+  xhr.onerror = () => reject(new Error('NETWORK'));
+  xhr.send(form);
+ });
+
  if (data.count > 0) {
  showToast(`${t('toast.uploaded')} ${data.count} ${t('stat.files').toLowerCase()}`, 'success');
  }
@@ -1060,7 +1153,7 @@ async function uploadFiles(fileList) {
  setTimeout(() => showUpgradeModal(quotaSkip.reason), 300);
  } else {
  const names = data.skipped.map(s => `${s.filename}: ${s.reason}`).join(', ');
- setTimeout(() => showToast(` ${getLang() === 'th' ? 'ข้ามไฟล์' : 'Skipped'}: ${names}`, 'error'), 500);
+ setTimeout(() => showToast(` ${isTH ? 'ข้ามไฟล์' : 'Skipped'}: ${names}`, 'error'), 500);
  }
  }
  // v7.1: duplicate detection ย้ายไป /api/organize-new — ดูใน runOrganizeNew()
@@ -1069,8 +1162,20 @@ async function uploadFiles(fileList) {
  loadStats();
  loadUnprocessedCount();
  loadUsageInfo();
- } catch (e) { /* authFetch handles toast */ }
- hideLoadingOverlay();
+ } catch (e) {
+  if (e && e.status === 401) {
+   // Mirror authFetch's session-expired flow
+   if (typeof doLogout === 'function') doLogout();
+   showToast(isTH ? 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่' : 'Session expired. Please log in again.', 'error');
+  } else if (e && e.message === 'NETWORK') {
+   showToast(isTH ? 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่' : 'Cannot connect to server. Please try again.', 'error');
+  } else {
+   showToast(isTH ? 'อัปโหลดล้มเหลว' : 'Upload failed', 'error');
+  }
+ } finally {
+  _uploadInFlight = false;
+  hideLoadingOverlay();
+ }
 }
 
 // ═══════════════════════════════════════════
@@ -2300,12 +2405,20 @@ async function sendMessage() {
  const sendBtn = document.getElementById('btn-send');
  const question = input.value.trim();
  if (!question) return;
- 
+
+ // v7.2.0 — show typing indicator + spinner BEFORE the network call so user
+ // sees instant feedback (target: visible within next paint frame).
  _chatBusy = true;
  input.value = '';
  localStorage.setItem('pk_chat_used', '1');
  input.disabled = true;
- if (sendBtn) sendBtn.disabled = true;
+ const originalSendHTML = sendBtn?.innerHTML;
+ if (sendBtn) {
+  sendBtn.disabled = true;
+  sendBtn.innerHTML = `<span class="loading-spinner"></span>`;
+ }
+ const typingEl = document.getElementById('chat-typing-status');
+ typingEl?.classList.remove('hidden');
 
  // Add user message
  addMessage(question, 'user');
@@ -2335,7 +2448,8 @@ async function sendMessage() {
  } finally {
  _chatBusy = false;
  input.disabled = false;
- if (sendBtn) sendBtn.disabled = false;
+ if (sendBtn) { sendBtn.disabled = false; sendBtn.innerHTML = originalSendHTML; }
+ typingEl?.classList.add('hidden');
  input.focus();
  }
 }
@@ -2742,6 +2856,9 @@ function getViaInput() {
 }
 
 async function saveProfile() {
+ const btn = document.getElementById('btn-save-profile');
+ // v7.2.0 — guard against double-submit while in-flight
+ if (btn?.disabled) return;
  const cliftonVal = getCliftonInput();
  const viaVal = getViaInput();
  // sentinel undefined = duplicate detected client-side → abort
@@ -2759,6 +2876,11 @@ async function saveProfile() {
  clifton_top5: cliftonVal,
  via_top5: viaVal,
  };
+ const originalHTML = btn?.innerHTML;
+ if (btn) {
+  btn.disabled = true;
+  btn.innerHTML = `<span class="loading-spinner"></span> ${getLang() === 'th' ? 'กำลังบันทึก...' : 'Saving...'}`;
+ }
  try {
  const res = await authFetch('/api/profile', {
  method: 'PUT',
@@ -2779,6 +2901,9 @@ async function saveProfile() {
  document.getElementById('profile-modal').classList.add('hidden');
  loadStats();
  } catch (e) { showToast(t('toast.error'), 'error'); }
+ finally {
+  if (btn) { btn.disabled = false; btn.innerHTML = originalHTML; }
+ }
 }
 
 // ═══════════════════════════════════════════
@@ -2894,13 +3019,27 @@ function formatHistoryValue(system, data) {
 // ═══════════════════════════════════════════
 // UTILITIES
 // ═══════════════════════════════════════════
+// v7.2.0 — UX-001: error toasts must NEVER auto-dismiss; user closes manually.
+// success/info still auto-dismiss after 4s.
 function showToast(message, type = 'info') {
  const container = document.getElementById('toast-container');
+ if (!container) return;
  const toast = document.createElement('div');
  toast.className = `toast ${type}`;
- toast.textContent = message;
+ const msgSpan = document.createElement('span');
+ msgSpan.className = 'toast-msg';
+ msgSpan.textContent = message;
+ toast.appendChild(msgSpan);
+ const closeBtn = document.createElement('button');
+ closeBtn.className = 'toast-close';
+ closeBtn.setAttribute('aria-label', getLang() === 'th' ? 'ปิด' : 'Close');
+ closeBtn.textContent = '×';
+ closeBtn.addEventListener('click', () => toast.remove());
+ toast.appendChild(closeBtn);
  container.appendChild(toast);
- setTimeout(() => toast.remove(), 4000);
+ if (type !== 'error') {
+  setTimeout(() => toast.remove(), 4000);
+ }
 }
 
 function showConfirm(message) {

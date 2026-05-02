@@ -311,30 +311,56 @@ body.show-landing {
 }
 
 /* ─── TOAST (universal) ─── */
+/* z-index 10000 ensures the close (X) button stays clickable above the
+   guide-fab FAB (z-index 9998) which lives in the same corner. */
 #toast-container {
   position: fixed;
   bottom: 20px;
   right: 20px;
-  z-index: 200;
+  z-index: 10000;
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
 .toast {
-  padding: 10px 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px 10px 16px;
   border-radius: 8px;
   font-size: 13px;
   animation: slideUp 0.3s ease;
   border: 1px solid var(--border);
   background: var(--bg-secondary);
   color: var(--text-primary);
-  max-width: 300px;
+  max-width: 320px;
 }
 
 .toast.success { border-left: 3px solid var(--success); }
 .toast.error { border-left: 3px solid var(--error); }
 .toast.info { border-left: 3px solid var(--accent); }
+
+.toast-msg {
+  flex: 1;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
+.toast-close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 4px;
+  border-radius: 4px;
+  align-self: flex-start;
+  transition: all 0.15s;
+}
+.toast-close:hover { color: var(--text-primary); background: rgba(255,255,255,0.06); }
 
 /* ─── UTILITIES ─── */
 .hidden { display: none !important; }
