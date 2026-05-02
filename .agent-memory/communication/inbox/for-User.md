@@ -20,7 +20,7 @@
 **ที่พี่ต้องตัดสินใจก่อน production launch (BACKLOG ใหม่):**
 - 🔴 **BACKLOG-008** — `backend/plan_limits.py:15-42` ตอนนี้ testing mode (999999 ทุก field). ต้น values เก่าจาก commit `d8b0d54` diff อยู่ใน [active-tasks.md](../../current/active-tasks.md) แล้ว — จะ restore ค่าเดิม หรือ revise (พ่วง pricing strategy)?
 - 🔴 **BACKLOG-009** — `backend/auth.py:249-282` password reset ตอนนี้ return `reset_token` ใน JSON response ตรงๆ (ไม่ส่ง email). ต้องเลือก email service ก่อน wire:
-  - 🟢 **Resend** (แนะนำ) — free 3000/เดือน + reference อยู่ใน `.design-ref/`
+  - 🟢 **Resend** (แนะนำ) — free 3000/เดือน, modern API, simple Python SDK
   - 🟡 SendGrid — free 100/วัน
   - 🟡 Gmail SMTP — ฟรีแต่ deliverability ไม่ดี
 

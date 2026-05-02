@@ -34,9 +34,7 @@ d:\PDB\
 ├── chroma_db/           # Vector embeddings (ChromaDB)
 ├── context_packs/       # Saved context packs
 ├── docs/                # Documentation
-├── skills/              # Claude skills
-├── awesome-design-md-main/  # Design references
-├── design-temp/         # Design work in progress
+├── skills/              # Claude skills (symlink → .agents/skills/)
 ├── backups/             # Database backups
 ├── summaries/           # AI-generated summaries
 │

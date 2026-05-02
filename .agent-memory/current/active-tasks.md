@@ -61,7 +61,7 @@
   - Estimated effort: M (~3-4 hr — choose service + integration + drop token from response + smoke test)
   - Files: [backend/auth.py:249-282](../../backend/auth.py#L249-L282)
   - **User decide:** เลือก email service ก่อนทำ
-    - 🟢 **Resend** (แนะนำ): free 3000/เดือน, modern API, simple SDK, .design-ref/ มี reference แล้ว
+    - 🟢 **Resend** (แนะนำ): free 3000/เดือน, modern API, simple Python SDK
     - 🟡 SendGrid: free 100/วัน, mature, มี Python SDK
     - 🟡 Gmail SMTP: ฟรีจริง แต่ deliverability + rate limits ไม่ดีเท่า dedicated
   - Tasks หลังเลือก service:
