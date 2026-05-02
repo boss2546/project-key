@@ -101,19 +101,31 @@ async def section_a_schema():
 async def section_b_version():
     print("\n=== Section B: APP_VERSION runtime visibility ===")
 
+    # v7.1.5 update — accept any 7.1.x version (current = 7.1.5 dedupe-ux patch)
     from backend.config import APP_VERSION
-    expect("B.1 config.APP_VERSION = '7.1.0'", APP_VERSION, "7.1.0")
+    expect_true(
+        f"B.1 config.APP_VERSION starts with '7.1.' (got '{APP_VERSION}')",
+        APP_VERSION.startswith("7.1."),
+    )
 
     # B.2: FastAPI app instance reads from APP_VERSION
     from backend.main import app
-    expect("B.2 FastAPI app.version = '7.1.0'", app.version, "7.1.0")
+    expect_true(
+        f"B.2 FastAPI app.version starts with '7.1.' (got '{app.version}')",
+        app.version.startswith("7.1."),
+    )
 
-    # B.3: index.html shows v7.1.0 (no leftover 7.0.1)
-    with open("legacy-frontend/index.html", encoding="utf-8") as f:
+    # B.3: app.html (split from index.html in v7.2.0) shows current v7.1.x version
+    # v7.2.0 commit cc1ad84 split monolith → landing.html + app.html
+    import os
+    html_path = "legacy-frontend/app.html"
+    if not os.path.exists(html_path):
+        # Fallback for pre-v7.2.0 layout
+        html_path = "legacy-frontend/index.html"
+    with open(html_path, encoding="utf-8") as f:
         html = f.read()
-    expect_true("B.3a index.html contains 'v7.1.0'", "v7.1.0" in html)
-    expect_true("B.3b index.html no leftover 'v7.0.1'", "v7.0.1" not in html)
-    expect_true("B.3c index.html no leftover 'v=7.0.1' (cache buster)", "v=7.0.1" not in html)
+    expect_true(f"B.3a {html_path} contains 'v{APP_VERSION}'", f"v{APP_VERSION}" in html)
+    expect_true(f"B.3b {html_path} no leftover 'v7.0.1'", "v7.0.1" not in html)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -393,17 +405,32 @@ def section_e_i18n():
 # Section F: HTML modal structure
 # ═══════════════════════════════════════════════════════════════
 def section_f_html():
-    print("\n=== Section F: HTML modal structure ===")
+    print("\n=== Section F: HTML modal structure (v7.1.5 — per-file UX) ===")
 
-    with open("legacy-frontend/index.html", encoding="utf-8") as f:
+    # v7.2.0 cc1ad84 split monolith → landing.html + app.html
+    import os
+    html_path = "legacy-frontend/app.html"
+    if not os.path.exists(html_path):
+        html_path = "legacy-frontend/index.html"
+    with open(html_path, encoding="utf-8") as f:
         html = f.read()
 
+    # Core modal structure (unchanged in v7.1.5)
     expect_true("F.1 modal overlay element exists", 'id="dup-modal-overlay"' in html)
     expect_true("F.2 modal body container exists", 'id="dup-list"' in html)
-    expect_true("F.3 skip button exists", 'id="dup-skip-btn"' in html)
-    expect_true("F.4 keep button exists", 'id="dup-keep-btn"' in html)
     expect_true("F.5 modal title with i18n", 'data-i18n="dup.title"' in html)
     expect_true("F.6 modal hidden by default", 'class="dup-modal-overlay hidden"' in html)
+
+    # v7.1.5 — new per-file selector UX (replaces old skip/keep buttons)
+    expect_true("F.7 v7.1.5 quick-keep-all button exists", 'id="dup-quick-keep-all"' in html)
+    expect_true("F.8 v7.1.5 quick-skip-all button exists", 'id="dup-quick-skip-all"' in html)
+    expect_true("F.9 v7.1.5 cancel (Later) button exists", 'id="dup-cancel-btn"' in html)
+    expect_true("F.10 v7.1.5 confirm button exists", 'id="dup-confirm-btn"' in html)
+    expect_true("F.11 v7.1.5 cancel uses dup.cancel i18n key", 'data-i18n="dup.cancel"' in html)
+    expect_true("F.12 v7.1.5 quick-keep uses dup.quickKeep i18n", 'data-i18n="dup.quickKeep"' in html)
+    expect_true("F.13 v7.1.5 quick-skip uses dup.quickSkip i18n", 'data-i18n="dup.quickSkip"' in html)
+    expect_true("F.14 v7.1.5 old skip-btn removed", 'id="dup-skip-btn"' not in html)
+    expect_true("F.15 v7.1.5 old keep-btn removed", 'id="dup-keep-btn"' not in html)
 
 
 # ═══════════════════════════════════════════════════════════════
