@@ -10,7 +10,7 @@
 ### 🟢 v7.4.0 SaaS Responsive Design & Mobile UX — DONE ✅ (2026-05-02)
 
 **State:** `done` ✅ — implemented + 14 v7.4.0 + 103 frontend regression + 52 backend pytest = **169/169 tests pass**
-**Plan file:** [plans/saas-responsive-v7.4.0.md](../plans/saas-responsive-v7.4.0.md)
+**Plan file:** [archive/2026-05-02-saas-responsive-v7.4.0.md](../plans/archive/2026-05-02-saas-responsive-v7.4.0.md)
 **Owner (build):** เขียว (Khiao) — full dev mode
 **Priority:** 🟡 High — Mobile usability + SaaS UX standards 2025
 **Foundation:** ต่อยอดจาก v7.3.0 commit `62968c6`
@@ -32,7 +32,7 @@
 ### 🟢 v7.3.0 UX Edge-Cases & Mobile Fixes — DONE ✅ (2026-05-02)
 
 **State:** `done` ✅ — implemented + 14 v7.3.0 tests + 89 regression all pass = 103 tests 100%
-**Plan file:** [plans/ux-edgecases-v7.3.0.md](../plans/ux-edgecases-v7.3.0.md)
+**Plan file:** [archive/2026-05-02-ux-edgecases-v7.3.0.md](../plans/archive/2026-05-02-ux-edgecases-v7.3.0.md)
 **Build:** เขียว (this session) — full dev mode per user override
 
 **3 fixes shipped:**
@@ -51,7 +51,7 @@
 ### 🟢 v7.2.0 UX Critical Hotfixes — DONE ✅ (2026-05-02)
 
 **State:** `done` ✅ — implemented + 12 v7.2.0 tests + 89 regression all pass
-**Plan file:** [plans/ux-hotfixes-v7.2.0.md](../plans/ux-hotfixes-v7.2.0.md)
+**Plan file:** [archive/2026-05-02-ux-hotfixes-v7.2.0.md](../plans/archive/2026-05-02-ux-hotfixes-v7.2.0.md)
 **Build:** เขียว (this session) — full dev mode per user override
 **Commit:** `de34f8f` feat(ux): v7.2.0 critical UX hotfixes — 5 fixes
 
@@ -74,7 +74,7 @@
 ### v7.1.5 — Dedupe UX Quick Wins (v2 research-backed — 2026-05-02) ✅ DONE (3-in-1 mode)
 **State:** `done` ✅ — implemented + 183/183 regression pass + JS/Python syntax clean (single-agent pipeline per user authorization)
 **Owner (build+review):** แดง→เขียว→ฟ้า (single agent, full pipeline 3-in-1)
-**Plan file:** [plans/dedupe-ux-v7.1.5.md](../plans/dedupe-ux-v7.1.5.md) (v2 — wording ผ่าน UX research)
+**Plan file:** [archive/2026-05-02-dedupe-ux-v7.1.5.md](../plans/archive/2026-05-02-dedupe-ux-v7.1.5.md) (v2 — wording ผ่าน UX research)
 **Foundation:** patch บน v7.1.0 dedupe (`cd114dd` + `0adcaf1`) + ใช้ toast/modal pattern จาก v7.2.0/v7.3.0
 **Actual time:** ~30 min (3-in-1 mode, ไม่มี inter-session reload overhead)
 **Self-review verdict:** ✅ APPROVE — 183/183 regression + JS syntax + Python compile + i18n keys (20×2 langs) + functions (8/8) verified
@@ -115,7 +115,7 @@
 
 ### v7.1.0 — Duplicate Detection on Organize-new (2026-05-01)
 **State:** `done` ✅ — merged + deployed
-**Plan:** [plans/duplicate-detection.md](../plans/duplicate-detection.md)
+**Plan:** [archive/2026-05-01-duplicate-detection.md](../plans/archive/2026-05-01-duplicate-detection.md)
 **Build by:** เขียว (round 1 upload + round 2 pivot per DUP-003)
 **Review by:** ฟ้า — APPROVE 2026-05-01 (REVIEW-002, 87/87 tests + 106/106 BYOS regression)
 **Merged:** master commits `cd114dd` (feat) + `0adcaf1` (pivot) + `c047657` (e2e tests) + `6467b3a` (memory)
@@ -123,7 +123,7 @@
 
 ### v7.0.0 → v7.0.1 — Google Drive BYOS (2026-05-01)
 **State:** `done` ✅ — deployed + 5 follow-up fixes already on master
-**Plan:** [plans/google-drive-byos.md](../plans/google-drive-byos.md) (post-cleanup ใช้ "Personal Data Bank" ทุกที่)
+**Plan:** [archive/2026-05-01-google-drive-byos.md](../plans/archive/2026-05-01-google-drive-byos.md) (post-cleanup ใช้ "Personal Data Bank" ทุกที่)
 **Build by:** เขียว Phase 1-3 + ฟ้า Phase 4 + E2E (full dev mode authority)
 **Deploy:** Fly.io machine 82 — 2026-05-01 03:04 UTC (commit `84f4f74`)
 **Post-deploy fixes (v7.0.1):**
@@ -135,7 +135,7 @@
 
 ### v6.1.0 — PDB Rebrand "Project KEY" → "Personal Data Bank" (2026-04-30 → 2026-05-01)
 **State:** `done` ✅ — merged + deployed + follow-up rename to `personaldatabank.fly.dev`
-**Plan:** [plans/rebrand-pdb.md](../plans/rebrand-pdb.md)
+**Plan:** [archive/2026-05-01-rebrand-pdb.md](../plans/archive/2026-05-01-rebrand-pdb.md)
 **Build by:** เขียว 5 commits (76/76 smoke pass)
 **Review by:** ฟ้า — APPROVE + version drift fix `1b7fd98`
 **Merged:** master commits `6e14e63` (feat) + later `d2f92da` (localStorage migration) + `0182c06` (domain rename)
@@ -143,7 +143,7 @@
 
 ### v6.0.0 — Personality Profile (MBTI/Enneagram/Clifton/VIA + History) (2026-04-30)
 **State:** `done` ✅ — deployed
-**Plan:** [plans/personality-profile.md](../plans/personality-profile.md)
+**Plan:** [archive/2026-04-30-personality-profile.md](../plans/archive/2026-04-30-personality-profile.md)
 **Build by:** เขียว (commit `3f4b4b9`)
 **Review by:** ฟ้า — APPROVE (25 API + 10 browser tests)
 

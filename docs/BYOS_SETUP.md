@@ -279,7 +279,7 @@ Review timeline: **2-4 weeks** (controllable ไม่ได้)
 
 ## 📚 Related
 
-- Plan: [`.agent-memory/plans/google-drive-byos.md`](../.agent-memory/plans/google-drive-byos.md)
+- Plan: [`.agent-memory/plans/archive/2026-05-01-google-drive-byos.md`](../.agent-memory/plans/archive/2026-05-01-google-drive-byos.md)
 - Architecture: ดู section "📂 Drive Folder Structure" ใน plan
 - Tests:
   - `scripts/byos_foundation_smoke.py` (26 tests, env var validation)
