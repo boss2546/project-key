@@ -1,0 +1,637 @@
+# Plan: Dedupe UX Quick Wins (v7.1.5)
+
+**Author:** แดง (Daeng)
+**Date:** 2026-05-02 (v2 — research-backed wording)
+**Status:** draft (รอ user approve)
+**Target version:** v7.1.5 (patch บน v7.1.0 ที่ ship แล้ว)
+**Estimated effort:** เขียว ~2-3 ชม. + ฟ้า ~1 ชม.
+**Foundation:** [plans/duplicate-detection.md](duplicate-detection.md) (shipped commits `cd114dd` + `0adcaf1`) + ต่อยอดจาก v7.2.0 ที่ shipped (toast/modal pattern พร้อม)
+
+## 📚 UX Wording — Research-backed (2026-05-02)
+
+ทุก label ผ่าน research จาก:
+- **Nielsen Norman Group** — [Cancel vs Close](https://www.nngroup.com/articles/cancel-vs-close/), [Confirmation Dialogs](https://www.nngroup.com/articles/confirmation-dialog/)
+- **OS conventions** — Windows 11 + macOS Finder ใช้ "Skip" / "Keep both" สำหรับ batch
+- **Material Design 3 + WCAG 2.2.1** — toast duration ≥10s + manual X dismiss สำหรับ destructive
+- **Thai mobile UX** — K+/SCB Easy/LINE TH ใช้ "เลิกทำ" สำหรับ Undo, "ปิด" สำหรับ non-destructive close
+
+**Key principles:**
+1. NN/G — buttons describe consequence (verb + count + object), ไม่ใช้ "OK/ตกลง" generic
+2. Match OS file-management idioms — "Skip" + "Keep both" (ไม่ invent ใหม่)
+3. Different words for different actions ในหน้าเดียวกัน — "ปิด" (close modal) ≠ "เลิกทำ" (undo destructive)
+4. Toast 10s + X button — destructive ต้องการ recovery window กว้าง
+
+---
+
+## 🎯 Goal
+
+แก้ pain point ใหญ่ที่สุด 2 ข้อของ duplicate detection popup — **frontend-only, ไม่แตะ backend, ไม่เพิ่ม table, ไม่เพิ่ม endpoint**
+
+| Pain | Impact | Fix |
+|---|---|---|
+| **P1** Bulk-only action (skip ทั้งหมด / keep ทั้งหมด) | ทุกคนเจอ | per-file action (radio per row) |
+| **P2** Skip = ลบถาวรทันที (no undo) | trust crisis | 10-วิ undo toast (Material 3 + WCAG) (client-side delay) |
+
+**หลังทำเสร็จผู้ใช้จะ:**
+- เลือก keep/skip ทีละไฟล์ได้ใน popup เดียว
+- กดผิดได้ — มี 10 วินาทียกเลิก
+- ไม่ต้องลบ manually หลัง keep all แล้วเสียดายบางอัน
+
+---
+
+## 📚 Context
+
+### v7.1.0 ที่ ship แล้ว (อย่าแตะ)
+- Backend `POST /api/files/skip-duplicates` รับ `file_ids: list[str]` อยู่แล้ว → per-file selector แค่ส่ง subset
+- Modal HTML ใน [legacy-frontend/app.html:459-474](../../legacy-frontend/app.html#L459-L474)
+- JS `showDuplicateModal()` + `resolveDuplicates()` ใน [legacy-frontend/app.js:1087+](../../legacy-frontend/app.js#L1087)
+- CSS `.dup-modal-*` ใน [legacy-frontend/styles.css:3408+](../../legacy-frontend/styles.css#L3408)
+
+### กฎเหล็ก
+- ❌ **ห้ามแตะ backend** — `/api/upload`, `/api/organize-new`, `/api/files/skip-duplicates`, `duplicate_detector.py` ทำงานดีอยู่แล้ว
+- ❌ **ห้ามเพิ่ม table / migration / API endpoint**
+- ❌ **ห้ามเปลี่ยน detection algorithm**
+- ✅ แก้แค่ HTML + JS + CSS
+
+---
+
+## 📁 Files to Modify
+
+| File | สิ่งที่ทำ |
+|---|---|
+| [legacy-frontend/app.html](../../legacy-frontend/app.html) | เพิ่ม structure ใน `#dup-list` row template + footer button "Apply Selected" |
+| [legacy-frontend/app.js](../../legacy-frontend/app.js) | แก้ `showDuplicateModal()` (per-row radio) + `resolveDuplicates()` (รับ subset) + เพิ่ม `_pendingSkipTimeout` (undo logic) |
+| [legacy-frontend/styles.css](../../legacy-frontend/styles.css) | เพิ่ม CSS สำหรับ radio per row + undo toast styling |
+| `.agent-memory/contracts/api-spec.md` | ไม่ต้องแก้ (API ไม่เปลี่ยน) |
+
+---
+
+## 🎨 UX Design
+
+### Modal ใหม่ (per-file selector — research-backed wording)
+
+```
+╔════════════════════════════════════════════════╗
+║  ⚠ พบไฟล์คล้ายกัน 3 ไฟล์                        ║
+╠════════════════════════════════════════════════╣
+║                                                 ║
+║  📄 thesis_v3.pdf (ใหม่)                       ║
+║     ↪ คล้าย thesis_v2.pdf  ████████░░ 87%      ║
+║     ตรงกัน: AI, deep learning                   ║
+║     ⦿ เก็บทั้งคู่   ◯ ข้ามไฟล์ใหม่              ║
+║                                                 ║
+║  📄 notes.md (ใหม่)                             ║
+║     ↪ เหมือน old_notes.md  ██████████ 100%     ║
+║     ⦿ เก็บทั้งคู่   ◉ ข้ามไฟล์ใหม่  ← เลือกแล้ว ║
+║                                                 ║
+║  📄 draft.md (ใหม่)                             ║
+║     ↪ คล้าย draft_old.md  █████████░ 92%       ║
+║     ⦿ เก็บทั้งคู่   ◉ ข้ามไฟล์ใหม่  ← เลือกแล้ว ║
+║                                                 ║
+║  ─────────────────────────────────────         ║
+║  Quick: [เก็บทั้งหมด]  [ข้ามทั้งหมด]            ║
+║                                                 ║
+║  [ข้ามไฟล์ใหม่ 2 ไฟล์]            [ไว้ทีหลัง]   ║
+╚════════════════════════════════════════════════╝
+```
+
+**Wording rationale (per research):**
+- "ข้ามไฟล์ใหม่" — match Windows 11 + macOS Finder "Skip" idiom (universally understood batch-context)
+- ปุ่ม confirm = verb + count + object ("ข้ามไฟล์ใหม่ 2 ไฟล์") — NN/G ห้าม "ตกลง" generic
+- ปุ่ม close modal = "ไว้ทีหลัง" — NN/G: ไม่ใช่ "Cancel" เพราะไม่มี work ให้ discard
+- ตัด emoji (⚡🗑) ออกจากปุ่ม — NN/G: ลด visual noise ใน destructive context
+
+**Behavior:**
+- Default ทุกแถว = "เก็บทั้งคู่" (safe)
+- Quick action 2 ปุ่มเล็กข้างบน "Apply ทั้งหมด" — เปลี่ยน radio ของทุก row พร้อมกัน
+- Confirm button label เปลี่ยนตามจำนวน skip ที่เลือก ("ข้าม 2 ไฟล์" / "ไม่ข้ามอะไร")
+- ถ้าเลือก keep ทุกตัว → กด confirm = close modal เฉยๆ (ไม่เรียก API)
+- ถ้าเลือก skip บางตัว → กด confirm = trigger 10-วิ undo toast (Material 3 + WCAG)
+
+### Undo toast (client-side delay — 10 วินาที + manual X dismiss)
+
+```
+                  ┌──────────────────────────────────────┐
+                  │ จะข้ามไฟล์ใหม่ 2 ไฟล์ใน 10 วิ          │
+                  │ thesis_v3.pdf, notes.md             │
+                  │              [เลิกทำ]  [✕]            │
+                  │  ████████░░  (10s countdown)         │
+                  └──────────────────────────────────────┘
+```
+
+**Behavior (research-backed):**
+- Toast ขึ้นทันทีหลังกด confirm → progress bar countdown **10 วินาที** (เพิ่มจาก 5s ตาม Material 3 + WCAG 2.2.1)
+- ปุ่ม **"เลิกทำ"** ภายใน 10 วิ → toast หาย + ไฟล์ไม่ถูกลบ + ไฟล์ยังอยู่ใน list ปกติ
+- ปุ่ม **✕** dismiss toast แต่ใส่ใน "pending immediate" — เรียก API ทันทีไม่รอ countdown (สำหรับ user ที่แน่ใจแล้ว ไม่อยาก wait)
+- ถ้า timeout (10 วิครบโดยไม่กดอะไร) → API `POST /api/files/skip-duplicates` จะถูกเรียก + refresh list
+- ✨ **ไม่ต้อง soft-delete ใน DB** — delete จริงเกิดหลัง 10 วิเท่านั้น (ก่อนนั้นยังไม่ทำอะไรเลย)
+
+**Wording rationale:**
+- "เลิกทำ" — Thai mobile convention (K+/SCB Easy/LINE) สำหรับ Undo — **ห้ามใช้คำเดียวกับปุ่ม "ไว้ทีหลัง"** ใน modal เพื่อกัน confuse
+- "10 วิ" แทน "10 วิ" — Material 3 + WCAG: destructive ต้องการ recovery window ≥10s
+- ปุ่ม ✕ คือ "I'm sure, do it now" pattern — ลด friction ของ user ที่มั่นใจแล้ว
+
+---
+
+## 🔧 Step-by-Step Implementation
+
+### Step 1: HTML — modal structure (~15 นาที)
+
+แก้ [legacy-frontend/app.html](../../legacy-frontend/app.html) — section dup-modal:
+
+```html
+<!-- เพิ่ม subtitle ที่บอก action -->
+<p class="dup-modal-subtitle" data-i18n="dup.subtitle">
+  ไฟล์ที่อัปโหลดใหม่บางไฟล์มีเนื้อหาคล้ายกับไฟล์ที่มีอยู่แล้ว — เลือกทำอะไรกับแต่ละไฟล์
+</p>
+
+<!-- เพิ่ม quick-action bar เหนือ list -->
+<div class="dup-quick-actions">
+  <button class="btn btn-ghost btn-sm" id="dup-quick-keep-all" data-i18n="dup.quickKeep">⚡ เก็บทั้งหมด</button>
+  <button class="btn btn-ghost btn-sm" id="dup-quick-skip-all" data-i18n="dup.quickSkip">🗑 ข้ามทั้งหมด</button>
+</div>
+
+<!-- list — JS generate per-row radio -->
+<div class="dup-list" id="dup-list"></div>
+
+<!-- Footer — เปลี่ยน 2 ปุ่มเดิมเป็น confirm + cancel -->
+<div class="dup-modal-footer">
+  <button class="btn btn-outline" id="dup-cancel-btn" data-i18n="dup.cancel">✗ ยกเลิก</button>
+  <button class="btn btn-primary" id="dup-confirm-btn" data-i18n="dup.confirm">✓ ยืนยัน</button>
+</div>
+```
+
+### Step 2: JS — `showDuplicateModal()` revise (~45 นาที)
+
+แก้ [legacy-frontend/app.js:1087+](../../legacy-frontend/app.js#L1087):
+
+```javascript
+let _pendingDuplicates = [];
+let _dupSelections = {}; // {new_file_id: 'keep' | 'skip'}
+let _pendingSkipTimeout = null; // setTimeout handle for undo
+
+function showDuplicateModal() {
+  const modal = document.getElementById('dup-modal-overlay');
+  if (!modal) return;
+  const list = document.getElementById('dup-list');
+  if (!list) return;
+
+  const isTH = getLang() === 'th';
+
+  // Default: ทุกไฟล์ = keep (safe default)
+  _dupSelections = {};
+  _pendingDuplicates.forEach(d => { _dupSelections[d.new_file_id] = 'keep'; });
+
+  // Render rows with per-row radio
+  list.innerHTML = _pendingDuplicates.map(d => {
+    const pct = Math.round(d.similarity * 100);
+    const kindLabel = d.match_kind === 'exact'
+      ? (isTH ? '(ตรงเป๊ะ)' : '(exact)') : '';
+    const topics = (d.matched_topics && d.matched_topics.length > 0)
+      ? `<div class="dup-topics">${isTH ? 'ตรงกัน' : 'matched'}: ${d.matched_topics.join(', ')}</div>` : '';
+    const similarLabel = isTH ? 'คล้าย' : 'similar to';
+
+    return `
+      <div class="dup-row" data-file-id="${d.new_file_id}">
+        <div class="dup-new">📄 <strong>${escapeHtml(d.new_filename)}</strong> ${isTH ? '(ใหม่)' : '(new)'}</div>
+        <div class="dup-old">
+          <div class="dup-arrow">↪ ${similarLabel} <strong>${escapeHtml(d.match_filename)}</strong></div>
+          <div class="dup-bar">
+            <div class="dup-bar-fill" style="width:${pct}%"></div>
+            <div class="dup-bar-label">${pct}% ${kindLabel}</div>
+          </div>
+          ${topics}
+          <div class="dup-actions">
+            <label class="dup-radio">
+              <input type="radio" name="dup-${d.new_file_id}" value="keep" checked>
+              <span>${isTH ? 'เก็บทั้งคู่' : 'Keep both'}</span>
+            </label>
+            <label class="dup-radio">
+              <input type="radio" name="dup-${d.new_file_id}" value="skip">
+              <span>${isTH ? 'ข้ามใหม่นี้' : 'Skip new'}</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Wire per-row radio change → update _dupSelections + refresh confirm label
+  list.querySelectorAll('input[type="radio"]').forEach(input => {
+    input.addEventListener('change', () => {
+      const row = input.closest('.dup-row');
+      _dupSelections[row.dataset.fileId] = input.value;
+      updateConfirmLabel();
+    });
+  });
+
+  updateConfirmLabel();
+  modal.classList.remove('hidden');
+}
+
+function updateConfirmLabel() {
+  const btn = document.getElementById('dup-confirm-btn');
+  if (!btn) return;
+  const skipCount = Object.values(_dupSelections).filter(v => v === 'skip').length;
+  const isTH = getLang() === 'th';
+  if (skipCount === 0) {
+    btn.textContent = isTH ? '✓ ยืนยัน (เก็บทั้งหมด)' : '✓ Confirm (keep all)';
+  } else {
+    btn.textContent = isTH
+      ? `✓ ยืนยัน (จะข้าม ${skipCount} ไฟล์)`
+      : `✓ Confirm (skip ${skipCount} files)`;
+  }
+}
+
+// Quick actions
+function quickApplyAll(action) {
+  _pendingDuplicates.forEach(d => {
+    _dupSelections[d.new_file_id] = action;
+    const radio = document.querySelector(
+      `input[name="dup-${d.new_file_id}"][value="${action}"]`
+    );
+    if (radio) radio.checked = true;
+  });
+  updateConfirmLabel();
+}
+```
+
+### Step 3: JS — confirm + undo flow (~45 นาที)
+
+```javascript
+async function confirmDupActions() {
+  const skipIds = Object.entries(_dupSelections)
+    .filter(([_, action]) => action === 'skip')
+    .map(([id, _]) => id);
+
+  hideDuplicateModal();
+
+  // ถ้าไม่มีอะไรต้อง skip → close + done
+  if (skipIds.length === 0) {
+    showToast(getLang() === 'th' ? 'เก็บไฟล์ทั้งหมด' : 'All files kept', 'success');
+    return;
+  }
+
+  // Trigger 5-second undo toast — ยังไม่เรียก API
+  showUndoToast(skipIds);
+}
+
+function showUndoToast(skipIds) {
+  const isTH = getLang() === 'th';
+  const filenames = skipIds.map(id => {
+    const dup = _pendingDuplicates.find(d => d.new_file_id === id);
+    return dup ? dup.new_filename : id;
+  }).slice(0, 3); // show max 3 names
+  const moreCount = skipIds.length - 3;
+  const namesLabel = filenames.join(', ') + (moreCount > 0 ? ` +${moreCount}` : '');
+
+  // Remove existing undo toast if any
+  document.getElementById('dup-undo-toast')?.remove();
+
+  const toast = document.createElement('div');
+  toast.id = 'dup-undo-toast';
+  toast.className = 'dup-undo-toast';
+  toast.innerHTML = `
+    <div class="dup-undo-text">
+      <div class="dup-undo-title">⏳ ${isTH ? `จะข้าม ${skipIds.length} ไฟล์ใน 10 วิ` : `Skipping ${skipIds.length} files in 5s`}</div>
+      <div class="dup-undo-files">${escapeHtml(namesLabel)}</div>
+    </div>
+    <button class="dup-undo-btn" id="dup-undo-btn">↶ ${isTH ? 'ยกเลิก' : 'Undo'}</button>
+    <div class="dup-undo-progress"><div class="dup-undo-progress-fill"></div></div>
+  `;
+  document.body.appendChild(toast);
+
+  // Wire undo button
+  document.getElementById('dup-undo-btn').addEventListener('click', () => {
+    cancelPendingSkip(toast);
+    showToast(isTH ? 'ยกเลิกการข้าม — ไฟล์ยังอยู่' : 'Cancelled — files kept', 'info');
+  });
+
+  // 10-second timer → fire API
+  _pendingSkipTimeout = setTimeout(() => {
+    toast.remove();
+    _pendingSkipTimeout = null;
+    fireSkipApi(skipIds);
+  }, 10000);  // 10s — Material 3 + WCAG 2.2.1 recovery window
+}
+
+function cancelPendingSkip(toast) {
+  if (_pendingSkipTimeout) {
+    clearTimeout(_pendingSkipTimeout);
+    _pendingSkipTimeout = null;
+  }
+  toast?.remove();
+  _pendingDuplicates = [];
+  _dupSelections = {};
+}
+
+async function fireSkipApi(fileIds) {
+  try {
+    const res = await authFetch('/api/files/skip-duplicates', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_ids: fileIds }),
+    });
+    const isTH = getLang() === 'th';
+    if (res.ok) {
+      const data = await res.json();
+      showToast(
+        isTH ? `ข้าม ${data.count} ไฟล์ที่ซ้ำแล้ว` : `Skipped ${data.count} duplicate files`,
+        'success'
+      );
+      loadFiles();
+      loadStats();
+    } else {
+      showToast(isTH ? 'ไม่สามารถลบไฟล์ได้' : 'Failed to skip', 'error');
+    }
+  } catch {
+    showToast(getLang() === 'th' ? 'เกิดข้อผิดพลาด' : 'Error', 'error');
+  } finally {
+    _pendingDuplicates = [];
+    _dupSelections = {};
+  }
+}
+```
+
+### Step 4: Wire buttons (~10 นาที)
+
+ใน `init*()` (เพิ่มในที่ wire dup buttons เดิม):
+
+```javascript
+// Replace old skip/keep buttons with new confirm/cancel/quick
+document.getElementById('dup-cancel-btn')?.addEventListener('click', () => {
+  hideDuplicateModal();
+  _pendingDuplicates = [];
+  _dupSelections = {};
+});
+document.getElementById('dup-confirm-btn')?.addEventListener('click', confirmDupActions);
+document.getElementById('dup-quick-keep-all')?.addEventListener('click', () => quickApplyAll('keep'));
+document.getElementById('dup-quick-skip-all')?.addEventListener('click', () => quickApplyAll('skip'));
+```
+
+### Step 5: CSS — radio + undo toast (~30 นาที)
+
+แก้ [legacy-frontend/styles.css:3408+](../../legacy-frontend/styles.css#L3408) — เพิ่ม:
+
+```css
+/* Per-row radio */
+.dup-row { padding: 14px; }
+.dup-actions {
+  display: flex; gap: 16px; margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(255,255,255,0.05);
+}
+.dup-radio {
+  display: flex; align-items: center; gap: 6px;
+  cursor: pointer; font-size: 13px;
+  color: var(--text-secondary);
+  user-select: none;
+}
+.dup-radio input[type="radio"] { cursor: pointer; }
+.dup-radio:has(input:checked) {
+  color: var(--text-primary); font-weight: 500;
+}
+
+/* Quick action bar */
+.dup-quick-actions {
+  display: flex; gap: 8px; padding: 8px 0 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  margin-bottom: 12px;
+}
+.dup-quick-actions .btn-sm {
+  font-size: 12px; padding: 4px 10px;
+}
+
+/* Undo toast */
+.dup-undo-toast {
+  position: fixed; bottom: 24px; left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-secondary);
+  border: 1px solid rgba(255,200,100,0.3);
+  border-radius: 10px;
+  padding: 14px 18px;
+  display: flex; align-items: center; gap: 16px;
+  z-index: 10000;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+  min-width: 360px; max-width: 90vw;
+  animation: undoToastIn 0.25s ease-out;
+}
+@keyframes undoToastIn {
+  from { opacity: 0; transform: translate(-50%, 20px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+.dup-undo-text { flex: 1; min-width: 0; }
+.dup-undo-title { color: var(--text-primary); font-size: 13px; font-weight: 500; }
+.dup-undo-files {
+  color: var(--text-secondary); font-size: 11px; margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dup-undo-btn {
+  background: rgba(99,102,241,0.15);
+  border: 1px solid rgba(99,102,241,0.3);
+  color: #818cf8;
+  padding: 6px 14px; border-radius: 6px;
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  transition: background 0.15s;
+}
+.dup-undo-btn:hover { background: rgba(99,102,241,0.25); }
+.dup-undo-progress {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  height: 3px; background: rgba(255,255,255,0.05);
+  border-radius: 0 0 10px 10px; overflow: hidden;
+}
+.dup-undo-progress-fill {
+  width: 100%; height: 100%;
+  background: linear-gradient(90deg, #f59e0b, #ef4444);
+  transform-origin: left;
+  animation: undoCountdown 10s linear forwards;
+}
+@keyframes undoCountdown {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+```
+
+### Step 6: i18n keys (~5 นาที — research-backed wording)
+
+เพิ่มใน I18N dict (ทั้ง `th` และ `en`) ใน [app.js](../../legacy-frontend/app.js).
+
+**ทุก label ผ่าน research จาก NN/G + Win/macOS standards + Thai mobile convention. {count} = placeholder สำหรับ runtime injection.**
+
+```javascript
+// ─── th ─────────────────────────────────────────────
+'dup.title': '⚠ พบไฟล์คล้ายกัน {count} ไฟล์',
+'dup.subtitle': 'ไฟล์ที่อัปโหลดใหม่บางไฟล์มีเนื้อหาคล้ายกับไฟล์ที่มีอยู่แล้ว — เลือกทีละไฟล์ว่าจะเก็บหรือข้าม',
+'dup.fileNew': '(ใหม่)',
+'dup.matchSemantic': 'คล้าย',
+'dup.matchExact': 'เหมือน',
+'dup.matchExactBadge': '(ตรงเป๊ะ)',
+'dup.matchedTopics': 'ตรงกัน',
+
+// Per-file radio (matches Win11 + macOS Finder convention)
+'dup.actionKeep': 'เก็บทั้งคู่',
+'dup.actionSkip': 'ข้ามไฟล์ใหม่',
+
+// Quick action bar (no emoji per NN/G — reduce visual noise in destructive context)
+'dup.quickKeep': 'เก็บทั้งหมด',
+'dup.quickSkip': 'ข้ามทั้งหมด',
+
+// Modal close button (NN/G: NOT "ยกเลิก" because no work to discard)
+'dup.cancel': 'ไว้ทีหลัง',
+
+// Confirm button — verb + count + object (NN/G)
+'dup.confirmKeepAll': 'เก็บทั้งหมด',
+'dup.confirmSkip': 'ข้ามไฟล์ใหม่ {count} ไฟล์',
+
+// Undo toast — 10s + X dismiss (Material 3 + WCAG 2.2.1)
+'dup.undoTitle': 'จะข้ามไฟล์ใหม่ {count} ไฟล์ใน 10 วิ',
+'dup.undoBtn': 'เลิกทำ',  // Thai mobile convention; different from "ไว้ทีหลัง" to avoid confusion
+'dup.undoNow': 'ลบทันที',  // tooltip ของปุ่ม ✕
+
+// Toast notifications after action
+'dup.toastKeptAll': 'เก็บไฟล์ทั้งหมดแล้ว',
+'dup.toastUndone': 'ยกเลิกการข้าม — ไฟล์ทั้งหมดยังอยู่',
+'dup.toastSkipped': 'ข้ามไฟล์ที่ซ้ำ {count} ไฟล์แล้ว',
+'dup.toastError': 'ไม่สามารถข้ามไฟล์ได้ ลองใหม่อีกครั้ง',
+
+// ─── en ─────────────────────────────────────────────
+'dup.title': '⚠ Found {count} similar files',
+'dup.subtitle': 'Some uploaded files are similar to existing ones — choose per file what to do',
+'dup.fileNew': '(new)',
+'dup.matchSemantic': 'similar to',
+'dup.matchExact': 'matches',
+'dup.matchExactBadge': '(exact)',
+'dup.matchedTopics': 'matched',
+
+'dup.actionKeep': 'Keep both',
+'dup.actionSkip': 'Skip new',
+
+'dup.quickKeep': 'Keep all',
+'dup.quickSkip': 'Skip all',
+
+'dup.cancel': 'Later',
+
+'dup.confirmKeepAll': 'Keep all',
+'dup.confirmSkip': 'Skip {count} new files',
+
+'dup.undoTitle': 'Skipping {count} new files in 10s',
+'dup.undoBtn': 'Undo',
+'dup.undoNow': 'Skip now',
+
+'dup.toastKeptAll': 'All files kept',
+'dup.toastUndone': 'Cancelled — all files kept',
+'dup.toastSkipped': 'Skipped {count} duplicate files',
+'dup.toastError': 'Failed to skip — try again',
+```
+
+### Step 7: Self-test (~15 นาที)
+
+1. Upload 5 ไฟล์ที่มี duplicate 3 ตัว → กด organize-new → popup ขึ้น 3 rows
+2. เลือก: row 1 = keep, row 2 = skip, row 3 = skip → confirm button = "ยืนยัน (จะข้าม 2 ไฟล์)"
+3. กด confirm → undo toast 10 วิ → รอครบ → ตรวจ DB: 2 ไฟล์ถูกลบ + 1 ไฟล์ยังอยู่
+4. ทำซ้ำ — กด undo ภายใน 10 วิ → ตรวจ: ไฟล์ทั้ง 3 ยังอยู่ + toast หาย + popup ปิด
+5. Test quick action: กด "ข้ามทั้งหมด" → ทุก radio เปลี่ยนเป็น skip → confirm
+6. Test cancel: เปิด popup → กด "ยกเลิก" → ไม่ทำอะไร + ไฟล์ทั้งหมดอยู่ครบ
+7. Test no-skip: เลือก keep ทุก row → กด confirm → ไม่มี undo toast (ไม่เรียก API) + toast info "เก็บไฟล์ทั้งหมด"
+8. Bilingual: switch TH↔EN ระหว่าง popup เปิด → label เปลี่ยนถูก
+
+### Step 8: Commit (~5 นาที)
+
+```
+feat(dedupe-ux): per-file action + 5s undo — v7.1.5
+
+UX improvements over v7.1 dedupe popup:
+- เลือก keep/skip ทีละไฟล์ได้ (radio per row)
+- 2 quick action: เก็บทั้งหมด / ข้ามทั้งหมด
+- Confirm button label = บอกจำนวนไฟล์ที่จะ skip
+- Undo toast 10 วิ — กดผิดได้ (client-side delay, ยังไม่เรียก API)
+- ไม่แตะ backend (skip-duplicates endpoint รับ subset ของ file_ids อยู่แล้ว)
+
+Files:
+- legacy-frontend/app.html: dup-modal structure update
+- legacy-frontend/app.js: showDuplicateModal + confirmDupActions + showUndoToast
+- legacy-frontend/styles.css: per-row radio + undo toast
+
+Refs: plans/dedupe-ux-v7.1.5.md
+Author-Agent: เขียว (Khiao)
+```
+
+---
+
+## 🧪 Test Scenarios (สำหรับฟ้า)
+
+### Happy Path
+1. **Per-file mix:** 3 dup → keep 1 + skip 2 → confirm → undo timeout → 2 ไฟล์ลบ
+2. **All keep:** 3 dup → keep ทุกตัว → confirm → ไม่มี undo (ไม่เรียก API)
+3. **All skip via quick:** 3 dup → กด "ข้ามทั้งหมด" → confirm → undo → 3 ลบ
+4. **Undo cancel:** confirm 2 skip → กด undo ภายใน 10 วิ → 0 ลบ + toast info "ยกเลิก"
+5. **Cancel modal:** เปิด popup → กด "ยกเลิก" → 0 ลบ + ไฟล์ครบ + popup ปิด
+
+### Edge Cases
+6. **Single dup:** popup 1 row — radio + confirm ทำงานเหมือน multi
+7. **Confirm กดซ้ำ:** ปุ่ม disabled หลังกด (กัน double-call)
+8. **Undo toast 2 ครั้งติด:** toast เก่าถูก remove ก่อน toast ใหม่ (กัน race)
+9. **Browser refresh ระหว่าง 10 วิ undo:** API ไม่ถูกเรียก (เพราะ setTimeout หาย) — ไฟล์ยังอยู่ทุกตัว — accept defensive default
+10. **Switch TH/EN ระหว่าง popup เปิด:** label radio + button update ตาม `getLang()` — ทุก call site ใช้ `getLang()` ไม่ cache
+
+### Regression
+11. v7.1 backend tests ทั้งหมดยังต้อง pass (87/87 + 106/106 BYOS) — เพราะไม่แตะ backend
+12. Modal pattern อื่น (auth-modal, pack-modal, profile-modal) ไม่กระทบ — `.dup-modal-*` class scoped
+
+---
+
+## ✅ Done Criteria
+
+- [ ] Per-file radio ทำงาน — selection state ถูกต้อง
+- [ ] Confirm label เปลี่ยนตามจำนวน skip
+- [ ] Quick action เปลี่ยน radio ทุก row พร้อมกัน
+- [ ] Undo toast ขึ้น 10 วิ + progress bar countdown
+- [ ] Undo button ยกเลิกได้ — API ไม่ถูกเรียก
+- [ ] Timeout → API ถูกเรียกครั้งเดียว
+- [ ] All-keep → ไม่ trigger undo toast
+- [ ] Cancel modal → ไม่ trigger anything
+- [ ] i18n TH+EN ครบ 8 keys ใหม่
+- [ ] Self-test 5 happy + 5 edge ผ่าน
+- [ ] **No backend changes** — verify ด้วย `git diff backend/` = empty
+- [ ] No regression — `pytest scripts/byos_*_smoke.py + dedupe smoke` ผ่าน
+- [ ] Bump APP_VERSION → "7.1.5" ใน `backend/config.py` (นับเป็น patch)
+
+---
+
+## ⚠️ Risks / Notes
+
+### Risks
+1. **Browser refresh kills pending skip** — ถ้า user refresh ระหว่าง 10 วิ undo → API ไม่ถูกเรียก → ไฟล์ "ที่จะข้าม" ยังอยู่ → user เห็น popup อีกครั้ง organize ถัดไป → accept (safe default = ไม่ลบดีกว่าลบผิด)
+2. **Stacking undo toasts** — ถ้า user เปิด popup สองครั้งติด + กด confirm ทั้งคู่ในระยะ 10 วิ → toast เก่าถูก remove → API ของชุดเก่าถูกยกเลิกทันที → ชุดใหม่เริ่ม timer 10 วิใหม่. **Mitigation:** ในโค้ด `cancelPendingSkip()` clear timeout เก่าก่อนเสมอ
+3. **Modal scroll position reset** — Confirm button label update ขณะ user ยังเลื่อนอยู่ — ไม่กระทบ scroll (button อยู่ footer position fixed)
+
+### Out of scope (defer)
+- ❌ Replace action (3rd button "แทนที่ของเก่า") — ซับซ้อน (ต้อง backend logic preserve cluster_maps + tags + insights)
+- ❌ Library scan endpoint (`/api/files/scan-duplicates`) — Phase 2.2
+- ❌ Duplicate dashboard page — Phase 2.2
+- ❌ LLM deep diff — Phase 3
+- ❌ Configurable threshold / dismissal table — Phase 3+
+
+---
+
+## 📌 Notes for เขียว
+
+### กฎที่ห้ามลืม
+1. **ห้ามแตะ backend** — verify `git diff backend/` = empty ตอน commit
+2. **ห้ามลบ `_pendingDuplicates` คลีน** ก่อน fireSkipApi → จะหา filename ใน undo toast ไม่เจอ
+3. **clearTimeout ทุกครั้งใน cancelPendingSkip** — กัน leaked timer
+4. **`escapeHtml` ทุก filename + topics** — กัน XSS
+5. **`Author-Agent: เขียว (Khiao)`** ในทุก commit
+
+### Gotchas
+- **Radio name ใช้ `dup-${file_id}`** — ห้ามชนกับ radio อื่นใน app (ไม่มี ปัจจุบัน — แต่ unique-prefix)
+- **`updateConfirmLabel()` เรียกเมื่อ:** open modal, radio change, quick action, language toggle (ถ้า user toggle ระหว่าง popup เปิด)
+- **Undo toast positioned `bottom: 24px`** — ถ้ามี `.toast` อื่นปรากฏพร้อมกันอาจซ้อน — ใช้ unique id `dup-undo-toast` แล้ว remove ก่อน append ใหม่
+- **Existing `showToast()` API** — ใช้ได้เลย ไม่ต้องเขียนใหม่
+- **`loadFiles() + loadStats()`** หลัง API ไม่ใช่ `loadAllPages()` — refresh ที่จำเป็นพอ
+
+### ขนาด PR
+- backend: **0 lines** ✅
+- frontend: ~250 lines (HTML 20 + JS 180 + CSS 50)
+- tests: ฟ้าจะเขียน Playwright UI test เพิ่ม
+- รวม: PR ขนาด **small** — 1 commit เพียงพอ

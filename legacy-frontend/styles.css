@@ -2752,6 +2752,44 @@
 
 
 /* ═══════════════════════════════════════════
+   v7.4.0 — Page Primary FAB (mobile only)
+   ═══════════════════════════════════════════
+   Sits ABOVE .guide-fab (bottom 24, height ~48) so the two don't overlap.
+   Hidden on desktop because the in-flow primary button is enough there. */
+.page-fab {
+  display: none;
+  position: fixed;
+  bottom: 88px;
+  right: 20px;
+  z-index: 9700;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: white;
+  border: none;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.45);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.page-fab:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 28px rgba(99, 102, 241, 0.55);
+}
+.page-fab:active { transform: scale(0.96); }
+
+@media (max-width: 768px) {
+  .page.active .page-fab { display: inline-flex; }
+  /* Hide in-flow primary actions where the FAB takes over */
+  .page.active #btn-organize-new,
+  .page.active #btn-new-context { display: none; }
+  /* Leave room above the FAB so the last list item isn't covered */
+  .main-content { padding-bottom: 96px; }
+}
+
+/* ═══════════════════════════════════════════
    GUIDE SYSTEM — Simple FAB + Drawer
    ═══════════════════════════════════════════ */
 .guide-fab {
@@ -3608,4 +3646,154 @@
   .dup-modal { width: 95%; max-height: 90vh; }
   .dup-modal-footer { flex-direction: column-reverse; }
   .dup-modal-footer .btn { width: 100%; }
+}
+
+/* ═══════════════════════════════════════════
+   v7.1.5 — Per-file selector + undo toast
+   ═══════════════════════════════════════════ */
+
+/* Quick action bar above per-file list */
+.dup-quick-actions {
+  display: flex;
+  gap: 8px;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.dup-quick-actions .btn-sm {
+  font-size: 12px;
+  padding: 4px 10px;
+}
+
+/* Per-row radio actions (research-backed: NN/G + Win/macOS Skip/Keep both) */
+.dup-actions {
+  display: flex;
+  gap: 16px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.05);
+}
+.dup-radio {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-secondary);
+  user-select: none;
+}
+.dup-radio input[type="radio"] {
+  cursor: pointer;
+  accent-color: #818cf8;
+}
+.dup-radio:has(input:checked) {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* Undo toast — 10s countdown + manual X dismiss (Material 3 + WCAG 2.2.1) */
+.dup-undo-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-secondary, #191a1b);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 10px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  z-index: 11000; /* Above modals (10500) per v7.3.0 z-index hierarchy */
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  min-width: 380px;
+  max-width: 92vw;
+  overflow: hidden;
+  animation: dupUndoToastIn 0.25s ease-out;
+}
+@keyframes dupUndoToastIn {
+  from { opacity: 0; transform: translate(-50%, 20px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+.dup-undo-text {
+  flex: 1;
+  min-width: 0;
+}
+.dup-undo-title {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 510;
+}
+.dup-undo-files {
+  color: var(--text-secondary);
+  font-size: 11px;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dup-undo-btn {
+  background: rgba(99, 102, 241, 0.18);
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  color: #a5b4fc;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 510;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  flex-shrink: 0;
+}
+.dup-undo-btn:hover {
+  background: rgba(99, 102, 241, 0.3);
+  color: #c7d2fe;
+}
+.dup-undo-close {
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary, #62666d);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.15s ease, color 0.15s ease;
+  flex-shrink: 0;
+}
+.dup-undo-close:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary, #f7f8f8);
+}
+.dup-undo-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+.dup-undo-progress-fill {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, #f59e0b, #ef4444);
+  transform-origin: left;
+  animation: dupUndoCountdown 10s linear forwards;
+}
+@keyframes dupUndoCountdown {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+/* Mobile responsive */
+@media (max-width: 600px) {
+  .dup-undo-toast {
+    min-width: unset;
+    width: 92vw;
+    flex-wrap: wrap;
+  }
+  .dup-undo-text { width: 100%; order: 1; }
+  .dup-undo-btn { order: 2; }
+  .dup-undo-close { order: 3; }
+  .dup-actions { flex-direction: column; gap: 8px; }
 }

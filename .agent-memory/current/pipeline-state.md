@@ -5,7 +5,29 @@
 
 ---
 
-## 🎯 Current Pipeline State: `idle`
+## 🎯 Current Pipeline State: `plan_pending_approval`
+
+### 🟡 v7.4.0 SaaS Responsive Design & Mobile UX — JUMP THE QUEUE (2026-05-02)
+
+**State:** `plan_pending_approval` 🟡 — แดงเขียนแผน → user authorize full dev mode → เขียวเริ่ม build
+**Plan file:** [plans/saas-responsive-v7.4.0.md](../plans/saas-responsive-v7.4.0.md)
+**Owner (build):** เขียว (Khiao) — full dev mode
+**Priority:** 🟡 High — Mobile usability + SaaS UX standards 2025
+**Foundation:** ต่อยอดจาก v7.3.0 commit `62968c6`
+
+**Note:** User asked for v7.3.0 with 4 sections — **2 ใน 4 sections ทำใน v7.3.0 ไปแล้ว** (sidebar hamburger + form validation .is-invalid + z-index modal>guide). v7.4.0 scope = 2 sections ที่เหลือ + ลึกกว่านี้:
+
+**4 fixes (Section A-D):**
+1. **Touch Targets 44px** — bump `.btn`, `.btn-sm`, `.btn-close`, `.form-input` to ≥44×44px on `@media (max-width: 768px)` (Apple HIG / Material Design 3)
+2. **Page FAB** — primary actions (organize-new, new-context) become floating round button bottom-right above guide-fab on mobile
+3. **File List Card View** — `.file-item` → vertical card on mobile + kebab menu (⋮) replacing inline Delete
+4. **Context Memory Kebab** — replace hover-only actions with always-visible kebab dropdown on mobile (3 actions: Edit / Pin / Delete)
+
+**Backend impact:** zero — all frontend (CSS + HTML + render functions). User asked to test backend too — will run `python -m pytest tests/test_production.py` as part of regression to confirm no contract break.
+
+**Last update:** 2026-05-02 (แดงเขียนแผน → เขียวเริ่ม build)
+
+---
 
 ### 🟢 v7.3.0 UX Edge-Cases & Mobile Fixes — DONE ✅ (2026-05-02)
 
@@ -49,12 +71,13 @@
 
 ## 📥 Queued (รอคิว — หลัง v7.2.0 เสร็จ)
 
-### v7.1.5 — Dedupe UX Quick Wins (v2 research-backed — 2026-05-02)
-**State:** `plan_pending_approval` ⏳ — v7.2.0 ship แล้ว เป็น next in queue
-**Owner (plan):** แดง (Daeng)
+### v7.1.5 — Dedupe UX Quick Wins (v2 research-backed — 2026-05-02) ✅ DONE (3-in-1 mode)
+**State:** `done` ✅ — implemented + 183/183 regression pass + JS/Python syntax clean (single-agent pipeline per user authorization)
+**Owner (build+review):** แดง→เขียว→ฟ้า (single agent, full pipeline 3-in-1)
 **Plan file:** [plans/dedupe-ux-v7.1.5.md](../plans/dedupe-ux-v7.1.5.md) (v2 — wording ผ่าน UX research)
-**Foundation:** patch บน v7.1.0 dedupe (`cd114dd` + `0adcaf1`) + ใช้ toast/modal pattern จาก v7.2.0 ที่เพิ่ง ship
-**ETA:** เขียว ~2-3 ชม. + ฟ้า ~1 ชม.
+**Foundation:** patch บน v7.1.0 dedupe (`cd114dd` + `0adcaf1`) + ใช้ toast/modal pattern จาก v7.2.0/v7.3.0
+**Actual time:** ~30 min (3-in-1 mode, ไม่มี inter-session reload overhead)
+**Self-review verdict:** ✅ APPROVE — 183/183 regression + JS syntax + Python compile + i18n keys (20×2 langs) + functions (8/8) verified
 
 ### Scope (2 fixes แก้ pain ใหญ่ที่สุด)
 - **P1 → A1:** Per-file action ใน popup — radio per row + 2 quick actions (เก็บทั้งหมด/ข้ามทั้งหมด)

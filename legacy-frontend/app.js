@@ -679,14 +679,33 @@ const I18N = {
  'logs.empty': 'ยังไม่มีบันทึก — การใช้งาน connector จะแสดงที่นี่',
 
  // Duplicate detection (v7.1)
- 'dup.title': '⚠ พบไฟล์คล้ายกัน',
- 'dup.subtitle': 'ไฟล์ที่อัปโหลดใหม่บางไฟล์มีเนื้อหาคล้ายกับไฟล์ที่มีอยู่แล้ว',
- 'dup.skip': '✗ ข้ามที่ซ้ำ — ใช้ของเก่า',
- 'dup.keep': '✓ เก็บทั้งหมด',
+ // v7.1.5 — research-backed wording (NN/G + Win11/macOS standards + Material 3 + Thai mobile)
+ 'dup.title': 'พบไฟล์คล้ายกัน {count} ไฟล์',
+ 'dup.subtitle': 'ไฟล์ที่อัปโหลดใหม่บางไฟล์มีเนื้อหาคล้ายกับไฟล์ที่มีอยู่แล้ว — เลือกทีละไฟล์ว่าจะเก็บหรือข้าม',
  'dup.labelNew': '(ใหม่)',
  'dup.labelSimilar': 'คล้าย',
  'dup.labelExact': '(ตรงเป๊ะ)',
  'dup.labelMatched': 'ตรงกัน',
+ // Per-file radio (Win11 + macOS Finder convention)
+ 'dup.actionKeep': 'เก็บทั้งคู่',
+ 'dup.actionSkip': 'ข้ามไฟล์ใหม่',
+ // Quick action bar
+ 'dup.quickKeep': 'เก็บทั้งหมด',
+ 'dup.quickSkip': 'ข้ามทั้งหมด',
+ // Modal close button (NN/G: NOT "ยกเลิก" — no work to discard)
+ 'dup.cancel': 'ไว้ทีหลัง',
+ // Confirm button — verb + count + object (NN/G)
+ 'dup.confirmKeepAll': 'เก็บทั้งหมด',
+ 'dup.confirmSkip': 'ข้ามไฟล์ใหม่ {count} ไฟล์',
+ // Undo toast — 10s + X dismiss (Material 3 + WCAG 2.2.1)
+ 'dup.undoTitle': 'จะข้ามไฟล์ใหม่ {count} ไฟล์ใน 10 วิ',
+ 'dup.undoBtn': 'เลิกทำ',
+ 'dup.undoNow': 'ข้ามทันที',
+ // Toast notifications
+ 'dup.toastKeptAll': 'เก็บไฟล์ทั้งหมดแล้ว',
+ 'dup.toastUndone': 'ยกเลิกการข้าม — ไฟล์ทั้งหมดยังอยู่',
+ 'dup.toastSkipped': 'ข้ามไฟล์ที่ซ้ำ {count} ไฟล์แล้ว',
+ 'dup.toastError': 'ไม่สามารถข้ามไฟล์ได้ ลองใหม่อีกครั้ง',
  },
 
  en: {
@@ -869,14 +888,27 @@ const I18N = {
  'logs.empty': 'No logs yet — connector usage will appear here',
 
  // Duplicate detection (v7.1)
- 'dup.title': '⚠ Similar files detected',
- 'dup.subtitle': 'Some uploaded files have content similar to existing files',
- 'dup.skip': '✗ Skip duplicates — use existing',
- 'dup.keep': '✓ Keep all',
+ // v7.1.5 — research-backed wording
+ 'dup.title': 'Found {count} similar files',
+ 'dup.subtitle': 'Some uploaded files are similar to existing ones — choose per file what to do',
  'dup.labelNew': '(new)',
  'dup.labelSimilar': 'similar to',
  'dup.labelExact': '(exact)',
  'dup.labelMatched': 'matched',
+ 'dup.actionKeep': 'Keep both',
+ 'dup.actionSkip': 'Skip new',
+ 'dup.quickKeep': 'Keep all',
+ 'dup.quickSkip': 'Skip all',
+ 'dup.cancel': 'Later',
+ 'dup.confirmKeepAll': 'Keep all',
+ 'dup.confirmSkip': 'Skip {count} new files',
+ 'dup.undoTitle': 'Skipping {count} new files in 10s',
+ 'dup.undoBtn': 'Undo',
+ 'dup.undoNow': 'Skip now',
+ 'dup.toastKeptAll': 'All files kept',
+ 'dup.toastUndone': 'Cancelled — all files kept',
+ 'dup.toastSkipped': 'Skipped {count} duplicate files',
+ 'dup.toastError': 'Failed to skip — try again',
  }
 };
 
@@ -1134,9 +1166,18 @@ function initUpload() {
  document.getElementById('btn-organize-new')?.addEventListener('click', runOrganizeNew);
  loadUnprocessedCount();
 
- // v7.1 — Duplicate detection modal buttons (เก็บใน upload init เพราะ trigger จาก upload)
- document.getElementById('dup-skip-btn')?.addEventListener('click', () => resolveDuplicates('skip'));
- document.getElementById('dup-keep-btn')?.addEventListener('click', () => resolveDuplicates('keep'));
+ // v7.1.5 — Dedupe modal: per-file selector + quick actions + undo flow
+ // Cancel = close modal, no action (NN/G "Later" — no work to discard)
+ document.getElementById('dup-cancel-btn')?.addEventListener('click', () => {
+  hideDuplicateModal();
+  _pendingDuplicates = [];
+  _dupSelections = {};
+ });
+ // Confirm = trigger flow (keep all OR show undo toast for skips)
+ document.getElementById('dup-confirm-btn')?.addEventListener('click', confirmDupActions);
+ // Quick actions = apply same value to all rows
+ document.getElementById('dup-quick-keep-all')?.addEventListener('click', () => quickApplyAll('keep'));
+ document.getElementById('dup-quick-skip-all')?.addEventListener('click', () => quickApplyAll('skip'));
 }
 
 // v7.2.0 — track upload in-flight + warn user before unload
@@ -1222,15 +1263,22 @@ async function uploadFiles(fileList) {
 }
 
 // ═══════════════════════════════════════════
-// DUPLICATE DETECTION MODAL (v7.1)
+// DUPLICATE DETECTION MODAL (v7.1.5 — research-backed UX)
 // ═══════════════════════════════════════════
+// Wording: NN/G + Win11/macOS standards + Material 3 + Thai mobile convention
+// Why per-file selector: P1 — bulk-only ทำให้ user เก็บบางไฟล์/ลบบางไฟล์ไม่ได้
+// Why undo toast 10s: P2 — accident recovery + Material 3 + WCAG 2.2.1 require ≥10s for destructive
+
+let _dupSelections = {}; // { new_file_id: 'keep' | 'skip' } — per-row selection
+let _pendingSkipTimeout = null; // setTimeout handle สำหรับ undo flow
 
 /**
- * แสดง modal popup เมื่อ backend detect ไฟล์ซ้ำในรอบ upload ปัจจุบัน.
- * อ่าน _pendingDuplicates (ตั้งค่าใน uploadFiles หลัง upload สำเร็จ).
+ * แสดง modal popup เมื่อ backend detect ไฟล์ซ้ำใน /api/organize-new response.
+ * อ่าน _pendingDuplicates (ตั้งค่าใน uploadFiles / runOrganizeNew หลัง response).
  *
- * Render: row ละ 1 match — filename ใหม่, filename ของไฟล์ที่ซ้ำ, similarity bar,
- * matched topics (ถ้ามี). ใช้ escapeHtml กัน XSS เพราะ filename มาจาก user input.
+ * Default ทุก row = "keep" (safe per NN/G — destructive ต้อง opt-in).
+ * Render per-row radio + matched topics + similarity bar.
+ * ใช้ escapeHtml กัน XSS เพราะ filename มาจาก user input.
  */
 function showDuplicateModal() {
  const modal = document.getElementById('dup-modal-overlay');
@@ -1238,11 +1286,22 @@ function showDuplicateModal() {
  const list = document.getElementById('dup-list');
  if (!list) return;
 
- const isTH = getLang() === 'th';
+ // Reset selections — ทุก row = keep by default (safe)
+ _dupSelections = {};
+ _pendingDuplicates.forEach(d => { _dupSelections[d.new_file_id] = 'keep'; });
+
  const newLabel = t('dup.labelNew');
  const similarLabel = t('dup.labelSimilar');
  const exactLabel = t('dup.labelExact');
  const matchedLabel = t('dup.labelMatched');
+ const keepLabel = t('dup.actionKeep');
+ const skipLabel = t('dup.actionSkip');
+
+ // Update title with count
+ const titleEl = document.getElementById('dup-modal-title');
+ if (titleEl) {
+  titleEl.textContent = t('dup.title').replace('{count}', _pendingDuplicates.length);
+ }
 
  list.innerHTML = _pendingDuplicates.map(d => {
  const pct = Math.round((d.similarity || 0) * 100);
@@ -1250,8 +1309,9 @@ function showDuplicateModal() {
  const topics = (d.matched_topics && d.matched_topics.length > 0)
  ? `<div class="dup-topics">${matchedLabel}: ${d.matched_topics.map(escapeHtml).join(', ')}</div>`
  : '';
+ const fid = escapeHtml(d.new_file_id || '');
  return `
- <div class="dup-row">
+ <div class="dup-row" data-file-id="${fid}">
  <div class="dup-new">📄 <strong>${escapeHtml(d.new_filename || '')}</strong> ${newLabel}</div>
  <div class="dup-old">
  <div class="dup-arrow">↪ ${similarLabel} <strong>${escapeHtml(d.match_filename || '')}</strong></div>
@@ -1260,12 +1320,62 @@ function showDuplicateModal() {
  <div class="dup-bar-label">${pct}%${kindLabel}</div>
  </div>
  ${topics}
+ <div class="dup-actions">
+ <label class="dup-radio">
+ <input type="radio" name="dup-${fid}" value="keep" checked>
+ <span>${keepLabel}</span>
+ </label>
+ <label class="dup-radio">
+ <input type="radio" name="dup-${fid}" value="skip">
+ <span>${skipLabel}</span>
+ </label>
+ </div>
  </div>
  </div>
  `;
  }).join('');
 
+ // Wire per-row radio change → update _dupSelections + refresh confirm label
+ list.querySelectorAll('input[type="radio"]').forEach(input => {
+ input.addEventListener('change', () => {
+  const row = input.closest('.dup-row');
+  if (row) _dupSelections[row.dataset.fileId] = input.value;
+  updateConfirmLabel();
+ });
+ });
+
+ updateConfirmLabel();
  modal.classList.remove('hidden');
+}
+
+/**
+ * Update confirm button label เมื่อ selection เปลี่ยน.
+ * - 0 skip → "เก็บทั้งหมด" / "Keep all"
+ * - N skip → "ข้ามไฟล์ใหม่ N ไฟล์" / "Skip N new files"
+ * Per NN/G: button = verb + count + object (กัน user กดแบบ auto-confirm)
+ */
+function updateConfirmLabel() {
+ const btn = document.getElementById('dup-confirm-btn');
+ if (!btn) return;
+ const skipCount = Object.values(_dupSelections).filter(v => v === 'skip').length;
+ if (skipCount === 0) {
+ btn.textContent = t('dup.confirmKeepAll');
+ } else {
+ btn.textContent = t('dup.confirmSkip').replace('{count}', skipCount);
+ }
+}
+
+/**
+ * Quick action — apply same action ทุก row พร้อมกัน.
+ * Sync ทั้ง _dupSelections + DOM radio state.
+ */
+function quickApplyAll(action) {
+ _pendingDuplicates.forEach(d => {
+ _dupSelections[d.new_file_id] = action;
+ const radio = document.querySelector(`input[name="dup-${CSS.escape(d.new_file_id)}"][value="${action}"]`);
+ if (radio) radio.checked = true;
+ });
+ updateConfirmLabel();
 }
 
 /**
@@ -1274,25 +1384,131 @@ function showDuplicateModal() {
 function hideDuplicateModal() {
  const modal = document.getElementById('dup-modal-overlay');
  if (modal) modal.classList.add('hidden');
- _pendingDuplicates = [];
 }
 
 /**
- * Handle ปุ่ม "ข้ามที่ซ้ำ" / "เก็บทั้งหมด" จาก modal.
- *
- * action='skip': call /api/files/skip-duplicates ลบไฟล์ใหม่ที่ซ้ำ + refresh list
- * action='keep': close modal เฉยๆ (ไฟล์อยู่ใน DB แล้วจาก upload — ไม่ต้องทำอะไร)
- *
- * Why catch ทุก error: modal popup ถ้า hang ค้างจะ block UI — ต้องปิดให้ได้เสมอ
+ * Cancel pending skip API call (กรณี user กด undo ใน toast).
+ * Clear timer + remove toast + reset state. Idempotent.
  */
-async function resolveDuplicates(action) {
- const isTH = getLang() === 'th';
- if (action === 'skip') {
- const fileIds = _pendingDuplicates.map(d => d.new_file_id).filter(Boolean);
- if (fileIds.length === 0) {
+function cancelPendingSkip(toast) {
+ if (_pendingSkipTimeout) {
+ clearTimeout(_pendingSkipTimeout);
+ _pendingSkipTimeout = null;
+ }
+ if (toast && toast.parentNode) toast.parentNode.removeChild(toast);
+ _pendingDuplicates = [];
+ _dupSelections = {};
+}
+
+/**
+ * Confirm action handler — เปลี่ยน radio selections เป็น API call จริง.
+ *
+ * Flow:
+ * 1. ถ้าทุก row = keep → toast "เก็บทั้งหมด" + close (ไม่เรียก API)
+ * 2. ถ้ามี skip ≥ 1 → trigger 10-second undo toast (ยังไม่เรียก API)
+ *    - User กด undo ภายใน 10 วิ → cancel timer + ไฟล์อยู่ครบ
+ *    - User กด ✕ → fire API ทันที (skip queue)
+ *    - Timeout ครบ → fire API
+ *
+ * Why client-side delay (vs soft-delete table):
+ *  - ไม่แตะ backend ได้ (per plan goal)
+ *  - Trade-off: browser refresh ระหว่าง 10 วิ → ไฟล์ "ที่จะ skip" ยังอยู่ (safe default)
+ */
+async function confirmDupActions() {
+ const skipIds = Object.entries(_dupSelections)
+ .filter(([_, action]) => action === 'skip')
+ .map(([id, _]) => id);
+
  hideDuplicateModal();
+
+ // ทุก row = keep → ไม่ต้องเรียก API
+ if (skipIds.length === 0) {
+ showToast(t('dup.toastKeptAll'), 'success');
+ _pendingDuplicates = [];
+ _dupSelections = {};
  return;
  }
+
+ // มี skip ≥ 1 → undo toast 10 วิ
+ showUndoToast(skipIds);
+}
+
+/**
+ * Render undo toast พร้อม progress bar countdown 10 วิ.
+ * Per Material 3 + WCAG 2.2.1 — destructive ต้องการ recovery window กว้าง.
+ *
+ * 2 ปุ่ม:
+ *  - "เลิกทำ" (Undo) — cancel timer, ไฟล์อยู่ครบ
+ *  - "✕" — skip queue, fire API ทันที (สำหรับ user ที่มั่นใจ)
+ */
+function showUndoToast(skipIds) {
+ // Remove existing undo toast if any (prevent stacking)
+ const existing = document.getElementById('dup-undo-toast');
+ if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+ if (_pendingSkipTimeout) { clearTimeout(_pendingSkipTimeout); _pendingSkipTimeout = null; }
+
+ // Get filenames for preview (max 3 + "+N")
+ const filenames = skipIds.map(id => {
+ const dup = _pendingDuplicates.find(d => d.new_file_id === id);
+ return dup ? dup.new_filename : id;
+ });
+ const previewNames = filenames.slice(0, 3).join(', ');
+ const moreCount = filenames.length - 3;
+ const namesLabel = previewNames + (moreCount > 0 ? ` +${moreCount}` : '');
+
+ const titleText = t('dup.undoTitle').replace('{count}', skipIds.length);
+ const undoBtnText = t('dup.undoBtn');
+ const undoNowTooltip = t('dup.undoNow');
+
+ const toast = document.createElement('div');
+ toast.id = 'dup-undo-toast';
+ toast.className = 'dup-undo-toast';
+ toast.innerHTML = `
+ <div class="dup-undo-text">
+ <div class="dup-undo-title">${escapeHtml(titleText)}</div>
+ <div class="dup-undo-files">${escapeHtml(namesLabel)}</div>
+ </div>
+ <button class="dup-undo-btn" id="dup-undo-btn" type="button">${escapeHtml(undoBtnText)}</button>
+ <button class="dup-undo-close" id="dup-undo-close" type="button" title="${escapeHtml(undoNowTooltip)}" aria-label="${escapeHtml(undoNowTooltip)}">✕</button>
+ <div class="dup-undo-progress"><div class="dup-undo-progress-fill"></div></div>
+ `;
+ document.body.appendChild(toast);
+
+ // Wire undo button — cancel pending API call
+ const undoBtn = toast.querySelector('#dup-undo-btn');
+ if (undoBtn) {
+ undoBtn.addEventListener('click', () => {
+ cancelPendingSkip(toast);
+ showToast(t('dup.toastUndone'), 'info');
+ });
+ }
+
+ // Wire ✕ button — fire API immediately (skip queue)
+ const closeBtn = toast.querySelector('#dup-undo-close');
+ if (closeBtn) {
+ closeBtn.addEventListener('click', () => {
+ if (_pendingSkipTimeout) { clearTimeout(_pendingSkipTimeout); _pendingSkipTimeout = null; }
+ if (toast.parentNode) toast.parentNode.removeChild(toast);
+ fireSkipApi(skipIds);
+ });
+ }
+
+ // 10-second timer → fire API (Material 3 + WCAG 2.2.1 recovery window)
+ _pendingSkipTimeout = setTimeout(() => {
+ if (toast.parentNode) toast.parentNode.removeChild(toast);
+ _pendingSkipTimeout = null;
+ fireSkipApi(skipIds);
+ }, 10000);
+}
+
+/**
+ * Fire skip-duplicates API call → refresh UI on success.
+ * Called either after 10s timeout OR user clicks ✕ in undo toast.
+ *
+ * Why catch ทุก error: API call ค้างจะไม่ block UI (toast หายไปแล้ว) — ต้อง
+ * แสดง error toast ให้ user รู้ว่าล้มเหลว
+ */
+async function fireSkipApi(fileIds) {
  try {
  const res = await authFetch('/api/files/skip-duplicates', {
  method: 'POST',
@@ -1301,32 +1517,21 @@ async function resolveDuplicates(action) {
  });
  if (res.ok) {
  const data = await res.json();
- showToast(
- isTH ? `ข้าม ${data.count} ไฟล์ที่ซ้ำแล้ว` : `Skipped ${data.count} duplicate files`,
- 'success'
- );
+ showToast(t('dup.toastSkipped').replace('{count}', data.count || fileIds.length), 'success');
  // Refresh list + stats หลังลบ
  loadFiles();
  loadStats();
  loadUnprocessedCount();
  loadUsageInfo();
  } else {
- showToast(
- isTH ? 'ไม่สามารถลบไฟล์ที่ซ้ำได้' : 'Failed to skip duplicates',
- 'error'
- );
+ showToast(t('dup.toastError'), 'error');
  }
  } catch (e) {
- showToast(isTH ? 'เกิดข้อผิดพลาด' : 'Error', 'error');
+ showToast(t('dup.toastError'), 'error');
+ } finally {
+ _pendingDuplicates = [];
+ _dupSelections = {};
  }
- } else {
- // keep — ไม่ต้องทำอะไร ไฟล์อยู่ใน DB อยู่แล้ว
- showToast(
- isTH ? 'เก็บไฟล์ทั้งหมดเรียบร้อย' : 'All files kept',
- 'success'
- );
- }
- hideDuplicateModal();
 }
 
 async function loadFiles() {
