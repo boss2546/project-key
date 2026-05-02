@@ -519,3 +519,141 @@ test("v7.5.0 / standalone / mobile viewport — modal still readable", async ({ 
   const modalWidth = await page.locator(".upload-result-modal").evaluate((el) => el.getBoundingClientRect().width);
   expect(modalWidth).toBeLessThanOrEqual(375);
 });
+
+// ─── 10. Batch upload limits (v7.5.0 — guard against timeout) ───────
+
+
+test("v7.5.0 / standalone / upload hint shows 200MB + 20-file batch limit", async ({ page }) => {
+  await loadApp(page);
+  // Switch to TH so we test the localized string
+  await page.evaluate(() => { applyLanguage("th"); });
+  const hintText = await page.locator("#upload-hint").textContent();
+  expect(hintText).toContain("200 MB");
+  expect(hintText).toContain("20 ไฟล์");
+});
+
+
+test("v7.5.0 / standalone / 21 files triggers risky-batch confirm modal", async ({ page }) => {
+  await loadApp(page);
+  let uploadCalled = false;
+  await page.route("**/api/upload", async (route) => {
+    uploadCalled = true;
+    await route.fulfill({ status: 200, contentType: "application/json",
+      body: JSON.stringify({ uploaded: [], count: 0, skipped: [] }) });
+  });
+
+  // Trigger uploadFiles() with 21 files (just over BATCH_SAFE_LIMIT=20)
+  // Use page.evaluate so we don't actually need 21 real files
+  const promise = page.evaluate(() => {
+    const files = Array.from({ length: 21 }, (_, i) =>
+      new File(["x"], `f${i}.txt`, { type: "text/plain" })
+    );
+    // Don't await — confirm modal will block
+    window.uploadFiles(files);
+  });
+
+  // Confirm modal appears
+  await expect(page.locator("#confirm-modal")).toBeVisible({ timeout: 3000 });
+  await expect(page.locator("#confirm-message")).toContainText("21");
+  // Cancel — should NOT proceed with upload
+  await page.click("#confirm-cancel");
+  await page.waitForTimeout(500);
+  expect(uploadCalled).toBe(false);
+});
+
+
+test("v7.5.0 / standalone / 21 files — clicking Proceed actually uploads", async ({ page }) => {
+  await loadApp(page);
+  let uploadCalled = false;
+  await page.route("**/api/upload", async (route) => {
+    uploadCalled = true;
+    await route.fulfill({ status: 200, contentType: "application/json",
+      body: JSON.stringify({ uploaded: [], count: 0, skipped: [] }) });
+  });
+  page.evaluate(() => {
+    const files = Array.from({ length: 25 }, (_, i) =>
+      new File(["x"], `f${i}.txt`, { type: "text/plain" })
+    );
+    window.uploadFiles(files);
+  });
+  await expect(page.locator("#confirm-modal")).toBeVisible({ timeout: 3000 });
+  // Click Proceed (the OK button)
+  await page.click("#confirm-ok");
+  await page.waitForTimeout(800);
+  expect(uploadCalled).toBe(true);
+});
+
+
+test("v7.5.0 / standalone / 51+ files blocked — okOnly modal (no Cancel button)", async ({ page }) => {
+  await loadApp(page);
+  let uploadCalled = false;
+  await page.route("**/api/upload", async (route) => {
+    uploadCalled = true;
+    await route.fulfill({ status: 200, contentType: "application/json",
+      body: JSON.stringify({ uploaded: [], count: 0, skipped: [] }) });
+  });
+  page.evaluate(() => {
+    const files = Array.from({ length: 51 }, (_, i) =>
+      new File(["x"], `f${i}.txt`, { type: "text/plain" })
+    );
+    window.uploadFiles(files);
+  });
+  await expect(page.locator("#confirm-modal")).toBeVisible({ timeout: 3000 });
+  // Cancel button should be hidden in okOnly mode
+  const cancelHidden = await page.locator("#confirm-cancel").evaluate((el) => el.classList.contains("hidden"));
+  expect(cancelHidden).toBe(true);
+  // Click OK — even so, upload must NOT fire (this is hard-block)
+  await page.click("#confirm-ok");
+  await page.waitForTimeout(800);
+  expect(uploadCalled).toBe(false);
+});
+
+
+test("v7.5.0 / standalone / 20 files = silent (no confirm modal)", async ({ page }) => {
+  await loadApp(page);
+  let uploadCalled = false;
+  let confirmShown = false;
+  await page.route("**/api/upload", async (route) => {
+    uploadCalled = true;
+    await route.fulfill({ status: 200, contentType: "application/json",
+      body: JSON.stringify({ uploaded: [], count: 0, skipped: [] }) });
+  });
+  // Watch for confirm modal becoming visible
+  page.on("framenavigated", () => {});
+  page.evaluate(() => {
+    const files = Array.from({ length: 20 }, (_, i) =>
+      new File(["x"], `f${i}.txt`, { type: "text/plain" })
+    );
+    window.uploadFiles(files);
+  });
+  await page.waitForTimeout(1000);
+  const modalVisible = await page.locator("#confirm-modal").evaluate((el) => !el.classList.contains("hidden"));
+  expect(modalVisible).toBe(false);
+  expect(uploadCalled).toBe(true);
+});
+
+
+test("v7.5.0 / standalone / showConfirm with okOnly preserves default labels for next caller", async ({ page }) => {
+  await loadApp(page);
+  // Open first showConfirm with custom okText + okOnly (don't await — resolves on click)
+  page.evaluate(() => window.showConfirm("test1", { okText: "Custom OK", okOnly: true }));
+  await expect(page.locator("#confirm-modal")).toBeVisible();
+  // Verify cancel hidden in okOnly mode
+  let cancelHidden = await page.locator("#confirm-cancel").evaluate((el) => el.classList.contains("hidden"));
+  expect(cancelHidden).toBe(true);
+  // Click OK to close + trigger cleanup
+  await page.click("#confirm-ok");
+  await page.waitForTimeout(200);
+
+  // Now open a normal showConfirm — labels MUST be restored to original i18n defaults
+  // Suppress unhandled rejection on test teardown by catching
+  page.evaluate(() => { window.showConfirm("test2").catch(() => {}); });
+  await expect(page.locator("#confirm-modal")).toBeVisible();
+  const cancelText = await page.locator("#confirm-cancel").textContent();
+  cancelHidden = await page.locator("#confirm-cancel").evaluate((el) => el.classList.contains("hidden"));
+  // Cancel must be visible again + not have the custom text from prior call
+  expect(cancelHidden).toBe(false);
+  expect(cancelText).not.toBe("Custom OK");
+  // Clean dismiss to let test end gracefully
+  await page.click("#confirm-cancel");
+});

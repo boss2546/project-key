@@ -575,7 +575,7 @@ const I18N = {
  'myData.organizeAll': 'จัดระเบียบทั้งหมด',
  'myData.organizeNew': 'จัดระเบียบไฟล์ใหม่',
  'myData.uploadText': 'ลากไฟล์มาวาง หรือ คลิกเพื่อเลือกไฟล์',
- 'myData.uploadHint': 'รองรับ PDF, TXT, MD, DOCX (สูงสุด 20 MB)',
+ 'myData.uploadHint': 'รองรับ PDF, DOCX, TXT, MD, CSV, PNG/JPG (OCR), XLSX, PPTX, HTML, JSON, RTF · สูงสุด 200 MB · ครั้งละ 20 ไฟล์',
  'myData.allFiles': 'ไฟล์ทั้งหมด',
  'myData.noFiles': 'ยังไม่มีไฟล์ — เพิ่มไฟล์เข้าพื้นที่ส่วนตัวของคุณ',
  'myData.delete': 'ลบ',
@@ -674,6 +674,12 @@ const I18N = {
  'upload.skipQuota': 'เกินจำนวนที่เก็บได้',
  'upload.skipEmpty': 'ไฟล์ว่างเปล่า',
  'upload.suggestionLabel': 'คำแนะนำ',
+ // v7.5.0 — Batch upload limit warnings
+ 'upload.batchTooManyTitle': 'อัปครั้งเดียว {count} ไฟล์ — เกินที่แนะนำ',
+ 'upload.batchRiskyMsg': 'ระบบรองรับครั้งละ 20 ไฟล์ ที่จำนวนนี้อาจช้าหรือ timeout — แบ่งเป็นรอบย่อยจะเสถียรกว่า',
+ 'upload.batchHardMsg': 'ระบบไม่รองรับการอัปเกิน 50 ไฟล์ในครั้งเดียว — กรุณาแบ่งเป็นรอบย่อย ครั้งละไม่เกิน 20 ไฟล์',
+ 'upload.batchProceedRisky': 'ดำเนินการต่อ (เสี่ยง)',
+ 'upload.batchSplit': 'ยกเลิก แบ่งเป็นรอบย่อย',
 
  // Toasts / dynamic
  'toast.uploaded': 'อัปโหลดเรียบร้อย',
@@ -817,7 +823,7 @@ const I18N = {
  'myData.organizeAll': 'Organize All',
  'myData.organizeNew': 'Organize New Files',
  'myData.uploadText': 'Drag files here or click to select',
- 'myData.uploadHint': 'Supports PDF, TXT, MD, DOCX (max 20 MB)',
+ 'myData.uploadHint': 'Supports PDF, DOCX, TXT, MD, CSV, PNG/JPG (OCR), XLSX, PPTX, HTML, JSON, RTF · max 200 MB · up to 20 files at once',
  'myData.allFiles': 'All Files',
  'myData.noFiles': 'No files yet — add files to your personal space',
  'myData.delete': 'Delete',
@@ -916,6 +922,12 @@ const I18N = {
  'upload.skipQuota': 'Quota exceeded',
  'upload.skipEmpty': 'Empty file',
  'upload.suggestionLabel': 'Suggestion',
+ // v7.5.0 — Batch upload limit warnings
+ 'upload.batchTooManyTitle': 'Uploading {count} files at once — over recommended limit',
+ 'upload.batchRiskyMsg': 'System recommends max 20 files per batch. Larger batches may be slow or time out — splitting into smaller batches is more reliable.',
+ 'upload.batchHardMsg': 'System does not support uploading more than 50 files at once — please split into smaller batches of up to 20 files.',
+ 'upload.batchProceedRisky': 'Proceed anyway (risky)',
+ 'upload.batchSplit': 'Cancel & split',
 
  // Toasts / dynamic
  'toast.uploaded': 'Upload complete',
@@ -1338,14 +1350,39 @@ window.addEventListener('beforeunload', (e) => {
  return '';
 });
 
+// v7.5.0 — Batch limits (sequential pipeline + 60s HTTP timeout at Fly.io)
+//   ≤20 files = silently proceed (proven safe in tests)
+//   21-50 files = warn but allow (likely OK but may push HTTP timeout)
+//   >50 files  = block + force user to split (organize-new will definitely time out)
+const BATCH_SAFE_LIMIT = 20;
+const BATCH_HARD_LIMIT = 50;
+
 async function uploadFiles(fileList) {
  if (_uploadInFlight) {
   showToast(getLang() === 'th' ? 'กำลังอัปโหลดอยู่ กรุณารอให้เสร็จก่อน' : 'Upload already in progress, please wait', 'info');
   return;
  }
+ const count = fileList.length;
+ if (count === 0) return;
+
+ // v7.5.0 — Batch size guard
+ if (count > BATCH_HARD_LIMIT) {
+   await showConfirm(
+     t('upload.batchTooManyTitle').replace('{count}', count) + '\n\n' + t('upload.batchHardMsg'),
+     { okText: t('upload.batchSplit'), cancelText: null, okOnly: true }
+   );
+   return;
+ }
+ if (count > BATCH_SAFE_LIMIT) {
+   const proceed = await showConfirm(
+     t('upload.batchTooManyTitle').replace('{count}', count) + '\n\n' + t('upload.batchRiskyMsg'),
+     { okText: t('upload.batchProceedRisky'), cancelText: t('upload.batchSplit') }
+   );
+   if (!proceed) return;
+ }
+
  const form = new FormData();
  for (const f of fileList) form.append('files', f);
- const count = fileList.length;
  const isTH = getLang() === 'th';
  const baseMsg = (pct) => isTH ? `กำลังอัปโหลด ${count} ไฟล์... ${pct}%` : `Uploading ${count} file(s)... ${pct}%`;
 
@@ -3489,7 +3526,9 @@ function showToast(message, type = 'info') {
  }
 }
 
-function showConfirm(message) {
+function showConfirm(message, options = {}) {
+ // v7.5.0 — options: { okText?: string, cancelText?: string|null, okOnly?: bool }
+ // Backward compat: showConfirm(msg) still works (just message, default i18n labels)
  return new Promise(resolve => {
  const modal = document.getElementById('confirm-modal');
  document.getElementById('confirm-message').textContent = message;
@@ -3498,8 +3537,23 @@ function showConfirm(message) {
  const ok = document.getElementById('confirm-ok');
  const cancel = document.getElementById('confirm-cancel');
 
+ // Apply custom button labels (fall back to defaults if not provided)
+ const origOkText = ok.textContent;
+ const origCancelText = cancel.textContent;
+ if (options.okText) ok.textContent = options.okText;
+ if (options.cancelText !== undefined && options.cancelText !== null) {
+   cancel.textContent = options.cancelText;
+ }
+ // okOnly mode: hide cancel button (user must acknowledge)
+ const cancelHidden = options.okOnly === true || options.cancelText === null;
+ if (cancelHidden) cancel.classList.add('hidden');
+
  const cleanup = (result) => {
  modal.classList.add('hidden');
+ // Restore original labels + visibility for next caller
+ ok.textContent = origOkText;
+ cancel.textContent = origCancelText;
+ if (cancelHidden) cancel.classList.remove('hidden');
  ok.removeEventListener('click', onOk);
  cancel.removeEventListener('click', onCancel);
  resolve(result);
