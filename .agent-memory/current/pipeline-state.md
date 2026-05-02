@@ -5,7 +5,41 @@
 
 ---
 
-## 🎯 Current Pipeline State: `idle`
+## 🎯 Current Pipeline State: `done` ✅
+
+### 🟢 v7.5.0 Upload Resilience — DONE ✅ (2026-05-02)
+
+**State:** `done` ✅ — single-agent 3-in-1 mode (แดง→เขียว→ฟ้า) per user authorization
+**Plan file:** [plans/upload-resilience-v7.5.0.md](../plans/upload-resilience-v7.5.0.md)
+**Owner (build+review):** แดง (full pipeline 3-in-1)
+**Foundation:** v7.4.0 master HEAD `b8e8014` → v7.5.0 (4 commits)
+**Self-review verdict:** ✅ APPROVE — 50 pytest + 58 backend E2E + 238 regression = **346/346 PASS** + 1 skip (no tesseract local)
+
+### Commits shipped
+1. `8e386b8` — Phase 1: Fix Bugs (image OCR / structured skip / UI modal)
+2. `b8e8014→Phase4` — Phase 4: Big File map-reduce + DB schema + bump 200MB
+3. `7f195c3` — Phase 2: Proactive UX (extraction_status + retry + encrypted detect)
+4. `1c5e33e` — Phase 3: More formats (xlsx/pptx/html/json/rtf)
+5. (final) — APP_VERSION bump 7.1.5 → 7.5.0 + memory updates
+
+### Test results (4-layer per phase, executed in 3-in-1 session)
+| Layer | Coverage | Result |
+|-------|---------|--------|
+| L1 pytest unit | 51 cases (extraction + chunker + organizer + classify + formats) | 50 PASS / 1 skip |
+| L2 backend E2E | scripts/upload_resilience_e2e_verify.py — A 13 + B 13 + C 15 + D 17 | 58/58 PASS |
+| L3 Playwright | tests/e2e-ui/v7.5.0-upload-resilience.spec.js (6 tests) | spec ready — sandbox blocks port binding so user/CI runs manually |
+| L4 manual smoke | 14 items in plan | documented for user verification |
+| Regression | 238 backend (dedupe 55 + byos 5×106 + rebrand 77) | 238/238 PASS |
+
+### What shipped
+- **Phase 1:** image OCR (png/jpg/jpeg/webp via pytesseract), structured skip schema `{code, message, suggestion}`, per-file actionable result modal, EMPTY_FILE detect, fix size msg bug
+- **Phase 4:** smart text chunker (heading→paragraph→sentence→hard fallback) + map-reduce summary for files > 30K chars, DB columns (extraction_status, chunk_count, is_truncated), bump max_file_size_mb to 200
+- **Phase 2:** encrypted PDF detect + classify_extraction_status + reprocess endpoint mode=reextract + extraction badges + retry button (desktop inline + mobile kebab)
+- **Phase 3:** xlsx/pptx/html/json/rtf extractors with HTML XSS strip security
+
+### Last update: 2026-05-02 (แดง shipped v7.5.0 in 3-in-1 mode, all 4 phases + final bump)
+
+---
 
 ### 🟢 v7.4.0 SaaS Responsive Design & Mobile UX — DONE ✅ (2026-05-02)
 

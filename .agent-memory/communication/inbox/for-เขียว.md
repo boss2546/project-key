@@ -8,7 +8,71 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
-_ไม่มีข้อความใหม่_
+### MSG-NEW 🟡 [HANDOFF] Plan v7.5.0 Upload Resilience — approved + พร้อม build
+**From:** แดง (Daeng)
+**Date:** 2026-05-02
+**Re:** plans/upload-resilience-v7.5.0.md
+**Status:** 🔴 New — รอ user เลือก build mode (3-in-1 หรือเขียวทำ)
+
+สวัสดีเขียว 🟢
+
+User approve plan v7.5.0 Upload Resilience แล้ว ("ดำเนินการตามที่แดงแนะนำ" 2026-05-02). Plan file อยู่ที่ [plans/upload-resilience-v7.5.0.md](../../plans/upload-resilience-v7.5.0.md) — ละเอียดครบทุก phase
+
+### Scope สั้นๆ
+- **Goal:** แก้ pipeline upload+extract+organize ให้รับมือไฟล์ใหญ่/เพี้ยน/format ใหม่ได้แทน silently fail
+- **4 phase, ~12-13 ชม.:**
+  1. Phase 1 (~2 ชม.) — Fix bugs (image OCR, size msg, structured skip, per-file UI)
+  2. Phase 4 (~4-5 ชม.) ⭐ — Big File map-reduce + bump 200MB
+  3. Phase 2 (~3 ชม.) — Pre-upload preview + extraction_status + retry
+  4. Phase 3 (~3 ชม.) — xlsx/pptx/html/json/rtf
+
+### Decisions ทุกข้อ user approve "ตามที่แดงแนะนำ" — ไม่ต้องถามซ้ำ
+- Threshold ไฟล์ใหญ่ = 30K chars
+- Bump testing limit → 200MB
+- Chunk overlap = 500 chars
+- Big file = background task + polling (ไม่ block HTTP)
+- Big file นับ AI quota 1 ครั้ง/ไฟล์ (ไม่ใช่ตาม chunk)
+- Image OCR = tesseract local
+- Pre-upload modal เสมอเมื่อมี skip
+- xlsx flatten ทุก sheet เป็นไฟล์เดียว
+- Retry extraction = re-run จาก raw_path เดิม
+
+### Critical reminders
+1. ก่อน Phase 1 — verify Dockerfile install `tesseract-ocr` + `tesseract-ocr-tha` (ถ้าไม่มี ต้องเพิ่ม)
+2. **Phase 2** เปลี่ยน `extract_text` return signature เป็น `tuple[str, str]` — ต้องแก้ทุก caller (2 จุด: upload + reprocess)
+3. **Phase 4** background task pattern — ใช้ `BackgroundTasks` ที่มีอยู่ใน upload endpoint แล้ว
+4. **`chunk_count` migration** — backfill 0, ไม่ trigger mass-resummarize
+5. แต่ละ phase commit แยก + ครบ **4-layer test** pass ก่อนไปต่อ
+
+### 🧪 Test Plan (4-layer per milestone — section ใหม่ใน plan)
+ทุก phase ต้องผ่านครบ 4 layer ก่อน mark done:
+- **Layer 1:** pytest unit + integration (~10-15 cases/phase)
+- **Layer 2:** Backend E2E TestClient — `scripts/upload_resilience_e2e_verify.py` (sections A/B/C/D)
+- **Layer 3:** Playwright real Chromium — `tests/e2e-ui/v7.5.0-upload-resilience.spec.js`
+- **Layer 4:** Manual visual smoke (3-4 items per phase บน real browser/iPhone)
+
+**Test fixtures ที่ต้องสร้างก่อน:** `tests/fixtures/upload_samples/` — 12 ไฟล์ (sample.png, encrypted.pdf, big_text.pdf, sample.xlsx, sample_xss.html ฯลฯ) — รายละเอียดใน plan section "Test Plan per Milestone"
+
+**Total test count target:** ~80 new tests + 358 regression must stay green
+
+**Time:** Build 12-13 ชม. + Test 7.5 ชม. = **~20 ชม. รวม**
+
+### Build mode (รอ user ตัดสิน)
+- **Option A:** เขียวเริ่ม build (default sequential pipeline) — ส่งต่อให้ฟ้า review หลังเสร็จ
+- **Option B:** Single-agent 3-in-1 (แดงทำเองเหมือน v7.1.5) — User authorize ครั้งเดียว
+
+### State updates ที่ต้องทำ
+- ก่อนเริ่ม build: pipeline-state.md → state = `building`
+- หลัง phase 1 commit: ส่ง progress message ใน inbox/for-แดง.md
+- หลังครบ 4 phase + tests pass:
+  - 3-in-1 mode → state = `done`
+  - Sequential → state = `built_pending_review` + ส่ง MSG ฟ้า
+
+ขอบคุณครับ 🔴
+
+— แดง (Daeng)
+
+---
 
 ---
 

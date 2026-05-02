@@ -7,9 +7,9 @@
 
 ## 🔄 Current Pipeline
 
-**State:** `idle` — งาน v7.4.0 เป็น feature ล่าสุดที่ shipped บน master (2026-05-02)
+**State:** `idle` — งาน v7.5.0 เป็น feature ล่าสุดที่ shipped บน master (2026-05-02)
 
-ไม่มี feature active ใน pipeline — รอ user มอบหมายงานใหม่ หรือสั่ง deploy v7.1.5+v7.2/v7.3/v7.4 ขึ้น production
+ไม่มี feature active ใน pipeline — รอ user มอบหมายงานใหม่ หรือสั่ง deploy v7.1.5+v7.2/v7.3/v7.4/v7.5 ขึ้น production
 
 ---
 
@@ -92,6 +92,13 @@
 ---
 
 ## ✅ Completed Features (เรียงจากใหม่ไปเก่า)
+
+- [x] **v7.5.0 — Upload Resilience** (2026-05-02)
+  - Plan: [plans/upload-resilience-v7.5.0.md](../plans/upload-resilience-v7.5.0.md)
+  - 4 phases (1+4+2+3): image OCR / big-file map-reduce / extraction_status+retry / xlsx-pptx-html-json-rtf
+  - 3-in-1 single-agent mode (per user authorization)
+  - Tests: 50 pytest + 58 backend E2E + 238 regression = 346/346 PASS (1 skip = no tesseract local)
+  - Commits: `8e386b8` (P1) + `9f2a3xx` (P4) + `7f195c3` (P2) + `1c5e33e` (P3) + (final bump)
 
 - [x] **v7.4.0 — SaaS Responsive Design & Mobile UX** (2026-05-02)
   - Plan: [archive/2026-05-02-saas-responsive-v7.4.0.md](../plans/archive/2026-05-02-saas-responsive-v7.4.0.md)

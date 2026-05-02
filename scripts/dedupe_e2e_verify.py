@@ -101,18 +101,20 @@ async def section_a_schema():
 async def section_b_version():
     print("\n=== Section B: APP_VERSION runtime visibility ===")
 
-    # v7.1.5 update — accept any 7.1.x version (current = 7.1.5 dedupe-ux patch)
+    # v7.5.0 update — accept any 7.x.y version (current = 7.5.0 upload-resilience)
+    # Why so loose: dedupe feature itself is v7.1, but later versions (v7.2-v7.5)
+    # piggyback the same APP_VERSION constant. Test should pass on any 7.x.
     from backend.config import APP_VERSION
     expect_true(
-        f"B.1 config.APP_VERSION starts with '7.1.' (got '{APP_VERSION}')",
-        APP_VERSION.startswith("7.1."),
+        f"B.1 config.APP_VERSION starts with '7.' (got '{APP_VERSION}')",
+        APP_VERSION.startswith("7."),
     )
 
     # B.2: FastAPI app instance reads from APP_VERSION
     from backend.main import app
     expect_true(
-        f"B.2 FastAPI app.version starts with '7.1.' (got '{app.version}')",
-        app.version.startswith("7.1."),
+        f"B.2 FastAPI app.version starts with '7.' (got '{app.version}')",
+        app.version.startswith("7."),
     )
 
     # B.3: app.html (split from index.html in v7.2.0) shows current v7.1.x version
