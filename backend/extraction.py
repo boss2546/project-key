@@ -112,21 +112,60 @@ def _extract_image_ocr(filepath: str) -> str:
 
 
 def _extract_pdf_with_fallbacks(filepath: str) -> str:
-    """PDF extraction with full fallback chain: PyPDF2 → OCR."""
+    """PDF extraction with full fallback chain: encrypted check → PyPDF2 → OCR.
+
+    v7.5.0: detects encrypted PDF early so caller can flag extraction_status.
+    """
+    # v7.5.0 — short-circuit for encrypted PDFs (specific marker for downstream)
+    try:
+        from PyPDF2 import PdfReader
+        reader = PdfReader(filepath)
+        if reader.is_encrypted:
+            logger.info(f"PDF encrypted: {os.path.basename(filepath)}")
+            return "[PDF encrypted: password-protected — unlock before re-uploading]"
+    except Exception:
+        # If we can't even open the file, fall through to normal error handling
+        pass
+
     # Step 1: Try PyPDF2 text extraction
     text = _extract_pdf_basic(filepath)
-    
+
     if text and not text.startswith("[No text"):
         return _postprocess_thai(text)
-    
+
     # Step 2: Try OCR if text extraction failed
     if _HAS_OCR:
         logger.info(f"PyPDF2 found no text — trying OCR for {os.path.basename(filepath)}")
         ocr_text = _extract_pdf_ocr(filepath)
         if ocr_text and not ocr_text.startswith("["):
             return _postprocess_thai(ocr_text)
-    
+
     return "[No text content found in PDF — file may be image-only and OCR is not available]"
+
+
+def classify_extraction_status(text: str) -> str:
+    """v7.5.0 — derive extraction_status from extracted_text content.
+
+    Maps the [bracket-marker] convention used by extract_text() back into the
+    short status enum stored in the DB. Single source of truth for status
+    classification — used by upload, reprocess, and migration paths.
+
+    Returns one of: ok | empty | encrypted | ocr_failed | unsupported
+    """
+    if not text or not text.strip():
+        return "empty"
+    if not text.startswith("["):
+        return "ok"
+    lower = text.lower()
+    if "encrypted" in lower or "password-protected" in lower:
+        return "encrypted"
+    if "no text detected" in lower or "no text content" in lower or "ocr found no text" in lower:
+        return "ocr_failed"
+    if "unsupported file type" in lower:
+        return "unsupported"
+    if "ocr error" in lower or "extraction error" in lower:
+        return "ocr_failed"
+    return "ok"  # safe default — unknown bracket marker shouldn't block
 
 
 def _extract_with_docling(filepath: str) -> str:

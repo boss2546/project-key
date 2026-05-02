@@ -21,7 +21,7 @@ from .database import (
     MCPToken, MCPUsageLog, WebhookLog, UsageLog, AuditLog,
     DriveConnection,
 )
-from .extraction import extract_text, cleanup_extracted_text
+from .extraction import extract_text, cleanup_extracted_text, classify_extraction_status
 from .organizer import organize_files
 from .retriever import chat_with_retrieval
 from .duplicate_detector import (
@@ -356,6 +356,9 @@ async def upload_files(
         # (NULL ≠ NULL ใน SQL → ไฟล์เหล่านี้จะไม่ false-match กันเอง)
         content_hash = compute_content_hash(extracted)
 
+        # v7.5.0 — derive extraction_status from extracted_text marker
+        ext_status = classify_extraction_status(extracted)
+
         # Save to DB
         db_file = File(
             id=file_id,
@@ -366,6 +369,7 @@ async def upload_files(
             extracted_text=extracted,
             processing_status="uploaded",
             content_hash=content_hash,  # v7.1
+            extraction_status=ext_status,  # v7.5.0
         )
         db.add(db_file)
 
@@ -879,12 +883,26 @@ async def download_shared_file(token: str, db: AsyncSession = Depends(get_db)):
 
 
 @app.post("/api/files/{file_id}/reprocess")
-async def reprocess_file(file_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    """v5.2 — Re-extract text from original file (includes OCR + Thai fix).
-    
-    Use this to reprocess files that had extraction issues, e.g.:
-    - Image-only PDFs that returned no text
-    - PDFs with broken Thai spacing
+async def reprocess_file(
+    file_id: str,
+    mode: str = Query("cleanup", regex="^(cleanup|reextract)$"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """v5.2 / v7.5.0 — Re-extract or LLM-cleanup an existing file.
+
+    Modes (v7.5.0):
+      - mode=cleanup (default, legacy) — re-extract from raw_path + LLM Thai cleanup
+      - mode=reextract — re-extract from raw_path WITHOUT LLM cleanup (faster,
+        for cases like encrypted PDF that user just unlocked + re-uploaded over)
+
+    Use cases:
+    - Image-only PDFs that returned no text → cleanup or reextract
+    - PDFs with broken Thai spacing → cleanup
+    - Encrypted PDF user just unlocked → reextract
+    - extraction_status badge says "encrypted/empty/ocr_failed" → reextract
+
+    v7.5.0 also updates `extraction_status` based on the new extracted text.
     """
     result = await db.execute(
         select(File).where(File.id == file_id, File.user_id == current_user.id)
@@ -899,20 +917,29 @@ async def reprocess_file(file_id: str, current_user: User = Depends(get_current_
 
     if not file.raw_path or not os.path.exists(file.raw_path):
         raise HTTPException(status_code=404, detail="Original file not available — cannot reprocess")
-    
+
     old_text = file.extracted_text or ""
     old_length = len(old_text)
-    
-    # Re-extract with updated pipeline (PyPDF2/OCR)
+
+    # Re-extract with updated pipeline (PyPDF2/OCR/image OCR/etc.)
     raw_text = extract_text(file.raw_path, file.filetype)
-    
-    # LLM cleanup — fix Thai spacing, Private Use chars, etc.
-    new_text = await cleanup_extracted_text(raw_text, file.filename)
-    
+
+    if mode == "cleanup":
+        # LLM cleanup — fix Thai spacing, Private Use chars, etc. (legacy)
+        new_text = await cleanup_extracted_text(raw_text, file.filename)
+        method = "llm_cleanup"
+    else:
+        # mode=reextract — skip LLM cleanup (faster + no LLM cost)
+        new_text = raw_text
+        method = "reextract"
+
     file.extracted_text = new_text
     file.processing_status = "reprocessed"
+    file.extraction_status = classify_extraction_status(new_text)  # v7.5.0
+    # v7.1 — recompute hash since text changed
+    file.content_hash = compute_content_hash(new_text)
     await db.commit()
-    
+
     return {
         "status": "ok",
         "file_id": file.id,
@@ -920,7 +947,8 @@ async def reprocess_file(file_id: str, current_user: User = Depends(get_current_
         "old_text_length": old_length,
         "new_text_length": len(new_text),
         "improved": len(new_text) != old_length,
-        "extraction_method": "llm_cleanup",
+        "extraction_method": method,
+        "extraction_status": file.extraction_status,
     }
 
 
@@ -1804,6 +1832,10 @@ def _serialize_file(f: File) -> dict:
         "storage_source": storage_source,        # "local" | "drive_uploaded" | "drive_picked"
         "drive_file_id": drive_id,
         "drive_web_link": drive_link,
+        # v7.5.0 — extraction status + big-file metadata for badge UI
+        "extraction_status": getattr(f, "extraction_status", "ok") or "ok",
+        "chunk_count": getattr(f, "chunk_count", 0) or 0,
+        "is_truncated": bool(getattr(f, "is_truncated", False)),
     }
 
 

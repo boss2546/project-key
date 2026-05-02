@@ -1717,6 +1717,32 @@ function renderFileList(files) {
  }
  // v7.4.0 — Inline Delete on desktop; kebab dropdown on mobile.
  const deleteLabel = t('myData.delete');
+ // v7.5.0 — extraction status badge + chunk count badge
+ const extStatus = f.extraction_status || 'ok';
+ let extBadge = '';
+ if (extStatus !== 'ok') {
+   const labels = {
+     empty: { ico: '📭', th: 'ไม่มีข้อความ', en: 'No text' },
+     encrypted: { ico: '🔒', th: 'ติดรหัสผ่าน', en: 'Encrypted' },
+     ocr_failed: { ico: '🟠', th: 'อ่านไม่ออก', en: 'Read failed' },
+     unsupported: { ico: '❌', th: 'ไม่รองรับ', en: 'Unsupported' },
+     partial: { ico: '⚠️', th: 'ไม่สมบูรณ์', en: 'Partial' },
+   };
+   const meta = labels[extStatus] || labels.partial;
+   const lbl = isThai ? meta.th : meta.en;
+   extBadge = `<span class="extraction-badge extraction-${extStatus}" title="${lbl}">${meta.ico} ${lbl}</span>`;
+ }
+ const chunkBadge = (f.chunk_count && f.chunk_count > 0)
+   ? `<span class="chunk-count-badge" title="${isThai ? 'แบ่งเป็นหลายส่วนเพื่อวิเคราะห์ครบทุกหน้า' : 'Split into chunks for full analysis'}">📚 ${f.chunk_count} ${isThai ? 'ส่วน' : 'parts'}</span>`
+   : '';
+ const truncBadge = f.is_truncated
+   ? `<span class="extraction-badge extraction-partial" title="${isThai ? 'บางส่วนถูกตัด' : 'Some content truncated'}">⚠️ ${isThai ? 'บางส่วนถูกตัด' : 'partial'}</span>`
+   : '';
+ // v7.5.0 — retry button if extract failed (encrypted/empty/ocr_failed/unsupported)
+ const canRetry = !f.is_locked && extStatus !== 'ok' && extStatus !== 'partial';
+ const retryBtn = canRetry
+   ? `<button class="btn-sm file-action-retry" onclick="event.stopPropagation(); window.retryExtraction('${f.id}')" title="${isThai ? 'อ่านไฟล์ใหม่อีกครั้ง' : 'Re-extract'}">${isThai ? 'ลองอ่านใหม่' : 'Retry'}</button>`
+   : '';
  return `
  <div class="file-item${lockedClass}" data-id="${f.id}" onclick="openFileDetail('${f.id}')">
  <div class="file-icon ${f.filetype}">${f.filetype.toUpperCase()}${locked}</div>
@@ -1725,20 +1751,39 @@ function renderFileList(files) {
  <div class="file-meta">
  <span>${f.text_length?.toLocaleString() || 0} chars</span>
  <span class="status-dot ${f.processing_status}"></span>
- ${freshness} ${sot} ${storageBadge}
+ ${freshness} ${sot} ${extBadge} ${chunkBadge} ${truncBadge} ${storageBadge}
  </div>
  ${tags ? `<div class="file-tags">${tags}</div>` : ''}
  </div>
  <div class="file-actions">
+ ${retryBtn}
  <button class="btn-sm file-action-desktop" onclick="event.stopPropagation(); window.deleteFile('${f.id}')">${deleteLabel}</button>
  <button class="kebab-btn file-action-mobile" onclick="event.stopPropagation(); window.toggleKebab(event, 'file-${f.id}')" aria-label="${isThai ? 'การกระทำเพิ่มเติม' : 'More actions'}">⋮</button>
  <div class="kebab-menu hidden" id="kebab-file-${f.id}">
+ ${canRetry ? `<button class="kebab-menu-item" onclick="event.stopPropagation(); document.getElementById('kebab-file-${f.id}')?.classList.add('hidden'); window.retryExtraction('${f.id}')">${isThai ? 'ลองอ่านใหม่' : 'Retry extract'}</button>` : ''}
  <button class="kebab-menu-item danger" onclick="event.stopPropagation(); document.getElementById('kebab-file-${f.id}')?.classList.add('hidden'); window.deleteFile('${f.id}')">${deleteLabel}</button>
  </div>
  </div>
  </div>`;
  }).join('');
 }
+
+// v7.5.0 — Retry extraction handler
+async function retryExtraction(id) {
+ const isTH = getLang() === 'th';
+ try {
+   showLoadingOverlay(isTH ? 'กำลังอ่านไฟล์ใหม่...' : 'Re-extracting...', 'default');
+   const res = await authFetch(`/api/files/${id}/reprocess?mode=reextract`, { method: 'POST' });
+   if (!res.ok) throw new Error(`HTTP ${res.status}`);
+   showToast(isTH ? 'อ่านไฟล์ใหม่เรียบร้อย' : 'Re-extracted successfully', 'success');
+   loadFiles();
+ } catch (e) {
+   showToast(isTH ? 'อ่านไฟล์ใหม่ไม่สำเร็จ' : 'Retry failed', 'error');
+ } finally {
+   hideLoadingOverlay();
+ }
+}
+window.retryExtraction = retryExtraction;
 
 async function deleteFile(id) {
  if (!await showConfirm(getLang() === 'th' ? 'ต้องการลบไฟล์นี้?' : 'Delete this file?')) return;

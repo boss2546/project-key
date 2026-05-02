@@ -292,7 +292,88 @@ expect_true("B.13 ORM roundtrip preserves is_truncated default",
             got.is_truncated in (False, 0))
 
 
-# Sections C/D get added in their respective phases
-print("\n[Sections C, D will be added as Phase 2/3 ship]")
+# ─── Section C: Phase 2 — Proactive UX (extraction_status + retry) ──
+
+
+print("\n═══ SECTION C — Phase 2: Proactive UX ═══")
+
+# C.1 — classify_extraction_status function exists + works
+from backend.extraction import classify_extraction_status
+expect("C.1 classify normal text → ok",
+       classify_extraction_status("hello world this is real text"), "ok")
+expect("C.2 classify empty string → empty",
+       classify_extraction_status(""), "empty")
+expect("C.3 classify encrypted marker → encrypted",
+       classify_extraction_status("[PDF encrypted: foo]"), "encrypted")
+expect("C.4 classify OCR no-text marker → ocr_failed",
+       classify_extraction_status("[Image: no text detected]"), "ocr_failed")
+expect("C.5 classify unsupported marker → unsupported",
+       classify_extraction_status("[Unsupported file type: heic]"), "unsupported")
+
+# C.6 — Upload sets extraction_status correctly
+token_c = _register_user(f"c_{RUN_ID}_phase2@test.local")
+headers_c = _auth_headers(token_c)
+
+r = client.post(
+    "/api/upload",
+    files=[("files", ("normal.txt", b"hello world content for status check",
+                      "text/plain"))],
+    headers=headers_c,
+)
+assert r.status_code == 200, r.text
+file_id_c = r.json()["uploaded"][0]["id"]
+
+r2 = client.get("/api/files", headers=headers_c)
+files_list = r2.json().get("files", [])
+target = next((f for f in files_list if f["id"] == file_id_c), None)
+expect_true("C.6 GET /api/files exposes extraction_status",
+            target and "extraction_status" in target,
+            hint=f"got keys={list(target.keys()) if target else None}")
+expect("C.7 normal text upload → extraction_status = ok",
+       target.get("extraction_status") if target else None, "ok")
+expect_true("C.8 GET /api/files exposes chunk_count",
+            target and "chunk_count" in target)
+expect_true("C.9 GET /api/files exposes is_truncated",
+            target and "is_truncated" in target)
+
+# C.10 — Reprocess endpoint accepts mode=reextract
+r3 = client.post(
+    f"/api/files/{file_id_c}/reprocess?mode=reextract",
+    headers=headers_c,
+)
+expect("C.10 reprocess?mode=reextract returns 200", r3.status_code, 200)
+body = r3.json()
+expect("C.11 reprocess response has extraction_method=reextract",
+       body.get("extraction_method"), "reextract")
+expect("C.12 reprocess response includes extraction_status",
+       body.get("extraction_status"), "ok")
+
+# C.13 — Reprocess invalid mode returns 422 (FastAPI validation)
+r4 = client.post(
+    f"/api/files/{file_id_c}/reprocess?mode=garbage",
+    headers=headers_c,
+)
+expect_true("C.13 reprocess?mode=invalid returns 422",
+            r4.status_code == 422, hint=f"got {r4.status_code}")
+
+# C.14 — Reprocess for missing file returns 404
+r5 = client.post(
+    f"/api/files/no_such_id_xxx/reprocess?mode=reextract",
+    headers=headers_c,
+)
+expect("C.14 reprocess missing file → 404", r5.status_code, 404)
+
+# C.15 — Cross-user reprocess returns 404 (silent — don't leak existence)
+token_c2 = _register_user(f"c2_{RUN_ID}_other@test.local")
+r6 = client.post(
+    f"/api/files/{file_id_c}/reprocess?mode=reextract",
+    headers=_auth_headers(token_c2),
+)
+expect_true("C.15 cross-user reprocess returns 404 (no info leak)",
+            r6.status_code == 404, hint=f"got {r6.status_code}")
+
+
+# Section D added in Phase 3
+print("\n[Section D added when Phase 3 ships]")
 
 sys.exit(_summary())
