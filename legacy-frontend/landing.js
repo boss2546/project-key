@@ -297,36 +297,81 @@ function initAuth() {
  document.getElementById('btn-logout')?.addEventListener('click', doLogout);
 
  // Check if already logged in
+ // v7.5.1 — diagnostic logging + 1-retry on 401 to catch transient errors
+ console.log('[auth] initAuth — token present:', !!state.authToken, 'user present:', !!state.currentUser);
  if (state.authToken && state.currentUser) {
  // Show app shell immediately (ไม่ให้ user เห็น landing page flash)
  // If showApp triggered a redirect, the destination page will run its
  // own initAuth+verify; bail out here to avoid aborted in-flight fetches.
- if (!showApp()) return;
+ if (!showApp()) {
+  console.log('[auth] showApp redirected — aborting verify on this page');
+  return;
+ }
  // Verify token is still valid — retry up to 5 times for Fly.io cold-start
+ // v7.5.1: 401 also retries ONCE (was: definitive break) to survive transient
+ // backend hiccups (e.g. DB connection blip during request) — true expired token
+ // will fail twice and still trigger logout
  (async () => {
   let verified = false;
+  let unauthorizedCount = 0;
   for (let attempt = 0; attempt < 5; attempt++) {
   try {
    const r = await fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${state.authToken}` } });
-   if (r.ok) { verified = true; break; }
-   if (r.status === 401) { break; } // definitive: token invalid
+   if (r.ok) {
+    console.log(`[auth] verify attempt ${attempt+1}/5 — 200 OK`);
+    verified = true;
+    break;
+   }
+   if (r.status === 401) {
+    unauthorizedCount++;
+    if (unauthorizedCount >= 2) {
+     console.warn('[auth] verify got 401 twice — token definitely invalid, will logout');
+     break;
+    }
+    console.log(`[auth] verify attempt ${attempt+1}/5 — 401 (transient?), retrying once...`);
+    await new Promise(ok => setTimeout(ok, 1000));
+    continue;
+   }
    // 502/503/500 = server waking up — retry
    console.log(`[auth] verify attempt ${attempt+1}/5 failed (${r.status}), retrying...`);
    await new Promise(ok => setTimeout(ok, 2000));
   } catch (e) {
    // network error (cold start) — retry
-   console.log(`[auth] verify attempt ${attempt+1}/5 network error, retrying...`);
+   console.log(`[auth] verify attempt ${attempt+1}/5 network error: ${e.message}, retrying...`);
    await new Promise(ok => setTimeout(ok, 2000));
   }
   }
   if (verified) {
   _isInitVerified = true;
+  console.log('[auth] verify SUCCESS — _isInitVerified=true, calling initAppData');
   initAppData();
   } else {
+  console.warn('[auth] verify FAILED after retries — calling doLogout');
   doLogout(); // token หมดอายุจริง → กลับ landing
   }
  })();
  } else {
+ console.log('[auth] no token or user — showing landing');
  showLanding();
  }
 }
+
+// v7.5.1 — Diagnostic helper: paste into DevTools to see auth state
+window.__pdb_auth_debug = function() {
+ const t = localStorage.getItem('pdb_token');
+ const u = localStorage.getItem('pdb_user');
+ console.group('🔐 PDB Auth Debug');
+ console.log('localStorage pdb_token:', t ? `${t.slice(0, 30)}... (len=${t.length})` : 'NULL');
+ console.log('localStorage pdb_user:', u ? u.slice(0, 100) : 'NULL');
+ try { console.log('Parsed user:', JSON.parse(u || 'null')); } catch (e) { console.error('Parse fail:', e); }
+ console.log('state.authToken:', state.authToken ? `${state.authToken.slice(0, 30)}... (len=${state.authToken.length})` : 'NULL');
+ console.log('state.currentUser:', state.currentUser);
+ console.log('_isInitVerified:', _isInitVerified);
+ console.log('_logoutDebounce:', _logoutDebounce);
+ console.groupEnd();
+ if (t) {
+  fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${t}` } })
+   .then(r => r.json().then(b => console.log(`/api/auth/me → ${r.status}`, b)))
+   .catch(e => console.error('/api/auth/me fetch error:', e));
+ }
+};
