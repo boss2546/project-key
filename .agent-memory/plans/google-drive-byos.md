@@ -2,7 +2,7 @@
 
 **Author:** แดง (Daeng)
 **Date:** 2026-04-30
-**Status:** draft (รอ user approve)
+**Status:** ✅ shipped as v7.0.0 (2026-05-01) — kept as historical reference
 **Estimated effort:** เขียว 1 week (ทีมเก่ง) + ฟ้า 2-3 วัน + ⚠️ **NO verification** during MVP
 
 **Updated 2026-04-30 v2 (FINAL strategy):**
@@ -12,19 +12,25 @@
 - Verification จะ submit ภายหลังเมื่อพร้อม public launch
 - **Internal beta launch ภายใน 1 สัปดาห์!**
 
+**Updated 2026-05-02 (post-rebrand cleanup):**
+- เปลี่ยน "Project KEY" → "Personal Data Bank" ทุกที่ใน plan (37 occurrences)
+- เปลี่ยน domain `project-key.fly.dev` → `personaldatabank.fly.dev` (Fly.io app rename)
+- KEEP: `projectkey.db` (DB filename ภายใน — เปลี่ยน = data loss สำหรับ user เดิม)
+- Implementation จริงใช้ folder `/Personal Data Bank/` ใน Drive ตามชื่อใหม่นี้แล้ว
+
 ---
 
 ## 🎯 Goal
 
 ให้ลูกค้า **เลือกได้** ว่าจะเก็บไฟล์/ข้อมูลส่วนตัวไว้ที่ไหน:
-1. **Managed Mode** (ปัจจุบัน) — Project KEY เก็บใน server ของบริษัทบน Fly.io volume
+1. **Managed Mode** (ปัจจุบัน) — Personal Data Bank เก็บใน server ของบริษัทบน Fly.io volume
 2. **BYOS Mode** (ใหม่) — เก็บใน Google Drive ของลูกค้าเอง, server ของเราทำหน้าที่ "index + cache" เพื่อความเร็ว
 
 **โมเดล: "Hybrid — Drive = Truth, Server = Index" (จากคุย user 2026-04-30)**
-- ของจริงทุกชิ้น (raw files, summaries, profile, graph) → อยู่ใน Drive ของ user ใน folder `/Project KEY/`
+- ของจริงทุกชิ้น (raw files, summaries, profile, graph) → อยู่ใน Drive ของ user ใน folder `/Personal Data Bank/`
 - Index + cache → SQLite บน server เพื่อ search/query เร็ว
 - Cache สามารถ rebuild ได้ 100% จาก Drive ถ้าหาย
-- 2-way sync: user แก้ผ่าน Project KEY UI หรือ แก้ใน Drive โดยตรง — ทั้ง 2 ทางทำงานได้
+- 2-way sync: user แก้ผ่าน Personal Data Bank UI หรือ แก้ใน Drive โดยตรง — ทั้ง 2 ทางทำงานได้
 
 **ผู้ใช้:**
 - Privacy-conscious users — อยาก control ข้อมูลตัวเอง
@@ -34,7 +40,7 @@
 **ทำเสร็จแล้วได้อะไร:**
 1. **Differentiator ที่ Claude/ChatGPT/Notion AI ไม่มี** — "Your data stays in YOUR Drive"
 2. **PDPA-friendly** — ระบุได้ชัดว่าเรา process แต่ไม่ store user content
-3. **User-sovereign** — ถ้า Project KEY ปิดบริการ user ยังมีข้อมูลครบใน Drive
+3. **User-sovereign** — ถ้า Personal Data Bank ปิดบริการ user ยังมีข้อมูลครบใน Drive
 4. **Marketing pitch:** "Open your Drive right now and verify — we hide nothing"
 5. **Backup ฟรี** — Drive ของ user คือ backup ของระบบโดยอัตโนมัติ
 6. **Path เปิดสำหรับ feature อื่น** — Notion BYOS, Dropbox BYOS, GitHub BYOS ในอนาคต
@@ -67,7 +73,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ User's Google Drive (Truth)                                  │
-│ /Project KEY/                                                │
+│ /Personal Data Bank/                                                │
 │   ├── raw/                  ← ไฟล์ต้นฉบับ (PDF, DOCX, etc.) │
 │   ├── extracted/            ← extracted text (.txt)          │
 │   ├── summaries/            ← AI summaries (.md)             │
@@ -84,7 +90,7 @@
 └─────────────────────────────────────────────────────────────┘
                             ↕ sync
 ┌─────────────────────────────────────────────────────────────┐
-│ Project KEY Server (Cache + Index)                           │
+│ Personal Data Bank Server (Cache + Index)                           │
 │ SQLite — เก็บแค่:                                            │
 │   • user account + OAuth refresh_token (encrypted)           │
 │   • storage_mode = "managed" | "byos"                        │
@@ -104,7 +110,7 @@
 4. **Migrate-able** — user เปลี่ยน mode ได้ (Managed → BYOS หรือกลับ)
 
 ### OAuth strategy: `drive.file` + Picker
-- App สร้าง `/Project KEY/` folder อัตโนมัติ → access ทุกไฟล์ใน folder นั้น
+- App สร้าง `/Personal Data Bank/` folder อัตโนมัติ → access ทุกไฟล์ใน folder นั้น
 - User เลือกไฟล์เพิ่มจาก Drive อื่น → ผ่าน Picker
 - Verification ฟรี ~2-4 weeks (vs `drive` เต็ม $25K-85K + 6 เดือน)
 
@@ -166,7 +172,7 @@ class DriveConnection(Base):
     refresh_token_encrypted = Column(Text, nullable=False)
     # encrypted with Fernet (key in env: DRIVE_TOKEN_ENCRYPTION_KEY)
     drive_root_folder_id = Column(String, nullable=False)
-    # folder ID ของ /Project KEY/ ใน Drive ของ user
+    # folder ID ของ /Personal Data Bank/ ใน Drive ของ user
     last_sync_at = Column(DateTime, nullable=True)
     last_sync_status = Column(String, default="pending")
     # "pending" | "syncing" | "success" | "error"
@@ -219,7 +225,7 @@ if "drive_file_id" not in file_cols:
 ## 📂 Drive Folder Structure (Source of Truth)
 
 ```
-/Project KEY/                          ← root (created on first connection)
+/Personal Data Bank/                          ← root (created on first connection)
 ├── _meta/
 │   ├── version.txt                    ← schema version (e.g., "1.0")
 │   └── manifest.json                  ← list of all files + their roles
@@ -254,7 +260,7 @@ if "drive_file_id" not in file_cols:
 
 ### Schema versioning
 - `_meta/version.txt` มี เลข version ของ folder structure
-- ถ้า version ของ Project KEY ใหม่กว่า → migrate folder layout
+- ถ้า version ของ Personal Data Bank ใหม่กว่า → migrate folder layout
 - Backward compat: app version ใหม่อ่าน version เก่าได้
 
 ---
@@ -279,7 +285,7 @@ Frontend redirects to `auth_url` → user grants → Google redirects to callbac
 1. Validate state (CSRF protection — state matches user's session)
 2. Exchange code → access_token + refresh_token via Google
 3. Encrypt refresh_token, save to `drive_connections`
-4. Create `/Project KEY/` folder if not exists
+4. Create `/Personal Data Bank/` folder if not exists
 5. Save folder_id
 6. Redirect to frontend with success param: `/legacy?drive_connected=true`
 
@@ -329,7 +335,7 @@ Frontend ใช้ token นี้ initialize Picker UI → user เลือก
 1. For each file_id:
    - Download from Drive
    - Extract text (existing extraction.py)
-   - Save to user's `/Project KEY/extracted/` and `/Project KEY/raw/`
+   - Save to user's `/Personal Data Bank/extracted/` and `/Personal Data Bank/raw/`
    - Create File row with `drive_file_id` + `storage_source="drive_picked"`
 2. Update SQLite cache + vector index
 3. Return list of imported files
@@ -340,7 +346,7 @@ Frontend ใช้ token นี้ initialize Picker UI → user เลือก
 **Auth:** Required (JWT, byos mode)
 **Body:** `{"force": false}` — true = full re-sync, false = incremental
 **Logic:**
-1. List `/Project KEY/` recursively from Drive
+1. List `/Personal Data Bank/` recursively from Drive
 2. Compare with local files index (`drive_modified_time`)
 3. For changed/new: download + re-extract + update cache
 4. For deleted: mark File row as deleted
@@ -379,8 +385,8 @@ Frontend ใช้ token นี้ initialize Picker UI → user เลือก
 - **byos mode:**
   1. Receive bytes
   2. Extract text (เดิม)
-  3. Upload raw → `/Project KEY/raw/{file_id}_{filename}` ใน Drive
-  4. Upload extracted → `/Project KEY/extracted/{file_id}.txt`
+  3. Upload raw → `/Personal Data Bank/raw/{file_id}_{filename}` ใน Drive
+  4. Upload extracted → `/Personal Data Bank/extracted/{file_id}.txt`
   5. Save File row with `drive_file_id` + `storage_source="drive_uploaded"`
   6. Update vector index
 
@@ -402,17 +408,17 @@ Frontend ใช้ token นี้ initialize Picker UI → user เลือก
 - เพอร์เฟกต์สำหรับ internal test + closed beta
 
 ##### Setup steps (~30 นาที):
-1. สร้าง Google Cloud Project "Project KEY BYOS"
+1. สร้าง Google Cloud Project "Personal Data Bank BYOS"
 2. Enable APIs: Google Drive API, Google Picker API
 3. **OAuth Consent Screen → User Type: External, Publishing status: Testing**
-   - App name: "Project KEY"
+   - App name: "Personal Data Bank"
    - User support email: ของคุณ
    - Developer contact: ของคุณ
    - **Test users: เพิ่ม emails ของทีม + beta users** (max 100)
    - ⚠️ ไม่ต้องกรอก privacy policy URL, ไม่ต้อง app domain
 4. Create OAuth 2.0 Client ID (Web application)
-   - Authorized origins: `https://project-key.fly.dev`, `http://localhost:8000`
-   - Authorized redirect URIs: `https://project-key.fly.dev/api/drive/oauth/callback`, `http://localhost:8000/api/drive/oauth/callback`
+   - Authorized origins: `https://personaldatabank.fly.dev`, `http://localhost:8000`
+   - Authorized redirect URIs: `https://personaldatabank.fly.dev/api/drive/oauth/callback`, `http://localhost:8000/api/drive/oauth/callback`
 5. Create API key for Picker (restrict to Drive API + HTTP referrer)
 6. Set env vars in Fly.io:
    ```
@@ -427,7 +433,7 @@ Frontend ใช้ token นี้ initialize Picker UI → user เลือก
 ##### Frontend reminder banner (สำคัญ!)
 แสดงในหน้า Drive Settings:
 ```
-⚠️ Beta Mode: Project KEY ยังอยู่ใน Google testing mode
+⚠️ Beta Mode: Personal Data Bank ยังอยู่ใน Google testing mode
    - คุณต้อง re-connect Drive ทุก 7 วัน
    - เฉพาะผู้ที่ได้รับเชิญเท่านั้น
    - หลัง launch สาธารณะ → ใช้งานต่อเนื่อง ไม่ต้อง re-connect
@@ -447,11 +453,11 @@ Frontend ใช้ token นี้ initialize Picker UI → user เลือก
    - มาตรฐาน + section เกี่ยวกับ Google scope use
    - Time: 2-3 hr
 3. **Domain verification** via Google Search Console
-   - Add `project-key.fly.dev`
+   - Add `personaldatabank.fly.dev`
    - Time: ~1 hr (DNS propagation)
 4. **OAuth consent screen setup**
    - Logo (PNG, 120x120)
-   - App name: "Project KEY"
+   - App name: "Personal Data Bank"
    - Support email + developer contact email
    - Authorized domains
    - Time: ~30 min
@@ -459,7 +465,7 @@ Frontend ใช้ token นี้ initialize Picker UI → user เลือก
    - User คลิก "Connect Drive"
    - OAuth screen
    - Picker เลือกไฟล์
-   - ไฟล์ปรากฏใน Project KEY UI
+   - ไฟล์ปรากฏใน Personal Data Bank UI
    - แสดงปุ่ม disconnect + ผลที่เกิดขึ้น
    - Narration ภาษาอังกฤษ (Google reviewer ใช้ EN)
    - Time: 2-4 hr (ถ่าย + edit)
@@ -468,7 +474,7 @@ Frontend ใช้ token นี้ initialize Picker UI → user เลือก
    Why drive.file:
    - Allow users to select specific files from their Drive
      for AI-powered text analysis and personal organization.
-   - We do NOT access files outside our app's /Project KEY/
+   - We do NOT access files outside our app's /Personal Data Bank/
      folder or files not explicitly picked by user.
    - We extract text content for AI analysis but do not
      redistribute file content to third parties.
@@ -557,7 +563,7 @@ Frontend ใช้ token นี้ initialize Picker UI → user เลือก
 
        # Create root folder
        root_folder = service.files().create(
-           body={"name": "Project KEY", "mimeType": "application/vnd.google-apps.folder"},
+           body={"name": "Personal Data Bank", "mimeType": "application/vnd.google-apps.folder"},
            fields="id",
        ).execute()
        root_id = root_folder["id"]
@@ -748,7 +754,7 @@ Frontend ใช้ token นี้ initialize Picker UI → user เลือก
        """Sync between Drive (truth) and SQLite cache.
 
        Strategy:
-       - List all files in Drive /Project KEY/
+       - List all files in Drive /Personal Data Bank/
        - For each: compare modifiedTime with cache.drive_modified_time
        - If newer in Drive: download + re-extract + update cache
        - If file in cache but not in Drive: mark deleted (or delete cache row)
@@ -822,9 +828,9 @@ Frontend ใช้ token นี้ initialize Picker UI → user เลือก
 3. POST `/api/drive/sync` endpoint
 
 #### Step 3.2: Conflict resolution
-- ถ้า user แก้ไฟล์เดียวกันทั้งใน Drive และผ่าน Project KEY UI
+- ถ้า user แก้ไฟล์เดียวกันทั้งใน Drive และผ่าน Personal Data Bank UI
 - Strategy: **Drive wins** (last write to Drive)
-- ใน Project KEY UI ถ้า detect drift → show "เกิดการเปลี่ยนแปลงใน Drive — กด Sync เพื่ออัปเดต"
+- ใน Personal Data Bank UI ถ้า detect drift → show "เกิดการเปลี่ยนแปลงใน Drive — กด Sync เพื่ออัปเดต"
 
 ### Phase 4: Personal data sync (Week 3.5)
 
@@ -887,7 +893,7 @@ Frontend ใช้ token นี้ initialize Picker UI → user เลือก
         <input type="radio" name="storage-mode" value="managed" checked>
         <div>
           <div class="mode-title">📦 Managed Mode (ปัจจุบัน)</div>
-          <div class="mode-desc">Project KEY ดูแลข้อมูลให้ — ใช้งานง่าย ไม่ต้องตั้งค่าอะไรเพิ่ม</div>
+          <div class="mode-desc">Personal Data Bank ดูแลข้อมูลให้ — ใช้งานง่าย ไม่ต้องตั้งค่าอะไรเพิ่ม</div>
         </div>
       </label>
       <label class="mode-option">
@@ -907,7 +913,7 @@ Frontend ใช้ token นี้ initialize Picker UI → user เลือก
     </div>
     <div class="drive-connected" hidden>
       <div>✅ เชื่อมแล้ว: <span id="drive-email"></span></div>
-      <div>📁 Root folder: <code>/Project KEY/</code></div>
+      <div>📁 Root folder: <code>/Personal Data Bank/</code></div>
       <div>🔄 Last sync: <span id="drive-last-sync"></span></div>
       <button class="btn btn-secondary" id="btn-sync-now">🔄 Sync ตอนนี้</button>
       <button class="btn btn-outline" id="btn-disconnect-drive">⏸ ตัดการเชื่อมต่อ</button>
@@ -942,7 +948,7 @@ if (new URLSearchParams(window.location.search).get('drive_connected') === 'true
 
 #### Step 6.1: Self-test
 - เปิด account ใหม่ → register → connect Drive → upload 5 ไฟล์ → ตรวจ Drive มี folder + ไฟล์ครบ
-- เปิด Drive โดยตรง → ลบไฟล์ 1 ไฟล์ → กด Sync ใน Project KEY → ตรวจหายจาก list
+- เปิด Drive โดยตรง → ลบไฟล์ 1 ไฟล์ → กด Sync ใน Personal Data Bank → ตรวจหายจาก list
 - Switch Managed → BYOS → ตรวจไฟล์เดิม upload ขึ้น Drive
 - Switch กลับ → ไฟล์ download กลับ local
 - Disconnect Drive → ตรวจ token revoked + cache เลือกได้ keep/delete
@@ -951,7 +957,7 @@ if (new URLSearchParams(window.location.search).get('drive_connected') === 'true
 - Network down ระหว่าง upload → retry หรือ rollback
 - Drive API quota exceeded → graceful degradation (queue + retry)
 - Token revoked by user via Google Account → next API call fail → notify user
-- /Project KEY/ folder ถูกลบใน Drive → app recreate + restore from cache
+- /Personal Data Bank/ folder ถูกลบใน Drive → app recreate + restore from cache
 
 ---
 
@@ -1047,7 +1053,7 @@ if (new URLSearchParams(window.location.search).get('drive_connected') === 'true
 
 ### Open Questions (รอ user ตัดสิน)
 - **Q-A**: Real-time sync via webhook (Drive Push Notifications) — ทำใน MVP หรือ Phase 2?
-- **Q-B**: รองรับ Drive ที่มีอยู่แล้ว `/Project KEY/` (จาก app เก่า / sync อื่น) — merge หรือสร้างใหม่?
+- **Q-B**: รองรับ Drive ที่มีอยู่แล้ว `/Personal Data Bank/` (จาก app เก่า / sync อื่น) — merge หรือสร้างใหม่?
 - **Q-C**: Phase 2: full `drive` scope — เปิดหลัง verify ผ่าน + รายได้พอ (~$25K/yr CASA)?
 - **Q-D**: รองรับ Microsoft OneDrive / Dropbox / iCloud ใน Phase 2 ไหม?
 
@@ -1056,7 +1062,7 @@ if (new URLSearchParams(window.location.search).get('drive_connected') === 'true
 - Multi-Drive accounts ต่อ user (personal + work)
 - E2E encryption mode (Q3 Option C)
 - BYOS for Notion / OneDrive / Dropbox
-- Backup automation: zip ทุกอย่างใน `/Project KEY/_backups/` ทุกสัปดาห์
+- Backup automation: zip ทุกอย่างใน `/Personal Data Bank/_backups/` ทุกสัปดาห์
 
 ---
 
@@ -1105,14 +1111,14 @@ if (new URLSearchParams(window.location.search).get('drive_connected') === 'true
 feat(byos): Google Drive bring-your-own-storage mode
 
 เพิ่ม Hybrid storage mode — ลูกค้าเลือกได้ว่าจะให้
-Project KEY เก็บข้อมูล (Managed) หรือเก็บใน Google Drive
+Personal Data Bank เก็บข้อมูล (Managed) หรือเก็บใน Google Drive
 ของตัวเอง (BYOS)
 
 - OAuth 2.0 flow with drive.file scope + Google Picker
 - 2-way sync (Drive truth, server index/cache)
 - Coexist with existing Managed Mode (no breaking change)
 - Migration: Managed ↔ BYOS supported
-- Transparent JSON in Drive folder /Project KEY/
+- Transparent JSON in Drive folder /Personal Data Bank/
 
 Refs: plans/google-drive-byos.md
 Author-Agent: เขียว (Khiao)
