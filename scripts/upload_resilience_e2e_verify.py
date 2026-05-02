@@ -373,7 +373,142 @@ expect_true("C.15 cross-user reprocess returns 404 (no info leak)",
             r6.status_code == 404, hint=f"got {r6.status_code}")
 
 
-# Section D added in Phase 3
-print("\n[Section D added when Phase 3 ships]")
+# ─── Section D: Phase 3 — More Formats (xlsx/pptx/html/json/rtf) ────
+
+
+print("\n═══ SECTION D — Phase 3: More Formats ═══")
+
+token_d = _register_user(f"d_{RUN_ID}_phase3@test.local")
+headers_d = _auth_headers(token_d)
+
+# D.1 — Allowed types include all 5 new formats
+expect_true("D.1 frontend will see xlsx/pptx/html/json/rtf in allowed_types",
+            {"xlsx", "pptx", "html", "json", "rtf"}.issubset(
+                PLAN_LIMITS["free"]["allowed_file_types"]))
+
+# D.2 — Upload xlsx fixture
+xlsx_path = FIXTURES / "sample.xlsx"
+if xlsx_path.exists():
+    with open(xlsx_path, "rb") as f:
+        r = client.post(
+            "/api/upload",
+            files=[("files", ("sheet.xlsx", f.read(),
+                             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))],
+            headers=headers_d,
+        )
+    expect("D.2 xlsx upload returns 200", r.status_code, 200)
+    body = r.json()
+    expect_true("D.3 xlsx upload count = 1 (not skipped)",
+                body.get("count") == 1, hint=f"got body={body}")
+    if body.get("uploaded"):
+        fid = body["uploaded"][0]["id"]
+        # Get extracted_text via /api/files
+        r2 = client.get("/api/files", headers=headers_d)
+        f_obj = next((f for f in r2.json()["files"] if f["id"] == fid), None)
+        expect_true("D.4 xlsx extracted text > 0 chars",
+                    f_obj and f_obj.get("text_length", 0) > 0,
+                    hint=f"text_length={f_obj.get('text_length') if f_obj else None}")
+else:
+    skip("D.2-D.4 xlsx fixture missing", "run generate_fixtures.py")
+
+# D.5-D.7 — Upload pptx fixture
+pptx_path = FIXTURES / "sample.pptx"
+if pptx_path.exists():
+    with open(pptx_path, "rb") as f:
+        r = client.post(
+            "/api/upload",
+            files=[("files", ("deck.pptx", f.read(),
+                             "application/vnd.openxmlformats-officedocument.presentationml.presentation"))],
+            headers=headers_d,
+        )
+    expect("D.5 pptx upload returns 200", r.status_code, 200)
+    expect_true("D.6 pptx upload accepted (not in skipped)",
+                r.json().get("count") == 1)
+else:
+    skip("D.5-D.6 pptx fixture missing", "run generate_fixtures.py")
+
+# D.7-D.9 — Upload html safe fixture + verify content
+html_safe = FIXTURES / "sample_safe.html"
+if html_safe.exists():
+    with open(html_safe, "rb") as f:
+        r = client.post(
+            "/api/upload",
+            files=[("files", ("page.html", f.read(), "text/html"))],
+            headers=headers_d,
+        )
+    expect("D.7 html upload returns 200", r.status_code, 200)
+    expect_true("D.8 html accepted", r.json().get("count") == 1)
+else:
+    skip("D.7-D.8 html_safe fixture missing", "run generate_fixtures.py")
+
+# D.9 — SECURITY: html xss must strip script/style server-side
+html_xss = FIXTURES / "sample_xss.html"
+if html_xss.exists():
+    with open(html_xss, "rb") as f:
+        r = client.post(
+            "/api/upload",
+            files=[("files", ("evil.html", f.read(), "text/html"))],
+            headers=headers_d,
+        )
+    if r.status_code == 200 and r.json().get("count") == 1:
+        fid = r.json()["uploaded"][0]["id"]
+        # Fetch via /api/files — but text_length only. Use /api/files/{id}/content if exists
+        # Or get extracted_text via /api/files (it's not exposed there) → use direct DB
+        async def _check_xss(_fid):
+            from backend.database import AsyncSessionLocal, File
+            from sqlalchemy import select
+            async with AsyncSessionLocal() as db:
+                r2 = await db.execute(select(File).where(File.id == _fid))
+                f_db = r2.scalar_one_or_none()
+                return f_db.extracted_text if f_db else ""
+        text = _asyncio.run(_check_xss(fid))
+        expect_true("D.9 html XSS payload <script>alert(1)</script> NOT in extracted_text",
+                    "alert(1)" not in text and "<script>" not in text,
+                    hint=f"first 200 chars: {text[:200]!r}")
+        expect_true("D.10 html XSS — JS_MARKER_SHOULD_BE_STRIPPED removed",
+                    "JS_MARKER_SHOULD_BE_STRIPPED" not in text)
+        expect_true("D.11 html XSS — CSS_MARKER_SHOULD_BE_STRIPPED removed",
+                    "CSS_MARKER_SHOULD_BE_STRIPPED" not in text)
+        expect_true("D.12 html XSS — safe body content preserved",
+                    "Safe Content" in text or "should be in extracted output" in text,
+                    hint=f"first 200 chars: {text[:200]!r}")
+    else:
+        skip("D.9-D.12 xss html upload failed", f"status={r.status_code}")
+else:
+    skip("D.9-D.12 html_xss fixture missing", "run generate_fixtures.py")
+
+# D.13-D.14 — JSON + RTF
+json_path = FIXTURES / "sample.json"
+if json_path.exists():
+    with open(json_path, "rb") as f:
+        r = client.post(
+            "/api/upload",
+            files=[("files", ("config.json", f.read(), "application/json"))],
+            headers=headers_d,
+        )
+    expect("D.13 json upload returns 200", r.status_code, 200)
+    expect_true("D.14 json accepted", r.json().get("count") == 1)
+
+rtf_path = FIXTURES / "sample.rtf"
+if rtf_path.exists():
+    with open(rtf_path, "rb") as f:
+        r = client.post(
+            "/api/upload",
+            files=[("files", ("doc.rtf", f.read(), "application/rtf"))],
+            headers=headers_d,
+        )
+    expect("D.15 rtf upload returns 200", r.status_code, 200)
+    expect_true("D.16 rtf accepted", r.json().get("count") == 1)
+
+# D.17 — .doc still rejected (not added to allowed_types)
+r_doc = client.post(
+    "/api/upload",
+    files=[("files", ("legacy.doc", b"fake legacy word doc", "application/msword"))],
+    headers=headers_d,
+)
+doc_skipped = r_doc.json().get("skipped", [])
+expect_true("D.17 .doc still rejected as UNSUPPORTED_TYPE",
+            any(s.get("code") == "UNSUPPORTED_TYPE" and s.get("filename") == "legacy.doc"
+                for s in doc_skipped))
 
 sys.exit(_summary())

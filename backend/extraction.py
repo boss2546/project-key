@@ -64,6 +64,16 @@ def extract_text(filepath: str, filetype: str) -> str:
             return _extract_txt(filepath)
         elif filetype in ("png", "jpg", "jpeg", "webp"):
             return _extract_image_ocr(filepath)
+        elif filetype == "xlsx":
+            return _extract_xlsx(filepath)
+        elif filetype == "pptx":
+            return _extract_pptx(filepath)
+        elif filetype == "html":
+            return _extract_html(filepath)
+        elif filetype == "json":
+            return _extract_json(filepath)
+        elif filetype == "rtf":
+            return _extract_rtf(filepath)
         else:
             return f"[Unsupported file type: {filetype}]"
     except Exception as e:
@@ -353,3 +363,173 @@ def _postprocess_thai(text: str) -> str:
     result = re.sub(r'[^\S\n]{2,}', ' ', result)
     return result
 
+
+
+# ─── v7.5.0 — Phase 3: more format extractors ────────────────────────
+
+
+def _extract_xlsx(filepath: str) -> str:
+    """Extract text from xlsx (Excel) — flatten all sheets to markdown tables.
+
+    Multi-sheet decision (Q): flatten ทุก sheet เป็นไฟล์เดียว (per user choice).
+    Uses data_only=True so formulas resolve to cached values (not formula text).
+    read_only=True for memory efficiency on big workbooks.
+    """
+    try:
+        from openpyxl import load_workbook
+    except ImportError:
+        return "[xlsx extractor unavailable: install openpyxl]"
+    try:
+        wb = load_workbook(filepath, data_only=True, read_only=True)
+        sections = []
+        for sheet in wb.worksheets:
+            sections.append(f"## Sheet: {sheet.title}")
+            rows_md = []
+            for row in sheet.iter_rows(values_only=True):
+                cells = [str(c) if c is not None else "" for c in row]
+                if any(c.strip() for c in cells):
+                    rows_md.append("| " + " | ".join(cells) + " |")
+            if rows_md:
+                sections.append("\n".join(rows_md))
+            else:
+                sections.append("_(empty sheet)_")
+        return "\n\n".join(sections) if sections else "[Empty workbook]"
+    except Exception as e:
+        logger.error(f"xlsx extraction failed for {filepath}: {e}")
+        return f"[Extraction error: {str(e)}]"
+
+
+def _extract_pptx(filepath: str) -> str:
+    """Extract text + speaker notes from pptx (PowerPoint).
+
+    Each slide → "## Slide N: <title>" section with body bullets + notes.
+    """
+    try:
+        from pptx import Presentation
+    except ImportError:
+        return "[pptx extractor unavailable: install python-pptx]"
+    try:
+        prs = Presentation(filepath)
+        sections = []
+        for i, slide in enumerate(prs.slides, start=1):
+            # Title
+            title = ""
+            try:
+                if slide.shapes.title and slide.shapes.title.text:
+                    title = slide.shapes.title.text.strip()
+            except Exception:
+                pass
+            sections.append(f"## Slide {i}" + (f": {title}" if title else ""))
+            # Body text (skip title shape — already captured)
+            body_lines = []
+            for shape in slide.shapes:
+                if not shape.has_text_frame:
+                    continue
+                if hasattr(slide.shapes, "title") and shape == slide.shapes.title:
+                    continue
+                for para in shape.text_frame.paragraphs:
+                    line = para.text.strip()
+                    if line:
+                        body_lines.append(f"- {line}")
+            if body_lines:
+                sections.append("\n".join(body_lines))
+            # Speaker notes
+            try:
+                if slide.has_notes_slide:
+                    notes = slide.notes_slide.notes_text_frame.text.strip()
+                    if notes:
+                        sections.append(f"**Notes:** {notes}")
+            except Exception:
+                pass
+        return "\n\n".join(sections) if sections else "[Empty presentation]"
+    except Exception as e:
+        logger.error(f"pptx extraction failed for {filepath}: {e}")
+        return f"[Extraction error: {str(e)}]"
+
+
+def _extract_html(filepath: str) -> str:
+    """Extract plain text from HTML — STRIPS <script> and <style> tags.
+
+    Security: HTML may contain <script>alert(1)</script> XSS payloads. Even
+    though we don't render the output to a browser, we DO send it to LLM
+    summary + vector index, so injected text could pollute downstream context.
+    BeautifulSoup .decompose() removes the entire tag tree.
+    """
+    try:
+        from bs4 import BeautifulSoup
+    except ImportError:
+        return "[html extractor unavailable: install beautifulsoup4]"
+    try:
+        # Try common encodings
+        content = None
+        for enc in ("utf-8", "utf-8-sig", "cp874", "tis-620", "latin-1"):
+            try:
+                with open(filepath, "r", encoding=enc) as f:
+                    content = f.read()
+                break
+            except (UnicodeDecodeError, UnicodeError):
+                continue
+        if content is None:
+            return "[Could not decode HTML file]"
+        soup = BeautifulSoup(content, "html.parser")
+        # Security: remove script/style/iframe (XSS + side-channel)
+        for tag in soup(["script", "style", "iframe", "object", "embed", "noscript"]):
+            tag.decompose()
+        text = soup.get_text(separator="\n", strip=True)
+        # Collapse excessive whitespace
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        return text if text.strip() else "[HTML had no extractable text]"
+    except Exception as e:
+        logger.error(f"html extraction failed for {filepath}: {e}")
+        return f"[Extraction error: {str(e)}]"
+
+
+def _extract_json(filepath: str) -> str:
+    """Pretty-print JSON for readable extracted_text.
+
+    Falls back to raw text if JSON malformed (some "JSON" files are JSON5
+    or have trailing commas — still useful as text input).
+    """
+    try:
+        import json as _json
+        for enc in ("utf-8", "utf-8-sig"):
+            try:
+                with open(filepath, "r", encoding=enc) as f:
+                    raw = f.read()
+                break
+            except (UnicodeDecodeError, UnicodeError):
+                continue
+        else:
+            return "[Could not decode JSON file]"
+        try:
+            data = _json.loads(raw)
+            return _json.dumps(data, indent=2, ensure_ascii=False)
+        except _json.JSONDecodeError:
+            # Malformed JSON — return raw text (still useful)
+            return raw if raw.strip() else "[Empty JSON file]"
+    except Exception as e:
+        logger.error(f"json extraction failed for {filepath}: {e}")
+        return f"[Extraction error: {str(e)}]"
+
+
+def _extract_rtf(filepath: str) -> str:
+    """Strip RTF control codes → plain text via striprtf."""
+    try:
+        from striprtf.striprtf import rtf_to_text
+    except ImportError:
+        return "[rtf extractor unavailable: install striprtf]"
+    try:
+        for enc in ("utf-8", "latin-1", "cp1252"):
+            try:
+                with open(filepath, "r", encoding=enc) as f:
+                    content = f.read()
+                break
+            except (UnicodeDecodeError, UnicodeError):
+                continue
+        else:
+            return "[Could not decode RTF file]"
+        text = rtf_to_text(content, errors="ignore")
+        return text.strip() if text.strip() else "[RTF had no extractable text]"
+    except Exception as e:
+        logger.error(f"rtf extraction failed for {filepath}: {e}")
+        return f"[Extraction error: {str(e)}]"
