@@ -1,80 +1,100 @@
 # 📅 Last Session Summary
 
-**Date:** 2026-05-01
-**Agents active:** 🟢 เขียว (round 2 — pivot trigger ตาม user override)
-**Pipeline state:** v7.1.0 Duplicate Detection — `built_pending_review` 🔄 — รอฟ้า re-review delta
+**Date:** 2026-05-02
+**Agent:** Claude (multi-role: แดง + เขียว + ฟ้า cleanup) — user authorized "ดำเนินงานด้วยตัว ใช้โทเคนเต็มที่"
+**Pipeline state:** `plan_pending_approval` (v7.2.0 UX Hotfixes — สร้างระหว่าง session โดยอีก process)
 
 ---
 
-## 🔄 ที่เพิ่งทำเสร็จ — v7.1.0 PIVOT: trigger ย้าย upload → organize-new
+## 🎯 Session Goal
 
-### Background
-- Round 1 (upload-time): ฟ้า approve แล้ว (review_passed)
-- User เห็น UX แล้วบอก: "อยากให้ทำงานตอนกดปุ่มจัดระเบียบไฟล์ใหม่"
-- Direct user override → เขียว execute pivot ทันที (ไม่รอแดง revise plan — บันทึกเป็น DUP-003 แทน)
-
-### Why pivot ดีกว่า round 1
-- ตอน organize-new เสร็จ → ไฟล์ใหม่ทุกตัวอยู่ใน `vector_search` index แล้ว (จาก `vector_search.index_file()` ใน organizer.py)
-- → semantic detection ทำงานเต็มที่ + intra-batch SEMANTIC ก็ match ได้
-- **Risk #9 ของ round 1 หายไป** (round 1 ห้าม index ก่อน organize per invariant retriever.py:91 + mcp_tools.py:743)
-
-### 📁 Changes (delta จาก round 1)
-| File | Change |
-|---|---|
-| `backend/main.py` | **upload_files:** ลบ `detect_duplicates` query param + ลบ detection block + ลบ `duplicates_found` จาก response. **organize_new:** เพิ่ม detection หลัง enrich/graph/suggestions, return `duplicates_found` field |
-| `backend/organizer.py` | `organize_new_files()` return value เพิ่ม `file_ids: list[str]` (เพื่อให้ caller รัน detection ตามได้) |
-| `backend/duplicate_detector.py` | **Logic ไม่เปลี่ยน** — แค่ update docstring สื่อ trigger location ใหม่ + Risk #9 หายไป |
-| `legacy-frontend/app.js` | **uploadFiles():** ลบ duplicate handling block. **runOrganizeNew():** เพิ่ม `if (data.duplicates_found?.length > 0) → showDuplicateModal()` |
-| `scripts/dedupe_e2e_verify.py` | Section C (E2E) refactor: upload → organize-new flow + monkey-patch organize_new_files/enrich/graph/suggestions เพื่อ skip LLM ใน sandbox. Section G (stress) refactor: post-organize state simulation |
-| `.agent-memory/contracts/api-spec.md` | Update upload + organize-new sections + pivot note |
-| `.agent-memory/project/decisions.md` | Add **DUP-003** (trigger location pivot rationale) |
-
-### Files NOT changed (still valid from round 1)
-- `backend/database.py` — content_hash column + migration ✅
-- `backend/storage_router.py` — `delete_drive_file_if_byos()` ✅
-- `backend/vector_search.py` — `remove_file()` ✅
-- `backend/main.py` — `POST /api/files/skip-duplicates` endpoint ✅
-- `backend/config.py` — APP_VERSION 7.1.0 ✅
-- `legacy-frontend/index.html` — modal HTML ✅
-- `legacy-frontend/styles.css` — modal CSS ✅
-- `scripts/duplicate_detection_smoke.py` — 33 unit tests (function-level, agnostic to trigger) ✅
-
-### 🧪 Test Results — 82/82 PASS + 0 regression
-| Suite | Result | Notes |
-|---|---|---|
-| `duplicate_detection_smoke.py` | 33/33 ✅ | Logic unit tests — function-level (trigger-agnostic) |
-| `dedupe_e2e_verify.py` | 49/49 ✅ | Section C/G refactored to organize-new trigger |
-| `byos_foundation_smoke.py` | 26/26 ✅ | clean |
-| `byos_router_smoke.py` | 16/16 ✅ | clean |
-| `byos_storage_smoke.py` | 20/20 ✅ | clean |
-| `byos_sync_smoke.py` | 24/24 ✅ | clean |
-| `byos_oauth_smoke.py` | 20/20 ✅ | clean |
-
-### 📦 Branch state
-**Branch:** `dedupe-v7.1.0`
-**Commits ahead of master:** 4 (feat + docs + e2e_test + pivot)
-**Working tree:** clean (after this session's commits)
+ตามเก็บงานค้างที่สะสมไว้หลังจาก v7.1.0 dedupe + landing/app split deploy
 
 ---
 
-## 🔮 Next steps (สำหรับ ฟ้า)
+## ✅ ที่ทำเสร็จในรอบนี้
 
-1. **Re-review delta only** (ส่วนใหญ่ logic เดิม):
-   - `backend/main.py` upload_files (ลบ detection) + organize_new (เพิ่ม detection)
-   - `backend/organizer.py` return value contract change
-   - `legacy-frontend/app.js` 2 hooks (uploadFiles ลบ + runOrganizeNew เพิ่ม)
-   - `scripts/dedupe_e2e_verify.py` Section C/G refactor — confirm coverage ยังดีพอ
-2. **Verify pivot** ทำงานจริง:
-   - User upload ไฟล์ → ไม่มี popup (เปลี่ยนแปลง UX จาก round 1)
-   - User คลิก "จัดระเบียบไฟล์ใหม่" → AI organize → popup เด้งหลัง organize เสร็จ
-3. **Verdict + handoff back to user**
+### 1. Memory drift cleanup
+Memory ทั้งหมดยัง mark v6.1.0 / v7.0.0 / v7.1.0 ว่า "pending merge/deploy" ทั้งที่ master รวมไปแล้วบวก v7.0.1 BYOS fixes + frontend split
+
+**Files synced:**
+- `current/pipeline-state.md` — รีเซ็ต Recently Completed + เพิ่ม recent commits + Pre-launch Backlog (v7.2.0 ถูกเพิ่ม top section โดย agent อื่นระหว่าง session)
+- `current/active-tasks.md` — ย้าย v6.x/v7.x ไป Completed + เพิ่ม BACKLOG-008/009 + reflect v7.2.0 ใน Current Pipeline
+- `current/last-session.md` — overwrite ด้วยไฟล์นี้
+- `communication/inbox/for-User.md` — สรุป cleanup ให้ user
+- `communication/inbox/for-แดง.md` — MSG-001 (BYOS plan revise) ย้าย Read → Resolved
+- `communication/inbox/for-เขียว.md` — MSG-007/004/003 ย้าย Read → Resolved + รวม section header ที่ซ้ำ
+- `communication/inbox/for-ฟ้า.md` — MSG-009/008/006/005/004 ย้าย New/Read → Resolved + รวม section header ที่ซ้ำ
+
+### 2. Source code cleanup
+
+**`scripts/rebrand_smoke_v6.1.0.py`** — แก้ test drift:
+- Import `APP_VERSION` from `backend.config` → ใช้ dynamic ใน 4 จุดแทน hardcode "7.0.1"
+- `/api/mcp/info` returns `"v{APP_VERSION}"` (มี `v` prefix) → strip prefix ก่อน compare
+- Update KEEP test สำหรับ fly.toml volume source = `project_key_data` (Fly volume rename = data loss risk)
+- Update RENAMED test สำหรับ localStorage keys: `projectkey_*` → `pdb_*` (post-d2f92da migration)
+- เพิ่ม test สำหรับ post-split frontend: `landing.html` + `app.html` แทน `index.html`
+- Update stray-brand scan target list: `landing.html` + `app.html` แทน `index.html`
+
+**ผลก่อน fix:** 68/76 PASS (8 fails: 4 hardcode + 4 stale invariants)
+**ผลหลัง fix:** **77/77 PASS** ✅
+
+### 3. Plan file rebrand
+
+**`.agent-memory/plans/google-drive-byos.md`** — 37 occurrences fixed:
+- "Project KEY" → "Personal Data Bank" (display + folder name + Cloud project name + OAuth consent app name)
+- `project-key.fly.dev` → `personaldatabank.fly.dev` (3 occurrences: origins + redirect URI + Search Console domain)
+- KEEP `projectkey.db` (DB filename — internal, no user impact, rename = data loss สำหรับ user เดิม)
+- เพิ่ม header note ระบุ status `shipped as v7.0.0` + cleanup date
+
+### 4. Local branch cleanup
+
+ลบ 4 merged branches (verified ancestor of master):
+- `rebrand-pdb-v6.1.0`
+- `byos-v7.0.0-foundation`
+- `dedupe-v7.1.0`
+- `backup-pre-fixes-20260428-235745` (snapshot 2026-04-28 — ancestor verified)
 
 ---
 
-## 📌 Notes / Gotchas
-- DUP-003 (decisions.md) อธิบาย rationale ของ pivot ครบ
-- Plan file (`plans/duplicate-detection.md`) **ไม่แตะ** — เป็นของแดง. Implementation deviates แต่ memory ทุกที่ระบุชัดว่า user override + ทำไม
-- ถ้าฟ้าไม่เห็นด้วย → reject + ส่งกลับเขียว, หรือถ้า plan ผิดให้แจ้งแดง revise
+## 🚨 Pre-launch Backlog ที่เพิ่ม (ต้องการ user decision)
+
+### BACKLOG-008 🔴 — Restore plan_limits.py production values
+- File: [backend/plan_limits.py:15-42](../../backend/plan_limits.py#L15-L42)
+- Current: testing mode (999999 ทุก field สำหรับทุก plan)
+- Original (จาก commit `d8b0d54` diff — pre-neuter):
+  - Free: 1 pack / 5 files / 50MB / 10MB max file / 5 ai_summary / 10 export / 0 refresh / no semantic / 0 history / no PNG-JPG
+  - Starter: 5 pack / 50 files / 1024MB / 20MB max file / 100 ai_summary / 300 export / 10 refresh / semantic / 7 history / + PNG-JPG
+- Need user decision: ใช้ค่าเดิม หรือ revise พ่วง pricing strategy?
+
+### BACKLOG-009 🔴 — Wire email service for password reset
+- File: [backend/auth.py:249-282](../../backend/auth.py#L249-L282)
+- Current: returns `reset_token` ใน JSON response ตรงๆ (no email)
+- Need user decision: เลือก service — Resend (แนะนำ) / SendGrid / Gmail SMTP
+
+ทั้ง 2 ตัวเป็น "production launch gates" — ไม่ใช่ tech debt ปกติ. รอ user signal launch ก่อน implement
+
+---
+
+## 📦 Commits ที่จะทำ (logical groups)
+
+1. `chore(memory): sync 4 inboxes + 4 current/* + changelog to master state` — memory files
+2. `chore(plans): rebrand google-drive-byos.md (37 occ Project KEY → Personal Data Bank)` — plan file
+3. `fix(tests): make rebrand_smoke version-dynamic + update post-split + post-d2f92da fixtures` — test fixture
+
+(branches ลบเป็น git operation ไม่ commit)
+
+---
+
+## 🔮 Next steps
+
+**สำหรับ user:**
+- ตัดสินใจ v7.2.0 UX Hotfixes plan — approve / revise (state: `plan_pending_approval`)
+- ตอบ BACKLOG-008/009 ก่อน production launch
+
+**สำหรับ next agent session:**
+- Pipeline ที่ active = v7.2.0 (รอ approve)
+- ถ้า approve → เขียวเริ่ม build ตาม [plans/ux-hotfixes-v7.2.0.md](../plans/ux-hotfixes-v7.2.0.md)
 
 ---
 

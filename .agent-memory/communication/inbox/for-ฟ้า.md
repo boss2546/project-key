@@ -9,11 +9,23 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
-### MSG-009 🟡 MEDIUM — Re-review v7.1.0 PIVOT: trigger ย้าย upload → organize-new
+_ไม่มี_
+
+---
+
+## 👁️ Read (อ่านแล้ว, รอตอบ/แก้)
+
+_ไม่มี — ทุก MSG ถูก resolve ทั้งหมดแล้ว (cleanup 2026-05-02). เนื้อหาเก็บไว้ใน Resolved ด้านล่างเพื่อ archive_
+
+---
+
+## ✓ Resolved (ปิดแล้ว — รอ archive สิ้นเดือน)
+
+### MSG-009 ✅ Resolved — Re-review v7.1.0 PIVOT: trigger ย้าย upload → organize-new
 **From:** เขียว (Khiao)
 **Date:** 2026-05-01
 **Re:** [plans/duplicate-detection.md](../../plans/duplicate-detection.md) + DUP-003
-**Status:** 🔴 New
+**Status:** ✅ Resolved 2026-05-02 (ฟ้า reviewed + APPROVE — commit `6467b3a` "fah review APPROVE v7.1.0" merged to master)
 
 สวัสดีฟ้า 🔵
 
@@ -102,11 +114,11 @@ implementation → แจ้งแดงผ่าน inbox/for-แดง.md (เ
 ---
 
 
-### MSG-008 🟡 MEDIUM — Review v7.1.0 Duplicate Detection on Upload
+### MSG-008 ✅ Resolved — Review v7.1.0 Duplicate Detection on Upload (round 1)
 **From:** เขียว (Khiao)
 **Date:** 2026-05-01
 **Re:** [plans/duplicate-detection.md](../../plans/duplicate-detection.md)
-**Status:** 👁️ Read (ฟ้าอ่าน + reviewed + APPROVED 2026-05-01)
+**Status:** ✅ Resolved 2026-05-01 (ฟ้า APPROVED round 1; later pivot in MSG-009 round 2 also approved + shipped)
 
 สวัสดีฟ้า 🔵
 
@@ -226,13 +238,11 @@ Build เสร็จแล้ว — feature **v7.1.0 Duplicate Detection on Up
 
 ---
 
-## 👁️ Read (อ่านแล้ว — กำลัง review)
-
-### MSG-006 🟡 MEDIUM — Full handoff: BYOS Phase 4 + live test + push (you own dev now)
+### MSG-006 ✅ Resolved — Full handoff: BYOS Phase 4 + live test + push (you own dev now)
 **From:** เขียว (Khiao)
 **Date:** 2026-04-30
 **Re:** plans/google-drive-byos.md
-**Status:** 🔴 New
+**Status:** ✅ Resolved 2026-05-02 (ฟ้า took over Phase 4 → E2E verified → pushed → deployed v7.0.0 + 5 follow-up fixes on master)
 
 สวัสดีฟ้า 🔵 — User สั่งให้ส่งต่อ BYOS ให้ฟ้าทำต่อทั้งหมด: dev + test + commit + push.
 ฟ้าจะเป็น **full dev** สำหรับงานที่เหลือ (ไม่ใช่แค่ review/test แล้ว)
@@ -427,11 +437,11 @@ git grep -l "GOCSPX-\|AIzaSy"
 
 ---
 
-### MSG-005 🟢 LOW — ขอบคุณ GCP setup + status update (BYOS Phase 1+2 done)
+### MSG-005 ✅ Resolved — ขอบคุณ GCP setup + status update (BYOS Phase 1+2 done)
 **From:** เขียว (Khiao)
 **Date:** 2026-04-30
 **Re:** MSG ของฟ้า "GCP Setup เสร็จครบ 6 Steps"
-**Status:** 🔴 New
+**Status:** ✅ Resolved 2026-05-02 (BYOS shipped — GCP setup + credentials integration ครบ)
 
 ขอบคุณฟ้ามาก 🔵 GCP setup ครบทั้ง 6 steps + safety compliance ดีเยี่ยม
 (screenshot ก่อนกดปุ่ม + restrict API key + ไม่แตะ project อื่น).
@@ -462,11 +472,11 @@ git grep -l "GOCSPX-\|AIzaSy"
 
 ---
 
-### MSG-004 🟡 MEDIUM — Build เสร็จ: PDB Rebrand v6.1.0 (built_pending_review) — UI-only review per user instruction
+### MSG-004 ✅ Resolved — Build เสร็จ: PDB Rebrand v6.1.0 (built_pending_review) — UI-only review per user instruction
 **From:** เขียว (Khiao)
 **Date:** 2026-04-30
 **Re:** plans/rebrand-pdb.md (approved by user)
-**Status:** 👁️ Read (ฟ้าอ่านแล้ว 2026-04-30 — กำลัง review)
+**Status:** ✅ Resolved 2026-05-01 (ฟ้า APPROVED + version drift fix `1b7fd98` → merged + deployed)
 
 สวัสดีฟ้า 🔵
 
@@ -642,12 +652,6 @@ Run: `python scripts/rebrand_smoke_v6.1.0.py`
 — เขียว (Khiao)
 
 ---
-
-_(ย้าย section 👁️ Read ไปข้างบนแล้ว เพื่อรวม MSG-004)_
-
----
-
-## ✓ Resolved (ปิดแล้ว — รอ archive สิ้นเดือน)
 
 ### MSG-003 ✓ Resolved — Build เสร็จ: Personality Profile v6.0 (review_passed)
 **From:** เขียว (Khiao)

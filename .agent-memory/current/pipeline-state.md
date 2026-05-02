@@ -5,269 +5,113 @@
 
 ---
 
-## 🎯 Current Features (PARALLEL MODE — per user instruction 2026-04-30)
+## 🎯 Current Pipeline State: `plan_pending_approval`
 
-> **Pipeline override:** User สั่งให้ทำ 2 features parallel — ฟ้าทำ v6.1.0 review/test/fix/commit/push, เขียวเริ่ม v7.0.0 BYOS foundation. Default rule "1 feature at a time" suspended for this round.
+### 🔴 v7.2.0 UX Critical Hotfixes — JUMP THE QUEUE (2026-05-02)
 
-### 🔵 v6.1.0 Rebrand — owned by ฟ้า
-**State:** `review_passed` ✅ — ฟ้า reviewed + fixed version drift + APPROVED (2026-04-30)
-**Branch:** `rebrand-pdb-v6.1.0` (5 commits by เขียว + 1 fix by ฟ้า = 6 total)
-**Authority:** ฟ้า may fix small UI bugs herself + commit + push (per user override)
-**Verdict:** ✅ APPROVE — ready for user to merge to master + deploy
+**State:** `plan_pending_approval` 🔴 — แดงเขียนแผนเสร็จแล้ว รอ user ตรวจก่อนให้เขียวเขียนโค้ด
+**Owner (plan):** แดง (Daeng)
+**Owner (build):** เขียว (Khiao) — รอ user approve plan ก่อน
+**Owner (test):** ฟ้า (Fah)
+**Plan file:** [plans/ux-hotfixes-v7.2.0.md](../plans/ux-hotfixes-v7.2.0.md)
+**Priority:** 🔴 Critical — Data Integrity + System Stability — user สั่งให้ข้ามคิวงานอื่นทั้งหมด
+**Estimated effort:** เขียว ~2-3 ชม. + ฟ้า ~1 ชม.
+**Foundation:** ต่อยอดจาก commit `cc1ad84` (landing/app split + 98 Playwright tests)
 
-### 🟢 v7.0.0 Google Drive BYOS — E2E verified ✅ (2026-05-01, by ฟ้า)
-**State:** `e2e_verified` ✅ — Full OAuth E2E passed on localhost; PKCE fix + 4 UX fixes applied; ready for commit + push + deploy
-**Owner:** ฟ้า (Fah) — full dev mode (per user override)
-**Authority:** ฟ้า may dev + commit + push (no review-back-to-เขียว required)
-**Plan file:** [plans/google-drive-byos.md](../plans/google-drive-byos.md)
-**Branch:** `byos-v7.0.0-foundation` (uncommitted changes in working tree — pending commit)
+**5 Sections (เร่งด่วนที่สุด):**
+1. Button Loading States — disabled + spinner สำหรับ saveProfile + sendMessage (organize ครบแล้ว)
+2. Upload Progress — XHR progress events + beforeunload guard
+3. Error Toast — type='error' ห้าม auto-dismiss + ปุ่ม X
+4. AI Typing Indicator — `<span id="chat-typing-status">` ขึ้นทันทีตอนกด send
+5. Modal UX — global ESC + backdrop click ปิด modal (8 modals ใน app; auth-modal บน landing out-of-scope)
 
-**✅ Credentials integrated 2026-04-30:**
-- ฟ้า GCP setup ผ่านครบ 6 steps (Project / APIs / OAuth Consent / Client ID / API Key / Project Number)
-- 4 credentials + DRIVE_TOKEN_ENCRYPTION_KEY (เขียว generate) → ใส่ใน `.env` (gitignored)
-- `is_byos_configured() == True` verified
-- 5 BYOS endpoints unlocked from 503
-- `/api/drive/oauth/init` produces valid 541-char Google auth URL (drive.file scope + CSRF + offline + consent ครบ)
+**Pending decision (รอ user approve):**
+- [ ] อ่านแผนใน [plans/ux-hotfixes-v7.2.0.md](../plans/ux-hotfixes-v7.2.0.md)
+- [ ] ตรวจ acceptance criteria + risks + out-of-scope
+- [ ] ตอบ **"approve"** → state เปลี่ยนเป็น `plan_approved` → เขียวเริ่มเขียน
+- [ ] หรือสั่งแก้แผนก่อน → แดงปรับ → ส่งใหม่
 
-**✅ Build summary (Phase 1 + Phase 2):**
-- 4 backend modules: drive_layout, drive_oauth, drive_storage, drive_sync (~900 lines)
-- 5 endpoints: drive/status, oauth/init, oauth/callback, disconnect, storage-mode
-- Schema migration: users.storage_mode + drive_connections + files.drive_*
-- 4 mock smoke tests = 90/90 PASS (foundation 26 + storage 20 + sync 24 + oauth 20)
-- docs/BYOS_SETUP.md admin guide (270 lines)
-- .env.example BYOS section + safety notes
+**ห้ามทำตอนนี้:**
+- 🟢 เขียว — ห้ามเริ่มเขียนโค้ด จนกว่า user จะ approve plan
+- 🔵 ฟ้า — ยังไม่ต้องเขียน test (เขียวจะเขียนเองในแต่ละ Phase ตาม plan checklist)
 
-**✅ Phase 3 done (2026-04-30 by เขียว, commit a1c8f72):**
-- backend/storage_router.py — 9 best-effort helpers
-- profile.py wired (push profile.json to Drive after DB commit)
-- OAuth callback wired (auto-flip storage_mode + init folder layout)
-- byos_router_smoke.py 16/16 PASS
-
-**🚨 Security note (2026-04-30, fixed in 58e8b9d):**
-- เขียว committed actual encryption key in docs/BYOS_SETUP.md (3 occurrences) → leaked at commit d75d5ea
-- Fixed forward: replaced with placeholder + rotated .env to new key
-- Old key still in git history at d75d5ea — **inert** (no DB row uses it)
-- Branch NOT pushed yet → ฟ้า decide before first push:
-  (a) leave history (no real damage), or
-  (b) rebase d75d5ea to amend (clean history, force-push required)
-
-**Pending (BYOS feature activation — sandbox blocks secret writes):**
-- Set 6 Fly.io secrets (user runs `flyctl secrets set` in own terminal — script ready)
-- After secrets set → Fly auto-restarts → BYOS endpoints transition from 503 → 200
-- Live OAuth click-through E2E (browser-based, by user/ฟ้า)
-
-**Already done in this session:**
-- ✅ Phase 1+2+3 backend (เขียว, mock-tested 90/90)
-- ✅ Phase 4 frontend (ฟ้า, commit `5b80c52`)
-- ✅ PKCE + logout debounce + UX (ฟ้า WIP committed by เขียว, `fb515db`)
-- ✅ 182/182 regression PASS (3 times this session)
-- ✅ Branch pushed to GitHub (origin/byos-v7.0.0-foundation = fb515db)
-- ✅ Memory updates (12 files refreshed)
-
-**Known issues (flagged):**
-- Encryption key in `d75d5ea` history — already on remote (was pushed by ฟ้า earlier). Old key inert (rotated). Rebase + force-push possible if user wants clean history.
-- Plan revision by แดง (37 brand occurrences in plan file) — non-blocking, can run parallel
-
-**Blockers waiting on แดง (non-blocking):**
-- Plan revision (37 occurrences "Project KEY" → "Personal Data Bank")
-- 4 open questions: Q-A webhook, Q-B existing folder merge, Q-C drive full Phase 2, Q-D OneDrive/Dropbox
-
-### Original v6.1.0 metadata (kept for reference)
-**Owner (build):** เขียว (Khiao)
-**Started:** 2026-04-30
-**Started:** 2026-04-30
-**Plan file:** [plans/rebrand-pdb.md](../plans/rebrand-pdb.md)
-**Readiness notes:** [plans/rebrand-pdb-readiness-notes.md](../plans/rebrand-pdb-readiness-notes.md)
-**Build branch:** `rebrand-pdb-v6.1.0`
-**Handoff MSG:** ดู MSG-004 ใน [inbox/for-ฟ้า.md](../communication/inbox/for-ฟ้า.md) ⭐
-
-### Timeline
-- 2026-04-30 — User เห็น plan BYOS ใช้ "Project KEY" ทุกที่ → ขอ rebrand ก่อนเพื่อกันต้องตามแก้ทีหลัง
-- 2026-04-30 — แดงสำรวจ scope: 256 occurrences ใน 50 files
-- 2026-04-30 — Lock 7 decisions (defaults):
-  - Q1: Display "Personal Data Bank" + Code/short "PDB"
-  - Q2: Keep `project-key.fly.dev` (Fly.io app name constraint)
-  - Q3: Keep `projectkey.db` filename (internal, no user impact)
-  - Q4: MCP `serverInfo.name = "personal-data-bank"`
-  - Q5: Keep repo name (defer)
-  - Q6: UI ไทย = "ธนาคารข้อมูลส่วนตัว", Code/EN = "Personal Data Bank"
-  - Q7: Keep current logo
-- 2026-04-30 — แดงเขียน plan rebrand ครบ + handoff MSG-003 → เขียว
-- 2026-04-30 — User approve plan → state: `plan_approved` → รอเขียวเริ่ม build
-- 2026-04-30 — เขียวอ่าน plan + ทุกไฟล์ที่เกี่ยวข้องทีละบรรทัด → grep 343 hits ใน 52 files → เจอ ~56 actual changes (~141 KEEP) → **เจอ 6 จุดที่ plan ไม่ครอบคลุม** (email domain, MCP template key, projectkey_lang, fixtures, test BASE URL, branch strategy) → เขียนสรุปลง [readiness notes](../plans/rebrand-pdb-readiness-notes.md)
-- 2026-04-30 — User บอกว่ามีงานอื่นแทรก → state: `paused` รอ resume
-- 2026-04-30 — User กลับมาตอบ 3 คำถาม:
-  - **Q1 (email):** ไม่ได้เป็นเจ้าของ projectkey.dev → CHANGE 6 mailto → `axis.solutions.team@gmail.com` (สำคัญทางธุรกิจ — email เก่าตายมานานแล้ว!)
-  - **Q2 (MCP template):** CHANGE → `personal-data-bank` (consistency กับ serverInfo.name)
-  - **Q6 (uncommitted):** Option ก — chore commit `.agent-memory/` + leftovers บน master ก่อน → branch ใหม่สะอาด
-  - Q3/Q4/Q5 ใช้ default — ไม่ต้องตอบ
-- 2026-04-30 — แดงส่ง MSG-004 → state: `plan_approved` → เขียว resume ได้ทันที (~67 actual changes รวม Q1+Q2 — time budget ยังคง 3 ชม.)
-- 2026-04-30 — เขียว resume → chore commit `89d1b44` บน master (commit `.agent-memory/` + scripts + tests/test_personality_review.py) → branch ใหม่ `rebrand-pdb-v6.1.0` จาก master สะอาด
-- 2026-04-30 — เขียวลุย Plan Step 1-10:
-  - Step 1: grep snapshot baseline = 201 hits ใน 38 files
-  - Step 2: Backend rebrand 13 จุด ใน 8 ไฟล์ + APP_VERSION 6.0.0 → 6.1.0
-  - Step 3: Frontend rebrand index.html (9 edits) + pricing.html (6 edits) + app.js (10 edits incl. 4 MCP template + 3 i18n + 1 docstring + 2 instruction text) → 0 hits remain
-  - Step 4: Config (package.json name + version + description, .env.example header)
-  - Step 5: Tests (test_production.py 3, ui.spec.js 4, test_full_e2e.py 1) → 0 hits remain
-  - Step 6: Docs (README.md 8 incl. MCP templates, USER_GUIDE_V3.md 3)
-  - Step 7: Memory (project/overview.md 2 changes — drop "Project KEY" name + version 5.9.3 → 6.1.0)
-  - Step 8: New `maybeShowRebrandNotice()` ใน app.js + flag `pdb_rebrand_notice_seen`
-  - Step 9: Verify — grep 201→159 (เหลือเฉพาะ historical PRDs + plan files + intentional release notes) + Python compileall OK + JS syntax OK + TestClient GET / contains "Personal Data Bank" + zero "Project KEY"
-- 2026-04-30 — เขียว build เสร็จ → commit `6e14e63` (21 files, +210/-71) → state: `built_pending_review` → ส่ง MSG-004 ใน inbox/for-ฟ้า.md
-- 2026-04-30 — เขียวเทสเบื้องต้น (in-process TestClient — sandbox blocked port binding):
-  - 21/21 smoke tests pass (frontend rendering 5 + app metadata 2 + module imports 1 + auth/MCP e2e 4 + KEEP invariants 9)
-  - **MCP /initialize end-to-end verified:** serverInfo.name='personal-data-bank' + version='6.1.0' ✅
-  - Caught 1 issue: served app.js เคยมี literal "Project KEY" ใน WHY comment → fix `312658e` (1 file, +1/-1)
-- 2026-04-30 — รอ user สั่งให้เปิดฟ้า review
-
-### Notes
-- Time budget เดิม: ~3 ชม. (1/3 วัน) — งาน mechanical
-- 7 ที่ที่ "ห้ามแตะ": fly.toml, projectkey.db, localStorage keys, MCP secret URL path, domain, historical PRDs, user-generated content
-- Critical regression: login flow, MCP existing user, Stripe webhook, AI chat, file upload
-- หลัง rebrand merge เสร็จ → แดงจะ revise plan `google-drive-byos.md` (37 occ) ให้ใช้ "Personal Data Bank" → ถ้า user อยากเริ่ม BYOS หลังจากนั้นได้เลย
-
-### 🔄 Resume Steps (เมื่อ user พร้อมกลับมาทำต่อ)
-1. อ่าน [rebrand-pdb-readiness-notes.md](../plans/rebrand-pdb-readiness-notes.md) — sections "TL;DR", "6 Decision Points", "Resume Protocol"
-2. User ตอบ 6 ข้อ (หรือ confirm "ใช้ default ทั้งหมด")
-3. Update state: `paused` → `building`
-4. ทำตาม Plan Step 1-10 (ตาม resume protocol ใน notes)
+**Last update:** 2026-05-02 (แดงเขียนแผน + จับ state เป็น plan_pending_approval)
 
 ---
 
-## 📋 Up Next (Queue)
+## ✅ Recently Completed (เรียงจากใหม่ไปเก่า)
 
-### v7.1.0 — Duplicate Detection on Organize-new (PIVOTED 2026-05-01)
-**State:** `built_pending_review` 🔄 — Round 2: เขียว rebuild หลัง user override → รอฟ้า re-review
-**Owner (build):** เขียว (Khiao) — round 2 done 2026-05-01
-**Reviewer (round 1):** ฟ้า (Fah) — APPROVE round 1 (upload-time) 2026-05-01 — REVIEW-002
-**Branch:** `dedupe-v7.1.0` (4 commits ahead of master — feat + docs + e2e_test + pivot)
-**Plan file:** [plans/duplicate-detection.md](../plans/duplicate-detection.md) (implementation deviates per DUP-003 — user override, plan untouched)
-**Handoff MSG (round 2):** ดู MSG-009 ใน [inbox/for-ฟ้า.md](../communication/inbox/for-ฟ้า.md)
-**ETA:** ฟ้า ~1 ชม. (re-review delta — logic เดิมไม่เปลี่ยน, แค่ trigger ย้าย upload→organize-new)
+### v7.1.0 — Duplicate Detection on Organize-new (2026-05-01)
+**State:** `done` ✅ — merged + deployed
+**Plan:** [plans/duplicate-detection.md](../plans/duplicate-detection.md)
+**Build by:** เขียว (round 1 upload + round 2 pivot per DUP-003)
+**Review by:** ฟ้า — APPROVE 2026-05-01 (REVIEW-002, 87/87 tests + 106/106 BYOS regression)
+**Merged:** master commits `cd114dd` (feat) + `0adcaf1` (pivot) + `c047657` (e2e tests) + `6467b3a` (memory)
+**Pivot rationale:** trigger ย้าย upload→organize-new ตาม user override → Risk #9 หาย (intra-batch SEMANTIC ทำงานได้)
 
-**Pivot reason (DUP-003):**
-- Round 1 (upload-time): ฟ้า approved 2026-05-01 (review_passed) — 87/87 PASS
-- User feedback: "อยากให้ทำงานตอนกดปุ่มจัดระเบียบไฟล์ใหม่" (organize-new) แทน upload
-- Round 2 (organize-time, this commit set): trigger ย้ายไป `/api/organize-new` หลัง vector_search index ครบ
-  → Risk #9 หาย (intra-batch SEMANTIC ทำงานได้แล้ว)
-  → 82/82 PASS (smoke 33 + e2e 49) + 106/106 BYOS regression
+### v7.0.0 → v7.0.1 — Google Drive BYOS (2026-05-01)
+**State:** `done` ✅ — deployed + 5 follow-up fixes already on master
+**Plan:** [plans/google-drive-byos.md](../plans/google-drive-byos.md) (post-cleanup ใช้ "Personal Data Bank" ทุกที่)
+**Build by:** เขียว Phase 1-3 + ฟ้า Phase 4 + E2E (full dev mode authority)
+**Deploy:** Fly.io machine 82 — 2026-05-01 03:04 UTC (commit `84f4f74`)
+**Post-deploy fixes (v7.0.1):**
+- `73f1a96` feat(byos): wire raw-file Drive push + /api/drive/sync + storage badges
+- `e1908b8` fix(byos): fallback to extracted_text when raw file missing on Drive push
+- `ac9a6e3` fix(byos): convert filetype ext to MIME type in sync push
+- `1449666` fix(byos): convert Drive mimeType to extension on pull import
+- `c04d21c` fix(byos): push local files to Drive on sync + update storage_source
 
-### Scope
-- ตอน upload ไฟล์ → เช็ค similar/duplicate vs library ของ user
-- Threshold ≥ 80% similarity → popup เตือน
-- 2 ปุ่ม: "ข้ามที่ซ้ำ" / "เก็บทั้งหมด"
-- Algorithm: SHA-256 (exact) + TF-IDF cosine (semantic) — **ไม่ใช้ LLM**
-- Cross-format: เปรียบที่ extracted_text (PDF↔DOCX content เดียวกัน detect ได้)
-- Both managed + BYOS modes
+### v6.1.0 — PDB Rebrand "Project KEY" → "Personal Data Bank" (2026-04-30 → 2026-05-01)
+**State:** `done` ✅ — merged + deployed + follow-up rename to `personaldatabank.fly.dev`
+**Plan:** [plans/rebrand-pdb.md](../plans/rebrand-pdb.md)
+**Build by:** เขียว 5 commits (76/76 smoke pass)
+**Review by:** ฟ้า — APPROVE + version drift fix `1b7fd98`
+**Merged:** master commits `6e14e63` (feat) + later `d2f92da` (localStorage migration) + `0182c06` (domain rename)
+**Note:** original plan locked `project-key.fly.dev` แต่ user later renamed Fly.io app → `personaldatabank.fly.dev` (ee8699d)
 
-### Defer to Phase 2 (Q-A through Q-F ใน plan)
-- Replace existing button (preserve cluster/tags)
-- LLM deep diff (side-by-side text)
-- Library scan endpoint (หา dup ในไฟล์เก่า)
-- User-configurable threshold
-- MCP `find_duplicates` tool
-- Knowledge graph `duplicate_of` edge
-
-### Timeline
-- 2026-05-01 — User บอก feature → แดงถามคำถาม Tier 1-3 (13 ข้อ default)
-- 2026-05-01 — User เลือก simplest version + 80% threshold
-- 2026-05-01 — แดงเขียน plan ครบ → state: `plan_pending_approval`
-- 2026-05-01 — User ขอ audit plan vs โค้ดจริง → แดงเจอ 2 issues (immediate-index side effect + private API access) → revise plan
-- 2026-05-01 — User approve → state: `plan_approved` → ส่ง MSG-007 ให้เขียว → รอ user เปิดเขียว
-- 2026-05-01 — เขียว session: audit plan vs code reality (verified ทุก line ref + พบ memory drift: branch=master + APP_VERSION=7.0.1 + localStorage=pdb_*) → branch `dedupe-v7.1.0` จาก master
-- 2026-05-01 — เขียว build Step 1-9 ครบ:
-  - Step 1: Schema migration `files.content_hash` + `idx_files_content_hash`
-  - Step 2: `backend/duplicate_detector.py` (new ~280 lines) — `compute_content_hash`, `find_duplicate_for_file`, `detect_duplicates_for_batch`
-  - Step 2.5: `storage_router.delete_drive_file_if_byos()` (public helper, ตาม pattern `push_*`)
-  - Step 3: `vector_search.remove_file()` (per-user index cleanup + IDF rebuild)
-  - Step 4: Modify `POST /api/upload` — `?detect_duplicates=true` + `content_hash` field + post-commit detection (try/except, never raises) + `duplicates_found` ใน response
-  - Step 5: New `POST /api/files/skip-duplicates` — Pydantic body, per-user validation, BYOS Drive trash + index removal + cascade DB delete
-  - Step 6: HTML modal `dup-modal-overlay` (index.html)
-  - Step 7: JS handler — state `_pendingDuplicates`, `showDuplicateModal/hideDuplicateModal/resolveDuplicates`, hooked ใน `uploadFiles()`, wire skip/keep buttons ใน `initUpload()`, i18n keys `dup.*` (TH+EN)
-  - Step 8: CSS — ใช้ design tokens (`--bg-secondary`, `--accent`, `--warning`, `--error`) + responsive
-  - Bump APP_VERSION 7.0.1 → 7.1.0 ใน config.py + 5 จุดใน index.html (cache busters + footer + logo)
-  - Step 9: Self-test — `scripts/duplicate_detection_smoke.py` (33 cases, 7 sections) → **33/33 PASS**
-- 2026-05-01 — Regression check: BYOS smoke 6 ไฟล์ (126/126 PASS) — no regression. Pre-existing fail ที่ยอมรับ: byos_v7_0_1 `_guess_mime` (1) + rebrand_smoke (8 = 4 pre-existing บน master + 4 จาก version bump 7.0.1→7.1.0 ที่ test hardcode ไว้)
-- 2026-05-01 — เขียว state: `built_pending_review` → ส่ง MSG-008 ใน inbox/for-ฟ้า.md → รอ user สั่งเปิดฟ้า
-
----
-
-### v7.0.0 — Google Drive BYOS (DEPLOYED)
-**State:** `e2e_verified` ✅ (deployed 2026-05-01 — ดู Current Features ด้านบน)
-**Plan file:** [plans/google-drive-byos.md](../plans/google-drive-byos.md)
-**Branding update needed:** plan file ยังใช้ "Project KEY" 37 จุด (defer revision)
-
-### Timeline
-- 2026-04-30 — User ปรึกษาเรื่องใช้ Google Drive 5TB Pro เป็น storage
-- 2026-04-30 — แดงเสนอ 3 Options (Drive ส่วนตัวบริษัท / R2 / ลูกค้าใช้ Drive ของตัวเอง) → user เลือก Option C
-- 2026-04-30 — เปรียบเทียบ Full Drive (A) vs Hybrid (B) → user เลือก B หลังเห็น 8-มิติ analysis
-- 2026-04-30 — Lock 4 critical decisions:
-  - **Q1:** Coexist 2 modes (Managed + BYOS) — ไม่บังคับใคร
-  - **Q2:** `drive.file` scope + Google Picker (drive เต็มไว้ Phase 2 — verification + $25K-85K/yr CASA)
-  - **Q3:** Transparent JSON ใน Drive (ไม่ encrypt — trust + debug ง่าย)
-  - **Q4:** 2-way sync (upload UI หรือ Drive ก็ได้ ทั้ง 2 ทาง)
-- 2026-04-30 — แดงเขียน plan ครบ → state: plan_pending_approval
-- 2026-04-30 v2 — User ตัดสินใจ skip Google verification สำหรับ MVP:
-  - เหตุผล: ยังไม่ขายจริง ทดสอบภายในกับคนรู้จัก
-  - **Strategy: Testing Mode** (ไม่ใช่ Production-Unverified)
-    - ✅ ไม่มี warning, UX สะอาด
-    - ✅ ไม่ต้อง privacy policy URL / domain verification / demo video
-    - ⚠️ Refresh token หมดอายุ 7 วัน (acceptable สำหรับ beta users)
-    - ⚠️ Cap 100 test users (ระบุ email ใส่)
-  - **Verification submit ทีหลัง** เมื่อพร้อม public launch
-  - **MVP timeline ใหม่: 1 สัปดาห์!** (จากเดิม 5-6 wk)
-
-### Notes
-- 2 features จะ coexist กับ Personality Profile (เพิ่งเสร็จ v6.0.0) — ไม่กระทบกัน
-- BYOS เป็น feature ขนาดใหญ่: dev 3-4 weeks + OAuth verification 2-4 weeks (parallel)
-- **OAuth verification ต้องเริ่ม submit ทันที** — ก่อน build เสร็จ — เพื่อไม่ให้ block launch
-- Cap 100 users ตอน "Unverified" → ทำ closed beta ได้
-- Open Questions ใน plan: 4 (Q-A real-time webhook, Q-B existing folder merge, Q-C drive full Phase 2, Q-D OneDrive/Dropbox)
-- Differentiator vs Claude/ChatGPT: "Your data stays in YOUR Drive — verifiable"
-- หลัง BYOS launch → market position เป็น PDPA-first / user-sovereign
-
----
-
-## 📜 History (Completed Features)
-
-### v6.0.0 — Personality Profile (MBTI / Enneagram / CliftonStrengths / VIA) + History
-**State:** `done` (deployed 2026-04-30)
+### v6.0.0 — Personality Profile (MBTI/Enneagram/Clifton/VIA + History) (2026-04-30)
+**State:** `done` ✅ — deployed
 **Plan:** [plans/personality-profile.md](../plans/personality-profile.md)
+**Build by:** เขียว (commit `3f4b4b9`)
+**Review by:** ฟ้า — APPROVE (25 API + 10 browser tests)
 
-**Feature:** Personality Profile (MBTI / Enneagram / CliftonStrengths / VIA Strengths) + History
-**Status:** ✅ deployed live as v6.0.0
-**Started:** 2026-04-29 / Completed: 2026-04-30
+---
 
-### Timeline
-- 2026-04-29 — User บอก feature → แดงเริ่ม research + plan
-- 2026-04-29 — Research personality systems (4 ระบบ) ด้วย general-purpose agent
-- 2026-04-29 — แดงเขียน plan ครบ → state: plan_pending_approval (มี 6 open questions)
-- 2026-04-30 — User ตอบ Q1-Q6 → แดง revise plan:
-  - **Q1: Drop VIA** → MVP เหลือ 3 ระบบ (MBTI + Enneagram + CliftonStrengths)
-  - **Q3: เพิ่ม History feature** → table `personality_history` + endpoint + UI history modal
-  - Q2/Q4/Q5/Q6 ไม่กระทบ scope
-- 2026-04-30 — Plan revision เสร็จ → user approve ✅
-- 2026-04-30 — แดงส่ง handoff message MSG-001 ใน inbox/for-เขียว.md → state: `plan_approved` → ส่งต่อให้เขียว
-- 2026-04-30 — เขียวเริ่มทำงาน: เจอ conflict ระหว่าง plan file (v1) กับ MSG-001 (v2) → halt → ขอ resolution
-- 2026-04-30 — User delegate decision ให้แดง → แดงตัดสินใจ **FINAL v3 = 4 ระบบ (MBTI+Enneagram+Clifton+VIA) + History** (รวม v1's 4 systems + v2's history feature)
-- 2026-04-30 — แดง re-write plan file ให้ตรง v3 + ส่ง MSG-002 ปลด blocker เขียว
-- 2026-04-30 — เขียวอ่าน MSG-002 + plan v3 ครบ → ย้าย MSG-001/002 → Read → state: `building` → เริ่ม Step 1
-- 2026-04-30 — เขียว build เสร็จ Step 1-7 + self-test 19/19 pass → state: `built_pending_review` → ส่งต่อฟ้าผ่าน MSG-003
-- 2026-04-30 — ฟ้า review code 8 files / 1,642 lines → API tests 25/25 pass + browser UI test 10/10 pass → state: `review_passed` ✅
-- 2026-04-30 — User polish 3 commits (UI emoji + dropdown bg) + เขียว housekeeping commit
-- 2026-04-30 — Bump version → `v6.0.0` (commit `3f4b4b9`) → push 18 commits ขึ้น GitHub master
-- 2026-04-30 — Deploy ขึ้น Fly.io production (https://project-key.fly.dev/) → smoke test ผ่าน: HTTP 200, /api/personality/reference 16/34/24 ครบ, Swagger reports v6.0.0 → state: `done`
+## 📜 Recent Master Commits (post-v7.1.0)
 
-### Notes
-- Open Questions ใน plan = 0 (ตอบครบแล้ว ✅)
-- **FINAL scope = 4 ระบบ + history**:
-  - MBTI (16 types — 16personalities ฟรี / mbtionline เสียเงิน)
-  - Enneagram (9 types + wing — Truity/Eclectic ฟรี / RHETI เสียเงิน)
-  - CliftonStrengths (Top 5 จาก 34 themes — Gallup เสียเงินเท่านั้น, ไม่มีฟรี)
-  - **VIA Character Strengths** (Top 5 จาก 24 strengths — viacharacter.org ฟรี official)
-- Trademark constraint สำคัญ: ห้าม copy MBTI/CliftonStrengths descriptions ลง UI/LLM. Enneagram/VIA OK paraphrase
-- Migration safe: additive only — เพิ่ม 5 columns ใน user_profiles + table personality_history
-- MCP `get_profile` คืนทุกอย่างพร้อมกันในการเรียกครั้งเดียว: 4 ระบบ + summary + active_contexts
+```
+cc1ad84 refactor(frontend): split monolith into landing.html + app.html  (2026-05-02 area)
+a5ee41d fix(ui): ghost backdrop blocking clicks after file detail close
+1449666 fix(byos): convert Drive mimeType to extension on pull import
+ac9a6e3 fix(byos): convert filetype ext to MIME type in sync push
+e1908b8 fix(byos): fallback to extracted_text when raw file missing on Drive push
+c04d21c fix(byos): push local files to Drive on sync + update storage_source
+6467b3a docs(memory): fah review APPROVE v7.1.0
+0adcaf1 refactor(dedupe): pivot trigger upload→organize-new (DUP-003)
+c047657 test(dedupe): add E2E verification script — 54 cases
+64c7890 docs(memory): v7.1.0 dedupe plan + handoff
+cd114dd feat(dedupe): duplicate detection on upload — v7.1.0
+d2f92da chore(rebrand): remove ALL 'project-key' references, rename localStorage keys to pdb_*
+0182c06 chore: update ALL references from project-key.fly.dev to personaldatabank.fly.dev
+8d6ad31 chore: lock RAM at 1024MB in fly.toml
+ee8699d chore: update domains to personaldatabank.fly.dev
+```
+
+---
+
+## 🚧 Active Blockers
+
+ไม่มี — ดู [blockers.md](blockers.md)
+
+---
+
+## 📋 Pre-launch Backlog (ดู active-tasks.md)
+
+ก่อน production launch ต้องตามเก็บ 2 รายการสำคัญ:
+- **BACKLOG-008** — Restore plan_limits.py production values (ตอนนี้ testing mode 999999 ทุก field)
+- **BACKLOG-009** — Wire email service for password reset (ตอนนี้ return reset_token ใน JSON ตรงๆ)
+
+ทั้ง 2 ตัวเป็น "production launch gates" — ไม่ใช่ tech debt, รอ user signal launch
 
 ---
 
@@ -289,36 +133,9 @@
 
 ---
 
-## 📋 รูปแบบ entry (เมื่อมี feature ใหม่)
-
-```markdown
-**Feature:** Export ข้อมูลเป็น JSON
-**State:** `building`
-**Owner:** เขียว (Khiao)
-**Started:** 2026-04-29 14:00
-**Plan file:** plans/export-json.md
-
-### Timeline
-- 2026-04-29 14:00 — User บอก feature → state: planning
-- 2026-04-29 14:30 — แดง plan เสร็จ → state: plan_pending_approval
-- 2026-04-29 14:35 — User approve → state: plan_approved
-- 2026-04-29 14:40 — เขียวเริ่ม build → state: building
-
-### Notes
-[ข้อความที่ agent ฝากไว้ระหว่างทำงาน]
-```
-
----
-
-## 📜 History (10 features ล่าสุด)
-
-_ยังไม่มี — โปรเจกต์เพิ่งใช้ pipeline system_
-
----
-
 ## ⚠️ กฎสำคัญ
 
-1. **ห้าม 2 features อยู่ใน pipeline พร้อมกัน** — ทำทีละ feature
+1. **ห้าม 2 features อยู่ใน pipeline พร้อมกัน** (default — user override ได้เป็น parallel)
 2. **State เปลี่ยน → update ที่นี่ทันที** — ห้ามรอ
 3. **Agent ที่ไม่ใช่ owner ปัจจุบัน** → อย่าเริ่มทำงาน รอจนกว่าจะถึงรอบตัวเอง
 4. **User เป็นคนสั่งให้เริ่ม pipeline ใหม่ (กลับ idle → planning)**

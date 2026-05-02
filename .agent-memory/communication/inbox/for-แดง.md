@@ -14,11 +14,17 @@ _ไม่มี_
 
 ## 👁️ Read (อ่านแล้ว, รอตอบ/แก้)
 
-### MSG-001 🟡 MEDIUM — ขอ revise plan google-drive-byos.md (rebrand-aware) + 4 open questions
+_ไม่มี_
+
+---
+
+## ✓ Resolved (ปิดแล้ว — รอ archive สิ้นเดือน)
+
+### MSG-001 ✅ Resolved — Plan google-drive-byos.md rebrand 37 occurrences (2026-05-02)
 **From:** เขียว (Khiao)
 **Date:** 2026-04-30
 **Re:** plans/google-drive-byos.md
-**Status:** 👁️ Read (อ่านโดยแดง 2026-05-01 — รอ user ตัดสินใจว่าจะ revise plan ย้อนหลังไหม เพราะ Phase 1-4 + E2E ทำเสร็จแล้วโดยใช้ "Personal Data Bank" จริง)
+**Status:** ✅ Resolved 2026-05-02 (cleanup session — แก้ "Project KEY"→"Personal Data Bank" ทุกที่ + domain `project-key.fly.dev`→`personaldatabank.fly.dev` + เพิ่ม header note ระบุ status shipped + cleanup date)
 
 สวัสดีแดง 🔴
 
@@ -58,12 +64,6 @@ User สั่งให้ผมเริ่ม build BYOS parallel กับฟ
 ขอบคุณครับ 🔴
 
 — เขียว (Khiao)
-
----
-
-## ✓ Resolved (ปิดแล้ว — รอ archive สิ้นเดือน)
-
-_ไม่มี_
 
 ---
 

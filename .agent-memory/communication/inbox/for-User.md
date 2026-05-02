@@ -5,12 +5,37 @@
 
 ---
 
-## 🔵 REVIEW-002 — v7.1.0 Duplicate Detection ✅ APPROVED (2026-05-01)
+## 🔴 STATUS — 2026-05-02 (cleanup session — multi-role โดย Claude)
+
+### TL;DR — งานค้างเก็บเสร็จเกือบหมดแล้ว
+
+**ที่ทำเสร็จในรอบนี้ (autonomous):**
+- ✅ **Memory sync** — pipeline-state.md / active-tasks.md / 4 inboxes / changelog.md ตรงกับ master จริงแล้ว
+- ✅ **rebrand_smoke_v6.1.0.py** — แก้ version hardcode → ใช้ `APP_VERSION` dynamic + แก้ stale invariants (localStorage `pdb_*`, fly.toml volume `project_key_data`, app.html post-split)
+  - **77/77 PASS** ✅ (เดิม 68/76 = 8 fail → ตอนนี้ 0 fail + เพิ่ม 1 case ใหม่)
+- ✅ **plans/google-drive-byos.md** — rebrand 37 occurrences "Project KEY"→"Personal Data Bank" + domain `project-key.fly.dev`→`personaldatabank.fly.dev` + KEEP `projectkey.db` (DB filename)
+- ✅ **Inbox cleanup** — 9 stale MSGs ย้าย Read→Resolved (3 ใน เขียว + 6 ใน ฟ้า + 1 ใน แดง)
+- ✅ **Local merged branches** — ลบ 4 branches ที่ verified merged เข้า master (`rebrand-pdb-v6.1.0`, `byos-v7.0.0-foundation`, `dedupe-v7.1.0`, `backup-pre-fixes-20260428-235745`)
+
+**ที่พี่ต้องตัดสินใจก่อน production launch (BACKLOG ใหม่):**
+- 🔴 **BACKLOG-008** — `backend/plan_limits.py:15-42` ตอนนี้ testing mode (999999 ทุก field). ต้น values เก่าจาก commit `d8b0d54` diff อยู่ใน [active-tasks.md](../../current/active-tasks.md) แล้ว — จะ restore ค่าเดิม หรือ revise (พ่วง pricing strategy)?
+- 🔴 **BACKLOG-009** — `backend/auth.py:249-282` password reset ตอนนี้ return `reset_token` ใน JSON response ตรงๆ (ไม่ส่ง email). ต้องเลือก email service ก่อน wire:
+  - 🟢 **Resend** (แนะนำ) — free 3000/เดือน + reference อยู่ใน `.design-ref/`
+  - 🟡 SendGrid — free 100/วัน
+  - 🟡 Gmail SMTP — ฟรีแต่ deliverability ไม่ดี
+
+**Pipeline state ตอนนี้:** `plan_pending_approval` — v7.2.0 UX Hotfixes (แดงเขียนแผนเสร็จแล้ว ระหว่าง cleanup session) — รอพี่ approve plan ก่อนเขียวเริ่ม build
+
+— Claude (multi-role: แดง+เขียว+ฟ้า cleanup session)
+
+---
+
+## 📂 Archive: เก่ากว่านี้ (เก็บไว้เผื่อ reference)
+
+### 🔵 REVIEW-002 — v7.1.0 Duplicate Detection ✅ APPROVED (2026-05-01)
 
 **From:** ฟ้า (Fah) — นักตรวจสอบ
-**Status:** 🔴 New
-
-### ผลตัดสิน: ✅ APPROVE
+**Status:** ✅ Resolved — merged + deployed (commit `cd114dd` + `0adcaf1` pivot + `6467b3a` review approval)
 
 **สรุป:**
 - Code ตรงตาม plan 100% — ไม่มีอะไรนอก scope
@@ -19,126 +44,19 @@
 - Security: cross-user safety verified (defense-in-depth), XSS กัน, no hardcoded secrets
 - Performance: 10-file batch = 0.23 วินาที
 
-**สิ่งที่พี่ต้องทำ:**
-```bash
-git checkout master
-git merge dedupe-v7.1.0
-git push origin master
-flyctl deploy -a personaldatabank
-```
-
-**Non-blocking items:**
-- `rebrand_smoke_v6.1.0.py` มี 4 version hardcode "7.0.1" → ควร update ให้ dynamic (แต่ไม่ block merge)
+**Non-blocking item (cleanup session ทำให้แล้ว):**
+- ✅ `rebrand_smoke_v6.1.0.py` ใช้ `APP_VERSION` dynamic แล้ว
 
 — ฟ้า (Fah) 🔵
 
 ---
 
-## 🟢 STATUS — 2026-05-01 (เขียว handed BYOS to ฟ้า)
+### 🟢 STATUS — 2026-05-01 (ฟ้า BYOS deploy)
 
-### TL;DR
-- ✅ **v7.1.0 Dedupe**: ฟ้า APPROVED → **รอพี่ merge to master + deploy**
-- ✅ **v6.1.0 Rebrand**: เสร็จ + review_passed → **merged + deployed แล้ว**
-- ✅ **v7.0.0 BYOS**: deployed แล้ว
-- 📊 **Test coverage**: 267/273 tests pass (6 expected fails = test drift)
-- ✅ **v6.1.0 Rebrand**: เสร็จ + review_passed → **รอพี่ merge to master + deploy**
-- 🚧 **v7.0.0 BYOS**: Phase 3/4 done (backend ครบ 100%) → **ฟ้ารับช่วงต่อ Phase 4 frontend**
-- 📊 **Test coverage**: 182/182 in-process tests pass (mock-based)
-
----
-
-## 🔵 v6.1.0 Rebrand — รอพี่ทำต่อ
-
-**Branch:** `rebrand-pdb-v6.1.0` (6 commits, 0 dirty files, NOT pushed)
-
-**Status:** ✅ ฟ้า reviewed + APPROVED + fixed pre-existing version drift
-
-**สิ่งที่พี่ต้องทำ:**
-1. Review final commits: `git log --oneline master..rebrand-pdb-v6.1.0`
-2. Merge to master:
-   ```bash
-   git checkout master
-   git merge rebrand-pdb-v6.1.0
-   git push origin master
-   ```
-3. Deploy:
-   ```bash
-   flyctl deploy
-   ```
-4. Smoke test production:
-   ```bash
-   curl https://project-key.fly.dev/ | grep -o "Personal Data Bank"
-   curl https://project-key.fly.dev/api/mcp/info  # version should be 6.1.0 (after auth)
-   ```
-5. Update `pipeline-state.md` → state: `done` for v6.1.0
-
-**หรือมอบให้ฟ้าทำ** (per parallel mode authority extension): "ฟ้า merge + deploy v6.1.0 ด้วย"
-
----
-
-## 🟢 v7.0.0 BYOS — ฟ้าจะทำต่อ Phase 4
-
-**Branch:** `byos-v7.0.0-foundation` (13 commits ahead of master, parented off rebrand HEAD, NOT pushed)
-
-**ที่เสร็จแล้ว (เขียว build + 182/182 tests):**
-- ✅ Schema migration (storage_mode + drive_connections + files.drive_*)
-- ✅ Backend: drive_layout / drive_oauth / drive_storage / drive_sync / storage_router
-- ✅ 5 endpoints: drive/status, oauth/init, oauth/callback, disconnect, storage-mode
-- ✅ Wired profile.py (push profile.json after DB commit)
-- ✅ Wired OAuth callback (auto-flip storage_mode + init folder layout)
-- ✅ Credentials integrated (in `.env` gitignored — 5 from ฟ้า GCP setup + DRIVE_TOKEN_ENCRYPTION_KEY)
-- ✅ docs/BYOS_SETUP.md admin guide
-- ✅ Verified end-to-end: `is_byos_configured() == True`, Google auth URL valid 541 chars
-
-**ฟ้าจะทำต่อ:**
-- 🚧 Phase 4 Frontend UI (~3-4 ชม.)
-- 🚧 Live OAuth E2E test (browser-based)
-- 🚧 Decide encryption key history option (see Security note below)
-- 🚧 git push + flyctl deploy
-
----
-
-## ⚠️ DECISION ที่พี่ตัดสินใจได้ก่อน push
-
-### Encryption key in git history at commit `d75d5ea`
-
-**Background:** เขียวพลาด commit ค่าจริงของ `DRIVE_TOKEN_ENCRYPTION_KEY` ใน docs/BYOS_SETUP.md (3 occurrences). พบจาก confirmation check + แก้ทันที:
-- Replaced ด้วย placeholder (`58e8b9d`)
-- Rotated .env เป็น key ใหม่
-- Old key still in git history at `d75d5ea`
-
-**Risk = 0 in practice** (branch ยังไม่ push, DB ไม่มี data จริง, old key inert)
-
-**Options before first `git push`:**
-- 🅰️ **Leave history** — push as-is. Old key in history แต่ inert. Simpler.
-- 🅱️ **Rebase amend** `d75d5ea` ก่อน push — clean history, force-push required, rewrite 5 commits ตามมา
-
-**ผมแนะนำ 🅰️** (simpler + no real damage). ฟ้าตัดสินใจตามใจชอบ + พี่ override ได้
-
----
-
-## 📨 จาก ฟ้า
-
-ดู `for-User.md` หน้าใหม่ (ฟ้าจะเขียนมาเมื่อจบ Phase 4)
-
----
-
-## 📨 จาก แดง
-
-แดงมี 1 task รออยู่: revise plan `google-drive-byos.md` (37 brand occurrences "Project KEY" → "Personal Data Bank"). Non-blocking — เขียวเขียนโค้ดใช้ "Personal Data Bank" ตั้งแต่ต้นแล้ว.
-
-ถ้าพี่อยาก trigger แดง → spawn แดง chat ใหม่ + ให้แดงอ่าน MSG-001 ใน inbox/for-แดง.md
-
----
-
-## 📊 Branches summary
-
-```
-master                       (= live production v6.0.0)
-├── rebrand-pdb-v6.1.0       (6 commits — review_passed, ready to merge)
-└── byos-v7.0.0-foundation   (13 commits ahead — parented off rebrand HEAD,
-                              ready for Phase 4 frontend by ฟ้า)
-```
+- ✅ **v7.1.0 Dedupe**: merged + deployed
+- ✅ **v6.1.0 Rebrand**: merged + deployed (+ later domain rename to personaldatabank.fly.dev)
+- ✅ **v7.0.0 BYOS**: deployed + 5 follow-up fixes already on master
+- 📊 **Test coverage**: 267+/273 tests pass (some test drift expected, see fixture cleanup)
 
 ---
 
@@ -148,8 +66,6 @@ master                       (= live production v6.0.0)
 - `prompt-แดง.md` — นักวางแผน (use ถ้าต้องการ plan ใหม่)
 - `prompt-เขียว.md` — นักพัฒนา (use ถ้าต้องการ build feature ใหม่)
 - `prompt-ฟ้า.md` — นักตรวจสอบ (use ถ้าต้องการ review/test/fix)
-
-**Note:** ฟ้าตอนนี้มี extended authority (full dev + push) สำหรับ BYOS — ดู MSG-006 ใน inbox/for-ฟ้า.md
 
 ---
 

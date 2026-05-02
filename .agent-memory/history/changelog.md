@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-05-02 (Claude multi-role cleanup — autonomous "ดำเนินงานด้วยตัว" session)
+
+- 🧹 (Claude) **Memory drift cleanup** — sync pipeline-state.md / active-tasks.md / 4 inboxes / last-session.md ให้ตรงกับ master จริง (lag อยู่ที่ 2026-05-01 — งานทั้งหมด v6.1.0 / v7.0.0 / v7.0.1 / v7.1.0 + frontend split deploy ไปแล้ว)
+- 🧹 (Claude) **Inbox archive** — ย้าย 9 stale MSGs จาก Read/New → Resolved (3 ใน เขียว + 6 ใน ฟ้า — รวมถึง MSG-009 re-review pivot ที่ shipped แล้ว) + รวม section headers ที่ซ้ำกัน
+- 🧪 (Claude) **rebrand_smoke_v6.1.0.py fix** — version dynamic via `APP_VERSION` import (4 จุด) + แก้ stale invariants:
+  - localStorage keys post-d2f92da migration: `projectkey_*` → `pdb_*` (3 keys)
+  - fly.toml volume source: KEEP `project_key_data` (rename = data loss risk)
+  - frontend post-split: test `landing.html` + `app.html` แทน `index.html` (4 sites: 2 GET + stray-brand scan)
+  - **ผลลัพธ์:** 68/76 → **77/77 PASS** ✅
+- 📝 (Claude) **plans/google-drive-byos.md rebrand** — 37 occurrences "Project KEY" → "Personal Data Bank" + `project-key.fly.dev` → `personaldatabank.fly.dev` + KEEP `projectkey.db` + เพิ่ม header note ระบุ status shipped
+- 🗂️ (Claude) **Local branch cleanup** — ลบ 4 merged branches: `rebrand-pdb-v6.1.0`, `byos-v7.0.0-foundation`, `dedupe-v7.1.0`, `backup-pre-fixes-20260428-235745` (verified merged + ancestor of master)
+- 📋 (Claude) **Pre-launch backlog เพิ่ม** — BACKLOG-008 (plan_limits restore — file: backend/plan_limits.py:15-42) + BACKLOG-009 (email service for password reset — file: backend/auth.py:249-282) — รอ user decision ก่อน production launch
+- 🔄 **Note:** ระหว่าง session แดง (อีก process) สร้าง plan v7.2.0 UX Hotfixes → pipeline state เปลี่ยนจาก idle → `plan_pending_approval`
+
+---
+
 ## 2026-05-01 (ฟ้า — BYOS Phase 4 E2E verified + critical fixes)
 
 - 🐛 (ฟ้า) **PKCE fix** — `backend/drive_oauth.py`: Google mandates `code_verifier` since 2025; added S256 challenge generation + storage in state cache + pass on token exchange. **This fixed the 500 error on OAuth callback.**
