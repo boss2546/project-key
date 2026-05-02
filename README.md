@@ -1,15 +1,16 @@
 # 🔑 Personal Data Bank (PDB)
 
-> พื้นที่ข้อมูลส่วนตัวที่ใช้ AI จัดระเบียบ วิเคราะห์ และเชื่อมโยงข้อมูลของคุณ  
-> **Master: v7.1.5** — Dedupe UX (per-file action + 10s undo) + Mobile Responsive (v7.4.0) + UX Hotfixes (v7.2.0/v7.3.0)
+> พื้นที่ข้อมูลส่วนตัวที่ใช้ AI จัดระเบียบ วิเคราะห์ และเชื่อมโยงข้อมูลของคุณ
+> **Master: v7.5.0** — Upload Resilience (image OCR / big file map-reduce / xlsx-pptx-html / encrypted PDF detect / retry) + Mobile Responsive + Dedupe UX
 > **Live: v7.1.0** — Google Drive BYOS + Duplicate Detection — see [docs/BYOS_SETUP.md](docs/BYOS_SETUP.md)
 >
 > Personality Profile (MBTI / Enneagram / CliftonStrengths / VIA) + History + Stripe Billing + Plan Limits + Audit Log
 
 [![Production](https://img.shields.io/badge/Production-personaldatabank.fly.dev-blue)](https://personaldatabank.fly.dev/)
-[![Version](https://img.shields.io/badge/version-7.1.5-green)]()
+[![Version](https://img.shields.io/badge/version-7.5.0-green)]()
 [![MCP Tools](https://img.shields.io/badge/MCP_Tools-30-purple)]()
 [![BYOS](https://img.shields.io/badge/BYOS-deployed_v7.0.1-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-367%2F367_PASS-success)]()
 
 ---
 
@@ -60,10 +61,14 @@ python -m uvicorn backend.main:app --port 8000
 
 หน้าหลักสำหรับจัดการไฟล์ทั้งหมด
 
-**อัปโหลดไฟล์:**
+**อัปโหลดไฟล์ (v7.5.0):**
 - กดปุ่ม **"อัปโหลด"** หรือลากไฟล์วางในพื้นที่
-- รองรับ: PDF, TXT, MD, DOCX
-- ขนาดสูงสุด: 10 MB ต่อไฟล์
+- รองรับ **14 format**: PDF, DOCX, TXT, MD, CSV, **PNG/JPG/JPEG/WEBP** (OCR ไทย+อังกฤษ), **XLSX, PPTX, HTML, JSON, RTF**
+- ขนาดสูงสุด: **200 MB ต่อไฟล์** (testing) / 25 MB (free) / 100 MB (starter)
+- **ไฟล์ใหญ่ (>30K chars)**: ระบบหั่นเป็นชิ้นๆ + วิเคราะห์ครบทุกหน้าด้วย map-reduce (ไม่ตัดเนื้อหาเหมือนเดิม)
+- **ไฟล์ไม่รองรับ**: modal popup บอกเหตุผล + แนะนำวิธีแก้ (เช่น "บันทึกเป็น CSV จาก Excel แล้วลองใหม่")
+- **ไฟล์ extract ไม่สมบูรณ์**: badge บอกสถานะ (📭 ว่างเปล่า / 🔒 ติดรหัส / 🟠 อ่านไม่ออก / 📚 N ส่วน) + ปุ่ม "ลองอ่านใหม่"
+- **HTML XSS protection**: strip `<script>`/`<style>` ก่อนส่งให้ AI
 
 **ดูรายละเอียดไฟล์:**
 - คลิกที่ชื่อไฟล์ → แผงด้านขวาจะแสดง:
@@ -149,18 +154,25 @@ python -m uvicorn backend.main:app --port 8000
 
 | ฟีเจอร์ | รายละเอียด |
 |---------|-----------|
-| 📁 ข้อมูลของฉัน | อัปโหลด จัดการ ดูรายละเอียดไฟล์ (PDF, TXT, MD, DOCX) |
+| 📁 ข้อมูลของฉัน | อัปโหลด จัดการ 14 format (รวม image OCR + xlsx/pptx/html) ขนาดสูงสุด 200MB |
+| 📚 Big File Support **v7.5** | ไฟล์ใหญ่ (>30K chars) → หั่นเป็นชิ้น + map-reduce summary ครบทุกหน้า |
+| 🖼️ Image OCR **v7.5** | PNG/JPG/WEBP — Tesseract ดึงข้อความไทย+อังกฤษอัตโนมัติ |
+| 🔍 Extraction Status **v7.5** | Badge สถานะ extract (encrypted/empty/ocr_failed/partial) + ปุ่ม retry |
+| 🛡️ XSS Protection **v7.5** | HTML upload strip `<script>`/`<style>` ก่อนส่งให้ AI |
+| 🚫 Duplicate Detection **v7.1** | SHA-256 + TF-IDF semantic 80% — popup ให้เลือกเก็บ/ข้าม + undo 10 วิ |
 | 🧠 จัดระเบียบด้วย AI | จัดกลุ่มอัตโนมัติ สร้างสรุป เพิ่ม metadata |
 | 🔗 Knowledge Graph | แสดงกราฟความสัมพันธ์ด้วย D3.js |
 | 💬 AI แชท | ถาม-ตอบอ้างอิงข้อมูลจริง 7 ชั้น (Graph-Aware RAG) |
-| 👤 โปรไฟล์ | ปรับ AI ให้ตรงตามเป้าหมายส่วนตัว |
+| 👤 Personality Profile | MBTI / Enneagram / CliftonStrengths / VIA + History |
 | 📦 Context Packs | สกัดความรู้จากหลายไฟล์เป็น Pack |
-| 🧠 Context Memory | **ระบบจำบริบทข้ามแพลตฟอร์ม** — Smart Merge, Auto-Archive, Pin สำคัญ |
+| 🧠 Context Memory | ระบบจำบริบทข้ามแพลตฟอร์ม — Smart Merge, Auto-Archive, Pin |
 | 🔌 MCP Connector | เชื่อมต่อ Claude / Antigravity ด้วย 30 เครื่องมือ + File Sharing |
+| ☁️ Google Drive BYOS **v7.0** | เก็บข้อมูลใน Drive ของตัวเอง (transparent JSON+MD) |
+| 💳 Stripe Billing | Free / Starter (฿99/เดือน) — Checkout + Customer Portal |
+| 📱 Mobile Responsive **v7.4** | Touch targets 44px / FAB / card view / kebab dropdown |
 | 🔐 ระบบสิทธิ์ | เปิด/ปิดเครื่องมือ MCP + รหัสผ่าน Admin |
-| 👥 Multi-User | สมัคร/ล็อกอิน + ข้อมูลแยกรายบุคคล |
-| 🔄 LLM Text Cleanup | แก้ข้อความ PDF ที่เพี้ยนด้วย AI อัตโนมัติ |
-| 🌐 สองภาษา | ไทย/อังกฤษ สลับได้ทันที |
+| 👥 Multi-User | สมัคร/ล็อกอิน JWT + ข้อมูลแยกรายบุคคล + plan_limits gates |
+| 🌐 สองภาษา | ไทย/อังกฤษ สลับได้ทันที (200+ keys) |
 
 ---
 
@@ -367,6 +379,16 @@ flyctl deploy
 | **v5.5.1** | **Smart Organize — ปุ่มจัดระเบียบทั้งหมด/ไฟล์ใหม่ + badge จำนวนไฟล์รอ, i18n ไทย 100%** |
 | **v5.6** | **In-App Guide — คู่มือในเว็บ 3 แท็บ (วิธีใช้/เชื่อมต่อ/ตัวอย่าง)** |
 | **v5.7** | **Simple Guide — ลดความซับซ้อน เป็นข้อความ+รูปจริง, ChatGPT MCP เชื่อมต่อได้แล้ว, รูป Screenshot จริง** |
+| **v5.9** | **Stripe Billing + Plan Limits — Free vs Starter ฿99/เดือน, Customer Portal, audit log** |
+| **v6.0** | **Personality Profile — MBTI / Enneagram / CliftonStrengths / VIA + History timeline** |
+| **v6.1** | **Rebrand "Project KEY" → "Personal Data Bank" + domain personaldatabank.fly.dev** |
+| **v7.0** | **Google Drive BYOS — เก็บข้อมูลใน Drive ของตัวเอง (transparent JSON+MD), bidirectional sync** |
+| **v7.1** | **Duplicate Detection on organize — SHA-256 + TF-IDF semantic 80% + skip popup** |
+| **v7.1.5** | **Dedupe UX — per-file radio + quick keep/skip all + undo toast 10s + research-backed wording** |
+| **v7.2** | **UX Hotfixes — button loading / upload progress / error toast / typing indicator / modal ESC+backdrop** |
+| **v7.3** | **UX Edge-Cases — mobile sidebar / form validation / z-index hierarchy** |
+| **v7.4** | **SaaS Responsive — touch targets 44px / Page FAB / file card view / context kebab** |
+| **v7.5** | **Upload Resilience — image OCR (png/jpg) / big-file map-reduce / xlsx/pptx/html/json/rtf / encrypted PDF detect / retry button / structured skip schema + per-file modal / 200MB limit / 367/367 tests** |
 
 ---
 
@@ -385,8 +407,14 @@ flyctl deploy
 - แล้วกด **สร้างกราฟ** ที่หน้ากราฟ
 
 ### อัปโหลดไฟล์ไม่ได้
-- ตรวจสอบขนาดไฟล์ (สูงสุด 10 MB)
-- รองรับเฉพาะ: `.pdf`, `.txt`, `.md`, `.docx`
+- ตรวจสอบขนาดไฟล์ (สูงสุด **200 MB**)
+- รองรับ 14 format: `.pdf`, `.docx`, `.txt`, `.md`, `.csv`, `.png/.jpg/.jpeg/.webp` (OCR), `.xlsx`, `.pptx`, `.html`, `.json`, `.rtf`
+- ถ้าเจอ modal "ไฟล์ไม่รองรับ" — อ่าน suggestion ที่ระบบแนะนำ (เช่น `.heic` → แปลงเป็น `.jpg` ก่อน, `.doc` → save as `.docx`)
+- ไฟล์ PDF ติดรหัสผ่าน → ปลดล็อกก่อน upload ใหม่ (ระบบจะแสดง 🔒 badge ถ้าตรวจเจอ)
+
+### ไฟล์ extract ไม่สมบูรณ์ (v7.5)
+- ดูที่ badge บนการ์ดไฟล์: 📭 ว่างเปล่า / 🔒 ติดรหัส / 🟠 อ่านไม่ออก / 📚 N ส่วน / ⚠️ บางส่วนถูกตัด
+- กดปุ่ม **"ลองอ่านใหม่"** (desktop) หรือ ⋮ → "ลองอ่านใหม่" (mobile)
 
 ### เชื่อมต่อ MCP ไม่ได้ (Antigravity)
 - ต้องใช้ `mcp-remote` bridge — ดูตัวอย่างในหน้า MCP Settings
