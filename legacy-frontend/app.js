@@ -1502,6 +1502,8 @@ async function deleteFile(id) {
 let _fdBackdrop = null;
 
 async function openFileDetail(fileId) {
+ // Guard: ป้องกัน undefined/null id (double-call จาก event bubbling)
+ if (!fileId || fileId === 'undefined') return;
  const panel = document.getElementById('file-detail-panel');
  _currentFileId = fileId;
 
