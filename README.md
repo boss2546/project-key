@@ -1,15 +1,15 @@
 # 🔑 Personal Data Bank (PDB)
 
 > พื้นที่ข้อมูลส่วนตัวที่ใช้ AI จัดระเบียบ วิเคราะห์ และเชื่อมโยงข้อมูลของคุณ  
-> **Live: v6.1.0** — Brand refresh: Personal Data Bank → Personal Data Bank (PDB)
-> **In dev: v7.0.0** — Google Drive BYOS (Bring Your Own Storage) — see [docs/BYOS_SETUP.md](docs/BYOS_SETUP.md)
+> **Master: v7.1.5** — Dedupe UX (per-file action + 10s undo) + Mobile Responsive (v7.4.0) + UX Hotfixes (v7.2.0/v7.3.0)
+> **Live: v7.1.0** — Google Drive BYOS + Duplicate Detection — see [docs/BYOS_SETUP.md](docs/BYOS_SETUP.md)
 >
 > Personality Profile (MBTI / Enneagram / CliftonStrengths / VIA) + History + Stripe Billing + Plan Limits + Audit Log
 
-[![Production](https://img.shields.io/badge/Production-project--key.fly.dev-blue)](https://personaldatabank.fly.dev/)
-[![Version](https://img.shields.io/badge/version-6.1.0-green)]()
+[![Production](https://img.shields.io/badge/Production-personaldatabank.fly.dev-blue)](https://personaldatabank.fly.dev/)
+[![Version](https://img.shields.io/badge/version-7.1.5-green)]()
 [![MCP Tools](https://img.shields.io/badge/MCP_Tools-30-purple)]()
-[![BYOS](https://img.shields.io/badge/BYOS-Phase_3_complete-orange)]()
+[![BYOS](https://img.shields.io/badge/BYOS-deployed_v7.0.1-brightgreen)]()
 
 ---
 
