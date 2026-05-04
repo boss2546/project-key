@@ -58,9 +58,11 @@ TOOL_REGISTRY = {
     },
     "get_file_link": {
         "name": "get_file_link",
-        "description": "Get a temporary public download URL for a file. The URL is valid for 30 minutes and requires no authentication. Use this when you need to access the original file (PDF, DOCX, etc.) directly.",
+        "description": "Get a temporary public download URL for a file. The URL is valid for 30 minutes by default (configurable up to 60 minutes via ttl_minutes) and requires no authentication. Returns the signed URL — share with anyone, anywhere.",
         "params": [
             {"name": "file_id", "type": "string", "required": True},
+            {"name": "ttl_minutes", "type": "integer", "required": False, "default": 30,
+             "description": "URL validity in minutes. Min 5, max 60. Default 30."},
         ],
         "category": "read",
         "annotations": {"title": "Get Download Link", "readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
@@ -359,7 +361,7 @@ async def call_tool(
         elif tool_name == "get_file_content":
             result = await _tool_get_file_content(db, user_id, params.get("file_id"), params.get("offset", 0), params.get("limit", 5000))
         elif tool_name == "get_file_link":
-            result = await _tool_get_file_link(db, user_id, params.get("file_id"))
+            result = await _tool_get_file_link(db, user_id, params.get("file_id"), params.get("ttl_minutes", 30))
         elif tool_name == "get_file_summary":
             result = await _tool_get_file_summary(db, user_id, params.get("file_id"))
         elif tool_name == "list_collections":
@@ -599,31 +601,50 @@ async def _tool_get_file_content(db: AsyncSession, user_id: str, file_id: str, o
     }
 
 
-async def _tool_get_file_link(db: AsyncSession, user_id: str, file_id: str) -> dict:
-    """Generate a temporary public download URL for a file."""
+async def _tool_get_file_link(
+    db: AsyncSession, user_id: str, file_id: str, ttl_minutes: int = 30
+) -> dict:
+    """Generate a JWT-signed temporary download URL for a file (v7.6.0).
+
+    ใช้ universal signed URL (`/d/{token}`) ที่ stateless — ไม่ต้องเก็บ in-memory
+    ต่างจาก legacy shared_links pattern. รองรับ BYOS (Drive) อัตโนมัติผ่าน
+    storage_router.fetch_file_bytes() ใน endpoint side.
+    """
+    from datetime import datetime, timedelta, timezone
+    from .signed_urls import sign_download_token
+    from .config import APP_BASE_URL
+
     if not file_id:
         raise ValueError("file_id is required")
+
+    # Clamp ttl_minutes 5-60 (= 300-3600 seconds in signed_urls range)
+    try:
+        ttl_minutes = int(ttl_minutes)
+    except (TypeError, ValueError):
+        ttl_minutes = 30
+    if ttl_minutes < 5:
+        ttl_minutes = 5
+    elif ttl_minutes > 60:
+        ttl_minutes = 60
 
     result = await db.execute(
         select(File).where(File.id == file_id, File.user_id == user_id)
     )
     file = result.scalar_one_or_none()
     if not file:
-        return {"error": "File not found"}
+        return {"error": {"code": "NOT_FOUND", "message": "ไม่พบไฟล์"}}
 
-    if not file.raw_path or not os.path.exists(file.raw_path):
-        return {"error": "Original file not available on server"}
-
-    # Generate signed temporary link
-    from .shared_links import generate_share_token, build_share_url
-    token = generate_share_token(file.id, user_id, file.filename)
-    url = build_share_url(token)
+    ttl_seconds = ttl_minutes * 60
+    token = sign_download_token(file.id, user_id, ttl_seconds=ttl_seconds)
+    url = f"{APP_BASE_URL.rstrip('/')}/d/{token}"
+    expires_at = (datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds)).isoformat()
 
     return {
         "filename": file.filename,
         "filetype": file.filetype,
-        "download_url": url,
-        "expires_in": "30 minutes",
+        "url": url,
+        "expires_at": expires_at,
+        "ttl_minutes": ttl_minutes,
         "note": "This URL can be accessed directly without authentication. Use it to download or view the original file.",
     }
 

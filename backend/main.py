@@ -7,7 +7,7 @@ from datetime import datetime
 
 from fastapi import FastAPI, UploadFile, File as FastAPIFile, Depends, HTTPException, BackgroundTasks, Query, Header, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import select
@@ -879,6 +879,90 @@ async def download_shared_file(token: str, db: AsyncSession = Depends(get_db)):
         path=file.raw_path,
         filename=file.filename,
         media_type=media_type,
+    )
+
+
+# ─── v7.6.0 — Universal Signed Download URLs ───
+# Stateless JWT-signed download endpoint — replaces in-memory shared_links pattern.
+# ใช้กับ MCP get_file_link, future LINE/Telegram bot file delivery, web sharing.
+# BYOS-aware: route ผ่าน storage_router.fetch_file_bytes() อัตโนมัติ
+@app.get("/d/{token}")
+async def signed_download(token: str, db: AsyncSession = Depends(get_db)):
+    """Universal signed download endpoint — JWT-verified, BYOS-aware.
+
+    Errors:
+        401 INVALID_TOKEN — JWT decode fail / wrong scope / missing fields
+        403 WRONG_USER — file.user_id ≠ token.user_id (cross-user attack)
+        404 FILE_NOT_FOUND — file deleted after token signed
+        410 LINK_EXPIRED — exp passed
+        503 STORAGE_UNAVAILABLE — BYOS Drive read fail
+    """
+    from .signed_urls import verify_download_token, DownloadTokenError
+    from .storage_router import fetch_file_bytes
+
+    try:
+        payload = verify_download_token(token)
+    except DownloadTokenError as e:
+        if e.code == "LINK_EXPIRED":
+            raise HTTPException(
+                status_code=410,
+                detail={"error": {"code": e.code, "message": e.message}},
+            )
+        # INVALID_TOKEN
+        raise HTTPException(
+            status_code=401,
+            detail={"error": {"code": e.code, "message": e.message}},
+        )
+
+    file_id = payload["file_id"]
+    user_id = payload["user_id"]
+
+    result = await db.execute(select(File).where(File.id == file_id))
+    file = result.scalar_one_or_none()
+    if not file:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": {"code": "FILE_NOT_FOUND", "message": "ไม่พบไฟล์"}},
+        )
+
+    # Cross-user check — token user must match file owner
+    if file.user_id != user_id:
+        raise HTTPException(
+            status_code=403,
+            detail={"error": {"code": "WRONG_USER", "message": "ไม่มีสิทธิ์เข้าถึงไฟล์นี้"}},
+        )
+
+    # Read bytes — storage_router auto-routes managed (disk) vs BYOS (Drive)
+    try:
+        content = await fetch_file_bytes(file, db)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": {"code": "FILE_NOT_FOUND", "message": "ไฟล์หายจาก storage"}},
+        )
+    except Exception as e:
+        logger.error(f"Storage read failed for /d/ file={file_id}: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail={"error": {"code": "STORAGE_UNAVAILABLE", "message": "ดาวน์โหลดไม่สำเร็จ"}},
+        )
+
+    media_types = {
+        "pdf": "application/pdf",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "txt": "text/plain; charset=utf-8",
+        "md": "text/markdown; charset=utf-8",
+    }
+    media_type = media_types.get(file.filetype, "application/octet-stream")
+
+    # Cache-Control: private, no-store — กัน CDN cache user files
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{file.filename}"',
+            "Cache-Control": "private, no-store",
+        },
     )
 
 
