@@ -224,69 +224,54 @@ def test_sr1_search_empty_query():
 
 
 def test_sr2_search_no_results():
+    """v8.0.6: SEARCH now routes to chat engine; with no data the engine
+    returns the no-data prompt ("ยังไม่มีข้อมูล / กรุณาอัปโหลด ...")"""
     from backend.bot_handlers import handle_text_intent
 
     user_id = "test_g_sr2"
     _create_test_user(user_id, "g_sr2@test.local")
     try:
-        # User has no files → empty results
+        # User has no files → chat_with_retrieval short-circuits
         msgs = asyncio.run(handle_text_intent(user_id, "หาไฟล์ unicorn"))
         assert len(msgs) == 1
-        # Either text "ไม่พบ" or empty Flex card
         text = msgs[0].text or ""
         flex_alt = (msgs[0].flex or {}).get("altText", "")
-        assert "ไม่พบ" in text or "ไม่พบ" in flex_alt
+        # Accept either the new chat-engine no-data message or the old "ไม่พบ"
+        assert (
+            "ไม่พบ" in text or "ไม่พบ" in flex_alt
+            or "ยังไม่มีข้อมูล" in text or "อัปโหลด" in text
+        )
     finally:
         _cleanup_user(user_id)
 
 
-def test_sr3_search_with_results():
+def test_sr3_search_routes_to_chat_engine():
+    """v8.0.6: SEARCH with non-empty query → uses chat_with_retrieval (web RAG).
+
+    Was: returned a Flex carousel of raw vector hits with "Match: 0".
+    Now: same engine as the web app — AI synthesizes an answer + cites files.
+    """
     from backend.bot_handlers import handle_text_intent
-    from backend.database import AsyncSessionLocal, File, gen_id
-    from sqlalchemy import delete
 
-    user_id = "test_g_sr3"
-    _create_test_user(user_id, "g_sr3@test.local")
+    captured_args = {}
 
-    async def setup_files():
-        async with AsyncSessionLocal() as db:
-            db.add(File(
-                id=gen_id(),
-                user_id=user_id,
-                filename="ai_paper.pdf",
-                filetype="pdf",
-                raw_path="/tmp/ai_paper.pdf",
-                extracted_text="machine learning artificial intelligence neural networks transformer",
-                processing_status="ready",
-            ))
-            await db.commit()
-    asyncio.run(setup_files())
+    async def fake_chat(db, user_id, question):
+        captured_args["user_id"] = user_id
+        captured_args["question"] = question
+        return {
+            "answer": "พบเอกสารเกี่ยวกับ AI/ML 2 ฉบับในตู้ของคุณ",
+            "files_used": [],
+        }
 
-    # Mock vector_search.hybrid_search to return our test file
-    fake_results = [
-        {"file_id": "fake", "chunk_index": 0, "text": "AI snippet", "relevance": 0.9, "semantic_score": 0.9}
-    ]
+    with patch("backend.retriever.chat_with_retrieval", side_effect=fake_chat):
+        msgs = asyncio.run(handle_text_intent("any_user", "หาไฟล์ AI"))
 
-    try:
-        # Inject fake result that matches our file
-        async def setup_real_id():
-            async with AsyncSessionLocal() as db:
-                from sqlalchemy import select
-                row = (await db.execute(
-                    select(File).where(File.user_id == user_id)
-                )).scalar_one()
-                return row.id
-        real_file_id = asyncio.run(setup_real_id())
-        fake_results[0]["file_id"] = real_file_id
-
-        with patch("backend.vector_search.hybrid_search", return_value=fake_results):
-            msgs = asyncio.run(handle_text_intent(user_id, "หาไฟล์ AI"))
-
-        assert len(msgs) == 1
-        assert msgs[0].flex is not None
-        assert msgs[0].flex["contents"]["type"] == "carousel"
-    finally:
-        _cleanup_user(user_id)
+    assert len(msgs) == 1
+    # Plain text answer, NOT a carousel
+    assert msgs[0].text and "AI" in msgs[0].text
+    # Confirm routing: query stripped of "หาไฟล์ " prefix
+    assert captured_args["question"].strip() == "AI"
+    assert captured_args["user_id"] == "any_user"
 
 
 # ═══════════════════════════════════════════

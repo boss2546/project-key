@@ -131,7 +131,10 @@ async def handle_text_intent(pdb_user_id: str, text: str) -> list[BotMessage]:
     if intent == Intent.SEARCH:
         if not query:
             return [BotMessage(text="คำค้นว่างเปล่า — ลอง 'หาไฟล์เรื่อง AI' หรือ 'ค้นหา machine learning'")]
-        return await _handle_search(pdb_user_id, query)
+        # v8.0.6 — Search uses the same RAG engine as the web app chat:
+        # AI synthesizes an answer + lists referenced files (instead of dumping
+        # raw vector hits with "Match: 0" which confused users).
+        return await _handle_chat(pdb_user_id, query)
     if intent == Intent.GET_FILE:
         if not query:
             return [BotMessage(text="กรุณาระบุชื่อไฟล์ — เช่น 'ขอไฟล์ thesis.pdf'")]
