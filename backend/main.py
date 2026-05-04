@@ -214,11 +214,13 @@ async def api_google_login_callback(
     # Exchange + verify ID token
     try:
         result = await google_login.handle_google_callback(code, state)
-    except ValueError:
-        # Invalid / expired state
+    except ValueError as e:
+        # Invalid / expired state CSRF token
+        logger.warning("Google callback invalid_state: %s", e)
         return RedirectResponse("/?google_error=invalid_state", status_code=302)
-    except RuntimeError:
-        # Token exchange fail / ID token verify fail
+    except RuntimeError as e:
+        # Token exchange fail / ID token verify fail (signature/audience/clock)
+        logger.error("Google callback invalid_id_token: %s", e)
         return RedirectResponse("/?google_error=invalid_id_token", status_code=302)
     except Exception as e:
         logger.exception("Google callback unexpected error: %s", e)

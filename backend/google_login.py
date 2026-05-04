@@ -23,9 +23,17 @@ from __future__ import annotations
 import base64
 import hashlib
 import logging
+import os
 import secrets
 import time
 from typing import Optional, TypedDict
+
+# ⚠️ Google มักคืน scope aliases ('email', 'profile') เพิ่มจากที่เราขอ
+# (https://www.googleapis.com/auth/userinfo.email + alias 'email' = ซ้ำ).
+# oauthlib โดย default raise Warning ถ้า scope returned ≠ requested.
+# Set env var ก่อน import flow.fetch_token เพื่อ relax check นี้.
+# Reference: https://github.com/googleapis/google-auth-library-python-oauthlib/issues/123
+os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
 
 from .config import (
     GOOGLE_LOGIN_REDIRECT_URI,
@@ -156,11 +164,18 @@ def _verify_id_token(id_token_jwt: str) -> dict:
             id_token_jwt,
             GoogleRequest(),
             audience=GOOGLE_OAUTH_CLIENT_ID,
-            clock_skew_in_seconds=10,  # ช่วยกัน clock drift ระหว่าง server กับ Google
+            # 60 วินาที = ทนต่อ clock drift ของเครื่อง user (Windows มัก drift 10-30s
+            # ถ้าไม่ได้ sync NTP). 60s ปลอดภัยเพราะ ID token มีอายุ 1 ชม. = drift ≤ 1.7%.
+            clock_skew_in_seconds=60,
         )
     except ValueError as e:
         # google-auth raise ValueError ทุกกรณี verify fail (signature/audience/expiry)
+        logger.error("verify_oauth2_token ValueError: %s | audience=%s | token preview=%s...",
+                     e, GOOGLE_OAUTH_CLIENT_ID[:30], id_token_jwt[:50])
         raise RuntimeError(f"Google ID token verification failed: {e}") from e
+    except Exception as e:
+        logger.exception("verify_oauth2_token unexpected error: %s", e)
+        raise RuntimeError(f"Google ID token verification failed (unexpected): {e}") from e
 
     # ตรวจ issuer ซ้ำ (verify_oauth2_token ตรวจให้แล้ว แต่ defensive)
     iss = idinfo.get("iss")
