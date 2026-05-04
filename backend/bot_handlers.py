@@ -418,8 +418,58 @@ async def _handle_get_file(pdb_user_id: str, filename_hint: str) -> list[BotMess
     return [BotMessage(flex=flex)]
 
 
+_MARKDOWN_BOLD = re.compile(r"\*\*([^*]+?)\*\*")
+_MARKDOWN_ITALIC_STAR = re.compile(r"(?<!\*)\*([^*\n]+?)\*(?!\*)")
+_MARKDOWN_ITALIC_UND = re.compile(r"(?<!_)_([^_\n]+?)_(?!_)")
+_MARKDOWN_CODE_BLOCK = re.compile(r"```[a-zA-Z]*\n?([\s\S]*?)```")
+_MARKDOWN_INLINE_CODE = re.compile(r"`([^`\n]+?)`")
+_MARKDOWN_HEADING = re.compile(r"^#{1,6}\s+", flags=re.MULTILINE)
+_MARKDOWN_LINK = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
+_MARKDOWN_BULLET = re.compile(r"^\s*[-*]\s+", flags=re.MULTILINE)
+
+
+def strip_markdown(text: str) -> str:
+    """Remove common markdown so LINE shows plain readable text.
+
+    LINE Messaging API ไม่ render markdown — ปล่อยตรงๆ จะเห็น **bold** / *em* ดิบๆ
+    """
+    if not text:
+        return text
+    text = _MARKDOWN_CODE_BLOCK.sub(r"\1", text)
+    text = _MARKDOWN_INLINE_CODE.sub(r"\1", text)
+    text = _MARKDOWN_BOLD.sub(r"\1", text)
+    text = _MARKDOWN_ITALIC_STAR.sub(r"\1", text)
+    text = _MARKDOWN_ITALIC_UND.sub(r"\1", text)
+    text = _MARKDOWN_LINK.sub(r"\1 (\2)", text)
+    text = _MARKDOWN_HEADING.sub("", text)
+    text = _MARKDOWN_BULLET.sub("• ", text)
+    return text.strip()
+
+
+_FILETYPE_ICON = {
+    "pdf": "📄", "docx": "📄", "doc": "📄", "txt": "📝", "md": "📝",
+    "csv": "📊", "xlsx": "📊", "xls": "📊",
+    "pptx": "📑", "ppt": "📑",
+    "png": "🖼", "jpg": "🖼", "jpeg": "🖼", "webp": "🖼",
+    "html": "🌐", "json": "🧾", "rtf": "📝",
+}
+
+
+def _file_icon(filetype: str) -> str:
+    return _FILETYPE_ICON.get((filetype or "").lower(), "📁")
+
+
 async def _handle_chat(pdb_user_id: str, question: str) -> list[BotMessage]:
-    """RAG chat — call retriever.chat_with_retrieval."""
+    """RAG chat — call retriever.chat_with_retrieval (same engine as web app).
+
+    Output format (plain text, no markdown):
+      <answer>
+
+      📁 อ้างอิงจาก N ไฟล์:
+      • <icon> <filename>
+        <one-liner หรือ snippet>
+      • ...
+    """
     from .retriever import chat_with_retrieval
 
     async with AsyncSessionLocal() as db:
@@ -427,24 +477,71 @@ async def _handle_chat(pdb_user_id: str, question: str) -> list[BotMessage]:
             result = await chat_with_retrieval(db, pdb_user_id, question)
         except Exception as e:
             logger.exception("chat_with_retrieval failed: %s", e)
-            return [BotMessage(text=f"ตอบไม่สำเร็จ — ลองใหม่อีกครั้ง")]
+            return [BotMessage(text="ตอบไม่สำเร็จ — ลองใหม่อีกครั้ง")]
 
-    answer = result.get("answer", "").strip()
+    answer = strip_markdown((result.get("answer") or "").strip())
     if not answer:
         return [BotMessage(text="ผมยังไม่มีข้อมูลพอที่จะตอบ ลองอัปโหลดไฟล์ที่เกี่ยวข้องก่อน")]
 
-    # Truncate to LINE max (5000 chars)
-    if len(answer) > 4500:
-        answer = answer[:4500] + "...\n[ตัด — เปิดเว็บเพื่อดูเต็ม]"
+    files_used = result.get("files_used") or []
 
-    sources = result.get("sources", []) or []
+    # Hydrate filename + insight.one_liner / summary for each cited file
+    file_blocks: list[str] = []
+    by_id: dict = {}
+    if files_used:
+        file_ids = [f.get("id") for f in files_used if f.get("id")]
+        async with AsyncSessionLocal() as db:
+            from sqlalchemy.orm import selectinload
+            rows = (await db.execute(
+                select(File)
+                .where(File.id.in_(file_ids), File.user_id == pdb_user_id)
+                .options(selectinload(File.insight), selectinload(File.summary))
+            )).scalars().all()
+            by_id = {row.id: row for row in rows}
+
+        for f in files_used:
+            row = by_id.get(f.get("id"))
+            if not row:
+                continue
+            icon = _file_icon(row.filetype)
+            # Detail: prefer insight.why_important > summary.summary_text > excerpt
+            detail = ""
+            if row.insight and (row.insight.why_important or "").strip():
+                detail = row.insight.why_important
+            elif row.summary and (row.summary.summary_text or "").strip():
+                detail = row.summary.summary_text
+            elif row.extracted_text:
+                detail = row.extracted_text
+            detail = strip_markdown(detail or "").replace("\n", " ").strip()
+            if len(detail) > 140:
+                detail = detail[:137] + "..."
+
+            block = f"• {icon} {row.filename}"
+            if detail:
+                block += f"\n  {detail}"
+            file_blocks.append(block)
+
+    # Compose final text
+    parts = [answer]
+    if file_blocks:
+        parts.append("")
+        parts.append(f"📁 อ้างอิงจาก {len(file_blocks)} ไฟล์:")
+        parts.extend(file_blocks)
+
+    final_text = "\n".join(parts)
+
+    # Truncate to LINE max (5000 chars; leave headroom)
+    if len(final_text) > 4500:
+        final_text = final_text[:4500] + "...\n[ข้อความถูกตัด — เปิดเว็บเพื่อดูเต็ม]"
+
     quick_reply = []
-    if sources:
-        # Show 1-2 source filenames as quick reply chips
-        for s in sources[:2]:
-            fname = (s.get("filename") or "")[:20]
-            if fname:
-                quick_reply.append({"label": f"📄 {fname}", "text": f"ขอไฟล์ {fname}"})
+    # Add up to 2 file shortcuts as Quick Reply chips
+    for f in files_used[:2]:
+        row = by_id.get(f.get("id"))
+        if row:
+            short = (row.filename or "")[:18]
+            if short:
+                quick_reply.append({"label": f"📄 {short}", "text": f"ขอไฟล์ {row.filename}"})
     quick_reply.append({"label": "🌐 เปิดเว็บ", "text": "เปิดเว็บ"})
 
-    return [BotMessage(text=answer, quick_reply=quick_reply)]
+    return [BotMessage(text=final_text, quick_reply=quick_reply)]

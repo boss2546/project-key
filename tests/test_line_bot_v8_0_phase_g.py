@@ -425,6 +425,108 @@ def test_ch3_chat_truncates_long_answer():
 
 
 # ═══════════════════════════════════════════
+# MD — strip_markdown + chat formatting (5 cases)
+# ═══════════════════════════════════════════
+
+def test_md1_strip_bold():
+    from backend.bot_handlers import strip_markdown
+    assert strip_markdown("hello **bold** world") == "hello bold world"
+
+
+def test_md2_strip_italic_and_heading():
+    from backend.bot_handlers import strip_markdown
+    out = strip_markdown("# Title\n*em* and _und_ text")
+    assert "#" not in out
+    assert "Title" in out
+    assert "em" in out
+    assert "und" in out
+    assert "*" not in out
+    assert "_" not in out
+
+
+def test_md3_strip_code_and_links():
+    from backend.bot_handlers import strip_markdown
+    out = strip_markdown("see `code` and [PDB](https://pdb.fly.dev) too")
+    assert "code" in out
+    assert "`" not in out
+    assert "PDB" in out
+    assert "https://pdb.fly.dev" in out
+    assert "[" not in out
+
+
+def test_md4_chat_strips_markdown_in_answer():
+    """Chat output should be plain text — no asterisks visible to user"""
+    from backend.bot_handlers import handle_text_intent
+
+    async def fake_chat(db, user_id, question):
+        return {
+            "answer": "เรื่อง **AI** มีข้อมูลใน *project* ของคุณครับ",
+            "files_used": [],
+        }
+
+    with patch("backend.retriever.chat_with_retrieval", side_effect=fake_chat):
+        msgs = asyncio.run(handle_text_intent("any_user", "AI"))
+    text = msgs[0].text
+    assert "AI" in text
+    assert "**" not in text
+    # Single asterisks for italic should also be gone
+    assert "*AI*" not in text and "*project*" not in text
+
+
+def test_md5_chat_appends_file_references():
+    """Chat answer should be followed by file list with details"""
+    from backend.bot_handlers import handle_text_intent
+    from backend.database import AsyncSessionLocal, User, File, FileInsight, gen_id
+    from sqlalchemy import select, delete
+
+    user_id = "test_md5_user"
+    file_id = gen_id()
+
+    async def setup():
+        async with AsyncSessionLocal() as db:
+            if not (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none():
+                db.add(User(id=user_id, name="MD5", email="md5@test.local"))
+            await db.commit()
+            db.add(File(
+                id=file_id, user_id=user_id, filename="research.pdf",
+                filetype="pdf", raw_path="/tmp/r.pdf",
+                extracted_text="abstract about transformers",
+                processing_status="ready",
+            ))
+            await db.commit()
+            db.add(FileInsight(
+                file_id=file_id,
+                importance_label="high",
+                why_important="งานวิจัยหลักด้าน transformer attention",
+            ))
+            await db.commit()
+    asyncio.run(setup())
+
+    async def fake_chat(db, uid, q):
+        return {
+            "answer": "Transformer ใช้ self-attention",
+            "files_used": [{"id": file_id, "filename": "research.pdf", "filetype": "pdf"}],
+        }
+
+    try:
+        with patch("backend.retriever.chat_with_retrieval", side_effect=fake_chat):
+            msgs = asyncio.run(handle_text_intent(user_id, "transformer คืออะไร"))
+        text = msgs[0].text
+        assert "Transformer" in text
+        assert "research.pdf" in text
+        assert "อ้างอิงจาก" in text
+        assert "transformer attention" in text  # detail line from why_important
+    finally:
+        async def cleanup():
+            async with AsyncSessionLocal() as db:
+                await db.execute(delete(FileInsight).where(FileInsight.file_id == file_id))
+                await db.execute(delete(File).where(File.id == file_id))
+                await db.execute(delete(User).where(User.id == user_id))
+                await db.commit()
+        asyncio.run(cleanup())
+
+
+# ═══════════════════════════════════════════
 # WIRE — _handle_text_message uses bot_handlers (3 cases)
 # ═══════════════════════════════════════════
 
