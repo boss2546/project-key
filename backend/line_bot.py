@@ -73,7 +73,7 @@ async def handle_line_event(event: dict) -> None:
         "unfollow": _handle_unfollow,
         "message": _handle_message,
         "accountLink": _handle_account_link,
-        "postback": _handle_postback_placeholder,
+        "postback": _handle_postback,
         "memberJoined": _ignore,
         "memberLeft": _ignore,
         "join": _handle_group_join,
@@ -546,9 +546,54 @@ async def _handle_unfollow(event: dict) -> None:
             logger.info("_handle_unfollow: soft-unlinked %s", line_user_id)
 
 
-async def _handle_postback_placeholder(event: dict) -> None:
-    """Phase I placeholder — Rich Menu postback handlers."""
-    logger.info("postback (placeholder): data=%s", event.get("postback", {}).get("data"))
+async def _handle_postback(event: dict) -> None:
+    """Phase F/I — Handle Postback events (Quick Reply or Rich Menu)."""
+    from urllib.parse import parse_qsl
+    from .bot_adapters import get_line_adapter, BotMessage
+    
+    data = event.get("postback", {}).get("data", "")
+    reply_token = event.get("replyToken")
+    line_user_id = event.get("source", {}).get("userId")
+    if not data or not line_user_id:
+        return
+
+    logger.info("postback: data=%s", data[:50])
+    parsed = dict(parse_qsl(data))
+    action = parsed.get("action")
+
+    # Find the linked user
+    async with AsyncSessionLocal() as db:
+        row = (await db.execute(
+            select(LineUser).where(LineUser.line_user_id == line_user_id)
+        )).scalar_one_or_none()
+    
+    if not row or not row.pdb_user_id:
+        await _reply_not_linked(reply_token)
+        return
+
+    if action == "upload_url":
+        url = parsed.get("url")
+        if not url:
+            return
+            
+        adapter = get_line_adapter()
+        if adapter:
+            # show typing indicator
+            try:
+                await adapter.show_typing(line_user_id, duration_sec=15)
+            except Exception:
+                pass
+                
+        from .bot_handlers import handle_url_upload
+        messages = await handle_url_upload(row.pdb_user_id, url)
+        
+        if adapter and messages:
+            if reply_token:
+                await adapter.reply_message(reply_token, messages[0])
+            else:
+                await adapter.send_message(line_user_id, messages[0])
+    else:
+        logger.info("Unknown postback action: %s", action)
 
 
 async def _handle_group_join(event: dict) -> None:

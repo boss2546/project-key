@@ -135,6 +135,44 @@ def test_it10_empty_text():
     assert q == ""
 
 
+def test_it11_url_detected():
+    """URL in text → URL_UPLOAD intent (added by parallel agent)"""
+    from backend.bot_handlers import detect_intent, Intent
+    intent, q = detect_intent("เก็บไฟล์นี้ https://arxiv.org/pdf/2401.00001.pdf")
+    assert intent == Intent.URL_UPLOAD
+    assert q == "https://arxiv.org/pdf/2401.00001.pdf"
+
+
+def test_it12_url_priority_over_search():
+    """URL takes priority even if 'หา' keyword present"""
+    from backend.bot_handlers import detect_intent, Intent
+    intent, q = detect_intent("หาไฟล์จาก https://example.com/doc.pdf")
+    assert intent == Intent.URL_UPLOAD
+    assert "example.com" in q
+
+
+def test_url1_prompt_returns_confirmation():
+    """_handle_url_prompt returns Quick Reply with confirm/decline"""
+    import asyncio
+    from backend.bot_handlers import _handle_url_prompt
+    msgs = asyncio.run(_handle_url_prompt("any_user", "https://example.com/file.pdf"))
+    assert len(msgs) == 1
+    assert "ลิงก์" in msgs[0].text or "https://example.com" in msgs[0].text
+    assert msgs[0].quick_reply is not None
+    # Has yes/no chips
+    labels = [qr["label"] for qr in msgs[0].quick_reply]
+    assert any("ใช่" in l or "เก็บ" in l for l in labels)
+
+
+def test_url2_prompt_truncates_long_url():
+    """URL > 280 chars → declined (postback data limit)"""
+    import asyncio
+    from backend.bot_handlers import _handle_url_prompt
+    long_url = "https://example.com/" + "x" * 300
+    msgs = asyncio.run(_handle_url_prompt("any_user", long_url))
+    assert "ยาวเกิน" in msgs[0].text or "ไม่รองรับ" in msgs[0].text
+
+
 # ═══════════════════════════════════════════
 # ST — stats handler (2 cases)
 # ═══════════════════════════════════════════

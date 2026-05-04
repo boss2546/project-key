@@ -52,6 +52,7 @@ class Intent(str, Enum):
     GET_FILE = "get_file"
     HELP = "help"
     CHAT = "chat"
+    URL_UPLOAD = "url_upload"
 
 
 # Keyword patterns (Thai + English)
@@ -74,6 +75,11 @@ def detect_intent(text: str) -> tuple[Intent, str]:
         return Intent.CHAT, ""
 
     lowered = text.lower().strip()
+
+    # URL detection (highest priority after Help)
+    url_match = re.search(r'(https?://[^\s]+)', text)
+    if url_match:
+        return Intent.URL_UPLOAD, url_match.group(1)
 
     # Help (highest priority — exact-ish match)
     for kw in _HELP_KEYWORDS:
@@ -130,6 +136,8 @@ async def handle_text_intent(pdb_user_id: str, text: str) -> list[BotMessage]:
         if not query:
             return [BotMessage(text="กรุณาระบุชื่อไฟล์ — เช่น 'ขอไฟล์ thesis.pdf'")]
         return await _handle_get_file(pdb_user_id, query)
+    if intent == Intent.URL_UPLOAD:
+        return await _handle_url_prompt(pdb_user_id, query)
     # Default = CHAT
     return await _handle_chat(pdb_user_id, text)
 
@@ -238,6 +246,121 @@ async def _handle_search(pdb_user_id: str, query: str) -> list[BotMessage]:
         return [BotMessage(text=f"🔍 ไม่พบไฟล์ที่เกี่ยวข้องกับ '{query[:50]}'")]
 
     flex = file_search_carousel(results)
+    return [BotMessage(flex=flex)]
+
+
+async def _handle_url_prompt(pdb_user_id: str, url: str) -> list[BotMessage]:
+    """Prompt user if they want to save the URL."""
+    # Truncate URL for postback data limit (LINE limit 300 chars for data)
+    # action=upload_url&url=...
+    # 300 - 18 = 282
+    if len(url) > 280:
+        return [BotMessage(text=f"พบลิงก์ยาวเกินไป ไม่รองรับการนำเข้าอัตโนมัติ: {url[:100]}...")]
+
+    quick_reply = [
+        {"label": "✅ ใช่ เก็บเลย", "data": f"action=upload_url&url={url}", "type": "postback"},
+        {"label": "❌ ไม่ใช่ ถามคำถาม", "text": "ถามคำถามจากเนื้อหาในตู้"},
+    ]
+    return [
+        BotMessage(
+            text=f"พบลิงก์ — ต้องการให้เก็บเนื้อหาใน PDB ไหม?\n{url}",
+            quick_reply=quick_reply
+        )
+    ]
+
+
+async def handle_url_upload(pdb_user_id: str, url: str) -> list[BotMessage]:
+    """Actually fetch the URL, extract text, and save as file."""
+    import httpx
+    import hashlib
+    from .database import gen_id
+    from .extraction import extract_text_from_html
+    from .duplicate_detector import compute_content_hash
+    from .plan_limits import check_upload_allowed
+    from .storage_router import push_raw_file_to_drive_if_byos
+    import os
+    from .config import UPLOAD_DIR
+    
+    # Check limits first (approximate size 0)
+    async with AsyncSessionLocal() as db:
+        user_q = await db.execute(select(User).where(User.id == pdb_user_id))
+        user = user_q.scalar_one_or_none()
+        if not user:
+            return [BotMessage(text="ไม่พบบัญชีของคุณ")]
+            
+        check = await check_upload_allowed(db, user, 1024, "html")
+        if check is not None:
+            return [BotMessage(text=check.get("error", "ไม่สามารถนำเข้าได้เนื่องจากเกินขีดจำกัดของ Plan"))]
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(url, follow_redirects=True)
+            resp.raise_for_status()
+            html_content = resp.text
+            mime_type = resp.headers.get("Content-Type", "text/html")
+    except Exception as e:
+        logger.exception("Failed to fetch URL %s: %s", url, e)
+        return [BotMessage(text=f"ไม่สามารถดาวน์โหลดข้อมูลจากลิงก์ได้: {str(e)[:80]}")]
+
+    file_id = gen_id()
+    user_dir = os.path.join(UPLOAD_DIR, pdb_user_id)
+    os.makedirs(user_dir, exist_ok=True)
+    filename = f"web_{hashlib.md5(url.encode()).hexdigest()[:8]}.html"
+    raw_path = os.path.join(user_dir, f"{file_id}_{filename}")
+    
+    with open(raw_path, "w", encoding="utf-8") as f:
+        f.write(html_content)
+
+    from .extraction import extract_text
+    try:
+        extracted = extract_text(raw_path, "html")
+        if not extracted.strip() or extracted.startswith("["):
+            return [BotMessage(text="ไม่พบเนื้อหาข้อความในลิงก์นี้")]
+    except Exception as e:
+        return [BotMessage(text="เกิดข้อผิดพลาดในการดึงข้อความจากลิงก์")]
+
+    # Prepend URL to the extracted text
+    extracted = f"Source URL: {url}\n\n{extracted}"
+    content_hash = compute_content_hash(extracted)
+
+    async with AsyncSessionLocal() as db:
+        db_file = File(
+            id=file_id,
+            user_id=pdb_user_id,
+            filename=filename,
+            filetype="html",
+            raw_path=raw_path,
+            extracted_text=extracted,
+            processing_status="uploaded",
+            content_hash=content_hash,
+        )
+        db.add(db_file)
+        await db.commit()
+
+        # BYOS
+        try:
+            raw_bytes = html_content.encode("utf-8")
+            await push_raw_file_to_drive_if_byos(
+                pdb_user_id, db, file_id, filename, raw_bytes, "text/html"
+            )
+        except Exception:
+            pass
+            
+    # Need signed URL
+    from .signed_urls import sign_download_token
+    token = sign_download_token(file_id, pdb_user_id, ttl_seconds=1800)
+    download_url = f"{APP_BASE_URL.rstrip('/')}/d/{token}"
+    web_url = f"{APP_BASE_URL.rstrip('/')}/app"
+
+    flex = file_upload_confirmation_card(
+        file_id=file_id,
+        filename=url,
+        filetype="url",
+        text_length=len(extracted),
+        cluster_title=None,
+        download_url=download_url,
+        web_url=web_url,
+    )
     return [BotMessage(flex=flex)]
 
 
