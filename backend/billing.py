@@ -210,17 +210,9 @@ def _first_or_empty(obj: dict, *keys: str) -> dict:
 async def _handle_checkout_completed(session_obj, db: AsyncSession):
     """checkout.session.completed — User just paid.
     
-    UPGRADE UNLOCK (PRD v5.9.3):
+    UPGRADE UNLOCK (v8.0.1):
     - Plan changes to 'starter' immediately
-    - All Starter limits apply instantly:
-      * Files: 50 (up from 5)
-      * Packs: 5 (up from 1)
-      * AI Summary: 100/month (up from 5)
-      * Export: 300/month (up from 10)
-      * Refresh: 10/month (up from 0)
-      * Semantic Search: enabled
-      * File types: +png, +jpg
-      * Max file size: 20MB (up from 10MB)
+    - All Starter limits apply instantly (see PLAN_LIMITS["starter"] in plan_limits.py)
     - Existing data beyond Free limits becomes fully accessible again
     """
     customer_id = session_obj.get("customer")

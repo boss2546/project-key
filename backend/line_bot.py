@@ -499,7 +499,7 @@ async def _handle_file_message(event: dict, pdb_user_id: str, msg_type: str) -> 
             flex = error_card(
                 title="เกินขีดจำกัด" if upgrade else "Upload ไม่สำเร็จ",
                 message=err,
-                suggestion=("อัปเกรด Starter เพื่อเก็บได้ 50 ไฟล์" if upgrade else None),
+                suggestion=("อัปเกรด Starter เพื่อปลดล็อกโควต้าเต็ม" if upgrade else None),
                 upgrade_url=upgrade_url,
             )
             await adapter.reply_message(reply_token, BotMessage(flex=flex))

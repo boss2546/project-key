@@ -9,7 +9,7 @@ load_dotenv()
 # ─── App Version (single source of truth) ───
 # Bump this when releasing. All version strings exposed to clients
 # (Swagger /docs, /api/mcp/info, MCP serverInfo) read from here.
-APP_VERSION = "8.0.0"
+APP_VERSION = "8.0.1"
 
 # OpenRouter API
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
@@ -72,6 +72,15 @@ if not ADMIN_PASSWORD:
         file=sys.stderr,
     )
     sys.exit(1)
+
+# ─── Admin Emails (v8.0.1) ───
+# Comma-separated list. Users matching get plan="admin" (all limits = 999999).
+# For internal testing/staff. Default = bossok2546@gmail.com (founder testing).
+ADMIN_EMAILS = {
+    e.strip().lower()
+    for e in os.getenv("ADMIN_EMAILS", "bossok2546@gmail.com").split(",")
+    if e.strip()
+}
 
 # MCP Secret — persists across restarts
 _MCP_SECRET_FILE = os.path.join(DATA_DIR, ".mcp_secret")

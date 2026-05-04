@@ -14,6 +14,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 # v7.5.0 — bumped max_file_size_mb 100→200, added xlsx/pptx/html/json/rtf to allowed
 # v7.6.0 — Restored production limits but kept expanded allowed_file_types for Starter
+# v8.0.1 — Starter ×5 across all quotas + new "admin" plan (999999 everything)
+ALL_FILE_TYPES = {
+    "pdf", "docx", "txt", "md", "csv",
+    "png", "jpg", "jpeg", "webp",
+    "xlsx", "pptx", "html", "json", "rtf",
+}
 PLAN_LIMITS = {
     "free": {
         "context_pack_limit": 1,
@@ -27,18 +33,31 @@ PLAN_LIMITS = {
         "version_history_days": 0,
         "allowed_file_types": {"pdf", "docx", "txt", "md", "csv"},
     },
+    # Starter ×5 from v7.6.0 baseline (50/1024MB/20MB → 250/5GB/100MB)
     "starter": {
-        "context_pack_limit": 5,
-        "file_limit": 50,
-        "storage_limit_mb": 1024,
-        "max_file_size_mb": 20,
-        "ai_summary_limit_monthly": 100,
-        "export_limit_monthly": 300,
-        "refresh_limit_monthly": 10,
+        "context_pack_limit": 25,
+        "file_limit": 250,
+        "storage_limit_mb": 5120,
+        "max_file_size_mb": 100,
+        "ai_summary_limit_monthly": 500,
+        "export_limit_monthly": 1500,
+        "refresh_limit_monthly": 50,
         "semantic_search_enabled": True,
-        "version_history_days": 7,
-        "allowed_file_types": {"pdf", "docx", "txt", "md", "csv", "png", "jpg", "jpeg", "webp",
-                               "xlsx", "pptx", "html", "json", "rtf"},
+        "version_history_days": 35,
+        "allowed_file_types": ALL_FILE_TYPES,
+    },
+    # Admin/staff plan — all limits effectively unlimited
+    "admin": {
+        "context_pack_limit": 999999,
+        "file_limit": 999999,
+        "storage_limit_mb": 999999,
+        "max_file_size_mb": 999999,
+        "ai_summary_limit_monthly": 999999,
+        "export_limit_monthly": 999999,
+        "refresh_limit_monthly": 999999,
+        "semantic_search_enabled": True,
+        "version_history_days": 999999,
+        "allowed_file_types": ALL_FILE_TYPES,
     },
 }
 
@@ -50,11 +69,23 @@ def get_limits(user) -> dict:
 
 
 def _effective_plan(user) -> str:
-    """Determine effective plan considering subscription status.
+    """Determine effective plan considering subscription status + admin allowlist.
 
     starter_active / starter_past_due / starter_canceled (before period end)
     all count as 'starter' access.
+
+    Admins (email in ADMIN_EMAILS) override everything → 'admin' plan.
     """
+    # Admin override (v8.0.1) — staff/founder accounts bypass all limits
+    email = (getattr(user, "email", "") or "").lower()
+    if email:
+        try:
+            from .config import ADMIN_EMAILS
+            if email in ADMIN_EMAILS:
+                return "admin"
+        except ImportError:
+            pass
+
     status = getattr(user, "subscription_status", "free") or "free"
     if status == "starter_active":
         return "starter"
@@ -199,7 +230,8 @@ async def check_upload_allowed(db: AsyncSession, user, file_size_bytes: int, fil
     if file_size_bytes > max_bytes:
         plan = _effective_plan(user)
         if plan == "free":
-            return {"error": f"Free plan รองรับไฟล์สูงสุด {limits['max_file_size_mb']}MB — อัปเกรดเป็น Starter เพื่ออัปโหลดไฟล์สูงสุด 20MB", "upgrade": True}
+            starter_max = PLAN_LIMITS["starter"]["max_file_size_mb"]
+            return {"error": f"Free plan รองรับไฟล์สูงสุด {limits['max_file_size_mb']}MB — อัปเกรดเป็น Starter เพื่ออัปโหลดไฟล์สูงสุด {starter_max}MB", "upgrade": True}
         return {"error": f"Starter รองรับไฟล์สูงสุด {limits['max_file_size_mb']}MB", "upgrade": False}
 
     # File count check
@@ -207,7 +239,8 @@ async def check_upload_allowed(db: AsyncSession, user, file_size_bytes: int, fil
     if count >= limits["file_limit"]:
         plan = _effective_plan(user)
         if plan == "free":
-            return {"error": f"Free plan จำกัด {limits['file_limit']} ไฟล์ — อัปเกรดเป็น Starter เพื่อเก็บได้ 50 ไฟล์", "upgrade": True}
+            starter_files = PLAN_LIMITS["starter"]["file_limit"]
+            return {"error": f"Free plan จำกัด {limits['file_limit']} ไฟล์ — อัปเกรดเป็น Starter เพื่อเก็บได้ {starter_files} ไฟล์", "upgrade": True}
         return {"error": f"คุณใช้ไฟล์ครบ {limits['file_limit']} ไฟล์แล้ว", "upgrade": False}
 
     # Storage check
@@ -216,7 +249,8 @@ async def check_upload_allowed(db: AsyncSession, user, file_size_bytes: int, fil
     if storage + new_file_mb > limits["storage_limit_mb"]:
         plan = _effective_plan(user)
         if plan == "free":
-            return {"error": f"พื้นที่ Free ({limits['storage_limit_mb']}MB) เต็มแล้ว — อัปเกรดเป็น Starter เพื่อพื้นที่ 1GB", "upgrade": True}
+            starter_gb = PLAN_LIMITS["starter"]["storage_limit_mb"] / 1024
+            return {"error": f"พื้นที่ Free ({limits['storage_limit_mb']}MB) เต็มแล้ว — อัปเกรดเป็น Starter เพื่อพื้นที่ {starter_gb:.0f}GB", "upgrade": True}
         return {"error": "พื้นที่จัดเก็บเต็มแล้ว — ลบไฟล์ที่ไม่ใช้เพื่อเพิ่มพื้นที่", "upgrade": False}
 
     return None  # Allowed
@@ -229,7 +263,8 @@ async def check_pack_create_allowed(db: AsyncSession, user) -> dict | None:
     if count >= limits["context_pack_limit"]:
         plan = _effective_plan(user)
         if plan == "free":
-            return {"error": "Free plan จำกัด 1 Context Pack — อัปเกรดเป็น Starter เพื่อสร้างได้ 5 packs", "upgrade": True}
+            starter_packs = PLAN_LIMITS["starter"]["context_pack_limit"]
+            return {"error": f"Free plan จำกัด {limits['context_pack_limit']} Context Pack — อัปเกรดเป็น Starter เพื่อสร้างได้ {starter_packs} packs", "upgrade": True}
         return {"error": f"คุณสร้าง Context Pack ครบ {limits['context_pack_limit']} แล้ว", "upgrade": False}
     return None
 
@@ -242,7 +277,9 @@ async def check_summary_allowed(db: AsyncSession, user) -> dict | None:
     if used >= limits["ai_summary_limit_monthly"]:
         plan = _effective_plan(user)
         if plan == "free":
-            return {"error": "สรุป AI เดือนนี้ใช้ครบแล้ว (5/5) — อัปเกรดเป็น Starter เพื่อสรุปได้ 100 ครั้ง/เดือน", "upgrade": True}
+            free_limit = limits["ai_summary_limit_monthly"]
+            starter_limit = PLAN_LIMITS["starter"]["ai_summary_limit_monthly"]
+            return {"error": f"สรุป AI เดือนนี้ใช้ครบแล้ว ({free_limit}/{free_limit}) — อัปเกรดเป็น Starter เพื่อสรุปได้ {starter_limit} ครั้ง/เดือน", "upgrade": True}
         return {"error": "สรุป AI เดือนนี้ใช้ครบแล้ว — โควต้าจะรีเซ็ตรอบบิลถัดไป", "upgrade": False}
     return None
 
@@ -255,7 +292,9 @@ async def check_export_allowed(db: AsyncSession, user) -> dict | None:
     if used >= limits["export_limit_monthly"]:
         plan = _effective_plan(user)
         if plan == "free":
-            return {"error": "Export เดือนนี้ใช้ครบแล้ว (10/10) — อัปเกรดเป็น Starter เพื่อ Export 300 ครั้ง/เดือน", "upgrade": True}
+            free_limit = limits["export_limit_monthly"]
+            starter_limit = PLAN_LIMITS["starter"]["export_limit_monthly"]
+            return {"error": f"Export เดือนนี้ใช้ครบแล้ว ({free_limit}/{free_limit}) — อัปเกรดเป็น Starter เพื่อ Export {starter_limit} ครั้ง/เดือน", "upgrade": True}
         return {"error": "Export เดือนนี้ใช้ครบแล้ว — โควต้าจะรีเซ็ตรอบบิลถัดไป", "upgrade": False}
     return None
 
