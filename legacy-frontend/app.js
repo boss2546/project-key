@@ -3075,6 +3075,8 @@ function initProfile() {
  await loadProfile();
  // v7.0 — Refresh Drive status ทุกครั้งที่เปิด modal (แก้ Loading... stuck)
  if (typeof refreshDriveStatus === 'function') refreshDriveStatus();
+ // v8.0.0 — Refresh LINE bot status
+ loadLineStatus();
  });
 
  document.getElementById('close-profile-modal')?.addEventListener('click', () => {
@@ -3082,6 +3084,11 @@ function initProfile() {
  });
 
  document.getElementById('btn-save-profile')?.addEventListener('click', saveProfile);
+
+ // v8.0.0 — LINE Bot connect/disconnect handlers
+ document.getElementById('btn-connect-line')?.addEventListener('click', connectLine);
+ document.getElementById('btn-disconnect-line')?.addEventListener('click', disconnectLine);
+ document.getElementById('btn-open-line')?.addEventListener('click', openLineChat);
 
  // Enneagram core change → recalc valid wings (รวม wrap-around 9→1, 1→9)
  document.getElementById('enneagram-core')?.addEventListener('change', (e) => {

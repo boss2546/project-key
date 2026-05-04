@@ -1014,6 +1014,213 @@ async def line_webhook(
     return {"status": "ok", "events_received": len(events)}
 
 
+# ─── v8.0.0 — LINE Bot UI endpoints (Profile section) ───
+@app.get("/api/line/status")
+async def line_status(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return LINE bot connection status for current PDB user.
+
+    Used by /app profile modal to render link/unlink UI.
+    """
+    from .config import is_line_configured, LINE_BOT_BASIC_ID
+    from .database import LineUser
+
+    feature_available = is_line_configured()
+    if not feature_available:
+        return {
+            "feature_available": False,
+            "linked": False,
+        }
+
+    # Find LineUser row for this PDB user (must have line_user_id != NULL = actually linked,
+    # not just nonce-pending)
+    result = await db.execute(
+        select(LineUser).where(
+            LineUser.pdb_user_id == current_user.id,
+            LineUser.line_user_id.isnot(None),
+            LineUser.unlinked_at.is_(None),
+        )
+    )
+    row = result.scalar_one_or_none()
+
+    bot_url = None
+    if LINE_BOT_BASIC_ID:
+        # Format @PDBBot → https://line.me/R/ti/p/%40PDBBot
+        bid = LINE_BOT_BASIC_ID.lstrip("@")
+        bot_url = f"https://line.me/R/ti/p/%40{bid}"
+
+    if not row:
+        return {
+            "feature_available": True,
+            "linked": False,
+            "bot_basic_id": LINE_BOT_BASIC_ID or None,
+            "bot_url": bot_url,
+        }
+
+    return {
+        "feature_available": True,
+        "linked": True,
+        "line_user_id": row.line_user_id,
+        "line_display_name": row.line_display_name,
+        "linked_at": row.linked_at.isoformat() if row.linked_at else None,
+        "last_seen_at": row.last_seen_at.isoformat() if row.last_seen_at else None,
+        "bot_basic_id": LINE_BOT_BASIC_ID or None,
+        "bot_url": bot_url,
+    }
+
+
+@app.post("/api/line/connect")
+async def line_connect(
+    current_user: User = Depends(get_current_user),
+):
+    """Start LINE Login OAuth flow — returns redirect URL.
+
+    `current_user` parameter required เป็น auth gate ผ่าน Depends — Phase E
+    จะใช้ user.id ใน state nonce. db dependency จะ inject กลับตอน Phase E
+    ตอนต้อง insert/update LineUser row.
+    """
+    from .config import is_line_login_configured, APP_BASE_URL
+    if not is_line_login_configured():
+        return JSONResponse(
+            {"error": {"code": "LINE_LOGIN_NOT_CONFIGURED",
+                       "message": "LINE Login not configured on this server"}},
+            status_code=503,
+        )
+
+    # Phase E will implement full OAuth flow with state + PKCE.
+    # For Phase D, return a placeholder pointing to auth-line.html landing
+    # which Phase E will turn into a real OAuth start.
+    return {
+        "redirect_url": f"{APP_BASE_URL.rstrip('/')}/auth/line",
+        "user_id": current_user.id,  # placeholder — Phase E will sign into state
+    }
+
+
+@app.post("/api/line/disconnect")
+async def line_disconnect(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Soft-unlink LINE account from current PDB user.
+
+    Sets unlinked_at timestamp instead of deleting row (preserve history).
+    Future re-link → new row (or reuse if same line_user_id).
+    """
+    from datetime import datetime as _dt
+    from .database import LineUser
+
+    result = await db.execute(
+        select(LineUser).where(
+            LineUser.pdb_user_id == current_user.id,
+            LineUser.line_user_id.isnot(None),
+            LineUser.unlinked_at.is_(None),
+        )
+    )
+    row = result.scalar_one_or_none()
+    if not row:
+        return JSONResponse(
+            {"error": {"code": "NOT_LINKED", "message": "No linked LINE account"}},
+            status_code=404,
+        )
+
+    row.unlinked_at = _dt.utcnow()
+    await db.commit()
+    return {"status": "disconnected"}
+
+
+# ─── v8.0.0 — LINE Bot account-link landing page ───
+@app.get("/auth/line")
+async def serve_auth_line():
+    """Serve auth-line.html — landing page เมื่อ user คลิก 'เชื่อมบัญชี' จาก LINE bot."""
+    return _serve_html("auth-line.html")
+
+
+class LineConfirmLinkRequest(BaseModel):
+    link_token: str
+
+
+@app.post("/api/line/confirm-link")
+async def line_confirm_link(
+    body: LineConfirmLinkRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """User confirms ใน auth-line.html → server insert/update LineUser row + nonce.
+
+    Phase D scope = skeleton:
+    - Validate link_token (Phase E จะ decode JWT)
+    - Insert/update LineUser row + generate nonce
+    - Return redirect URL (Phase E = LINE accountLink dialog URL)
+
+    Phase E จะ implement:
+    - Decode link_token ที่ embedded LINE linkToken
+    - Generate proper nonce (32 bytes urlsafe base64)
+    - Build LINE accountLink URL with linkToken + nonce
+    - Match nonce ใน accountLink webhook event
+    """
+    import secrets as _secrets
+    from datetime import datetime as _dt, timedelta as _td
+    from .config import is_line_configured, LINE_BOT_BASIC_ID
+    from .database import LineUser
+
+    if not is_line_configured():
+        return JSONResponse(
+            {"error": {"code": "LINE_NOT_CONFIGURED",
+                       "message": "LINE bot not configured on this server"}},
+            status_code=503,
+        )
+
+    if not body.link_token or not body.link_token.strip():
+        raise HTTPException(
+            status_code=400,
+            detail={"error": {"code": "MISSING_LINK_TOKEN", "message": "link_token is required"}},
+        )
+
+    # Generate nonce — 32 bytes URL-safe base64 (256 bits, well above LINE's 128-bit min)
+    nonce = _secrets.token_urlsafe(32)
+    nonce_expires = _dt.utcnow() + _td(minutes=10)
+
+    # Find existing LineUser row for this PDB user (could be from previous link attempt)
+    result = await db.execute(
+        select(LineUser).where(LineUser.pdb_user_id == current_user.id)
+    )
+    existing = result.scalar_one_or_none()
+
+    if existing:
+        # Reuse row — update nonce + expiry, clear unlinked_at if was unlinked before
+        existing.link_nonce = nonce
+        existing.link_nonce_expires_at = nonce_expires
+        if existing.unlinked_at:
+            existing.unlinked_at = None
+            existing.welcomed = False  # show welcome again on re-link
+    else:
+        new_row = LineUser(
+            pdb_user_id=current_user.id,
+            link_nonce=nonce,
+            link_nonce_expires_at=nonce_expires,
+            welcomed=False,
+        )
+        db.add(new_row)
+
+    await db.commit()
+
+    # Phase E will return real LINE accountLink dialog URL
+    # For Phase D, return placeholder pointing to bot deep link (user goes back to LINE)
+    bot_link = None
+    if LINE_BOT_BASIC_ID:
+        bid = LINE_BOT_BASIC_ID.lstrip("@")
+        bot_link = f"https://line.me/R/ti/p/%40{bid}"
+
+    return {
+        "status": "linked",
+        "nonce": nonce[:8] + "...",  # truncate — full nonce in DB only
+        "redirect_url": bot_link,
+        "note": "Phase D scaffold. Full LINE accountLink flow ships in Phase E.",
+    }
+
+
 @app.post("/api/files/{file_id}/reprocess")
 async def reprocess_file(
     file_id: str,
