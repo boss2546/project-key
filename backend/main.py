@@ -38,7 +38,7 @@ from .metadata import enrich_file_metadata, enrich_all_files, get_file_metadata,
 from .config import UPLOAD_DIR, BASE_DIR, ADMIN_PASSWORD, APP_VERSION
 from .mcp_tokens import generate_token, validate_token, list_tokens, revoke_token, get_active_token_count
 from .mcp_tools import call_tool, get_usage_logs, TOOL_REGISTRY
-from .auth import register_user, login_user, get_current_user, get_optional_user, request_password_reset, reset_password
+from .auth import register_user, login_user, get_current_user, get_optional_user, request_password_reset, reset_password, login_or_create_google_user
 from .billing import create_checkout_session, create_portal_session, process_webhook, get_billing_info
 from .plan_limits import (
     check_upload_allowed, check_pack_create_allowed, check_summary_allowed,
@@ -157,6 +157,99 @@ async def api_request_reset(req: ResetRequestModel, db: AsyncSession = Depends(g
 async def api_reset_password(req: ResetPasswordModel, db: AsyncSession = Depends(get_db)):
     """Step 2: Reset password with token."""
     return await reset_password(db, req.token, req.new_password)
+
+
+# ═══════════════════════════════════════════
+# v8.1.0 — Google Sign-In endpoints
+# ═══════════════════════════════════════════
+
+@app.get("/api/auth/google/init")
+async def api_google_login_init():
+    """เริ่ม Google Sign-In flow — return auth_url ให้ frontend redirect.
+
+    Public endpoint (ผู้ใช้ยังไม่ login). State + PKCE คุ้ม CSRF/replay.
+    """
+    from .config import is_google_login_configured
+    if not is_google_login_configured():
+        return JSONResponse(
+            {"error": {"code": "GOOGLE_LOGIN_NOT_CONFIGURED",
+                       "message": "Google login not configured on this server"}},
+            status_code=503,
+        )
+    from . import google_login
+    try:
+        return google_login.init_google_login()
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=500,
+            detail={"error": {"code": "GLOGIN_INIT_FAILED", "message": str(e)}},
+        )
+
+
+@app.get("/api/auth/google/callback")
+async def api_google_login_callback(
+    code: str = "",
+    state: str = "",
+    error: str = "",
+    db: AsyncSession = Depends(get_db),
+):
+    """Google redirect กลับมาที่นี่หลัง user grant consent.
+
+    Public endpoint (ผู้ใช้กำลังจะ login). ตรวจ state CSRF + verify ID token signature
+    หลัง process เสร็จ → 302 ไป /app#token=<jwt> (fragment กัน Referer leak)
+    หรือ 302 ไป /?google_error=<reason> ถ้า error.
+
+    Note: ห้าม raise HTTPException ใน success path — ต้อง redirect ทุกกรณี
+    เพื่อ UX สม่ำเสมอ (user เห็น URL change → เข้าใจว่ากระบวนการจบ).
+    """
+    from . import google_login
+
+    # User canceled at Google consent screen
+    if error:
+        return RedirectResponse(f"/?google_error={error}", status_code=302)
+
+    if not code or not state:
+        return RedirectResponse("/?google_error=missing_params", status_code=302)
+
+    # Exchange + verify ID token
+    try:
+        result = await google_login.handle_google_callback(code, state)
+    except ValueError:
+        # Invalid / expired state
+        return RedirectResponse("/?google_error=invalid_state", status_code=302)
+    except RuntimeError:
+        # Token exchange fail / ID token verify fail
+        return RedirectResponse("/?google_error=invalid_id_token", status_code=302)
+    except Exception as e:
+        logger.exception("Google callback unexpected error: %s", e)
+        return RedirectResponse("/?google_error=google_api_error", status_code=302)
+
+    # Reject unverified email (rare — Workspace custom domains)
+    if not result.get("email_verified"):
+        return RedirectResponse("/?google_error=email_not_verified", status_code=302)
+
+    # Upsert user + issue JWT
+    try:
+        login_result = await login_or_create_google_user(
+            db,
+            google_sub=result["google_sub"],
+            email=result["email"],
+            name=result["name"] or "User",
+        )
+    except HTTPException as e:
+        # is_active=False → 403 inside login_or_create_google_user
+        # INVALID_GOOGLE_PAYLOAD → 400
+        logger.warning("Google login user creation rejected: %s", e.detail)
+        return RedirectResponse("/?google_error=account_disabled", status_code=302)
+    except Exception as e:
+        logger.exception("Google upsert unexpected error: %s", e)
+        return RedirectResponse("/?google_error=internal_error", status_code=302)
+
+    jwt_token = login_result["token"]
+
+    # ⭐ Token ใน URL fragment (#) ไม่ใช่ query (?) — กัน Referer leak + ไม่เข้า server logs
+    # Frontend (landing.js initAuth) จะ parse #token= → save localStorage → showApp()
+    return RedirectResponse(f"/app#token={jwt_token}", status_code=302)
 
 
 # ─── REQUEST MODELS ───
