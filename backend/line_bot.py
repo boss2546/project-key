@@ -564,6 +564,66 @@ async def _handle_file_message(event: dict, pdb_user_id: str, msg_type: str) -> 
     )
     logger.info("LINE file upload OK: file=%s user=%s type=%s", file_id, pdb_user_id, msg_type)
 
+    # v8.0.5 — Auto-organize: fire-and-forget background task.
+    # User wants the file processed (cluster + summary + insights + duplicate check)
+    # without having to open the web app. Don't await — keep the webhook response fast.
+    import asyncio as _asyncio
+    _asyncio.create_task(_auto_organize_after_upload(pdb_user_id, line_user_id, filename))
+
+
+async def _auto_organize_after_upload(pdb_user_id: str, line_user_id: str, filename: str) -> None:
+    """Run organize-new pipeline for the user, then push a brief status message.
+
+    Fire-and-forget — caller does not await. Errors are swallowed but logged
+    (we never want a stuck organize to block future uploads).
+    """
+    from .bot_adapters import get_line_adapter, BotMessage
+    from .organizer import organize_new_files
+    from .metadata import enrich_all_files
+    from .graph_builder import build_full_graph
+    from .relations import generate_suggestions
+
+    adapter = get_line_adapter()
+
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await organize_new_files(db, pdb_user_id)
+            await db.commit()
+
+            if result.get("skipped"):
+                logger.info("auto-organize skipped (no new files) user=%s", pdb_user_id)
+                return
+
+            # Best-effort enrichment + graph + suggestions (same as web "Organize new")
+            try:
+                await enrich_all_files(db, pdb_user_id)
+            except Exception as e:
+                logger.warning("enrich_all_files failed in auto-organize: %s", e)
+            try:
+                await build_full_graph(db, pdb_user_id)
+            except Exception as e:
+                logger.warning("build_full_graph failed in auto-organize: %s", e)
+            try:
+                await generate_suggestions(db, pdb_user_id)
+            except Exception as e:
+                logger.warning("generate_suggestions failed in auto-organize: %s", e)
+
+        count = result.get("count", 0)
+        logger.info("auto-organize done: %d files processed for user=%s", count, pdb_user_id)
+
+        # Notify user via push (best-effort)
+        if adapter and line_user_id:
+            try:
+                msg_text = (
+                    f"จัดการไฟล์ {filename} เรียบร้อยแล้วครับ "
+                    f"({count} ไฟล์ใหม่ถูกสรุปและจัดกลุ่มอัตโนมัติ)"
+                )
+                await adapter.send_message(line_user_id, BotMessage(text=msg_text))
+            except Exception as e:
+                logger.warning("auto-organize push notify failed: %s", e)
+    except Exception as e:
+        logger.exception("auto-organize task failed for user=%s: %s", pdb_user_id, e)
+
 
 # ═══════════════════════════════════════════
 # Other handlers (placeholders / ignore)
