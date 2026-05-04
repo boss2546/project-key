@@ -612,7 +612,7 @@ def test_f5_file_message_uploads(line_full_config, tmp_path, monkeypatch):
     async def fake_download(self, mid): return fake_attachment
     async def fake_typing(self, *args, **kwargs): return None
     captured = {}
-    async def fake_reply(self, token, message):
+    async def fake_reply(self, token, message, **kwargs):
         captured["flex"] = message.flex
 
     try:

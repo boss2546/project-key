@@ -183,7 +183,11 @@ class LineBotAdapter(BotAdapter):
         return out[:5]  # LINE limit
 
     async def send_message(self, recipient_id: str, message: BotMessage) -> None:
-        """Push a message via /v2/bot/message/push (uses quota: 200/mo free)."""
+        """Push a message via /v2/bot/message/push (uses quota: 200/mo free).
+
+        Phase H: Auto-track quota in line_quota module if available (count
+        successful pushes for monthly stats / admin alerts).
+        """
         import httpx
         import logging
         log = logging.getLogger(__name__)
@@ -198,26 +202,59 @@ class LineBotAdapter(BotAdapter):
             )
             if resp.status_code >= 400:
                 log.warning("LINE push failed: %s %s", resp.status_code, resp.text[:200])
+                return
+            # Phase H — track quota usage (best effort)
+            try:
+                from . import line_quota
+                line_quota.record_push()
+            except Exception:
+                pass
 
-    async def reply_message(self, reply_token: str, message: BotMessage) -> None:
+    async def reply_message(
+        self, reply_token: str, message: BotMessage, *, fallback_user_id: Optional[str] = None
+    ) -> bool:
         """Reply via /v2/bot/message/reply (free — doesn't count quota).
 
         Reply token expires 30s — caller ต้อง ack webhook 200 ก่อน + reply เร็ว.
+
+        Phase H: ถ้า reply fails (token expired / 400 Invalid reply token)
+        และมี fallback_user_id → fall back to push API automatically.
+
+        Returns True if delivered (reply OR push), False if both failed.
         """
         import httpx
         import logging
         log = logging.getLogger(__name__)
         msgs = self._convert_message(message)
         if not msgs:
-            return
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(
-                f"{self.BASE_URL}/v2/bot/message/reply",
-                headers=self._headers(),
-                json={"replyToken": reply_token, "messages": msgs},
-            )
-            if resp.status_code >= 400:
-                log.warning("LINE reply failed: %s %s", resp.status_code, resp.text[:200])
+            return True
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(
+                    f"{self.BASE_URL}/v2/bot/message/reply",
+                    headers=self._headers(),
+                    json={"replyToken": reply_token, "messages": msgs},
+                )
+                if resp.status_code < 400:
+                    return True
+                # Reply failed — log + try push fallback
+                log.warning(
+                    "LINE reply failed: %s %s — falling back to push if recipient available",
+                    resp.status_code, resp.text[:200],
+                )
+        except Exception as e:
+            log.warning("LINE reply exception: %s — falling back to push if recipient available", e)
+
+        # Fallback to push API (uses quota)
+        if fallback_user_id:
+            try:
+                await self.send_message(fallback_user_id, message)
+                return True
+            except Exception as e:
+                log.error("LINE push fallback also failed: %s", e)
+                return False
+        return False
 
     async def download_attachment(self, message_id: str) -> BotAttachment:
         """Fetch user-uploaded file from api-data.line.me/v2/bot/message/{id}/content.

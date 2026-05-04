@@ -1014,6 +1014,22 @@ async def line_webhook(
     return {"status": "ok", "events_received": len(events)}
 
 
+# ─── v8.0.0 Phase H — Admin: LINE push quota ───
+@app.get("/api/line/admin/quota")
+async def line_quota_status(
+    current_user: User = Depends(get_current_user),
+):
+    """Admin: get LINE push quota usage for current month.
+
+    `current_user` parameter required as auth gate via Depends — Phase K
+    may upgrade to admin-role check; for now any authenticated user.
+
+    Returns: pushes_used / limit / percent / remaining / exceeded.
+    """
+    from . import line_quota
+    return line_quota.get_current_usage()
+
+
 # ─── v8.0.0 — LINE Bot UI endpoints (Profile section) ───
 @app.get("/api/line/status")
 async def line_status(

@@ -443,7 +443,11 @@ async def _handle_file_message(event: dict, pdb_user_id: str, msg_type: str) -> 
         attachment = await adapter.download_attachment(message_id)
     except Exception as e:
         logger.exception("download_attachment failed: %s", e)
-        await adapter.reply_message(reply_token, BotMessage(text="ดาวน์โหลดไฟล์ไม่สำเร็จ ลองส่งใหม่อีกครั้ง"))
+        await adapter.reply_message(
+            reply_token,
+            BotMessage(text="ดาวน์โหลดไฟล์ไม่สำเร็จ ลองส่งใหม่อีกครั้ง"),
+            fallback_user_id=line_user_id,
+        )
         return
 
     filename = msg.get("fileName") or attachment.filename
@@ -523,7 +527,11 @@ async def _handle_file_message(event: dict, pdb_user_id: str, msg_type: str) -> 
         download_url=download_url,
         web_url=web_url,
     )
-    await adapter.reply_message(reply_token, BotMessage(flex=flex))
+    # Phase H: file upload pipeline can take >30s (extract + BYOS push).
+    # Reply token may have expired → adapter falls back to push API.
+    await adapter.reply_message(
+        reply_token, BotMessage(flex=flex), fallback_user_id=line_user_id
+    )
     logger.info("LINE file upload OK: file=%s user=%s type=%s", file_id, pdb_user_id, msg_type)
 
 
@@ -575,7 +583,7 @@ async def _handle_postback(event: dict) -> None:
         url = parsed.get("url")
         if not url:
             return
-            
+
         adapter = get_line_adapter()
         if adapter:
             # show typing indicator
@@ -583,22 +591,136 @@ async def _handle_postback(event: dict) -> None:
                 await adapter.show_typing(line_user_id, duration_sec=15)
             except Exception:
                 pass
-                
+
         from .bot_handlers import handle_url_upload
         messages = await handle_url_upload(row.pdb_user_id, url)
-        
+
         if adapter and messages:
             if reply_token:
-                await adapter.reply_message(reply_token, messages[0])
+                await adapter.reply_message(
+                    reply_token, messages[0], fallback_user_id=line_user_id
+                )
             else:
                 await adapter.send_message(line_user_id, messages[0])
+
+    elif action == "upload_help":
+        # Phase I — Rich Menu "Upload" button
+        adapter = get_line_adapter()
+        if adapter and reply_token:
+            await adapter.reply_message(reply_token, BotMessage(
+                text=(
+                    "📤 วิธีส่งไฟล์เข้า Personal Data Bank\n\n"
+                    "ส่งไฟล์ตรงนี้ได้เลย — ผมรองรับ:\n"
+                    "📕 PDF / 📘 DOCX / 📊 CSV / 📝 TXT, MD\n"
+                    "🖼️ ภาพ (PNG, JPG)\n\n"
+                    "หรือส่งลิงก์เว็บ → ผมจะถามว่าจะให้เก็บไหม"
+                )
+            ), fallback_user_id=line_user_id)
+
+    elif action == "settings":
+        # Phase I — Rich Menu "Settings" button
+        from .config import APP_BASE_URL
+        adapter = get_line_adapter()
+        if adapter and reply_token:
+            await adapter.reply_message(reply_token, BotMessage(
+                text=(
+                    "⚙️ ตั้งค่าบัญชี\n\n"
+                    "ตั้งค่า profile, เปลี่ยน plan, จัดการ storage mode\n"
+                    f"กรุณาเข้าเว็บ: {APP_BASE_URL.rstrip('/')}/app"
+                )
+            ), fallback_user_id=line_user_id)
+
+    elif action == "organize_now":
+        # Phase E status card "จัดระเบียบเลย" button
+        from .organizer import organize_files
+        adapter = get_line_adapter()
+        if adapter and reply_token:
+            try:
+                await adapter.show_typing(line_user_id, duration_sec=20)
+            except Exception:
+                pass
+
+        try:
+            async with AsyncSessionLocal() as db:
+                await organize_files(db, row.pdb_user_id)
+            if adapter and reply_token:
+                await adapter.reply_message(reply_token, BotMessage(
+                    text="✅ จัดระเบียบเสร็จแล้วครับ — พิมพ์ 'สถานะ' เพื่อดูผลลัพธ์"
+                ), fallback_user_id=line_user_id)
+        except Exception as e:
+            logger.exception("organize_now failed: %s", e)
+            if adapter and reply_token:
+                await adapter.reply_message(reply_token, BotMessage(
+                    text=f"จัดระเบียบไม่สำเร็จ: {str(e)[:80]}"
+                ), fallback_user_id=line_user_id)
+
+    elif action == "open_file":
+        # Search carousel "เปิดดู" button → return signed download URL
+        file_id = parsed.get("file_id")
+        if not file_id:
+            return
+        from .bot_handlers import _handle_get_file
+        from .database import File
+        async with AsyncSessionLocal() as db:
+            file_row = (await db.execute(
+                select(File).where(File.id == file_id, File.user_id == row.pdb_user_id)
+            )).scalar_one_or_none()
+        adapter = get_line_adapter()
+        if not adapter or not file_row:
+            return
+        # Reuse get_file handler with filename (single-match path returns Flex card)
+        messages = await _handle_get_file(row.pdb_user_id, file_row.filename)
+        if reply_token and messages:
+            await adapter.reply_message(
+                reply_token, messages[0], fallback_user_id=line_user_id
+            )
+
     else:
         logger.info("Unknown postback action: %s", action)
 
 
 async def _handle_group_join(event: dict) -> None:
-    """Bot ถูก add เข้า group — PDB เป็น 1:1 only → leave the group."""
-    logger.info("Joined group/room — PDB is 1:1 only, ignoring")
+    """Bot ถูก add เข้า group/room — PDB เป็น 1:1 only.
+
+    Phase H: ตอบ politely + ออกจาก group ทันที (LINE API leave endpoint).
+    """
+    from .bot_adapters import get_line_adapter, BotMessage
+    import httpx
+
+    source = event.get("source", {})
+    source_type = source.get("type")  # "group" or "room"
+    group_id = source.get("groupId") or source.get("roomId")
+    reply_token = event.get("replyToken")
+
+    if not group_id or source_type not in ("group", "room"):
+        logger.info("_handle_group_join: not a group/room — ignoring")
+        return
+
+    adapter = get_line_adapter()
+    if not adapter:
+        return
+
+    # Reply with polite message before leaving
+    if reply_token:
+        try:
+            await adapter.reply_message(reply_token, BotMessage(
+                text="สวัสดีครับ — ผม PDB Assistant ทำงานเฉพาะแชท 1:1 ครับ\n"
+                     "กรุณาเพิ่มผมเป็นเพื่อนใน LINE แทน เพื่อใช้งานเก็บข้อมูลส่วนตัวได้"
+            ))
+        except Exception as e:
+            logger.warning("group reply failed: %s", e)
+
+    # Leave the group/room via LINE API
+    endpoint = f"{adapter.BASE_URL}/v2/bot/{source_type}/{group_id}/leave"
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(endpoint, headers=adapter._headers())
+            if resp.status_code < 400:
+                logger.info("Left %s %s", source_type, group_id)
+            else:
+                logger.warning("Leave %s failed: %s %s", source_type, resp.status_code, resp.text[:200])
+    except Exception as e:
+        logger.exception("Leave %s exception: %s", source_type, e)
 
 
 async def _ignore(event: dict) -> None:
