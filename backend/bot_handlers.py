@@ -56,6 +56,7 @@ class Intent(str, Enum):
     UPLOAD_HELP = "upload_help"
     SETTINGS = "settings"
     CONTACT = "contact"
+    LIST_FILES = "list_files"
 
 
 # Keyword patterns (Thai + English)
@@ -69,6 +70,11 @@ _HELP_KEYWORDS = ["/help", "ช่วยเหลือ", "วิธีใช้
 _UPLOAD_KEYWORDS = ["อัปโหลด", "upload", "ส่งไฟล์ยังไง", "วิธีส่งไฟล์"]
 _SETTINGS_KEYWORDS = ["ตั้งค่า", "settings", "จัดการบัญชี"]
 _CONTACT_KEYWORDS = ["ติดต่อ", "contact", "support", "ช่วยเหลือเทคนิค"]
+_LIST_FILES_KEYWORDS = [
+    "ดูไฟล์", "โชว์ไฟล์", "ไฟล์ของฉัน", "ไฟล์ทั้งหมด", "ไฟล์ในตู้",
+    "ไฟล์อะไรบ้าง", "ไฟล์มีอะไรบ้าง", "รายการไฟล์",
+    "list", "list files", "show files", "my files", "all files",
+]
 
 
 def detect_intent(text: str) -> tuple[Intent, str]:
@@ -108,6 +114,11 @@ def detect_intent(text: str) -> tuple[Intent, str]:
         if " " + kw + " " in " " + lowered + " ":
             query = re.sub(re.escape(kw), "", text, count=1, flags=re.IGNORECASE).strip()
             return Intent.SEARCH, query
+
+    # List files (must come BEFORE STATS — "ไฟล์ทั้งหมด" overlaps STATS "ทั้งหมด")
+    for kw in _LIST_FILES_KEYWORDS:
+        if lowered == kw:
+            return Intent.LIST_FILES, ""
 
     # Stats (least specific keywords — check after SEARCH+GET_FILE)
     for kw in _STATS_KEYWORDS:
@@ -164,8 +175,111 @@ async def handle_text_intent(pdb_user_id: str, text: str) -> list[BotMessage]:
         return _handle_settings()
     if intent == Intent.CONTACT:
         return _handle_contact()
+    if intent == Intent.LIST_FILES:
+        return await _handle_list_files(pdb_user_id)
     # Default = CHAT
     return await _handle_chat(pdb_user_id, text)
+
+
+async def _handle_list_files(pdb_user_id: str) -> list[BotMessage]:
+    """List recent files in the user's vault — plain text, grouped by cluster.
+
+    User feedback: "มันดูไฟล์ยาก — มีวิธีโชว์ไฟล์ที่เดียวง่ายๆ ไหม?"
+    Output (no emoji, no markdown — just clean text):
+
+      ไฟล์ในตู้ (15/50 รายการล่าสุด)
+
+      [Cluster A]
+      file1.pdf — รายละเอียด
+      file2.docx — รายละเอียด
+
+      [Cluster B]
+      file3.txt
+
+      [ไม่ได้จัดกลุ่ม]
+      file4.md
+
+      พิมพ์ "ขอไฟล์ <ชื่อ>" เพื่อขอลิงก์ดาวน์โหลด
+      หรือ "ค้นหา <เรื่อง>" ให้ AI หาให้
+    """
+    from sqlalchemy.orm import selectinload
+
+    LIMIT = 20
+
+    async with AsyncSessionLocal() as db:
+        rows = (await db.execute(
+            select(File)
+            .where(File.user_id == pdb_user_id)
+            .order_by(File.uploaded_at.desc())
+            .limit(LIMIT)
+            .options(
+                selectinload(File.insight),
+                selectinload(File.summary),
+                selectinload(File.cluster_maps),
+            )
+        )).scalars().all()
+
+        total = await get_file_count(db, pdb_user_id)
+
+        # Hydrate cluster titles
+        cluster_ids = list({fcm.cluster_id for f in rows for fcm in (f.cluster_maps or [])})
+        clusters_map: dict[str, str] = {}
+        if cluster_ids:
+            crows = (await db.execute(
+                select(Cluster).where(Cluster.id.in_(cluster_ids))
+            )).scalars().all()
+            clusters_map = {c.id: (c.title or "Untitled") for c in crows}
+
+    if not rows:
+        return [BotMessage(
+            text="ตู้คุณยังไม่มีไฟล์ — ส่งไฟล์เข้ามาเพื่อเริ่มเก็บข้อมูลได้เลยครับ"
+        )]
+
+    # Group by cluster (preserve order — first encountered first)
+    grouped: dict[str, list[File]] = {}
+    for f in rows:
+        cluster_title = "ไม่ได้จัดกลุ่ม"
+        if f.cluster_maps:
+            cid = f.cluster_maps[0].cluster_id
+            cluster_title = clusters_map.get(cid, "ไม่ได้จัดกลุ่ม")
+        grouped.setdefault(cluster_title, []).append(f)
+
+    parts: list[str] = []
+    if total > LIMIT:
+        parts.append(f"ไฟล์ในตู้ ({len(rows)}/{total} รายการล่าสุด)")
+    else:
+        parts.append(f"ไฟล์ในตู้ ({total} รายการ)")
+
+    for cluster_title, files in grouped.items():
+        parts.append("")
+        parts.append(f"[{cluster_title}]")
+        for f in files:
+            detail = ""
+            if f.insight and (f.insight.why_important or "").strip():
+                detail = f.insight.why_important
+            elif f.summary and (f.summary.summary_text or "").strip():
+                detail = f.summary.summary_text
+            detail = strip_markdown(detail or "").replace("\n", " ").strip()
+            if len(detail) > 80:
+                detail = detail[:77] + "..."
+            line = f.filename
+            if detail:
+                line += f" — {detail}"
+            parts.append(line)
+
+    parts.append("")
+    parts.append('พิมพ์ "ขอไฟล์ <ชื่อ>" เพื่อขอลิงก์ดาวน์โหลด')
+    parts.append('หรือ "ค้นหา <เรื่อง>" ให้ AI หาให้')
+
+    final_text = "\n".join(parts)
+    if len(final_text) > 4500:
+        final_text = final_text[:4500] + "...\n[ตัด — เปิดเว็บเพื่อดูเต็ม]"
+
+    quick_reply = [
+        {"label": "ค้นหา", "text": "หาไฟล์"},
+        {"label": "เปิดเว็บ", "text": "เปิดเว็บ"},
+    ]
+    return [BotMessage(text=final_text, quick_reply=quick_reply)]
 
 
 async def _handle_stats(pdb_user_id: str) -> list[BotMessage]:
@@ -207,21 +321,23 @@ async def _handle_stats(pdb_user_id: str) -> list[BotMessage]:
 def _handle_help() -> list[BotMessage]:
     """Static help text + Quick Reply."""
     text = (
-        "🤖 PDB Assistant — คำสั่งที่ใช้ได้\n\n"
-        "📤 ส่งไฟล์ (PDF/DOCX/รูป) → ผมจะเก็บใน data bank\n"
-        "🔍 \"หาไฟล์เรื่อง AI\" → ค้นหาไฟล์ที่เกี่ยวข้อง\n"
-        "📥 \"ขอไฟล์ thesis.pdf\" → ผมส่ง download link\n"
-        "📊 \"กี่ไฟล์\" / \"สถานะ\" → ดูสถานะตู้\n"
-        "💬 พิมพ์คำถามทั่วไป → AI ตอบจากข้อมูลในตู้คุณ\n\n"
-        "🌐 เปิดเว็บ: " + APP_BASE_URL.rstrip("/") + "/app"
+        "PDB Assistant — คำสั่งที่ใช้ได้\n\n"
+        "ส่งไฟล์ (PDF/DOCX/รูป) — ผมจะเก็บใน data bank ให้\n"
+        "\"ดูไฟล์\" — แสดงไฟล์ทั้งหมดในตู้\n"
+        "\"หาไฟล์เรื่อง AI\" — ค้นหาไฟล์ที่เกี่ยวข้อง\n"
+        "\"ขอไฟล์ thesis.pdf\" — ขอลิงก์ดาวน์โหลด\n"
+        "\"สถานะ\" / \"กี่ไฟล์\" — ดูสถานะตู้\n"
+        "พิมพ์คำถามทั่วไป — AI ตอบจากข้อมูลในตู้คุณ\n\n"
+        "เปิดเว็บ: " + APP_BASE_URL.rstrip("/") + "/app"
     )
     return [
         BotMessage(
             text=text,
             quick_reply=[
-                {"label": "📊 ดูสถานะ", "text": "ฉันมีกี่ไฟล์"},
-                {"label": "🔍 ค้นหา", "text": "หาไฟล์"},
-                {"label": "🌐 เปิดเว็บ", "text": "เปิดเว็บ"},
+                {"label": "ดูไฟล์", "text": "ดูไฟล์"},
+                {"label": "ค้นหา", "text": "หาไฟล์"},
+                {"label": "สถานะ", "text": "ฉันมีกี่ไฟล์"},
+                {"label": "เปิดเว็บ", "text": "เปิดเว็บ"},
             ],
         )
     ]

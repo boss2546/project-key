@@ -143,6 +143,29 @@ def test_it11_url_detected():
     assert q == "https://arxiv.org/pdf/2401.00001.pdf"
 
 
+def test_it13_list_files_thai():
+    """v8.0.7: 'ดูไฟล์' → LIST_FILES intent"""
+    from backend.bot_handlers import detect_intent, Intent
+    intent, q = detect_intent("ดูไฟล์")
+    assert intent == Intent.LIST_FILES
+    assert q == ""
+
+
+def test_it14_list_files_english():
+    """v8.0.7: 'list files' → LIST_FILES intent"""
+    from backend.bot_handlers import detect_intent, Intent
+    intent, q = detect_intent("list files")
+    assert intent == Intent.LIST_FILES
+
+
+def test_it15_list_files_overlaps_stats_keyword():
+    """v8.0.7: 'ไฟล์ทั้งหมด' contains 'ทั้งหมด' (STATS substring) but
+    must resolve to LIST_FILES via exact match check first."""
+    from backend.bot_handlers import detect_intent, Intent
+    intent, q = detect_intent("ไฟล์ทั้งหมด")
+    assert intent == Intent.LIST_FILES
+
+
 def test_it12_url_priority_over_search():
     """URL takes priority even if 'หา' keyword present"""
     from backend.bot_handlers import detect_intent, Intent
@@ -456,6 +479,123 @@ def test_md4_chat_strips_markdown_in_answer():
     assert "**" not in text
     # Single asterisks for italic should also be gone
     assert "*AI*" not in text and "*project*" not in text
+
+
+# ═══════════════════════════════════════════
+# LF — list_files handler (3 cases, v8.0.7)
+# ═══════════════════════════════════════════
+
+def test_lf1_list_files_empty_vault():
+    """No files → friendly empty-state message"""
+    from backend.bot_handlers import handle_text_intent
+
+    user_id = "test_g_lf1"
+    _create_test_user(user_id, "g_lf1@test.local")
+    try:
+        msgs = asyncio.run(handle_text_intent(user_id, "ดูไฟล์"))
+        assert len(msgs) == 1
+        assert "ยังไม่มีไฟล์" in msgs[0].text or "ไม่มีไฟล์" in msgs[0].text
+    finally:
+        _cleanup_user(user_id)
+
+
+def test_lf2_list_files_with_files():
+    """User with 3 files → text list including filenames + footer hints"""
+    from backend.bot_handlers import handle_text_intent
+    from backend.database import AsyncSessionLocal, File, gen_id
+    from sqlalchemy import delete
+
+    user_id = "test_g_lf2"
+    _create_test_user(user_id, "g_lf2@test.local")
+
+    async def setup():
+        async with AsyncSessionLocal() as db:
+            for name in ("alpha.pdf", "beta.docx", "gamma.txt"):
+                db.add(File(
+                    id=gen_id(), user_id=user_id,
+                    filename=name, filetype=name.rsplit(".", 1)[-1],
+                    raw_path=f"/tmp/{name}",
+                    extracted_text="content " + name,
+                    processing_status="ready",
+                ))
+            await db.commit()
+    asyncio.run(setup())
+
+    try:
+        msgs = asyncio.run(handle_text_intent(user_id, "ดูไฟล์"))
+        assert len(msgs) == 1
+        text = msgs[0].text
+        assert "ไฟล์ในตู้" in text
+        assert "alpha.pdf" in text
+        assert "beta.docx" in text
+        assert "gamma.txt" in text
+        # Footer hints present
+        assert "ขอไฟล์" in text
+        assert "ค้นหา" in text
+    finally:
+        async def cleanup():
+            async with AsyncSessionLocal() as db:
+                await db.execute(delete(File).where(File.user_id == user_id))
+                await db.commit()
+        asyncio.run(cleanup())
+        _cleanup_user(user_id)
+
+
+def test_lf3_list_files_groups_by_cluster():
+    """Files in clusters appear under [cluster_title], unclustered under [ไม่ได้จัดกลุ่ม]"""
+    from backend.bot_handlers import handle_text_intent
+    from backend.database import (
+        AsyncSessionLocal, File, Cluster, FileClusterMap, gen_id,
+    )
+    from sqlalchemy import delete
+
+    user_id = "test_g_lf3"
+    _create_test_user(user_id, "g_lf3@test.local")
+    cluster_id = gen_id()
+    file_in_cluster_id = gen_id()
+    file_loose_id = gen_id()
+
+    async def setup():
+        async with AsyncSessionLocal() as db:
+            db.add(Cluster(id=cluster_id, user_id=user_id, title="งานวิจัย AI", summary=""))
+            db.add(File(
+                id=file_in_cluster_id, user_id=user_id,
+                filename="paper.pdf", filetype="pdf",
+                raw_path="/tmp/paper.pdf",
+                extracted_text="ai content",
+                processing_status="ready",
+            ))
+            db.add(File(
+                id=file_loose_id, user_id=user_id,
+                filename="random.txt", filetype="txt",
+                raw_path="/tmp/random.txt",
+                extracted_text="random",
+                processing_status="ready",
+            ))
+            await db.commit()
+            db.add(FileClusterMap(
+                file_id=file_in_cluster_id, cluster_id=cluster_id, relevance_score=1.0,
+            ))
+            await db.commit()
+    asyncio.run(setup())
+
+    try:
+        msgs = asyncio.run(handle_text_intent(user_id, "ไฟล์ทั้งหมด"))
+        text = msgs[0].text
+        assert "[งานวิจัย AI]" in text
+        assert "[ไม่ได้จัดกลุ่ม]" in text
+        # Both files should appear
+        assert "paper.pdf" in text
+        assert "random.txt" in text
+    finally:
+        async def cleanup():
+            async with AsyncSessionLocal() as db:
+                await db.execute(delete(FileClusterMap).where(FileClusterMap.cluster_id == cluster_id))
+                await db.execute(delete(Cluster).where(Cluster.id == cluster_id))
+                await db.execute(delete(File).where(File.user_id == user_id))
+                await db.commit()
+        asyncio.run(cleanup())
+        _cleanup_user(user_id)
 
 
 def test_md5_chat_appends_file_references():
