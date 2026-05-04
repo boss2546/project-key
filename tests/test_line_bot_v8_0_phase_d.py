@@ -323,13 +323,14 @@ def test_d5_4_handler_exception_caught():
     """D5.4: if handler raises → handle_line_event catches + logs (doesn't propagate)"""
     from backend import line_bot
 
-    # Monkeypatch one of the placeholders to raise
-    original = line_bot._handle_message_placeholder
+    # Monkeypatch the message handler to raise (renamed from _handle_message_placeholder
+    # to _handle_message in Phase E full)
+    original = line_bot._handle_message
 
     async def _bad_handler(event):
         raise RuntimeError("simulated handler error")
 
-    line_bot._handle_message_placeholder = _bad_handler
+    line_bot._handle_message = _bad_handler
     try:
         async def _do():
             # Should not raise — exception caught inside handle_line_event
@@ -341,4 +342,4 @@ def test_d5_4_handler_exception_caught():
 
         asyncio.run(_do())
     finally:
-        line_bot._handle_message_placeholder = original
+        line_bot._handle_message = original
