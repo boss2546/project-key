@@ -24,6 +24,10 @@ class User(Base):
     password_hash = Column(String, nullable=True)               # v5.0 — nullable for legacy
     is_active = Column(Boolean, default=True)                   # v5.0
     mcp_secret = Column(String, nullable=True, unique=True)     # v5.1 — per-user MCP connector secret
+    # v8.1.0 — Google Sign-In: Google's stable subject claim ID (rfc7519 "sub")
+    # NULL = ผู้ใช้ไม่เคย login ผ่าน Google. ถ้า set แล้ว = stable across email changes.
+    # ⚠️ Lookup priority ใน google_login flow: google_sub > email (sub เปลี่ยนไม่ได้, email เปลี่ยนได้)
+    google_sub = Column(String, nullable=True, unique=True, index=True)
     # v5.9.2 — Stripe subscription
     plan = Column(String, default="free")                       # free, starter
     subscription_status = Column(String, default="free")        # free, starter_active, starter_past_due, starter_canceled
@@ -733,6 +737,22 @@ async def init_db():
                     )
             except Exception as e:
                 print(f"  ⚠️ line_users index creation warning: {e}")
+
+            # v8.1.0 Migration — Google Sign-In: users.google_sub
+            # NULL = user ไม่เคย login Google. UNIQUE INDEX กัน 2 PDB users ผูก Google account เดียวกัน
+            cursor = await db.execute("PRAGMA table_info(users)")
+            user_cols_v8_1 = [row[1] for row in await cursor.fetchall()]
+            if "google_sub" not in user_cols_v8_1:
+                await db.execute("ALTER TABLE users ADD COLUMN google_sub TEXT")
+                migrated = True
+                print("  → Added: users.google_sub (v8.1.0 — Google Sign-In)")
+            try:
+                await db.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub "
+                    "ON users(google_sub)"
+                )
+            except Exception as e:
+                print(f"  ⚠️ users.google_sub index creation warning: {e}")
 
             if migrated:
                 await db.commit()
