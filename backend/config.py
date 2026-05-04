@@ -129,3 +129,13 @@ def is_byos_configured() -> bool:
         and GOOGLE_OAUTH_CLIENT_SECRET
         and DRIVE_TOKEN_ENCRYPTION_KEY
     )
+
+
+# ─── Email Service (v7.6.0) ───
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+EMAIL_FROM_ADDRESS = os.getenv("EMAIL_FROM_ADDRESS", "noreply@personaldatabank.fly.dev")
+EMAIL_FROM_NAME = os.getenv("EMAIL_FROM_NAME", "Personal Data Bank")
+
+def is_email_configured() -> bool:
+    """True if Resend API key is configured."""
+    return bool(RESEND_API_KEY)

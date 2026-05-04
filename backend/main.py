@@ -2436,6 +2436,11 @@ async def serve_app():
     """Authenticated workspace shell — JS guards redirect to / if no token."""
     return _serve_html("app.html")
 
+@app.get("/reset-password")
+async def serve_reset_password_page():
+    """Serve landing page which will catch the token parameter and show reset modal."""
+    return _serve_html("landing.html")
+
 
 @app.get("/legacy")
 async def serve_legacy():

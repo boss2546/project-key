@@ -278,7 +278,12 @@ async def request_password_reset(db: AsyncSession, email: str) -> dict:
 
     token = create_reset_token(user.id, user.email)
     logger.info(f"Password reset requested for: {user.email}")
-    response["reset_token"] = token  # TODO Phase 2: deliver via email, not JSON
+    
+    # Send email (v7.6.0) - fail gracefully inside send_password_reset_email
+    from .email_service import send_password_reset_email
+    import asyncio
+    asyncio.create_task(send_password_reset_email(user.email, user.name, token))
+    
     return response
 
 

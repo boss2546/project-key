@@ -193,10 +193,12 @@ async function doForgotPassword() {
  // Backend now responds with the same shape regardless of whether the email
  // exists (anti-enumeration). reset_token is only present for real accounts.
  if (!data.reset_token) {
- errorEl.textContent = data.message || 'ถ้าอีเมลนี้มีบัญชีอยู่ ระบบจะส่งลิงก์รีเซ็ตให้';
- errorEl.classList.remove('hidden');
- return;
+   errorEl.textContent = data.message || 'ถ้าอีเมลนี้มีบัญชีอยู่ ระบบจะส่งลิงก์รีเซ็ตให้';
+   errorEl.classList.remove('hidden');
+   errorEl.style.color = '#10b981'; // Tailwind emerald-500
+   return;
  }
+ // Legacy fallback for dev environment (if backend still returns token)
  _resetToken = data.reset_token;
  document.getElementById('reset-email-display').textContent = data.email;
  showAuthModal('reset');
@@ -261,6 +263,8 @@ function initAuth() {
  document.getElementById('btn-hero-register')?.addEventListener('click', () => showAuthModal('register'));
  document.getElementById('btn-hero-login')?.addEventListener('click', () => showAuthModal('login'));
  document.getElementById('btn-cta-register')?.addEventListener('click', () => showAuthModal('register'));
+
+
 
  // Landing pricing buttons
  document.getElementById('btn-pricing-free')?.addEventListener('click', () => showAuthModal('register'));
@@ -353,6 +357,14 @@ function initAuth() {
  } else {
  console.log('[auth] no token or user — showing landing');
  showLanding();
+ // v7.6.0 — Handle email password reset link (must run AFTER showLanding)
+ const urlParams = new URLSearchParams(window.location.search);
+ const tokenFromUrl = urlParams.get('token');
+ if (tokenFromUrl && window.location.pathname === '/reset-password') {
+   _resetToken = tokenFromUrl;
+   showAuthModal('reset');
+   window.history.replaceState({}, document.title, '/');
+ }
  }
 }
 

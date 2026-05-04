@@ -25,30 +25,29 @@ test.describe("Thorough / forgot-password flow", () => {
     await expect(page.locator("#forgot-form")).not.toHaveClass(/hidden/);
     await page.fill("#forgot-email", email);
     await page.click("#btn-forgot-submit");
-    // Backend in dev mode returns reset_token in the response body → frontend
-    // auto-switches to the reset form.
+    // v7.6.0: Backend no longer returns token. Should show success message.
+    await expect(page.locator("#forgot-error")).not.toHaveClass(/hidden/, { timeout: 10000 });
+    await expect(page.locator("#forgot-error")).toContainText(/ระบบจะส่งลิงก์/);
+
+    // Simulate clicking the email link
+    await page.goto("/reset-password?token=INVALID_TEST_TOKEN");
+    await page.waitForLoadState("networkidle");
+    
+    // The reset form should be automatically opened
     await expect(page.locator("#reset-form")).not.toHaveClass(/hidden/, { timeout: 10000 });
-    // The display element should show the email
-    await expect(page.locator("#reset-email-display")).toContainText(email);
 
     const newPassword = "NewPass_456!";
     await page.fill("#reset-new-password", newPassword);
     await page.fill("#reset-confirm-password", newPassword);
     await page.click("#btn-reset-submit");
 
-    // After successful reset → auto-login → redirect to /app
-    await page.waitForURL((url) => url.pathname === "/app", { timeout: 15000 });
-    await expect(page.locator("#sidebar")).toBeVisible({ timeout: 10000 });
+    // Since token is invalid, it should show an error from backend
+    await expect(page.locator("#reset-error")).not.toHaveClass(/hidden/);
   });
 
   test("password mismatch shows error", async ({ page }) => {
-    const email = await registerAndEnterApp(page);
-    await page.click("#btn-logout");
-    await page.waitForURL((url) => url.pathname === "/", { timeout: 10000 });
-    await page.click("#btn-show-login");
-    await page.click("#switch-to-forgot");
-    await page.fill("#forgot-email", email);
-    await page.click("#btn-forgot-submit");
+    await page.goto("/reset-password?token=INVALID_TEST_TOKEN");
+    await page.waitForLoadState("networkidle");
     await expect(page.locator("#reset-form")).not.toHaveClass(/hidden/, { timeout: 10000 });
     await page.fill("#reset-new-password", "abcdef");
     await page.fill("#reset-confirm-password", "DIFFERENT");
@@ -58,13 +57,8 @@ test.describe("Thorough / forgot-password flow", () => {
   });
 
   test("password too short shows error", async ({ page }) => {
-    const email = await registerAndEnterApp(page);
-    await page.click("#btn-logout");
-    await page.waitForURL((url) => url.pathname === "/", { timeout: 10000 });
-    await page.click("#btn-show-login");
-    await page.click("#switch-to-forgot");
-    await page.fill("#forgot-email", email);
-    await page.click("#btn-forgot-submit");
+    await page.goto("/reset-password?token=INVALID_TEST_TOKEN");
+    await page.waitForLoadState("networkidle");
     await expect(page.locator("#reset-form")).not.toHaveClass(/hidden/, { timeout: 10000 });
     await page.fill("#reset-new-password", "ab");
     await page.fill("#reset-confirm-password", "ab");
