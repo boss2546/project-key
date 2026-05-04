@@ -21,29 +21,30 @@ ALL_FILE_TYPES = {
     "xlsx", "pptx", "html", "json", "rtf",
 }
 PLAN_LIMITS = {
+    # v8.0.2 — Testing period: ×10 from original baseline. Reduce before public launch.
     "free": {
-        "context_pack_limit": 1,
-        "file_limit": 5,
-        "storage_limit_mb": 50,
-        "max_file_size_mb": 10,
-        "ai_summary_limit_monthly": 5,
-        "export_limit_monthly": 10,
+        "context_pack_limit": 10,
+        "file_limit": 50,
+        "storage_limit_mb": 500,
+        "max_file_size_mb": 100,
+        "ai_summary_limit_monthly": 50,
+        "export_limit_monthly": 100,
         "refresh_limit_monthly": 0,
         "semantic_search_enabled": False,
         "version_history_days": 0,
         "allowed_file_types": {"pdf", "docx", "txt", "md", "csv"},
     },
-    # Starter ×5 from v7.6.0 baseline (50/1024MB/20MB → 250/5GB/100MB)
+    # Starter ×10 from v7.6.0 baseline (50/1024MB/20MB → 500/10GB/200MB)
     "starter": {
-        "context_pack_limit": 25,
-        "file_limit": 250,
-        "storage_limit_mb": 5120,
-        "max_file_size_mb": 100,
-        "ai_summary_limit_monthly": 500,
-        "export_limit_monthly": 1500,
-        "refresh_limit_monthly": 50,
+        "context_pack_limit": 50,
+        "file_limit": 500,
+        "storage_limit_mb": 10240,
+        "max_file_size_mb": 200,
+        "ai_summary_limit_monthly": 1000,
+        "export_limit_monthly": 3000,
+        "refresh_limit_monthly": 100,
         "semantic_search_enabled": True,
-        "version_history_days": 35,
+        "version_history_days": 70,
         "allowed_file_types": ALL_FILE_TYPES,
     },
     # Admin/staff plan — all limits effectively unlimited

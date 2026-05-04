@@ -9,7 +9,7 @@ load_dotenv()
 # ─── App Version (single source of truth) ───
 # Bump this when releasing. All version strings exposed to clients
 # (Swagger /docs, /api/mcp/info, MCP serverInfo) read from here.
-APP_VERSION = "8.0.1"
+APP_VERSION = "8.0.2"
 
 # OpenRouter API
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")

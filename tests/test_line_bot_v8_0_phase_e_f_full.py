@@ -650,13 +650,19 @@ def test_f5_file_message_uploads(line_full_config, tmp_path, monkeypatch):
 
 
 def test_f6_file_message_plan_limit_rejects(line_full_config, tmp_path, monkeypatch):
-    """linked free user with 5 files → 6th file rejected with error card"""
+    """linked free user at file limit → next file rejected with error card.
+
+    Free file_limit = 50 (v8.0.2 ×10 from baseline). Pre-seed 50 files to trigger.
+    """
     from backend import line_bot, bot_adapters
     from backend.bot_adapters import BotAttachment
     from backend.database import AsyncSessionLocal, LineUser, User, File, gen_id
+    from backend.plan_limits import PLAN_LIMITS
     from sqlalchemy import select, delete
 
     monkeypatch.setattr("backend.line_bot.UPLOAD_DIR", str(tmp_path), raising=False)
+
+    free_limit = PLAN_LIMITS["free"]["file_limit"]
 
     async def setup():
         async with AsyncSessionLocal() as db:
@@ -667,8 +673,8 @@ def test_f6_file_message_plan_limit_rejects(line_full_config, tmp_path, monkeypa
             await db.execute(delete(File).where(File.user_id == u_id))
             await db.commit()
             db.add(LineUser(pdb_user_id=u_id, line_user_id="U_F6_LINKED", linked_at=_dt.utcnow()))
-            # 5 existing files
-            for i in range(5):
+            # Pre-seed up to free limit
+            for i in range(free_limit):
                 db.add(File(
                     id=gen_id(),
                     user_id=u_id,
@@ -683,12 +689,12 @@ def test_f6_file_message_plan_limit_rejects(line_full_config, tmp_path, monkeypa
 
     user_id = asyncio.run(setup())
 
-    fake_attachment = BotAttachment(content=b"6th", filename="6.txt", mime_type="text/plain", message_id="M6")
+    fake_attachment = BotAttachment(content=b"next", filename="next.txt", mime_type="text/plain", message_id="MNEXT")
 
     async def fake_download(self, mid): return fake_attachment
     async def fake_typing(self, *args, **kwargs): return None
     captured = {}
-    async def fake_reply(self, token, message):
+    async def fake_reply(self, token, message, **kwargs):
         captured["flex"] = message.flex
 
     try:
@@ -699,7 +705,7 @@ def test_f6_file_message_plan_limit_rejects(line_full_config, tmp_path, monkeypa
                         "type": "message",
                         "source": {"userId": "U_F6_LINKED"},
                         "replyToken": "TKN",
-                        "message": {"type": "file", "id": "M6", "fileName": "6.txt", "fileSize": 3},
+                        "message": {"type": "file", "id": "MNEXT", "fileName": "next.txt", "fileSize": 4},
                     }))
 
         flex = captured.get("flex")
