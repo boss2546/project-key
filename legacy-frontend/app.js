@@ -550,6 +550,13 @@ const NODE_COLORS = {
 // ═══════════════════════════════════════════
 const I18N = {
  th: {
+ // v8.1.0 — Google Sign-In
+ 'auth.signInWithGoogle': 'เข้าสู่ระบบด้วย Google',
+ 'auth.signUpWithGoogle': 'สมัครสมาชิกด้วย Google',
+ 'auth.or': 'หรือ',
+ 'auth.useGoogleHint': 'บัญชีนี้สมัครด้วย Google',
+ 'auth.emailNotVerified': 'อีเมล Google ยังไม่ verified',
+
  // Navigation
  'nav.myData': 'ข้อมูลของฉัน',
  'nav.knowledge': 'มุมมองความรู้',
@@ -798,6 +805,13 @@ const I18N = {
  },
 
  en: {
+ // v8.1.0 — Google Sign-In
+ 'auth.signInWithGoogle': 'Sign in with Google',
+ 'auth.signUpWithGoogle': 'Sign up with Google',
+ 'auth.or': 'OR',
+ 'auth.useGoogleHint': 'This account uses Google sign-in',
+ 'auth.emailNotVerified': 'Google email is not verified',
+
  // Navigation
  'nav.myData': 'My Data',
  'nav.knowledge': 'Knowledge View',

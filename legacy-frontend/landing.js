@@ -88,6 +88,7 @@ async function doLogin() {
  const password = document.getElementById('login-password').value;
  const errorEl = document.getElementById('login-error');
  errorEl.classList.add('hidden');
+ errorEl.style.color = ''; // reset (อาจถูก set เป็น emerald จาก forgot flow)
 
  try {
  const res = await fetch('/api/auth/login', {
@@ -97,7 +98,21 @@ async function doLogin() {
  });
  const data = await res.json();
  if (!res.ok) {
- errorEl.textContent = data.detail || 'Login failed';
+ // v8.1.0 — Google-only account hint (detail = {error: {code, message}})
+ const errCode = data?.detail?.error?.code;
+ if (errCode === 'USE_GOOGLE_LOGIN') {
+  errorEl.innerHTML = 'บัญชีนี้สมัครด้วย Google — ' +
+    '<a href="#" id="login-error-google-link">คลิกเพื่อ Sign in with Google</a>';
+  errorEl.classList.remove('hidden');
+  document.getElementById('login-error-google-link')?.addEventListener('click', (e) => {
+   e.preventDefault();
+   doGoogleLogin();
+  });
+  return;
+ }
+ // Generic error
+ const msg = data?.detail?.error?.message || data.detail || 'Login failed';
+ errorEl.textContent = typeof msg === 'string' ? msg : 'Login failed';
  errorEl.classList.remove('hidden');
  return;
  }
@@ -112,6 +127,44 @@ async function doLogin() {
  } catch (e) {
  errorEl.textContent = 'Connection error';
  errorEl.classList.remove('hidden');
+ }
+}
+
+// v8.1.0 — Google Sign-In trigger
+// Frontend ไม่ต้อง redirect ตรง /api/auth/google/init เพราะถ้า server 503 (ยังไม่ configured)
+// browser จะแสดง JSON ดิบ — fetch ก่อนแล้ว detect 503 → แสดง toast แทน
+async function doGoogleLogin() {
+ try {
+ const r = await fetch('/api/auth/google/init', {
+   headers: { 'Accept': 'application/json' },
+ });
+ if (r.status === 503) {
+  showToast(
+   getLang() === 'th'
+     ? 'Google Sign-In ยังไม่พร้อมใช้งาน'
+     : 'Google Sign-In is not configured',
+   'error'
+  );
+  return;
+ }
+ if (!r.ok) {
+  showToast(
+   getLang() === 'th' ? 'เริ่มต้น Google Sign-In ไม่สำเร็จ' : 'Failed to start Google Sign-In',
+   'error'
+  );
+  return;
+ }
+ const data = await r.json();
+ if (data.auth_url) {
+  window.location.assign(data.auth_url);
+ } else {
+  showToast(getLang() === 'th' ? 'ลิงก์ไม่ถูกต้อง' : 'Invalid auth URL', 'error');
+ }
+ } catch (e) {
+ showToast(
+   getLang() === 'th' ? 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้' : 'Cannot connect to server',
+   'error'
+ );
  }
 }
 
@@ -256,7 +309,71 @@ async function doResetPassword() {
  }
 }
 
+// v8.1.0 — Handle Google Sign-In callback (URL fragment #token=<jwt>)
+// Server redirects ที่ /app#token=... หลัง verify สำเร็จ — fragment ไม่ส่งไป server / Referer
+function _handleGoogleLoginFragment() {
+ const hash = window.location.hash || '';
+ if (!hash.startsWith('#token=')) return false;
+ const jwt = hash.slice('#token='.length);
+ if (!jwt || jwt.split('.').length !== 3) {
+  console.warn('[google-login] bad fragment payload, ignoring');
+  return false;
+ }
+ try {
+  // Decode JWT payload (no verify — backend already verified ก่อนออก token นี้)
+  const payloadB64 = jwt.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+  const padded = payloadB64 + '='.repeat((4 - payloadB64.length % 4) % 4);
+  const payload = JSON.parse(atob(padded));
+  state.authToken = jwt;
+  state.currentUser = {
+   id: payload.sub,
+   email: payload.email,
+   name: payload.name,
+   // mcp_secret จะ populate ตอน /api/auth/me ถูกเรียกครั้งแรก (ใน initAppData)
+  };
+  localStorage.setItem('pdb_token', jwt);
+  localStorage.setItem('pdb_user', JSON.stringify(state.currentUser));
+  // Clean URL (เอา fragment ออก) — ต้องอยู่ที่ /app
+  window.history.replaceState({}, document.title, '/app');
+  _isInitVerified = true;
+  if (showApp()) initAppData();
+  showToast(getLang() === 'th' ? 'เข้าสู่ระบบสำเร็จ!' : 'Signed in successfully', 'success');
+  return true;
+ } catch (e) {
+  console.error('[google-login] fragment decode failed:', e);
+  return false;
+ }
+}
+
+// v8.1.0 — Handle Google Sign-In error (?google_error=<reason>)
+function _handleGoogleLoginError() {
+ const params = new URLSearchParams(window.location.search);
+ const gErr = params.get('google_error');
+ if (!gErr) return;
+ const isTH = getLang() === 'th';
+ const messages = {
+  access_denied: isTH ? 'คุณยกเลิกการเข้าสู่ระบบ Google' : 'You canceled Google sign-in',
+  invalid_state: isTH ? 'ลิงก์หมดอายุ กรุณาลองใหม่' : 'Login link expired — please try again',
+  invalid_id_token: isTH ? 'Google ID token ไม่ถูกต้อง' : 'Invalid Google ID token',
+  email_not_verified: isTH ? 'อีเมล Google ยังไม่ verified' : 'Google email is not verified',
+  google_api_error: isTH ? 'Google API ขัดข้อง กรุณาลองใหม่' : 'Google API error — please retry',
+  missing_params: isTH ? 'ลิงก์ callback ไม่สมบูรณ์' : 'Incomplete callback URL',
+  account_disabled: isTH ? 'บัญชีนี้ถูกปิดใช้งาน' : 'This account is deactivated',
+  internal_error: isTH ? 'เกิดข้อผิดพลาดในระบบ' : 'Internal server error',
+ };
+ showToast(messages[gErr] || (isTH ? 'เกิดข้อผิดพลาด' : 'An error occurred'), 'error');
+ // Clean URL — เอา query param ออก
+ const url = new URL(window.location.href);
+ url.searchParams.delete('google_error');
+ window.history.replaceState({}, document.title, url.pathname + (url.search || '') + url.hash);
+}
+
 function initAuth() {
+ // v8.1.0 — Google login: fragment handler ต้อง run ก่อน check authToken
+ // เพราะ Google callback ส่งกลับมาที่ /app#token=... โดย user ยังไม่มี token ใน localStorage
+ if (_handleGoogleLoginFragment()) return;
+ _handleGoogleLoginError();
+
  // Landing page buttons
  document.getElementById('btn-show-login')?.addEventListener('click', () => showAuthModal('login'));
  document.getElementById('btn-show-register')?.addEventListener('click', () => showAuthModal('register'));
@@ -288,6 +405,9 @@ function initAuth() {
  document.getElementById('switch-reset-to-login')?.addEventListener('click', (e) => { e.preventDefault(); showAuthModal('login'); });
  document.getElementById('btn-login')?.addEventListener('click', doLogin);
  document.getElementById('btn-register')?.addEventListener('click', doRegister);
+ // v8.1.0 — Google Sign-In buttons (มี 2 ตัว: ใน login form + register form)
+ document.getElementById('btn-google-login-login')?.addEventListener('click', doGoogleLogin);
+ document.getElementById('btn-google-login-register')?.addEventListener('click', doGoogleLogin);
  document.getElementById('btn-forgot-submit')?.addEventListener('click', doForgotPassword);
  document.getElementById('btn-reset-submit')?.addEventListener('click', doResetPassword);
 

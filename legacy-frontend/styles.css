@@ -4026,3 +4026,56 @@
   color: #fbbf24;
 }
 .line-bot-notice svg { color: #f59e0b; flex-shrink: 0; }
+
+/* ═══════════════════════════════════════════
+   v8.1.0 — Google Sign-In button + auth divider
+   ═══════════════════════════════════════════ */
+.btn-google {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #fff;
+  color: #3c4043;
+  border: 1px solid #dadce0;
+  font-weight: 500;
+  font-size: 14px;
+  padding: 11px 16px;
+  transition: background 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.btn-google:hover {
+  background: #f8f9fa;
+  border-color: #c8ccd0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+.btn-google:active {
+  background: #f1f3f4;
+}
+.btn-google:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.btn-google-icon {
+  flex-shrink: 0;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-muted, #888);
+  font-size: 12.5px;
+  margin: 16px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border, rgba(255, 255, 255, 0.1));
+}
+.auth-divider span {
+  white-space: nowrap;
+}
