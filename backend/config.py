@@ -9,7 +9,7 @@ load_dotenv()
 # ─── App Version (single source of truth) ───
 # Bump this when releasing. All version strings exposed to clients
 # (Swagger /docs, /api/mcp/info, MCP serverInfo) read from here.
-APP_VERSION = "8.0.7"
+APP_VERSION = "8.1.0"
 
 # OpenRouter API
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
@@ -171,3 +171,23 @@ def is_line_configured() -> bool:
 def is_line_login_configured() -> bool:
     """True ถ้า LINE Login OAuth พร้อม (สำหรับ account linking)."""
     return bool(LINE_LOGIN_CHANNEL_ID and LINE_LOGIN_CHANNEL_SECRET)
+
+
+# ─── Google Sign-In (v8.1.0) ───
+# Reuse GOOGLE_OAUTH_CLIENT_ID + GOOGLE_OAUTH_CLIENT_SECRET ตัวเดียวกับ Drive BYOS —
+# แค่ใช้ scope ต่างกัน (login = openid+email+profile, ไม่ขอ drive.file). Login ไม่เก็บ
+# refresh_token จึงไม่ต้องการ DRIVE_TOKEN_ENCRYPTION_KEY (ไม่ผูกกับ is_byos_configured).
+GOOGLE_LOGIN_REDIRECT_URI = os.getenv(
+    "GOOGLE_LOGIN_REDIRECT_URI",
+    f"{APP_BASE_URL}/api/auth/google/callback",
+)
+
+
+def is_google_login_configured() -> bool:
+    """True ถ้า Google Sign-In พร้อม (Client ID + Secret).
+
+    Login flow ไม่ต้องการ Fernet key เพราะไม่เก็บ refresh_token (ID token verify ครั้งเดียว
+    ก็พอ — ออก JWT ฝั่งเราเอง). ดังนั้นเงื่อนไข is_google_login_configured() จึงสั้นกว่า
+    is_byos_configured() ที่ต้องมี DRIVE_TOKEN_ENCRYPTION_KEY ด้วย.
+    """
+    return bool(GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET)

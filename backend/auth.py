@@ -115,10 +115,24 @@ async def login_user(db: AsyncSession, email: str, password: str) -> dict:
     )
     user = result.scalar_one_or_none()
 
-    if not user or not user.password_hash:
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password"
+        )
+
+    # v8.1.0 — Google-only user (สมัครผ่าน Google, ไม่มี password) → แนะนำให้ใช้ Google login
+    # Trade-off: ตอบ specific code ดีกว่า generic 401 เพราะ user งงว่าทำไม login ไม่ได้
+    # (enumeration risk เล็กน้อย — attacker บอกได้ว่า email นี้เป็น Google account → ยอมรับเพื่อ UX)
+    if not user.password_hash:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "error": {
+                    "code": "USE_GOOGLE_LOGIN",
+                    "message": "บัญชีนี้สมัครด้วย Google — กรุณาคลิก 'Sign in with Google'",
+                }
+            },
         )
 
     if not verify_password(password, user.password_hash):
@@ -332,4 +346,97 @@ async def reset_password(db: AsyncSession, token: str, new_password: str) -> dic
             "mcp_secret": user.mcp_secret,
         },
         "token": access_token,
+    }
+
+
+# ═══════════════════════════════════════════
+# GOOGLE SIGN-IN — v8.1.0
+# ═══════════════════════════════════════════
+
+async def login_or_create_google_user(
+    db: AsyncSession,
+    google_sub: str,
+    email: str,
+    name: str,
+) -> dict:
+    """Find user by google_sub → fallback email → create if not found. Returns JWT.
+
+    Lookup priority:
+      1. google_sub (stable, ไม่เปลี่ยน) — ถ้าเจอ + email เปลี่ยนใน Google → sync DB
+      2. email (lower) — ถ้าเจอ user เดิมที่สมัคร email/password มาก่อน → link Google
+      3. ไม่เจอ → INSERT user ใหม่ (password_hash=NULL = Google-only account)
+
+    Race condition handling:
+      - UNIQUE constraint บน google_sub + email ใน DB จะ throw IntegrityError
+        ตอน 2 callbacks เข้ามาพร้อมกัน → caller (endpoint) catch + retry lookup ได้
+      - แต่ในทางปฏิบัติ user คลิก 2 ครั้งเร็ว → 2 OAuth flow แยก → state ต่างกัน
+        ดังนั้น race เกิดยากมาก — ไม่ทำ retry ใน function นี้
+
+    Returns same shape as login_user(): {"user": {...}, "token": jwt}
+    """
+    email_lower = (email or "").lower().strip()
+    if not email_lower or not google_sub:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": {"code": "INVALID_GOOGLE_PAYLOAD",
+                          "message": "Google response missing email or sub"}
+            },
+        )
+
+    # 1) Lookup by google_sub (most stable)
+    result = await db.execute(select(User).where(User.google_sub == google_sub))
+    user = result.scalar_one_or_none()
+
+    if user:
+        # Email อาจเปลี่ยนใน Google (rare แต่เกิดได้) → sync DB
+        if user.email != email_lower:
+            logger.info(
+                f"Google email changed for user {user.id}: {user.email} → {email_lower}"
+            )
+            user.email = email_lower
+            await db.commit()
+    else:
+        # 2) Lookup by email (link existing email/password account)
+        result = await db.execute(select(User).where(User.email == email_lower))
+        user = result.scalar_one_or_none()
+
+        if user:
+            # Existing user — link Google (อาจมี password ด้วยอยู่แล้ว, เก็บไว้ทั้งคู่)
+            user.google_sub = google_sub
+            await db.commit()
+            logger.info(f"Linked Google to existing user: {user.email} ({user.id})")
+        else:
+            # 3) Create new (Google-only — no password)
+            import secrets as _secrets
+            from .database import gen_id
+            user = User(
+                id=gen_id(),
+                name=name or "User",
+                email=email_lower,
+                password_hash=None,
+                google_sub=google_sub,
+                is_active=True,
+                mcp_secret=_secrets.token_urlsafe(32),
+            )
+            db.add(user)
+            await db.commit()
+            await db.refresh(user)
+            logger.info(f"New Google user created: {user.email} ({user.id})")
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is deactivated",
+        )
+
+    token = create_access_token(user.id, user.email, user.name)
+    return {
+        "user": {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "mcp_secret": user.mcp_secret,
+        },
+        "token": token,
     }
