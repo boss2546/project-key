@@ -305,8 +305,8 @@ async def _handle_message(event: dict) -> None:
         row = result.scalar_one_or_none()
 
     if not row or not row.pdb_user_id:
-        # Not linked → prompt link
-        await _reply_not_linked(reply_token)
+        # Not linked → prompt link with Flex+button (issues linkToken)
+        await _reply_not_linked(reply_token, line_user_id=line_user_id)
         return
 
     # Update last_seen_at
@@ -326,17 +326,47 @@ async def _handle_message(event: dict) -> None:
         logger.info("Unsupported message type: %s", msg_type)
 
 
-async def _reply_not_linked(reply_token: Optional[str]) -> None:
-    """User send message ก่อน link → reply prompt to link."""
+async def _reply_not_linked(reply_token: Optional[str], line_user_id: Optional[str] = None) -> None:
+    """User send message ก่อน link → issue linkToken + ส่ง Flex card with login button.
+
+    Flow:
+    1. POST /v2/bot/user/{userId}/linkToken → get fresh linkToken
+    2. Build link URL: {APP_BASE_URL}/auth/line?linkToken=<token>
+    3. Reply Flex card (link_prompt_card) → ปุ่มกดเปิดหน้า login PDB
+    4. (Fallback) ถ้า issue token ไม่ผ่าน → text + URL plain
+
+    เรียกได้ทั้งจาก /start คำสั่ง หรือทุกครั้งที่ unlinked user ส่งข้อความเข้ามา.
+    """
     from .bot_adapters import get_line_adapter, BotMessage
+    from .bot_messages import link_prompt_card
+
     if not reply_token:
         return
     adapter = get_line_adapter()
     if not adapter:
         return
-    await adapter.reply_message(reply_token, BotMessage(
-        text="กรุณาเชื่อมบัญชี Personal Data Bank ก่อนเริ่มใช้งานครับ 🔗\nลองพิมพ์ /start เพื่อเชื่อมบัญชี หรือเพิ่ม bot ใหม่"
-    ))
+
+    link_url: Optional[str] = None
+    if line_user_id:
+        try:
+            link_token = await adapter.issue_link_token(line_user_id)
+            if link_token:
+                link_url = f"{APP_BASE_URL.rstrip('/')}/auth/line?linkToken={link_token}"
+        except Exception as e:
+            logger.warning("_reply_not_linked: issue_link_token failed: %s", e)
+
+    if link_url:
+        flex = link_prompt_card(link_url)
+        await adapter.reply_message(reply_token, BotMessage(flex=flex))
+    else:
+        # Fallback: plain text + base URL (กรณี LINE API fail)
+        await adapter.reply_message(reply_token, BotMessage(
+            text=(
+                "🔗 กรุณาเชื่อมบัญชี Personal Data Bank ก่อนเริ่มใช้งานครับ\n\n"
+                f"เปิดเว็บ: {APP_BASE_URL.rstrip('/')}/app\n"
+                "หรือพิมพ์ /start อีกครั้งเพื่อขอลิงก์ใหม่"
+            )
+        ))
 
 
 async def _handle_text_message(event: dict, pdb_user_id: str) -> None:
@@ -576,7 +606,7 @@ async def _handle_postback(event: dict) -> None:
         )).scalar_one_or_none()
     
     if not row or not row.pdb_user_id:
-        await _reply_not_linked(reply_token)
+        await _reply_not_linked(reply_token, line_user_id=line_user_id)
         return
 
     if action == "upload_url":
