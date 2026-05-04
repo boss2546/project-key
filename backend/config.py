@@ -139,3 +139,26 @@ EMAIL_FROM_NAME = os.getenv("EMAIL_FROM_NAME", "Personal Data Bank")
 def is_email_configured() -> bool:
     """True if Resend API key is configured."""
     return bool(RESEND_API_KEY)
+
+
+# ─── LINE Bot Integration (v8.0.0) ───
+# ทั้งหมด optional — ถ้าว่าง = LINE bot ปิดเงียบๆ (POST /webhook/line return 503)
+# LINE Login channel = แยกจาก Messaging API channel — ต้อง 2 channel ใน Provider เดียวกัน
+LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET", "")
+LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN", "")
+LINE_LOGIN_CHANNEL_ID = os.getenv("LINE_LOGIN_CHANNEL_ID", "")
+LINE_LOGIN_CHANNEL_SECRET = os.getenv("LINE_LOGIN_CHANNEL_SECRET", "")
+LINE_BOT_BASIC_ID = os.getenv("LINE_BOT_BASIC_ID", "")  # @PDBBot
+LINE_BOT_BASE_URL = os.getenv("LINE_BOT_BASE_URL", APP_BASE_URL)
+
+
+def is_line_configured() -> bool:
+    """True ถ้า LINE Messaging API พร้อมใช้งาน (Channel Secret + Access Token).
+    LINE Login channel = optional (ถ้าไม่ตั้ง = bot ส่ง notify ได้แต่ link account ไม่ได้).
+    """
+    return bool(LINE_CHANNEL_SECRET and LINE_CHANNEL_ACCESS_TOKEN)
+
+
+def is_line_login_configured() -> bool:
+    """True ถ้า LINE Login OAuth พร้อม (สำหรับ account linking)."""
+    return bool(LINE_LOGIN_CHANNEL_ID and LINE_LOGIN_CHANNEL_SECRET)

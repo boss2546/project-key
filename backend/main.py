@@ -966,6 +966,54 @@ async def signed_download(token: str, db: AsyncSession = Depends(get_db)):
     )
 
 
+# ─── v8.0.0 — LINE Bot Webhook ───
+# LINE webhook endpoint — receives events จาก LINE platform
+# Signature: HMAC-SHA256(channel_secret, raw_body) ต้อง match X-Line-Signature header
+# 503 ถ้า LINE_CHANNEL_SECRET ยังไม่ set (feature ปิดเงียบ)
+# 401 ถ้า signature ผิด
+# 200 + ack ทันที — events handled async via BackgroundTasks
+@app.post("/webhook/line")
+async def line_webhook(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    x_line_signature: str = Header(None),
+):
+    """LINE Messaging API webhook — receives events จาก LINE.
+
+    Spec: https://developers.line.biz/en/reference/messaging-api/#webhook-event-objects
+    """
+    from .config import is_line_configured
+    from .line_bot import verify_signature, handle_line_event
+
+    if not is_line_configured():
+        return JSONResponse(
+            {"error": {"code": "LINE_NOT_CONFIGURED", "message": "LINE bot not configured on this server"}},
+            status_code=503,
+        )
+
+    body = await request.body()
+    if not verify_signature(body, x_line_signature):
+        raise HTTPException(
+            status_code=401,
+            detail={"error": {"code": "INVALID_SIGNATURE", "message": "Invalid X-Line-Signature"}},
+        )
+
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": {"code": "INVALID_PAYLOAD", "message": "Body is not valid JSON"}},
+        )
+
+    events = payload.get("events", [])
+    for event in events:
+        # Background tasks — ack ทันที, handler ทำงาน async
+        background_tasks.add_task(handle_line_event, event)
+
+    return {"status": "ok", "events_received": len(events)}
+
+
 @app.post("/api/files/{file_id}/reprocess")
 async def reprocess_file(
     file_id: str,

@@ -40,3 +40,6 @@ cryptography>=42.0.0
 
 # Email Delivery (v7.6.0)
 resend>=2.0.0
+
+# LINE Bot Integration (v8.0.0)
+line-bot-sdk>=3.11.0

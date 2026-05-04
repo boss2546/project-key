@@ -475,6 +475,44 @@ class DriveConnection(Base):
     user = relationship("User", back_populates="drive_connection")
 
 
+# ═══════════════════════════════════════════
+# v8.0.0 — LINE Bot Integration
+# ═══════════════════════════════════════════
+
+class LineUser(Base):
+    """v8.0.0 — Mapping LINE user → PDB user (1 PDB user → 1 LINE account in MVP).
+
+    Account linking flow:
+    1. User เพิ่ม bot ใน LINE → bot ส่ง link prompt
+    2. User คลิก link → web confirm + login → backend insert row + generate nonce
+    3. LINE redirect ไป accountLink URL → ส่ง webhook event ที่ pdb_server
+    4. Webhook handler match nonce → set line_user_id → trigger welcome flow
+
+    Multi LINE account = defer (LQ1: 1:1 unique ใน MVP).
+    """
+    __tablename__ = "line_users"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    # ⚠️ line_user_id อาจเป็น NULL ตอนรอ accountLink event (between confirm-link + actual link)
+    line_user_id = Column(String, unique=True, nullable=True, index=True)
+    pdb_user_id = Column(String, ForeignKey("users.id"), unique=True, nullable=False, index=True)
+    line_display_name = Column(String, nullable=True)
+
+    # Account linking flow (LINE Account Link feature — linkToken + nonce)
+    link_nonce = Column(String, nullable=True)
+    link_nonce_expires_at = Column(DateTime, nullable=True)
+
+    # State
+    welcomed = Column(Boolean, default=False)
+    rich_menu_id = Column(String, nullable=True)
+
+    # Timestamps
+    linked_at = Column(DateTime, default=datetime.utcnow)
+    last_seen_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    unlinked_at = Column(DateTime, nullable=True)
+
+    user = relationship("User", backref="line_account")
+
+
 # Async engine
 engine = create_async_engine(DATABASE_URL, echo=False)
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -677,6 +715,24 @@ async def init_db():
                 )
                 migrated = True
                 print("  → Added: files.is_truncated (v7.5.0 — big file overflow flag)")
+
+            # v8.0.0 Migration — LINE Bot Integration (line_users table)
+            # Table ถูกสร้างโดย Base.metadata.create_all ก่อนหน้าแล้ว (idempotent)
+            # ตรงนี้แค่ verify + เพิ่ม index ถ้ายังไม่มี (กรณี table มีอยู่แต่ไม่มี index)
+            try:
+                cursor = await db.execute("PRAGMA table_info(line_users)")
+                line_cols = [row[1] for row in await cursor.fetchall()]
+                if "line_user_id" in line_cols:
+                    await db.execute(
+                        "CREATE INDEX IF NOT EXISTS idx_line_users_line_id "
+                        "ON line_users(line_user_id)"
+                    )
+                    await db.execute(
+                        "CREATE INDEX IF NOT EXISTS idx_line_users_pdb_id "
+                        "ON line_users(pdb_user_id)"
+                    )
+            except Exception as e:
+                print(f"  ⚠️ line_users index creation warning: {e}")
 
             if migrated:
                 await db.commit()
