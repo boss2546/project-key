@@ -5,7 +5,220 @@
 
 ---
 
-## 🎯 Current Pipeline State: `done` ✅
+## 🎯 Current Pipeline State: `review_passed` ✅ (v8.0.0 LINE BOT — READY TO DEPLOY)
+
+### 🎯 LINE-FOCUSED PROJECT — COMPLETE (2026-05-04)
+
+**Pivot:** User เลือก "โฟกัส LINE bot, ระบบอื่นเลื่อน" → Section B (MCP USP) defer ไป v7.7.0
+**Outcome:** Foundation (A+C) + LINE Bot (D-K) all built, tested, committed. **274/274 tests pass**.
+
+### 📊 Status Snapshot
+
+| Phase | Plan section | Status |
+|---|---|---|
+| **A1** Restore plan_limits | foundation-v7.6.0 §A.1 | ✅ **COMMITTED** `8fa3c70` (17 tests pass) |
+| **A2** Email service Resend | foundation-v7.6.0 §A.2 | ✅ **COMMITTED** `698ba0d` (14 tests pass) |
+| **B** MCP USP (url_fetcher + upload tools) | foundation-v7.6.0 §B | ⏸️ **DEFERRED** to v7.7.0 |
+| **C** Universal signed URLs `/d/{token}` | foundation-v7.6.0 §C | ✅ **COMMITTED** `1172d83` (23 tests pass) |
+| **D** LINE Bot Foundation | line-bot-v8.0.0 §D | ✅ **COMMITTED** `9834349` (20 tests pass) |
+| **J + E (partial)** Profile UI + auth-line landing | line-bot-v8.0.0 §J/§E | ✅ **COMMITTED** `0b9257d` |
+| **E (full) + F** Real account link + file/text handlers | line-bot-v8.0.0 §E/§F | ✅ **COMMITTED** `a810daa` (43 tests pass) |
+| **G** Text intent dispatch + chat/search/stats | line-bot-v8.0.0 §G | ✅ **COMMITTED** `08008cf` (30 tests pass) |
+| **G+** URL_UPLOAD intent | line-bot-v8.0.0 §G | ✅ **COMMITTED** `7b22579` |
+| **H + I** Push fallback, quota, group leave, Rich Menu | line-bot-v8.0.0 §H/§I | ✅ **COMMITTED** `ba4df60` (25 tests pass) |
+| **K** Polish + version bump + final report | line-bot-v8.0.0 §K | ✅ **THIS COMMIT** (APP_VERSION 8.0.0) |
+
+### ✅ Phase A Shipped (2026-05-02 21:30)
+
+**Commits (2):**
+- `8fa3c70` feat(plan-limits): restore production values [BACKLOG-008]
+- `698ba0d` feat(email): wire Resend for password reset [BACKLOG-009]
+
+**Test results:** 31/31 new + 133/133 regression = **164/164 pass**
+
+**Scope creep handling:** Reverted (3 frontend files) — file detail edit UI changes + dead code `deleteCurrentFile()` were out-of-scope, now reverted to HEAD per supervisor decision
+
+### ✅ Section C Shipped (2026-05-02 22:30)
+
+**Commit (1):**
+- `1172d83` feat(downloads): universal signed download URLs /d/{token}
+
+**Files:**
+- backend/signed_urls.py (NEW) — JWT sign + verify
+- backend/main.py — GET /d/{token} endpoint (BYOS-aware)
+- backend/mcp_tools.py — _tool_get_file_link rewritten + ttl_minutes param
+- tests/test_signed_urls_v7_6.py (NEW) — 23 cases
+
+**Test results:** 23/23 new + 156/156 regression = **179/179 pass**
+
+**Built by:** 🔴 แดง (supervisor mode override per user authorization 2026-05-02 22:00 — "งานหลังบ้านคุณทำเลย")
+
+### ✅ Phase D Shipped (2026-05-04 05:30)
+
+**Commit (1):**
+- `9834349` feat(line-bot): Phase D foundation — webhook + signature verify + LineUser table [v8.0.0]
+
+**Files:**
+- requirements.txt + requirements-fly.txt — line-bot-sdk>=3.11.0
+- backend/config.py — LINE config env vars + is_line_configured() + is_line_login_configured()
+- backend/database.py — LineUser table + idempotent index migration
+- backend/bot_adapters.py (NEW) — BotAdapter abstract + NoopBotAdapter + LineBotAdapter skeleton
+- backend/line_bot.py (NEW) — verify_signature (HMAC-SHA256) + handle_line_event dispatcher
+- backend/main.py — POST /webhook/line endpoint (503/401/400/200 ack)
+- tests/test_line_bot_v8_0_phase_d.py (NEW) — 20 cases
+
+**Test results:** 20/20 new + 176/176 regression = **196/196 pass**
+
+**Behavior:** LINE bot ปิดเงียบเมื่อ env vars ไม่ตั้ง (503 LINE_NOT_CONFIGURED) — ไม่กระทบ existing endpoints
+
+**Built by:** 🔴 แดง (supervisor mode, parallel กับ Browser Worker setup)
+
+### ✅ Phases E-K Shipped (2026-05-04)
+
+**Commits (5):**
+- `0b9257d` feat(line-bot): Phase J + E partial — profile UI + account-link landing
+- `a810daa` feat(line-bot): Phase E full + Phase F — real account linking + file/text handlers
+- `08008cf` feat(line-bot): Phase G — text intent dispatch + parallel-agent E.5 redirect
+- `7b22579` feat(line-bot): URL_UPLOAD intent + handle_url_upload
+- `ba4df60` feat(line-bot): Phase H + I — push fallback, quota, group leave, Rich Menu
+
+**Test results:** 274/274 (172 LINE-specific + 102 regression)
+
+**What shipped:**
+- Real LINE Account Link flow (linkToken + nonce + auth-line.html landing)
+- File upload from chat (PDF/DOCX/image/audio → process pipeline)
+- Intent detection (Thai+EN): STATS / SEARCH / GET_FILE / HELP / CHAT / URL_UPLOAD
+- RAG chat via existing retriever.py
+- Reply-token fallback to push API on expiry
+- Push quota tracker (200/mo free tier — log at 80% / 100%)
+- Group/room join → polite reply + auto-leave (PDB is 1:1 only)
+- Rich Menu image (2500×1686 px, 89 KB) + deploy script
+- Profile UI section (connect/disconnect LINE in app.html)
+- Admin endpoint GET /api/line/admin/quota
+
+### 📅 Final Timeline
+
+- ✅ Section A: DONE (2 commits)
+- ✅ Section C: DONE (1 commit)
+- ✅ Phase 0 External Setup: DONE (Browser Worker, ~1.5 hr)
+- ✅ LINE Bot D-K: DONE (6 commits, 1 build session)
+- **Status:** Code complete + tested → **awaiting User push + fly deploy + Rich Menu deploy + mobile smoke test**
+
+### Reference Documents
+- **Plan A+C:** [plans/foundation-v7.6.0.md](../plans/foundation-v7.6.0.md) (Section B marked deferred)
+- **Plan D-K:** [plans/line-bot-v8.0.0.md](../plans/line-bot-v8.0.0.md) (main focus)
+- **Briefing:** [handoff/supervisor-briefing-line-bot.md](../handoff/supervisor-briefing-line-bot.md)
+- **External setup:** [handoff/external-setup-checklist.md](../handoff/external-setup-checklist.md)
+- **Executor prompt:** [prompts/prompt-line-bot-browser-ai-executor.md](../prompts/prompt-line-bot-browser-ai-executor.md)
+
+### Phase 0 ✅ DONE (2026-05-04 12:19 ICT)
+- Browser Worker (Antigravity) ทำเสร็จใน ~1.5 hr
+- 9 Fly secrets deployed (LINE_CHANNEL_*, LINE_LOGIN_*, RESEND_*, EMAIL_*, LINE_BOT_*)
+- Bot Basic ID: @402wfbfd
+- Webhook URL: https://personaldatabank.fly.dev/webhook/line (configured ใน LINE, ยังไม่ deploy code → 404)
+- Resend uses default sender (noreply@resend.dev) — MVP
+- ⚠️ Action item: User verify "ข้อความตอบกลับอัตโนมัติ" OFF ใน OA Manager
+- ⚠️ Security: rotate tokens หลัง deploy + verify (browser logs exposure risk)
+- Report: inbox/for-แดง.md
+
+### Awaiting Action
+1. ✅ Phase A committed (8fa3c70 + 698ba0d)
+2. ✅ Section C committed (1172d83)
+3. ✅ Phase D foundation committed (9834349)
+4. ✅ Phase J + E partial committed (0b9257d)
+5. ✅ Phase 0 external setup done (Browser Worker)
+6. ✅ Phase E full + F committed (a810daa)
+7. ✅ Phase G + URL_UPLOAD committed (08008cf + 7b22579)
+8. ✅ Phase H + I committed (ba4df60)
+9. ✅ Phase K committed (this commit) — APP_VERSION 8.0.0 + final report
+10. 🔴 **User action — review + push + deploy:**
+    - `git push origin master`
+    - `fly deploy` (Fly secrets already set in Phase 0)
+    - `python scripts/setup_line_rich_menu.py` (after deploy — registers Rich Menu)
+    - Manual mobile smoke test (see for-User.md REVIEW-001)
+
+### Production Deploy Note
+Phase A เปลี่ยน plan_limits + email — กระทบ user behavior:
+- ก่อน fly deploy ต้อง set Fly secrets: `RESEND_API_KEY`, `EMAIL_FROM_ADDRESS`, `EMAIL_FROM_NAME`
+- ก่อน deploy ต้อง check existing users ที่มี > 5 ไฟล์ — อาจต้อง soft-lock (BACKLOG: A4 migration)
+- **ห้าม fly deploy** จนกว่า Section C + LINE Bot ครบ + user ตรวจ
+
+**Defer deploy until:** v7.6.0 Section C done + v8.0.0 LINE Bot done = **single combined production deploy**
+
+---
+
+### 🔴 v7.6.0 Foundation — `plan_pending_approval` (2026-05-02) ⭐ ACTIVE PLAN (Phase A-C)
+
+**State:** `plan_pending_approval` — แดงเขียน plan เสร็จ รอ user approve
+**Plan file:** [plans/foundation-v7.6.0.md](../plans/foundation-v7.6.0.md)
+**Author:** แดง (Daeng) — 2026-05-02
+**Priority:** 🔴 Critical — Pre-launch backlog ก่อน public launch
+**Estimated effort:** เขียว ~10-13 working days (~2-2.5 weeks) + ฟ้า ~3-4 days
+**Foundation:** v7.5.0 (DONE) → v7.6.0 Foundation
+**Strategic direction:** Foundation-first per user 2026-05-02 — ไม่เพิ่ม external dependency ใหม่ (ไม่มี LINE/Telegram/Discord), strengthen core ก่อน multi-channel
+
+**Scope (3 sections):**
+
+**Section A — Pre-launch Backlog (Layer 1)**
+- BACKLOG-008: Restore `plan_limits.py` production values (Free 5 files / 50MB / 10MB max / 1 pack / no semantic; Starter 50/1024MB/20MB/5 packs/semantic)
+- BACKLOG-009: Wire email service (Resend) สำหรับ password reset + drop `reset_token` จาก JSON
+
+**Section B — MCP File Ingestion USP (Layer 2)**
+- 🆕 `backend/url_fetcher.py` — SSRF-safe URL fetch (block private IPs + force HTTPS + size cap)
+- 🔧 Wire `mcp_tools.upload_text` properly — plan limit + content_hash + BYOS push + auto-organize
+- 🆕 `mcp_tools.upload_from_url` — main USP tool (Claude/ChatGPT paste URL → server pull → ingest)
+- Refactor `organize_new_files` → pure function ใน organizer.py (กัน circular import)
+
+**Section C — Universal Signed Download URLs (Layer 3)**
+- 🆕 `backend/signed_urls.py` — JWT signed tokens (TTL 30 min default, max 1 hour)
+- 🆕 `GET /d/{token}` — public endpoint (BYOS-aware via storage_router)
+- 🔧 Update `mcp_tools.get_file_link` → use signed_urls
+
+**Architecture decisions (baked-in):**
+- No new tables — reuse `users`, `files`, `content_hash`, `drive_file_id` ที่มีอยู่
+- No new external dependency platforms (no LINE/TG/Discord ในเฟสนี้)
+- httpx async (ไม่ใช่ requests sync) สำหรับ url_fetcher
+- MCP error format `{error: {code, message, upgrade?}}` consistent across new tools
+
+**Strategic context (จาก competitor research 2026-05-02):**
+- PDB unique 5 USPs: auto-organize + graph + MCP + BYOS + personality
+- Foundation-first ลด risk + ไม่ผูก LINE policy + USP delivers value ได้ทันที
+- Research artifacts: [competitor-deep-dive.md](../research/competitor-deep-dive.md), [mcp-file-upload-deep-dive.md](../research/mcp-file-upload-deep-dive.md), [chat-bot-platforms-feasibility.md](../research/chat-bot-platforms-feasibility.md)
+
+**Open Questions for user (8 ข้อ — มี default แนะนำทุกข้อ):** ดู plan section "Risks / Open Questions"
+
+**Pending action:** User approve plan + ตอบ Q1-Q8 → state เปลี่ยน `plan_approved` → เขียวเริ่ม build
+
+---
+
+### 🟢 v8.0.0 LINE Bot Integration — `plan_pending_approval` (2026-05-02 reactivated) ⭐ ACTIVE (Phase D-K)
+
+**State:** `plan_pending_approval` (was deferred — reactivated 2026-05-02 per supervisor + executor model)
+**Plan file:** [plans/line-bot-v8.0.0.md](../plans/line-bot-v8.0.0.md)
+**Bundle with:** v7.6.0 Foundation (must complete Phases A-C first)
+
+**Phases (D-K):**
+- Phase D — LINE foundation (webhook + DB + adapters skeleton)
+- Phase E — Account linking + welcome flow
+- Phase F — File upload flow (PDF/DOCX/image/audio handlers)
+- Phase G — Chat / Search / Stats / Get-file
+- Phase H — Forward + edge cases + push fallback
+- Phase I — Rich Menu deploy
+- Phase J — Profile UI integration + admin endpoints
+- Phase K — Polish + mobile testing + memory updates
+
+**Critical dependency on v7.6.0:**
+- **Signed URLs** (Section C of v7.6.0) — REQUIRED workaround for "LINE bot ส่ง PDF กลับ user ไม่ได้"
+- Plan limits enforcement
+- Email service for password reset (used in account link flow if user resets password)
+- MCP upload pattern (reused in bot upload handlers)
+
+**External setup required (User Phase 0):** ดู [handoff/external-setup-checklist.md](../handoff/external-setup-checklist.md)
+- LINE Developer + Provider + 2 channels (Messaging API + Login)
+- Resend account (or use default sender)
+- Fly.io secrets (8-9 secrets total)
+
+---
 
 ### 🟢 v7.5.0 Upload Resilience — DONE ✅ (2026-05-02)
 
