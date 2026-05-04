@@ -1,15 +1,24 @@
 # 🎯 Active Tasks
 
 > Source of truth คือ [pipeline-state.md](pipeline-state.md) — ไฟล์นี้เป็น overview
-> Pipeline ตอนนี้ = `idle` (รอ user มอบหมายงานใหม่)
+> Pipeline ตอนนี้ = `done` (v8.1.0 Google Sign-In ship แล้ว — รอ user push + deploy)
 
 ---
 
 ## 🔄 Current Pipeline
 
-**State:** `idle` — งาน v7.5.0 เป็น feature ล่าสุดที่ shipped บน master (2026-05-02)
+**State:** `done` ✅ — v8.1.0 Google Sign-In shipped 2026-05-04 (3-in-1 mode by เขียว)
 
-ไม่มี feature active ใน pipeline — รอ user มอบหมายงานใหม่ หรือสั่ง deploy v7.1.5+v7.2/v7.3/v7.4/v7.5 ขึ้น production
+**Recent shipped (master commits):**
+- v8.1.0 (2026-05-04) — Google Sign-In + token fragment redirect + USE_GOOGLE_LOGIN UX (5 commits, 16/16 self-test)
+- v8.0.0 → v8.0.7 (2026-05-04) — LINE Bot Integration ครบ Phase D-K
+- v7.5.0 (2026-05-02) — Upload Resilience (4 phase, 346/346 tests)
+
+**Awaiting User:**
+- push + fly deploy (v8.0.0 LINE + v8.1.0 Google รวมกัน)
+- Google Cloud Console: เพิ่ม 2 redirect URIs (5 นาที)
+- Manual smoke test ด้วย real Google account
+- Submit OAuth verification ก่อน public >100 users
 
 ---
 

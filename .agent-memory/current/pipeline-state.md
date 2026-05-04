@@ -5,7 +5,49 @@
 
 ---
 
-## 🎯 Current Pipeline State: `review_passed` ✅ (v8.0.0 LINE BOT — READY TO DEPLOY)
+## 🎯 Current Pipeline State: `done` ✅ (v8.1.0 GOOGLE LOGIN SHIPPED — 2026-05-04)
+
+### ✅ v8.1.0 Google Sign-In — DONE (2026-05-04)
+- **Plan:** [plans/google-login-v8.1.0.md](../plans/google-login-v8.1.0.md)
+- **Mode:** Single-agent 3-in-1 per user authorization "ดำเนินการตามคุณว่าได้เลย" 2026-05-04
+- **Owner (build+review):** เขียว (Khiao)
+- **Foundation:** v8.0.7 master HEAD `0f68de8`
+- **Strategy:** Reuse Google Cloud project + OAuth credentials เดิม จาก Drive BYOS, แยก scope (openid+email+profile only) เพื่อ login conversion ดี
+- **Self-review verdict:** ✅ APPROVE — 16/16 self-test pass + 4/4 auth regression + LINE Phase D/E/G alone all pass
+- **APP_VERSION:** 8.0.7 → 8.1.0
+
+### Commits shipped (5 separate logical changes)
+1. `feat(db): add users.google_sub column + UNIQUE index + idempotent migration`
+2. `feat(auth): google_login module + login_or_create_google_user + USE_GOOGLE_LOGIN hint`
+3. `feat(api): /api/auth/google/init + /callback endpoints with PKCE S256`
+4. `feat(frontend): Sign in with Google button + token fragment handler + i18n`
+5. `chore: bump APP_VERSION 8.1.0 + plan + memory + session log`
+
+### What shipped
+- 2 new endpoints: `/api/auth/google/init` + `/api/auth/google/callback`
+- New module: `backend/google_login.py` (215 lines, parallel กับ drive_oauth.py)
+- DB migration: `users.google_sub` column + UNIQUE index (idempotent)
+- New auth function: `login_or_create_google_user()` — lookup by sub → email → create
+- Modified `login_user()` — return `USE_GOOGLE_LOGIN` 401 hint สำหรับ password_hash=NULL users
+- Frontend: Sign in/up with Google buttons (login + register, ทั้งใน landing.html + app.html), `#token=` fragment handler, `?google_error=` translated toasts
+- I18N: 5 keys ใหม่ (TH+EN)
+- Test results: 16/16 self-test PASS, 4/4 auth regression PASS
+
+### Awaiting User Action (post-build)
+1. 🔴 **Google Cloud Console** — เพิ่ม 2 redirect URIs:
+   - `https://personaldatabank.fly.dev/api/auth/google/callback`
+   - `http://localhost:8000/api/auth/google/callback`
+2. 🔴 **Manual end-to-end test** — real Google account (ผมไม่สามารถ test ส่วนนี้ใน 3-in-1 ได้)
+3. 🟡 **Submit OAuth verification** (ก่อน public >100 users) — `openid + email + profile` non-sensitive, 1-3 วัน
+4. 🔴 **Deploy:** `git push origin master` + `fly deploy` (รวมกับ v8.0.0 LINE Bot ที่ค้างอยู่)
+
+---
+
+## 🎯 Previous: `building` 🟢 (v8.1.0 GOOGLE LOGIN — เขียว 3-in-1 mode)
+
+---
+
+## 🎯 Previous: `review_passed` ✅ (v8.0.0 LINE BOT — READY TO DEPLOY)
 
 ### 🎯 LINE-FOCUSED PROJECT — COMPLETE (2026-05-04)
 

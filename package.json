@@ -1,6 +1,6 @@
 {
   "name": "personal-data-bank",
-  "version": "7.1.5",
+  "version": "8.1.0",
   "description": "Personal Data Bank (PDB) — AI-powered personal knowledge workspace + MCP connector",
   "private": true,
   "scripts": {
