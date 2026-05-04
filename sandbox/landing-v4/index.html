@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0a0908">
+<link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='10' fill='%23d97757'/></svg>">
+<title>Personal Data Bank — An AI-ready memory bank</title>
+<meta name="description" content="ที่เก็บทุกอย่างที่สำคัญในชีวิตคุณ — จัดระเบียบโดย AI พูดคุยได้เหมือนเพื่อนเก่า.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="styles.css">
+<!-- No GSAP / ScrollTrigger — they were causing scroll jank.
+     This page uses only IntersectionObserver for play/pause + reveal. -->
+</head>
+<body>
+
+<!-- ─── HEADER ────────────────────────────────────────── -->
+<header class="bar">
+  <a href="#top" class="bar-brand">
+    <span class="bar-mark" aria-hidden="true"></span>
+    <span>Personal&nbsp;Data&nbsp;Bank</span>
+  </a>
+  <nav class="bar-nav">
+    <a href="#features">Features</a>
+    <a href="#pricing">Pricing</a>
+    <a href="#trust">Trust</a>
+  </nav>
+  <div class="bar-cta">
+    <button id="btn-show-login" class="btn-text">เข้าสู่ระบบ</button>
+    <button id="btn-show-register" class="btn btn-primary">เริ่มต้นฟรี</button>
+  </div>
+</header>
+
+<main id="top">
+
+<!-- ════════════════════════════════════════════════════════
+     HERO — cinematic sticky 240vh, 3-stage scroll-driven text
+     Video autoplay loop bg (no scrub — saves CPU)
+     ════════════════════════════════════════════════════════ -->
+<section class="hero" id="hero">
+  <div class="hero-pin">
+    <video
+      class="hero-video"
+      id="hero-video"
+      src="assets/01-hero.mp4"
+      autoplay muted loop playsinline preload="auto"
+      poster="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 9'><rect width='16' height='9' fill='%231c1410'/></svg>"></video>
+    <div class="hero-tint" aria-hidden="true"></div>
+
+    <div class="hero-bar">
+      <p class="eyebrow eyebrow-light"><span class="eyebrow-mark"></span>AN AI-READY MEMORY BANK</p>
+      <span class="hero-tag">
+        <span class="cap-dot"></span>
+        <span>scroll to play</span>
+      </span>
+    </div>
+
+    <div class="hero-stage" data-stage="1">
+      <h1 class="hero-h1">Everything<br>that <em>matters,</em></h1>
+      <p class="hero-sub">ทุกอย่างในชีวิตที่สำคัญ — <em>เก็บอย่างดี.</em></p>
+    </div>
+    <div class="hero-stage" data-stage="2">
+      <h1 class="hero-h1">quietly<br><em>stored.</em></h1>
+      <p class="hero-sub">จัดระเบียบในเงียบโดย AI — <em>เป็นระบบ.</em></p>
+    </div>
+    <div class="hero-stage" data-stage="3">
+      <h1 class="hero-h1">and ready<br>to <em>talk.</em></h1>
+      <p class="hero-sub">พูดคุยได้เหมือนเพื่อนเก่า — <em>เป็นส่วนตัว.</em></p>
+      <div class="hero-cta">
+        <button id="btn-hero-register" class="btn btn-primary btn-lg">
+          <span>เริ่มต้นฟรี</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </button>
+        <a href="#features" class="btn btn-ghost-light btn-lg">ดูตัวอย่าง</a>
+      </div>
+    </div>
+
+    <div class="hero-progress" aria-hidden="true">
+      <span class="hero-progress-fill" id="hero-progress-fill"></span>
+    </div>
+  </div>
+</section>
+
+<!-- THRESHOLD — 3-promise -->
+<section class="threshold">
+  <p class="eyebrow"><span class="eyebrow-mark"></span>The three quiet promises</p>
+  <h2 class="threshold-h2">
+    <em>เก็บอย่างดี.</em><br>
+    <em>เป็นระบบ.</em><br>
+    <em>เป็นส่วนตัว.</em>
+  </h2>
+</section>
+
+<!-- STORY — Sort. Card-grid layout (video + text side by side), no sticky -->
+<section class="story" id="story-sort">
+  <div class="story-grid">
+    <div class="story-media">
+      <video
+        class="story-video"
+        id="story-sort-video"
+        src="assets/02-sort.mp4"
+        autoplay muted loop playsinline preload="auto"
+        poster="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 9'><rect width='16' height='9' fill='%23eddfc8'/></svg>"></video>
+    </div>
+    <div class="story-text">
+      <p class="eyebrow"><span class="eyebrow-mark"></span>Sort itself</p>
+      <h2 class="story-h2">
+        Files <em>find</em><br>
+        their place<br>
+        without you.
+      </h2>
+      <p class="story-sub">
+        AI สร้าง 6 collections + knowledge graph 41 nodes / 77 edges
+        เชื่อมโยงทุกอย่างของคุณในเงียบๆ.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- STORY — Recall. Reverse card-grid (text + video) -->
+<section class="story story-reverse" id="story-recall">
+  <div class="story-grid">
+    <div class="story-text">
+      <p class="eyebrow"><span class="eyebrow-mark"></span>Recall</p>
+      <h2 class="story-h2">
+        Ask. Remember.<br>
+        <em>Continue.</em>
+      </h2>
+      <p class="story-sub">
+        ถาม PDB เหมือนถามเพื่อน. AI ดึงคำตอบจากบันทึกเสียง รูป ไฟล์ และข้อความเก่าให้คุณ.
+      </p>
+      <p class="story-quote">
+        "เมื่อไหร่ที่ทีมตกลงเรื่องสัดส่วนหุ้น?" → matched 2 voice notes · 1 PDF · 3 messages
+      </p>
+    </div>
+    <div class="story-media">
+      <video
+        class="story-video"
+        id="story-recall-video"
+        src="assets/03-recall.mp4"
+        autoplay muted loop playsinline preload="auto"
+        poster="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 9'><rect width='16' height='9' fill='%23dcc4a0'/></svg>"></video>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     PRICING — Personal AI Context + Executive Digital Twin
+     ════════════════════════════════════════════════════════ -->
+<section class="pricing" id="pricing">
+  <header class="section-head section-head-center">
+    <p class="eyebrow"><span class="eyebrow-mark"></span>Pricing</p>
+    <h2 class="section-h2">Start with context. <em>Grow</em> into your Digital Twin.</h2>
+    <p class="section-sub">เลือกชั้นของผลิตภัณฑ์ตามระดับที่คุณต้องการให้ AI เข้าใจคุณ</p>
+  </header>
+
+  <div class="tier">
+    <div class="tier-head">
+      <span class="tier-tag tier-tag-coral">Personal AI Context</span>
+      <p>นักศึกษา · ครู · นักการตลาด · ครีเอเตอร์ — สร้างบริบทพร้อมใช้กับ AI โดยไม่ต้องเริ่มใหม่</p>
+    </div>
+    <div class="tier-cards">
+      <article class="price-card reveal">
+        <h3>Free</h3>
+        <p class="price">฿0<span>/เดือน</span></p>
+        <p class="price-tag">Try your first AI-ready context.</p>
+        <ul class="price-feats">
+          <li>1 Personal Context Pack</li>
+          <li>5 ไฟล์ · 50 MB storage</li>
+          <li>AI Summary 5 ครั้ง/เดือน</li>
+          <li>Export Prompt 10 ครั้ง/เดือน</li>
+          <li>Basic search</li>
+        </ul>
+        <button id="btn-pricing-free" class="btn btn-outline btn-block">เริ่มฟรี</button>
+      </article>
+      <article class="price-card price-card-featured reveal">
+        <span class="featured-badge">Best for beginners</span>
+        <h3>Starter</h3>
+        <p class="price">฿99<span>/เดือน</span></p>
+        <p class="price-tag">For students and everyday AI users.</p>
+        <ul class="price-feats">
+          <li>5 Context Packs (Study / Work / Creator)</li>
+          <li>50 ไฟล์ · 1 GB storage</li>
+          <li>AI Summary 100 · Export 300 ครั้ง/เดือน</li>
+          <li>Context Refresh 10 ครั้ง/เดือน</li>
+          <li>Basic + Semantic Search</li>
+          <li>Version History 7 วัน</li>
+        </ul>
+        <button id="btn-pricing-starter" class="btn btn-primary btn-block">Get Starter</button>
+      </article>
+    </div>
+  </div>
+
+  <div class="tier">
+    <div class="tier-head">
+      <span class="tier-tag tier-tag-gold">Executive Digital Twin</span>
+      <p>Founder · ผู้บริหาร · ผู้นำ — ที่ AI ทำงานด้วยวิธีคิด สไตล์ และบริบทการตัดสินใจของคุณ</p>
+      <p class="tier-notice">Available by private demo only.</p>
+    </div>
+    <div class="exec-grid">
+      <article class="exec-card reveal"><h3>Core</h3><p class="exec-price">฿12,000<span>/เดือน</span></p><p class="exec-tag">Start your private Digital Twin.</p><ul><li>Private Identity Vault</li><li>Basic Decision Matrix</li><li>50K calls/mo</li></ul></article>
+      <article class="exec-card exec-card-featured reveal"><span class="featured-badge featured-badge-gold">Recommended</span><h3>Pro</h3><p class="exec-price">฿25,000<span>/เดือน</span></p><p class="exec-tag">Most recommended for leaders.</p><ul><li>Advanced Decision Matrix</li><li>Voice Clone</li><li>200K calls/mo</li></ul></article>
+      <article class="exec-card reveal"><h3>Elite</h3><p class="exec-price">฿45,000<span>/เดือน</span></p><p class="exec-tag">A private digital twin experience.</p><ul><li>Avatar UI · Dedicated CSM</li><li>Deep calibration</li><li>500K calls/mo</li></ul></article>
+      <article class="exec-card exec-card-legacy reveal"><h3>Legacy</h3><p class="exec-price">฿8,000<span>/เดือน</span></p><p class="exec-tag">Preserve wisdom. Pass on judgment.</p><ul><li>Read-only Twin</li><li>Knowledge Preservation</li><li>Consultation Mode</li></ul></article>
+    </div>
+    <p class="exec-cta">
+      <button id="btn-exec-demo" class="btn btn-outline">Book Private Demo</button>
+    </p>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     TRUST — 8 controls + warning
+     ════════════════════════════════════════════════════════ -->
+<section class="trust" id="trust">
+  <header class="section-head section-head-center">
+    <p class="eyebrow"><span class="eyebrow-mark"></span>Trust</p>
+    <h2 class="section-h2">Your data, <em>yours.</em> Always.</h2>
+    <p class="section-sub">ออกแบบบนหลักการที่คุณควบคุมข้อมูลของตัวเอง</p>
+  </header>
+  <ul class="trust-grid">
+    <li>Private by default</li>
+    <li>User-controlled context</li>
+    <li>Export anytime</li>
+    <li>Delete anytime</li>
+    <li>Revoke access</li>
+    <li>No training without consent</li>
+    <li>Only selected data is used</li>
+    <li>Start with low-risk data</li>
+  </ul>
+  <p class="trust-warning">
+    ⚠ ช่วงเริ่มต้น เน้นข้อมูลความรู้ การเรียน งาน และบริบทที่มีความเสี่ยงต่ำ —
+    กรุณาอย่าอัปโหลดบัตรประชาชน เอกสารการเงิน หรือข้อมูลสุขภาพในเวอร์ชันแรก
+  </p>
+</section>
+
+<!-- ════════════════════════════════════════════════════════
+     FINAL CTA
+     ════════════════════════════════════════════════════════ -->
+<section class="cta">
+  <div class="cta-inner">
+    <h2>It's been waiting for you.</h2>
+    <p>เริ่มต้นใช้งานฟรี — ไม่ต้องบัตรเครดิต ไม่ต้อง onboarding</p>
+    <button id="btn-cta-register" class="btn btn-primary btn-lg">
+      <span>เปิดบัญชี Personal Data Bank</span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+    </button>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <p>
+    <strong>Personal Data Bank</strong>
+    <span class="foot-dot">·</span> v7.6.0 cinematic preview
+    <span class="foot-dot">·</span> Start with context. Grow into your Digital Twin.
+  </p>
+  <p class="foot-credit">All hero videos generated by Google Veo 2 — prompts curated by PDB.</p>
+</footer>
+
+<!-- ─── AUTH MODAL — preserves real /api/auth/* contract ── -->
+<div class="modal hidden" id="auth-modal" role="dialog" aria-modal="true">
+  <div class="modal-card">
+    <header class="modal-head">
+      <h2 id="auth-modal-title">เข้าสู่ระบบ</h2>
+      <button class="modal-close" id="auth-modal-close" aria-label="Close">×</button>
+    </header>
+    <div class="modal-body">
+      <div id="login-form">
+        <label class="field"><span>อีเมล</span><input type="email" id="login-email" placeholder="you@example.com" autocomplete="email"></label>
+        <label class="field"><span>รหัสผ่าน</span><input type="password" id="login-password" placeholder="••••••" autocomplete="current-password"></label>
+        <div id="login-error" class="auth-error hidden"></div>
+        <button class="btn btn-primary btn-block" id="btn-login">เข้าสู่ระบบ</button>
+        <p class="modal-switch"><a href="#" id="switch-to-forgot">ลืมรหัสผ่าน?</a></p>
+        <p class="modal-switch">ยังไม่มีบัญชี? <a href="#" id="switch-to-register">สมัครสมาชิก</a></p>
+      </div>
+      <div id="register-form" class="hidden">
+        <label class="field"><span>ชื่อ</span><input type="text" id="register-name" placeholder="ชื่อของคุณ" autocomplete="name"></label>
+        <label class="field"><span>อีเมล</span><input type="email" id="register-email" placeholder="you@example.com" autocomplete="email"></label>
+        <label class="field"><span>รหัสผ่าน (อย่างน้อย 6 ตัว)</span><input type="password" id="register-password" placeholder="••••••" autocomplete="new-password"></label>
+        <div id="register-error" class="auth-error hidden"></div>
+        <button class="btn btn-primary btn-block" id="btn-register">สมัครสมาชิก</button>
+        <p class="modal-switch">มีบัญชีอยู่แล้ว? <a href="#" id="switch-to-login">เข้าสู่ระบบ</a></p>
+      </div>
+      <div id="forgot-form" class="hidden">
+        <p class="modal-subtitle">กรอกอีเมลที่ใช้สมัครเพื่อรีเซ็ตรหัสผ่าน</p>
+        <label class="field"><span>อีเมล</span><input type="email" id="forgot-email" placeholder="you@example.com" autocomplete="email"></label>
+        <div id="forgot-error" class="auth-error hidden"></div>
+        <button class="btn btn-primary btn-block" id="btn-forgot-submit">ยืนยันอีเมล</button>
+        <p class="modal-switch"><a href="#" id="switch-forgot-to-login">← กลับเข้าสู่ระบบ</a></p>
+      </div>
+      <div id="reset-form" class="hidden">
+        <p class="modal-subtitle">ตั้งรหัสผ่านใหม่สำหรับ <strong id="reset-email-display"></strong></p>
+        <label class="field"><span>รหัสผ่านใหม่ (อย่างน้อย 6 ตัว)</span><input type="password" id="reset-new-password" placeholder="••••••" autocomplete="new-password"></label>
+        <label class="field"><span>ยืนยันรหัสผ่านใหม่</span><input type="password" id="reset-confirm-password" placeholder="••••••" autocomplete="new-password"></label>
+        <div id="reset-error" class="auth-error hidden"></div>
+        <button class="btn btn-primary btn-block" id="btn-reset-submit">เปลี่ยนรหัสผ่าน</button>
+        <p class="modal-switch"><a href="#" id="switch-reset-to-login">← กลับเข้าสู่ระบบ</a></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

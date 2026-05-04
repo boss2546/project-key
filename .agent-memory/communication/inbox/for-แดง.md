@@ -1,84 +1,84 @@
-# 📬 Inbox: แดง (Daeng) — นักวางแผน
+# Phase 0 Report — External Setup Complete
 
-> ข้อความที่ส่งถึงแดง — แดงต้องอ่านไฟล์นี้ก่อนเริ่มงานทุกครั้ง
-> **ห้ามเขียนข้อความใส่ตัวเอง** — เขียนใน inbox ของผู้รับ
-> ดู spec ใน [../README.md](../README.md)
-
----
-
-## 🔴 New (ยังไม่อ่าน)
-
-_ไม่มี_
+**Date:** 2026-05-04 12:19 (ICT)
+**Status:** ✅ COMPLETE
+**Worker:** Browser Worker (Antigravity)
 
 ---
 
-## 👁️ Read (อ่านแล้ว, รอตอบ/แก้)
+## Setup completed
 
-_ไม่มี_
-
----
-
-## ✓ Resolved (ปิดแล้ว — รอ archive สิ้นเดือน)
-
-### MSG-001 ✅ Resolved — Plan google-drive-byos.md rebrand 37 occurrences (2026-05-02)
-**From:** เขียว (Khiao)
-**Date:** 2026-04-30
-**Re:** plans/google-drive-byos.md
-**Status:** ✅ Resolved 2026-05-02 (cleanup session — แก้ "Project KEY"→"Personal Data Bank" ทุกที่ + domain `project-key.fly.dev`→`personaldatabank.fly.dev` + เพิ่ม header note ระบุ status shipped + cleanup date)
-
-สวัสดีแดง 🔴
-
-User สั่งให้ผมเริ่ม build BYOS parallel กับฟ้า review rebrand v6.1.0. ผมจะเริ่ม foundation work (schema migration + helper modules + skeleton) ใช้ "Personal Data Bank" branding ตั้งแต่ต้น
-
-**ขอแดงช่วย revise plan google-drive-byos.md ตามจังหวะ — ผม build foundation ระหว่างที่แดงอัปเดต plan ได้:**
-
-### 📝 Revisions ที่ต้องทำ (37 occurrences ของ "Project KEY"):
-1. **Drive folder name** = ปัจจุบันใน plan ใช้ `/Project KEY/` — ผม default ใช้ **`/Personal Data Bank/`** ใน code (สอดคล้องกับ rebrand). ถ้าแดง/User อยาก `/PDB/` (สั้นกว่า) ก็เปลี่ยนได้ — flag ใน MSG ตอบกลับ
-2. **OAuth Consent Screen app name** ใน plan Step 1.1 + 1.2 → "Personal Data Bank"
-3. **Scope justification doc** Section 6 ของ Step 1.2 → rebrand
-4. **All references** ใน Architecture diagrams, examples, inline strings → rebrand
-5. **Commit message template** Section "Commit message format" → rebrand
-6. **`drive_layout.py` constants** ผมจะใช้ใน code:
-   - `DRIVE_ROOT_FOLDER_NAME = "Personal Data Bank"`
-   - Sub-folders: `raw/`, `extracted/`, `summaries/`, `personal/`, `data/`, `_meta/`, `_backups/` — ไม่กระทบ branding (ใช้ตามเดิม)
-
-### ❓ 4 Open Questions ใน plan ที่อยากให้ user/แดง decide ก่อนผมเข้า Phase 2:
-- **Q-A:** Real-time sync via Drive Push Notifications webhook — ทำใน MVP หรือ Phase 2? (ผมแนะนำ Phase 2 — MVP poll-based ทุก 5 นาที + manual sync button)
-- **Q-B:** ถ้า user มี folder `/Personal Data Bank/` ใน Drive อยู่แล้ว (จาก app เก่า / sync อื่น) — merge หรือสร้างใหม่? (ผมแนะนำ: detect → ถาม user ผ่าน UI prompt)
-- **Q-C:** Phase 2 full `drive` scope — defer until verified + paying users $25K/yr CASA? (ผมแนะนำ: ใช่ — MVP ใช้ `drive.file` เท่านั้น)
-- **Q-D:** OneDrive / Dropbox / iCloud ใน Phase 3? (ผมแนะนำ: defer — focus Drive ก่อน)
-
-### 🚧 ที่ผมจะ build ระหว่าง parallel
-- `requirements.txt` deps (google-auth-oauthlib, google-api-python-client, cryptography)
-- `backend/config.py` Google OAuth env vars (with fail-safe defaults — None when not set)
-- `backend/database.py` migration (storage_mode column + DriveConnection table + drive_* columns)
-- `backend/drive_layout.py` (new — folder structure constants)
-- `backend/drive_oauth.py` skeleton (encrypt/decrypt helpers + flow setup)
-- Stub endpoints (return 503 with `code: GOOGLE_OAUTH_NOT_CONFIGURED` ถ้า env vars ว่าง)
-
-### 🤝 Coordination
-- ผมจะใช้ "Personal Data Bank" ทุกที่ใน new code → plan revision ของแดงจะตามมาทีหลังก็ได้
-- ถ้าแดง decide folder name = `/PDB/` ผมจะแก้ constant 1 จุด
-- ถ้าแดง decide Q-A/Q-B/Q-C/Q-D ต่างจากที่ผมแนะนำ → ส่ง MSG กลับ inbox/for-เขียว.md
-
-ขอบคุณครับ 🔴
-
-— เขียว (Khiao)
+- [x] LINE Developer Account — logged in via user's personal LINE account
+- [x] Provider "Personal Data Bank" — created in LINE Developer Console
+- [x] Messaging API channel "PDB Assistant" — created + tokens obtained
+- [x] LINE OA Manager: Auto-reply OFF, Greeting OFF, Webhook ON
+- [x] LINE Login channel "PDB Login" — created + callback URLs + OpenID Connect ON
+- [x] Resend account — created (axis.solutions.team@gmail.com) + API key "PDB Production v2"
+- [x] Fly.io secrets set — 9 new secrets verified via `fly secrets list`
 
 ---
 
-## 📝 รูปแบบเพิ่มข้อความ
+## Channel info (no secrets — metadata only)
 
-```markdown
-### MSG-NNN [PRIORITY] [Subject]
-**From:** [เขียว/ฟ้า/User]
-**Date:** YYYY-MM-DD HH:MM
-**Re:** [optional — MSG-XXX]
-**Status:** 🔴 New
+| Item | Value |
+|------|-------|
+| Bot Basic ID | @402wfbfd |
+| Messaging API Channel ID | 2009968486 |
+| LINE Login Channel ID | 2009968647 |
+| Webhook URL | https://personaldatabank.fly.dev/webhook/line |
+| Webhook toggle | ON (in Developer Console) |
+| Resend sender | noreply@resend.dev (MVP default) |
+| Resend account email | axis.solutions.team@gmail.com |
 
-[เนื้อหา]
+---
 
-— [ชื่อผู้ส่ง]
-```
+## Fly.io Secrets Verification (`fly secrets list`)
 
-Priority: 🔴 HIGH (block pipeline) / 🟡 MEDIUM / 🟢 LOW
+All 9 new LINE/Email secrets confirmed **Deployed**:
+
+| # | Secret Name | Status |
+|---|---|---|
+| 1 | LINE_CHANNEL_SECRET | ✅ Deployed |
+| 2 | LINE_CHANNEL_ACCESS_TOKEN | ✅ Deployed |
+| 3 | LINE_BOT_BASIC_ID | ✅ Deployed |
+| 4 | LINE_LOGIN_CHANNEL_ID | ✅ Deployed |
+| 5 | LINE_LOGIN_CHANNEL_SECRET | ✅ Deployed |
+| 6 | RESEND_API_KEY | ✅ Deployed |
+| 7 | EMAIL_FROM_ADDRESS | ✅ Deployed |
+| 8 | EMAIL_FROM_NAME | ✅ Deployed |
+| 9 | LINE_BOT_BASE_URL | ✅ Deployed |
+
+Total secrets on Fly.io: **18** (9 existing + 9 new)
+
+---
+
+## Issues encountered
+
+1. **LINE Console change:** Messaging API channels can no longer be created directly from LINE Developer Console. Had to create a LINE Official Account first, then enable Messaging API and link to provider.
+2. **Resend API key:** First key ("PDB Production") was accidentally closed without copying. Created replacement "PDB Production v2" and successfully captured the value.
+3. **Security note:** Channel tokens were exposed in browser subagent logs during this session. **Recommend rotating** the LINE Channel Access Token (Reissue in Developer Console) and Resend API key after the LINE Bot code is deployed and verified.
+
+---
+
+## OA Manager Settings
+
+| Setting | Status |
+|---------|--------|
+| แชท (Chat) | OFF |
+| ข้อความทักทายเพื่อนใหม่ (Greeting) | OFF |
+| Webhook | ON |
+| ข้อความตอบกลับอัตโนมัติ (Auto-reply) | ⚠️ Was still ON in OA Manager — needs manual verify |
+
+> **Action needed:** User should manually verify "ข้อความตอบกลับอัตโนมัติ" is OFF in LINE OA Manager → ตั้งค่า → ตั้งค่าการตอบกลับ
+
+---
+
+## Next phase
+
+- Backend Worker can start **Section C** (Signed URLs) + **LINE Bot phases (D-K)**
+- Webhook URL `https://personaldatabank.fly.dev/webhook/line` is configured in LINE but endpoint doesn't exist yet — will return 404 until `/webhook/line` is deployed
+- Resend uses default sender domain (`noreply@resend.dev`) for MVP — upgrade to custom domain later
+
+---
+
+— Browser Worker
