@@ -446,29 +446,16 @@ def strip_markdown(text: str) -> str:
     return text.strip()
 
 
-_FILETYPE_ICON = {
-    "pdf": "📄", "docx": "📄", "doc": "📄", "txt": "📝", "md": "📝",
-    "csv": "📊", "xlsx": "📊", "xls": "📊",
-    "pptx": "📑", "ppt": "📑",
-    "png": "🖼", "jpg": "🖼", "jpeg": "🖼", "webp": "🖼",
-    "html": "🌐", "json": "🧾", "rtf": "📝",
-}
-
-
-def _file_icon(filetype: str) -> str:
-    return _FILETYPE_ICON.get((filetype or "").lower(), "📁")
-
-
 async def _handle_chat(pdb_user_id: str, question: str) -> list[BotMessage]:
     """RAG chat — call retriever.chat_with_retrieval (same engine as web app).
 
-    Output format (plain text, no markdown):
+    Output format (plain conversational text — no markdown, no bullets, no emoji):
       <answer>
 
-      📁 อ้างอิงจาก N ไฟล์:
-      • <icon> <filename>
-        <one-liner หรือ snippet>
-      • ...
+      อ้างอิงจาก N ไฟล์
+      <filename1> — <detail1>
+      <filename2> — <detail2>
+      ...
     """
     from .retriever import chat_with_retrieval
 
@@ -485,8 +472,8 @@ async def _handle_chat(pdb_user_id: str, question: str) -> list[BotMessage]:
 
     files_used = result.get("files_used") or []
 
-    # Hydrate filename + insight.one_liner / summary for each cited file
-    file_blocks: list[str] = []
+    # Hydrate filename + insight/summary detail for each cited file
+    file_lines: list[str] = []
     by_id: dict = {}
     if files_used:
         file_ids = [f.get("id") for f in files_used if f.get("id")]
@@ -503,7 +490,6 @@ async def _handle_chat(pdb_user_id: str, question: str) -> list[BotMessage]:
             row = by_id.get(f.get("id"))
             if not row:
                 continue
-            icon = _file_icon(row.filetype)
             # Detail: prefer insight.why_important > summary.summary_text > excerpt
             detail = ""
             if row.insight and (row.insight.why_important or "").strip():
@@ -516,17 +502,17 @@ async def _handle_chat(pdb_user_id: str, question: str) -> list[BotMessage]:
             if len(detail) > 140:
                 detail = detail[:137] + "..."
 
-            block = f"• {icon} {row.filename}"
+            line = row.filename
             if detail:
-                block += f"\n  {detail}"
-            file_blocks.append(block)
+                line += f" — {detail}"
+            file_lines.append(line)
 
-    # Compose final text
+    # Compose final text — plain conversational, no bullets/emoji
     parts = [answer]
-    if file_blocks:
+    if file_lines:
         parts.append("")
-        parts.append(f"📁 อ้างอิงจาก {len(file_blocks)} ไฟล์:")
-        parts.extend(file_blocks)
+        parts.append(f"อ้างอิงจาก {len(file_lines)} ไฟล์")
+        parts.extend(file_lines)
 
     final_text = "\n".join(parts)
 
@@ -535,13 +521,13 @@ async def _handle_chat(pdb_user_id: str, question: str) -> list[BotMessage]:
         final_text = final_text[:4500] + "...\n[ข้อความถูกตัด — เปิดเว็บเพื่อดูเต็ม]"
 
     quick_reply = []
-    # Add up to 2 file shortcuts as Quick Reply chips
+    # Add up to 2 file shortcuts as Quick Reply chips (plain labels, no emoji)
     for f in files_used[:2]:
         row = by_id.get(f.get("id"))
         if row:
-            short = (row.filename or "")[:18]
+            short = (row.filename or "")[:20]
             if short:
-                quick_reply.append({"label": f"📄 {short}", "text": f"ขอไฟล์ {row.filename}"})
-    quick_reply.append({"label": "🌐 เปิดเว็บ", "text": "เปิดเว็บ"})
+                quick_reply.append({"label": short, "text": f"ขอไฟล์ {row.filename}"})
+    quick_reply.append({"label": "เปิดเว็บ", "text": "เปิดเว็บ"})
 
     return [BotMessage(text=final_text, quick_reply=quick_reply)]
