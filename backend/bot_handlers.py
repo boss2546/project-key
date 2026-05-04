@@ -53,6 +53,9 @@ class Intent(str, Enum):
     HELP = "help"
     CHAT = "chat"
     URL_UPLOAD = "url_upload"
+    UPLOAD_HELP = "upload_help"
+    SETTINGS = "settings"
+    CONTACT = "contact"
 
 
 # Keyword patterns (Thai + English)
@@ -63,6 +66,9 @@ _STATS_KEYWORDS = [
 _SEARCH_KEYWORDS_PREFIX = ["หาไฟล์", "ค้นหา", "search", "find", "หา ", "ค้น ", "หาไฟล์เรื่อง"]
 _GETFILE_KEYWORDS = ["ขอไฟล์", "ส่งไฟล์", "ขอ file", "send file", "download", "ดาวน์โหลด"]
 _HELP_KEYWORDS = ["/help", "ช่วยเหลือ", "วิธีใช้", "help", "/start"]
+_UPLOAD_KEYWORDS = ["อัปโหลด", "upload", "ส่งไฟล์ยังไง", "วิธีส่งไฟล์"]
+_SETTINGS_KEYWORDS = ["ตั้งค่า", "settings", "จัดการบัญชี"]
+_CONTACT_KEYWORDS = ["ติดต่อ", "contact", "support", "ช่วยเหลือเทคนิค"]
 
 
 def detect_intent(text: str) -> tuple[Intent, str]:
@@ -108,6 +114,17 @@ def detect_intent(text: str) -> tuple[Intent, str]:
         if kw in lowered:
             return Intent.STATS, ""
 
+    # Rich Menu specific text actions
+    for kw in _UPLOAD_KEYWORDS:
+        if lowered == kw:
+            return Intent.UPLOAD_HELP, ""
+    for kw in _SETTINGS_KEYWORDS:
+        if lowered == kw:
+            return Intent.SETTINGS, ""
+    for kw in _CONTACT_KEYWORDS:
+        if lowered == kw:
+            return Intent.CONTACT, ""
+
     # Default → chat (RAG over user data)
     return Intent.CHAT, text
 
@@ -141,6 +158,12 @@ async def handle_text_intent(pdb_user_id: str, text: str) -> list[BotMessage]:
         return await _handle_get_file(pdb_user_id, query)
     if intent == Intent.URL_UPLOAD:
         return await _handle_url_prompt(pdb_user_id, query)
+    if intent == Intent.UPLOAD_HELP:
+        return _handle_upload_help()
+    if intent == Intent.SETTINGS:
+        return _handle_settings()
+    if intent == Intent.CONTACT:
+        return _handle_contact()
     # Default = CHAT
     return await _handle_chat(pdb_user_id, text)
 
@@ -202,6 +225,38 @@ def _handle_help() -> list[BotMessage]:
             ],
         )
     ]
+
+
+def _handle_upload_help() -> list[BotMessage]:
+    """Return instructions for uploading files."""
+    text = (
+        "📤 วิธีส่งไฟล์เข้า Personal Data Bank\n\n"
+        "1. ส่งไฟล์ (PDF, DOCX, Image) เข้ามาในแชทนี้ได้เลยครับ\n"
+        "2. หรือส่งลิงก์ (URL) เว็บไซต์ที่อยากเก็บเนื้อหา\n\n"
+        "ผมจะนำข้อมูลไปสรุปและจัดระเบียบให้คุณโดยอัตโนมัติ"
+    )
+    return [BotMessage(text=text)]
+
+
+def _handle_settings() -> list[BotMessage]:
+    """Return link to settings page."""
+    text = (
+        "⚙️ ตั้งค่าระบบ\n\n"
+        "คุณสามารถจัดการโปรไฟล์, เปลี่ยน Plan การใช้งาน, หรือตั้งค่า Storage Mode (PDB / Google Drive) ได้ที่หน้าเว็บครับ\n\n"
+        f"เปิดหน้าตั้งค่า: {APP_BASE_URL.rstrip('/')}/app/settings"
+    )
+    return [BotMessage(text=text)]
+
+
+def _handle_contact() -> list[BotMessage]:
+    """Return contact/support information."""
+    text = (
+        "💬 ติดต่อสอบถาม / แจ้งปัญหา\n\n"
+        "หากมีข้อสงสัยหรือพบปัญหาการใช้งาน สามารถแจ้งทีมพัฒนาได้ผ่านทางอีเมล:\n"
+        "support@pdb.me\n\n"
+        "ขอบคุณที่ใช้บริการ Personal Data Bank ครับ"
+    )
+    return [BotMessage(text=text)]
 
 
 async def _handle_search(pdb_user_id: str, query: str) -> list[BotMessage]:
