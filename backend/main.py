@@ -1206,18 +1206,18 @@ async def line_confirm_link(
 
     await db.commit()
 
-    # Phase E will return real LINE accountLink dialog URL
-    # For Phase D, return placeholder pointing to bot deep link (user goes back to LINE)
-    bot_link = None
-    if LINE_BOT_BASIC_ID:
-        bid = LINE_BOT_BASIC_ID.lstrip("@")
-        bot_link = f"https://line.me/R/ti/p/%40{bid}"
+    # Phase E: return real LINE accountLink dialog URL
+    # link_token = LINE linkToken จาก bot follow event → /auth/line?linkToken=X
+    # nonce = random 32-byte that LINE will echo back in accountLink webhook event
+    # URL: https://access.line.me/dialog/bot/accountLink?linkToken=<linkToken>&nonce=<nonce>
+    redirect_url = (
+        f"https://access.line.me/dialog/bot/accountLink"
+        f"?linkToken={body.link_token}&nonce={nonce}"
+    )
 
     return {
-        "status": "linked",
-        "nonce": nonce[:8] + "...",  # truncate — full nonce in DB only
-        "redirect_url": bot_link,
-        "note": "Phase D scaffold. Full LINE accountLink flow ships in Phase E.",
+        "status": "pending_link",
+        "redirect_url": redirect_url,
     }
 
 

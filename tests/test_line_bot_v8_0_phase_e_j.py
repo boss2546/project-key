@@ -336,8 +336,12 @@ def test_e3_confirm_creates_line_user_row(test_client, line_full_config):
         )
         assert resp.status_code == 200
         data = resp.json()
-        assert data["status"] == "linked"
+        # Phase E full impl: status="pending_link" (waiting for accountLink webhook)
+        # redirect_url = LINE accountLink dialog URL with nonce
+        assert data["status"] == "pending_link"
         assert "redirect_url" in data
+        assert "access.line.me/dialog/bot/accountLink" in data["redirect_url"]
+        assert "nonce=" in data["redirect_url"]
 
         # Verify row created
         async def _check():

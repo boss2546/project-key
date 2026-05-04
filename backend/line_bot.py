@@ -340,44 +340,64 @@ async def _reply_not_linked(reply_token: Optional[str]) -> None:
 
 
 async def _handle_text_message(event: dict, pdb_user_id: str) -> None:
-    """Phase G placeholder — full intent detection จะ implement ใน Phase G.
+    """Phase G — dispatch text to bot_handlers.handle_text_intent.
 
-    For now: simple echo with stat lookup ถ้า user พิมพ์ keyword เฉพาะ.
+    Intents: STATS / SEARCH / GET_FILE / HELP / CHAT (default RAG)
+    Returns 0+ BotMessages — first via reply_message (free), rest via push API.
+
+    Special case: "เปิดเว็บ" → quick redirect link (handled inline, no LLM call)
     """
     from .bot_adapters import get_line_adapter, BotMessage
+    from .bot_handlers import handle_text_intent
+
     text = event.get("message", {}).get("text", "").strip()
     reply_token = event.get("replyToken")
-    if not text or not reply_token:
+    line_user_id = event.get("source", {}).get("userId")
+    if not text:
         return
 
     adapter = get_line_adapter()
     if not adapter:
         return
 
-    # Phase F minimal — Phase G จะแยก intent ละเอียด (chat/search/stats/get-file)
-    lowered = text.lower()
-    if any(kw in lowered for kw in ["กี่ไฟล์", "ทั้งหมด", "stats", "สถานะ"]):
-        # Quick stats
-        from .plan_limits import get_file_count, get_pack_count
-        from .database import Cluster
-        async with AsyncSessionLocal() as db:
-            file_count = await get_file_count(db, pdb_user_id)
-            pack_count = await get_pack_count(db, pdb_user_id)
-            clusters_q = await db.execute(
-                select(Cluster).where(Cluster.user_id == pdb_user_id)
-            )
-            cluster_count = len(clusters_q.scalars().all())
-        await adapter.reply_message(reply_token, BotMessage(
-            text=f"📊 สถานะตู้ของคุณ:\n📁 ไฟล์: {file_count}\n📚 Collections: {cluster_count}\n🔗 Context Packs: {pack_count}"
-        ))
+    # Quick shortcut: "เปิดเว็บ" / "open web" → web URL
+    if text.lower().strip() in ("เปิดเว็บ", "open web", "web"):
+        if reply_token:
+            await adapter.reply_message(reply_token, BotMessage(
+                text=f"🌐 เปิดเว็บ Personal Data Bank:\n{APP_BASE_URL.rstrip('/')}/app"
+            ))
+        return
+
+    # Show loading indicator (best effort) — RAG/search อาจช้า
+    try:
+        if line_user_id:
+            await adapter.show_typing(line_user_id, duration_sec=10)
+    except Exception:
+        pass
+
+    # Dispatch to bot_handlers (platform-agnostic)
+    try:
+        messages = await handle_text_intent(pdb_user_id, text)
+    except Exception as e:
+        logger.exception("handle_text_intent failed: %s", e)
+        if reply_token:
+            await adapter.reply_message(reply_token, BotMessage(text="ขอโทษ ระบบมีปัญหา ลองใหม่อีกครั้ง"))
+        return
+
+    if not messages:
+        return
+
+    # First message via reply (free), rest via push (uses quota — only when 2+ msgs)
+    if reply_token:
+        await adapter.reply_message(reply_token, messages[0])
     else:
-        await adapter.reply_message(reply_token, BotMessage(
-            text=(
-                f"ได้ยินคุณพิมพ์: \"{text[:200]}\"\n\n"
-                "ฟังก์ชัน AI chat + search กำลังเข้าคิวพัฒนา (Phase G)\n"
-                "ตอนนี้ลองส่งไฟล์มาให้ผมก่อนได้ครับ — ผมจะเก็บใน data bank ให้"
-            )
-        ))
+        # Reply token expired/missing → all via push
+        if line_user_id:
+            await adapter.send_message(line_user_id, messages[0])
+
+    if line_user_id and len(messages) > 1:
+        for msg in messages[1:]:
+            await adapter.send_message(line_user_id, msg)
 
 
 async def _handle_file_message(event: dict, pdb_user_id: str, msg_type: str) -> None:

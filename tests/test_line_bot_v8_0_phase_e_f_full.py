@@ -451,17 +451,25 @@ def test_f2_text_message_stats_keyword(line_full_config):
     captured = {}
     async def fake_reply(self, token, message):
         captured["text"] = message.text
+        captured["flex"] = message.flex
+    async def fake_typing(self, *args, **kwargs):
+        return None
 
     try:
         with patch.object(bot_adapters.LineBotAdapter, "reply_message", fake_reply):
-            asyncio.run(line_bot._handle_message({
-                "type": "message",
-                "source": {"userId": "U_F2_LINKED"},
-                "replyToken": "TKN",
-                "message": {"type": "text", "text": "ฉันมีกี่ไฟล์"},
-            }))
-        text = captured.get("text", "")
-        assert "ไฟล์" in text and "Collections" in text
+            with patch.object(bot_adapters.LineBotAdapter, "show_typing", fake_typing):
+                asyncio.run(line_bot._handle_message({
+                    "type": "message",
+                    "source": {"userId": "U_F2_LINKED"},
+                    "replyToken": "TKN",
+                    "message": {"type": "text", "text": "ฉันมีกี่ไฟล์"},
+                }))
+        # Phase G stats handler returns Flex card (not text)
+        flex = captured.get("flex")
+        assert flex is not None
+        # altText contains stats summary
+        alt = flex.get("altText", "")
+        assert "ไฟล์" in alt or "สถานะตู้" in alt
     finally:
         async def cleanup():
             async with AsyncSessionLocal() as db:
@@ -472,7 +480,12 @@ def test_f2_text_message_stats_keyword(line_full_config):
 
 
 def test_f3_text_message_general_chat(line_full_config):
-    """linked + general text → echo placeholder reply"""
+    """linked + general text → Phase G dispatches to bot_handlers.handle_text_intent.
+
+    Phase G changed _handle_text_message: was placeholder echo "ได้ยิน...",
+    now routes to bot_handlers (CHAT intent → call retriever.chat_with_retrieval).
+    Mock chat_with_retrieval to verify wiring works.
+    """
     from backend import line_bot, bot_adapters
     from backend.database import AsyncSessionLocal, LineUser, User
     from sqlalchemy import select, delete
@@ -494,16 +507,27 @@ def test_f3_text_message_general_chat(line_full_config):
     captured = {}
     async def fake_reply(self, token, message):
         captured["text"] = message.text
+    async def fake_typing(self, *args, **kwargs):
+        return None
+
+    # Mock retriever to avoid LLM call
+    async def fake_chat(db, user_id_arg, question):
+        return {
+            "answer": "ผมรับคำถาม 'สวัสดี' ของคุณแล้วครับ",
+            "sources": [],
+        }
 
     try:
-        with patch.object(bot_adapters.LineBotAdapter, "reply_message", fake_reply):
-            asyncio.run(line_bot._handle_message({
-                "type": "message",
-                "source": {"userId": "U_F3_LINKED"},
-                "replyToken": "TKN",
-                "message": {"type": "text", "text": "สวัสดี"},
-            }))
-        assert "สวัสดี" in captured.get("text", "") or "ได้ยิน" in captured.get("text", "")
+        with patch("backend.retriever.chat_with_retrieval", side_effect=fake_chat):
+            with patch.object(bot_adapters.LineBotAdapter, "reply_message", fake_reply):
+                with patch.object(bot_adapters.LineBotAdapter, "show_typing", fake_typing):
+                    asyncio.run(line_bot._handle_message({
+                        "type": "message",
+                        "source": {"userId": "U_F3_LINKED"},
+                        "replyToken": "TKN",
+                        "message": {"type": "text", "text": "สวัสดี"},
+                    }))
+        assert "สวัสดี" in captured.get("text", "")
     finally:
         async def cleanup():
             async with AsyncSessionLocal() as db:
