@@ -235,6 +235,9 @@ async def _handle_checkout_completed(session_obj, db: AsyncSession):
     user.stripe_subscription_id = subscription_id
     user.plan = "starter"
     user.subscription_status = "starter_active"
+    # v8.2.0 — User จ่ายเงินจริงผ่าน Stripe = Stripe เป็น source of truth ทันที
+    # ล้าง manual_plan_override ที่ admin อาจ set ไว้ (ถ้ามี) — Stripe takes over
+    user.manual_plan_override = False
     user.updated_at = datetime.utcnow()
     db.add(user)
 
@@ -272,6 +275,11 @@ async def _handle_subscription_created(sub_obj, db: AsyncSession):
     if not user:
         return
 
+    # v8.2.0 — respect manual plan override by admin (กัน Stripe webhook ล้าง admin override)
+    if getattr(user, "manual_plan_override", False):
+        logger.info(f"Stripe webhook subscription.created skipped (manual_plan_override) user={user.id}")
+        return
+
     user.stripe_subscription_id = sub_obj.get("id")
     first_item = _first_or_empty(sub_obj, "items", "data")
     user.stripe_price_id = (first_item.get("price") or {}).get("id", "") if isinstance(first_item.get("price"), dict) else ""
@@ -290,6 +298,11 @@ async def _handle_subscription_updated(sub_obj, db: AsyncSession):
     customer_id = sub_obj.get("customer")
     user = await _find_user_by_customer(customer_id, db)
     if not user:
+        return
+
+    # v8.2.0 — respect manual plan override
+    if getattr(user, "manual_plan_override", False):
+        logger.info(f"Stripe webhook subscription.updated skipped (manual_plan_override) user={user.id}")
         return
 
     user.subscription_status = _map_stripe_status(sub_obj.get("status"))
@@ -318,6 +331,11 @@ async def _handle_subscription_deleted(sub_obj, db: AsyncSession):
     customer_id = sub_obj.get("customer")
     user = await _find_user_by_customer(customer_id, db)
     if not user:
+        return
+
+    # v8.2.0 — respect manual plan override (admin upgrade ตรงๆ → Stripe ห้ามล้าง)
+    if getattr(user, "manual_plan_override", False):
+        logger.info(f"Stripe webhook subscription.deleted skipped (manual_plan_override) user={user.id}")
         return
 
     # Record downgrade info for audit trail
@@ -397,6 +415,11 @@ async def _handle_payment_succeeded(invoice_obj, db: AsyncSession):
     if not user:
         return
 
+    # v8.2.0 — respect manual plan override
+    if getattr(user, "manual_plan_override", False):
+        logger.info(f"Stripe webhook payment.succeeded skipped (manual_plan_override) user={user.id}")
+        return
+
     subscription_id = invoice_obj.get("subscription")
     if subscription_id:
         user.stripe_subscription_id = subscription_id
@@ -423,6 +446,11 @@ async def _handle_payment_failed(invoice_obj, db: AsyncSession):
     customer_id = invoice_obj.get("customer")
     user = await _find_user_by_customer(customer_id, db)
     if not user:
+        return
+
+    # v8.2.0 — respect manual plan override
+    if getattr(user, "manual_plan_override", False):
+        logger.info(f"Stripe webhook payment.failed skipped (manual_plan_override) user={user.id}")
         return
 
     user.subscription_status = "starter_past_due"
