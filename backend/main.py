@@ -38,7 +38,8 @@ from .metadata import enrich_file_metadata, enrich_all_files, get_file_metadata,
 from .config import UPLOAD_DIR, BASE_DIR, ADMIN_PASSWORD, APP_VERSION
 from .mcp_tokens import generate_token, validate_token, list_tokens, revoke_token, get_active_token_count
 from .mcp_tools import call_tool, get_usage_logs, TOOL_REGISTRY
-from .auth import register_user, login_user, get_current_user, get_optional_user, request_password_reset, reset_password, login_or_create_google_user
+from .auth import register_user, login_user, get_current_user, get_optional_user, request_password_reset, reset_password, login_or_create_google_user, require_admin
+from . import admin as _admin_mod
 from .billing import create_checkout_session, create_portal_session, process_webhook, get_billing_info
 from .plan_limits import (
     check_upload_allowed, check_pack_create_allowed, check_summary_allowed,
@@ -331,6 +332,54 @@ class MetadataUpdateRequest(BaseModel):
     source_of_truth: bool | None = None
     freshness: str | None = None
     version: str | None = None
+
+
+# ═══════════════════════════════════════════
+# v8.2.0 — Admin Request Models
+# ═══════════════════════════════════════════
+# ใช้กับ /api/admin/* endpoints. ทุก mutation request ต้องมี reason
+# (บันทึกใน audit_logs.old_value/new_value เพื่อ accountability)
+
+class AdminChangePlanRequest(BaseModel):
+    """PUT /api/admin/users/{user_id}/plan body."""
+    plan: str  # "free" | "starter" | "admin" — validate ใน admin module
+    reason: str
+
+    @field_validator("reason")
+    @classmethod
+    def _check_reason(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("EMPTY_REASON")
+        return v.strip()
+
+
+class AdminResetPasswordRequest(BaseModel):
+    """POST /api/admin/users/{user_id}/reset-password body."""
+    new_password: str
+    reason: str
+
+    @field_validator("reason")
+    @classmethod
+    def _check_reason(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("EMPTY_REASON")
+        return v.strip()
+
+
+class AdminToggleRequest(BaseModel):
+    """PUT /api/admin/users/{user_id}/active หรือ /admin body.
+
+    `value` = is_active หรือ is_admin ขึ้นกับ endpoint.
+    """
+    value: bool
+    reason: str
+
+    @field_validator("reason")
+    @classmethod
+    def _check_reason(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("EMPTY_REASON")
+        return v.strip()
 
 
 # ═══════════════════════════════════════════
@@ -1123,6 +1172,116 @@ async def line_quota_status(
     """
     from . import line_quota
     return line_quota.get_current_usage()
+
+
+# ═══════════════════════════════════════════
+# v8.2.0 — Admin System endpoints
+# ═══════════════════════════════════════════
+# Pattern: ทุก endpoint ใช้ Depends(require_admin) — ถ้า user ไม่ใช่ admin → 403 NOT_ADMIN
+# Mutation endpoints ใช้ Pydantic models (AdminChangePlanRequest / AdminResetPasswordRequest /
+# AdminToggleRequest) ที่ define ไว้ตอนต้นไฟล์
+
+@app.get("/api/admin/me")
+async def api_admin_me(current_admin: User = Depends(require_admin)):
+    """Verify admin role + return identity. Frontend ใช้เป็น auth guard ก่อน render /admin."""
+    from .plan_limits import _effective_plan
+    return {
+        "id": current_admin.id,
+        "email": current_admin.email,
+        "name": current_admin.name,
+        "is_admin": bool(current_admin.is_admin),
+        "effective_plan": _effective_plan(current_admin),
+    }
+
+
+@app.get("/api/admin/stats")
+async def api_admin_stats(
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Dashboard aggregate stats — users / files / Stripe / LINE / system."""
+    return await _admin_mod.get_admin_stats(db)
+
+
+@app.get("/api/admin/users")
+async def api_admin_list_users(
+    q: str | None = Query(None, description="Search by email substring"),
+    plan: str | None = Query(None, pattern="^(free|starter|admin|inactive)$"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Paginated user list with optional search + filter."""
+    return await _admin_mod.list_users(db, q, plan, page, page_size)
+
+
+@app.get("/api/admin/users/{user_id}")
+async def api_admin_user_detail(
+    user_id: str,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """User detail + usage + Stripe + downgrade-block info."""
+    return await _admin_mod.get_user_detail(db, user_id)
+
+
+@app.put("/api/admin/users/{user_id}/plan")
+async def api_admin_change_plan(
+    user_id: str,
+    body: AdminChangePlanRequest,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Change user plan (free/starter/admin) with Stripe-aware guard."""
+    return await _admin_mod.change_user_plan(db, current_admin, user_id, body.plan, body.reason)
+
+
+@app.post("/api/admin/users/{user_id}/reset-password")
+async def api_admin_reset_password(
+    user_id: str,
+    body: AdminResetPasswordRequest,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Set new password for user — return ครั้งเดียว, ไม่ส่ง email."""
+    return await _admin_mod.reset_user_password(db, current_admin, user_id, body.new_password, body.reason)
+
+
+@app.put("/api/admin/users/{user_id}/active")
+async def api_admin_toggle_active(
+    user_id: str,
+    body: AdminToggleRequest,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Toggle is_active flag (deactivate/reactivate)."""
+    return await _admin_mod.set_user_active(db, current_admin, user_id, body.value, body.reason)
+
+
+@app.put("/api/admin/users/{user_id}/admin")
+async def api_admin_toggle_admin(
+    user_id: str,
+    body: AdminToggleRequest,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Toggle is_admin flag (promote/demote)."""
+    return await _admin_mod.set_user_admin(db, current_admin, user_id, body.value, body.reason)
+
+
+@app.get("/api/admin/audit-logs")
+async def api_admin_audit_logs(
+    event_type: str | None = Query(None),
+    user_id: str | None = Query(None),
+    triggered_by: str | None = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Paginated audit log with optional filters."""
+    return await _admin_mod.list_audit_logs(db, event_type, user_id, triggered_by, limit, offset)
 
 
 # ─── v8.0.0 — LINE Bot UI endpoints (Profile section) ───
@@ -2885,6 +3044,16 @@ async def serve_landing():
 async def serve_app():
     """Authenticated workspace shell — JS guards redirect to / if no token."""
     return _serve_html("app.html")
+
+
+@app.get("/admin")
+async def serve_admin():
+    """v8.2.0 — Admin panel (separate page, JS calls /api/admin/me to verify role).
+
+    ห้าม server-side gate — ปล่อยให้ admin.js เรียก /api/admin/me ตรวจสิทธิ์เอง
+    (ถ้าไม่ admin → backend return 403 → JS redirect /app). Pattern เดียวกับ /app.
+    """
+    return _serve_html("admin.html")
 
 @app.get("/reset-password")
 async def serve_reset_password_page():
