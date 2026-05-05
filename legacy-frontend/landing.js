@@ -41,18 +41,40 @@ function showLanding() {
 function showApp() {
  const appEl = document.getElementById('app');
  if (!appEl) {
- window.location.href = '/app';
+ // ไม่ใช่หน้าที่มี #app shell อยู่ใน DOM (เช่นหน้า / landing) → redirect.
+ // v8.2.0 — ตรวจ /api/admin/me ก่อน — ถ้าเป็น admin ส่งไป /admin แทน
+ _redirectToAppOrAdmin();
  return false;
  }
+ // v8.2.0 — ที่หน้า /app: render ตามปกติ ไม่ auto-redirect ไป /admin
+ // (admin ใช้ปุ่ม "Admin Panel" ใน sidebar เพื่อสลับเอง — กัน loop ตอน
+ // admin คลิก "← กลับไป /app" จากหน้า /admin)
  document.getElementById('landing-page')?.classList.add('hidden');
  appEl.classList.remove('hidden');
  document.body.classList.remove('show-landing');
- // Update sidebar user info
  const emailEl = document.getElementById('sidebar-user-email');
- if (emailEl && state.currentUser) {
- emailEl.textContent = state.currentUser.email || '';
- }
+ if (emailEl && state.currentUser) emailEl.textContent = state.currentUser.email || '';
  return true;
+}
+
+// v8.2.0 — Admin-aware redirect: probe /api/admin/me แบบ async
+// ถ้า 200 → /admin, ถ้า 403/error → /app
+function _redirectToAppOrAdmin() {
+ const token = state.authToken || localStorage.getItem('pdb_token');
+ if (!token) {
+  window.location.href = '/app';
+  return;
+ }
+ fetch('/api/admin/me', {
+  headers: { 'Authorization': 'Bearer ' + token },
+ })
+  .then(res => {
+   window.location.href = res.ok ? '/admin' : '/app';
+  })
+  .catch(() => {
+   // Network error — fallback ไป /app ปกติ
+   window.location.href = '/app';
+  });
 }
 
 function showAuthModal(mode) {

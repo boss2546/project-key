@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+ <title>PDB Admin Panel</title>
+ <meta name="description" content="Personal Data Bank — Admin Panel">
+ <link rel="preconnect" href="https://fonts.googleapis.com">
+ <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+ <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+ <link rel="stylesheet" href="/legacy/shared.css?v=8.2.0">
+ <link rel="stylesheet" href="/legacy/styles.css?v=8.2.0">
+</head>
+<body class="show-landing">
+ <!-- show-landing class = override body { overflow: hidden } จาก shared.css เพื่อให้ admin scroll ได้ -->
+
+ <!-- Loading guard — แสดงก่อน auth verify เสร็จ -->
+ <div id="admin-loading" class="admin-loading">
+  <p>กำลังตรวจสอบสิทธิ์...</p>
+ </div>
+
+ <!-- Main shell — hidden จนกว่า /api/admin/me ผ่าน -->
+ <div id="admin-shell" class="admin-shell hidden">
+
+  <!-- Header -->
+  <header class="admin-header">
+   <div class="admin-logo">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+     <rect x="3" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.9"/>
+     <rect x="14" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/>
+     <rect x="3" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/>
+     <rect x="14" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.3"/>
+    </svg>
+    <span>Personal Data Bank</span>
+    <span class="admin-logo-pill">Admin v8.2.0</span>
+   </div>
+   <div class="admin-user-info">
+    <span id="admin-email">—</span>
+    <button id="btn-back-to-app" class="btn btn-ghost btn-sm" type="button">← กลับไป /app</button>
+    <button id="btn-admin-logout" class="btn btn-outline btn-sm" type="button">ออกจากระบบ</button>
+   </div>
+  </header>
+
+  <!-- Tabs -->
+  <nav class="admin-tabs">
+   <button class="admin-tab active" data-tab="dashboard" type="button">Dashboard</button>
+   <button class="admin-tab" data-tab="users" type="button">Users</button>
+   <button class="admin-tab" data-tab="audit" type="button">Audit Log</button>
+  </nav>
+
+  <main class="admin-main">
+
+   <!-- ─── Tab 1: Dashboard ─── -->
+   <section id="admin-tab-dashboard" class="admin-tab-content active">
+    <h2>ภาพรวมระบบ</h2>
+    <div class="admin-stats-grid">
+     <div class="admin-stat-card">
+      <div class="stat-label">ผู้ใช้ทั้งหมด</div>
+      <div class="stat-value" id="stat-total-users">—</div>
+      <div class="stat-detail" id="stat-users-breakdown">—</div>
+     </div>
+     <div class="admin-stat-card">
+      <div class="stat-label">ผู้ใช้ Active</div>
+      <div class="stat-value" id="stat-active-users">—</div>
+      <div class="stat-detail">Inactive: <span id="stat-inactive-users">0</span></div>
+     </div>
+     <div class="admin-stat-card">
+      <div class="stat-label">สมัครวันนี้ / สัปดาห์</div>
+      <div class="stat-value">
+       <span id="stat-signups-today">—</span> / <span id="stat-signups-week">—</span>
+      </div>
+      <div class="stat-detail">เดือนนี้: <span id="stat-signups-month">—</span></div>
+     </div>
+     <div class="admin-stat-card">
+      <div class="stat-label">ไฟล์ทั้งหมด</div>
+      <div class="stat-value" id="stat-total-files">—</div>
+      <div class="stat-detail"><span id="stat-storage">—</span> MB</div>
+     </div>
+     <div class="admin-stat-card">
+      <div class="stat-label">Stripe Active</div>
+      <div class="stat-value" id="stat-stripe-active">—</div>
+      <div class="stat-detail">past due: <span id="stat-stripe-pastdue">0</span> · canceled: <span id="stat-stripe-canceled">0</span></div>
+     </div>
+     <div class="admin-stat-card">
+      <div class="stat-label">LINE Quota</div>
+      <div class="stat-value">
+       <span id="stat-line-used">—</span>/<span id="stat-line-limit">—</span>
+      </div>
+      <div class="stat-detail">
+       <span id="stat-line-percent">0</span>% ใช้แล้ว · <span id="stat-line-linked">0</span> linked
+      </div>
+     </div>
+    </div>
+    <p class="admin-checked-at">อัปเดตล่าสุด: <span id="admin-checked-at">—</span> · DB: <span id="admin-db-size">0</span> MB</p>
+   </section>
+
+   <!-- ─── Tab 2: Users ─── -->
+   <section id="admin-tab-users" class="admin-tab-content">
+    <h2>จัดการผู้ใช้</h2>
+
+    <div class="admin-users-controls">
+     <input type="text" id="admin-users-search" placeholder="ค้นหา email..." class="form-input">
+     <select id="admin-users-filter" class="form-input">
+      <option value="">ทั้งหมด</option>
+      <option value="free">Free</option>
+      <option value="starter">Starter</option>
+      <option value="admin">Admin</option>
+      <option value="inactive">Inactive</option>
+     </select>
+     <button id="admin-users-refresh" class="btn btn-outline" type="button">รีเฟรช</button>
+    </div>
+
+    <div class="admin-users-table-wrapper">
+     <table class="admin-users-table">
+      <thead>
+       <tr>
+        <th>Email</th>
+        <th>ชื่อ</th>
+        <th>Plan</th>
+        <th>Stripe</th>
+        <th>ไฟล์</th>
+        <th>สมัครเมื่อ</th>
+        <th>สถานะ</th>
+        <th>Actions</th>
+       </tr>
+      </thead>
+      <tbody id="admin-users-tbody">
+       <tr><td colspan="8" class="text-muted">กำลังโหลด...</td></tr>
+      </tbody>
+     </table>
+    </div>
+
+    <div class="admin-users-pagination">
+     <button id="admin-users-prev" class="btn btn-sm btn-outline" type="button">← ก่อนหน้า</button>
+     <span id="admin-users-page-info">หน้า 1/1</span>
+     <button id="admin-users-next" class="btn btn-sm btn-outline" type="button">ถัดไป →</button>
+    </div>
+   </section>
+
+   <!-- ─── Tab 3: Audit Log ─── -->
+   <section id="admin-tab-audit" class="admin-tab-content">
+    <h2>กล้องวงจรปิด — ประวัติการกระทำ</h2>
+
+    <div class="admin-users-controls">
+     <select id="admin-audit-filter" class="form-input">
+      <option value="">ทั้งหมด</option>
+      <option value="admin_changed_plan">เปลี่ยน Plan (admin)</option>
+      <option value="admin_reset_password">รีเซ็ตรหัสผ่าน (admin)</option>
+      <option value="admin_deactivated_user">Deactivate (admin)</option>
+      <option value="admin_reactivated_user">Reactivate (admin)</option>
+      <option value="admin_promoted">Promote admin</option>
+      <option value="admin_demoted">Demote admin</option>
+      <option value="plan_changed">Plan changed (Stripe auto)</option>
+      <option value="downgrade_completed">Downgrade (Stripe)</option>
+      <option value="data_unlocked">Data unlocked</option>
+     </select>
+     <button id="admin-audit-refresh" class="btn btn-outline" type="button">รีเฟรช</button>
+    </div>
+
+    <div class="admin-audit-list" id="admin-audit-list">
+     <p class="text-muted">กำลังโหลด...</p>
+    </div>
+   </section>
+
+  </main>
+ </div>
+
+ <!-- ╔═══════════════════════════════════════════════════════════
+      ║  MODALS — reuse .modal-overlay + .modal จาก shared.css
+      ╚═══════════════════════════════════════════════════════════ -->
+
+ <!-- Modal: Change Plan -->
+ <div class="modal-overlay hidden" id="modal-change-plan">
+  <div class="modal">
+   <div class="modal-header">
+    <h2>เปลี่ยน Plan</h2>
+    <button class="btn-close" id="modal-change-plan-close" type="button">&times;</button>
+   </div>
+   <div class="modal-body">
+    <p>ผู้ใช้: <strong id="modal-change-plan-email">—</strong></p>
+    <p>Plan ปัจจุบัน: <strong id="modal-change-plan-current">—</strong></p>
+    <div id="modal-change-plan-warning" class="admin-warning-banner hidden"></div>
+    <div class="form-group">
+     <label>Plan ใหม่</label>
+     <select id="modal-change-plan-select" class="form-input">
+      <option value="free">Free</option>
+      <option value="starter">Starter (manual override — ไม่ผ่าน Stripe)</option>
+      <option value="admin">Admin (full access)</option>
+     </select>
+    </div>
+    <div class="form-group">
+     <label>เหตุผล (บันทึกใน audit log)</label>
+     <textarea id="modal-change-plan-reason" rows="2" placeholder="เช่น Beta tester, แลกของรางวัล, etc."></textarea>
+    </div>
+   </div>
+   <div class="modal-footer">
+    <button class="btn btn-outline" id="modal-change-plan-cancel" type="button">ยกเลิก</button>
+    <button class="btn btn-primary" id="modal-change-plan-confirm" type="button">บันทึก</button>
+   </div>
+  </div>
+ </div>
+
+ <!-- Modal: Reset Password -->
+ <div class="modal-overlay hidden" id="modal-reset-password">
+  <div class="modal">
+   <div class="modal-header">
+    <h2>รีเซ็ตรหัสผ่าน</h2>
+    <button class="btn-close" id="modal-reset-password-close" type="button">&times;</button>
+   </div>
+   <div class="modal-body">
+    <p>ผู้ใช้: <strong id="modal-reset-password-email">—</strong></p>
+    <div class="admin-warning-banner">⚠️ ระบบจะแสดงรหัสครั้งเดียวเท่านั้น — เตรียมส่งให้ user ทันที</div>
+    <div class="form-group">
+     <label>รหัสผ่านใหม่ (อย่างน้อย 6 ตัว)</label>
+     <input type="text" id="modal-reset-password-input" class="form-input" placeholder="กรอกรหัสใหม่" autocomplete="off">
+     <button type="button" class="btn btn-outline btn-sm" id="modal-reset-password-generate" style="margin-top:8px">สร้างรหัสสุ่ม 12 ตัว</button>
+    </div>
+    <div class="form-group">
+     <label>เหตุผล</label>
+     <textarea id="modal-reset-password-reason" rows="2" placeholder="เช่น user ลืมรหัส โทรมาแจ้ง"></textarea>
+    </div>
+   </div>
+   <div class="modal-footer">
+    <button class="btn btn-outline" id="modal-reset-password-cancel" type="button">ยกเลิก</button>
+    <button class="btn btn-primary" id="modal-reset-password-confirm" type="button">เปลี่ยนรหัส</button>
+   </div>
+  </div>
+ </div>
+
+ <!-- Modal: Show new password (one-time) -->
+ <div class="modal-overlay hidden" id="modal-password-shown">
+  <div class="modal">
+   <div class="modal-header">
+    <h2>รหัสผ่านใหม่ — แสดงครั้งเดียว</h2>
+   </div>
+   <div class="modal-body">
+    <p>User: <strong id="modal-password-shown-email">—</strong></p>
+    <div class="admin-warning-banner">⚠️ คัดลอกตอนนี้ — ปิดแล้วจะไม่สามารถดูได้อีก</div>
+    <div class="admin-password-display" id="admin-password-display">—</div>
+    <button class="btn btn-outline" id="modal-password-copy" type="button">📋 คัดลอกรหัสผ่าน</button>
+   </div>
+   <div class="modal-footer">
+    <button class="btn btn-primary" id="modal-password-shown-close" type="button">ปิด (ยืนยันว่าเก็บแล้ว)</button>
+   </div>
+  </div>
+ </div>
+
+ <!-- Modal: Confirm Action (deactivate/reactivate/promote/demote) -->
+ <div class="modal-overlay hidden" id="modal-confirm-action">
+  <div class="modal">
+   <div class="modal-header">
+    <h2 id="modal-confirm-title">ยืนยัน</h2>
+    <button class="btn-close" id="modal-confirm-close" type="button">&times;</button>
+   </div>
+   <div class="modal-body">
+    <p id="modal-confirm-message">—</p>
+    <div class="form-group">
+     <label>เหตุผล (บันทึกใน audit log)</label>
+     <textarea id="modal-confirm-reason" rows="2"></textarea>
+    </div>
+   </div>
+   <div class="modal-footer">
+    <button class="btn btn-outline" id="modal-confirm-cancel" type="button">ยกเลิก</button>
+    <button class="btn btn-primary" id="modal-confirm-ok" type="button">ยืนยัน</button>
+   </div>
+  </div>
+ </div>
+
+ <!-- Toast container — reuse #toast-container + .toast classes จาก shared.css -->
+ <div id="toast-container"></div>
+
+ <script src="/legacy/admin.js?v=8.2.0"></script>
+</body>
+</html>

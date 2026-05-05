@@ -307,6 +307,17 @@ function initAppData() {
  maybeShowRebrandNotice();
  // v7.0 — BYOS Storage Mode (loads Drive status for profile modal)
  if (typeof initStorageMode === 'function') initStorageMode();
+ // v8.2.0 — Reveal "Admin Panel" link in sidebar if current user is admin
+ _revealAdminLinkIfAdmin();
+}
+
+// v8.2.0 — Show sidebar Admin Panel button เฉพาะ admin (best-effort, hidden by default)
+function _revealAdminLinkIfAdmin() {
+ const btn = document.getElementById('btn-admin-panel');
+ if (!btn) return;
+ authFetch('/api/admin/me', { _background: true })
+  .then(res => { if (res && res.ok) btn.classList.remove('hidden'); })
+  .catch(() => { /* fallback: keep hidden */ });
 }
 
 // แสดง toast แจ้ง rebrand ครั้งเดียวต่อ browser (v6.1.0)
