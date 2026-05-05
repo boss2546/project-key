@@ -1,13 +1,134 @@
 # 📅 Last Session Summary
 
-**Date:** 2026-05-04
+**Date:** 2026-05-05
+**Agent:** แดง→เขียว (single-agent 3-in-1 mode)
+**Pipeline state:** `built_pending_review` 🟡 — v8.2.0 Admin System BUILT + self-test PASS
+**Authorization:** User said "อยากให้คุณลงมือทำเองเลยแต่คุณคือเดียว" — approved 3-in-1 execution
+
+---
+
+## 🎯 v8.2.0 Built (2026-05-05)
+
+**Result:** Admin System ครบทั้ง stack — DB / Backend / Frontend / Test. **25/25 admin e2e + 61/61 regression = 86/86 PASS** ✅
+
+**Files created (4):**
+- `backend/admin.py` (580 lines) — 7 admin functions
+- `legacy-frontend/admin.html` (~300 lines) — standalone admin shell, 3 tabs + 4 modals
+- `legacy-frontend/admin.js` (~470 lines) — auth guard + tab logic + modals
+- `scripts/admin_e2e_test.py` (~250 lines) — 25-case self-test
+
+**Files modified (8):**
+- `backend/database.py` — schema + migration + bootstrap (commit fix ใน bootstrap block แยก)
+- `backend/plan_limits.py` — `_effective_plan()` is_admin first
+- `backend/auth.py` — `require_admin` dependency
+- `backend/billing.py` — 5 webhook handlers respect manual_plan_override
+- `backend/main.py` — 3 Pydantic models + 10 endpoints + /admin route + `pattern=` (deprecation fix)
+- `backend/config.py` — APP_VERSION 8.1.0 → 8.2.0
+- `legacy-frontend/styles.css` — +200 lines admin section
+- `legacy-frontend/landing.js` — showApp() admin redirect
+- `legacy-frontend/app.html` — version label bump
+
+**Bug found + fixed during build:**
+- Bootstrap UPDATE ไม่ commit ตอน migrated=False (piggyback กับ outer block) → fix แยก commit ใน bootstrap block (ดู [database.py](../../backend/database.py) inline comment)
+
+**APP_VERSION:** 8.0.7 (app.html label) / 8.1.0 (config.py) → 8.2.0 ทั้งสอง
+
+---
+
+## 🚧 What I did this session (timeline)
+
+**Phase A (แดง mode, 2026-05-05 morning):**
+1. Deep code reading — 35 backend modules + 12 frontend files (~2.5 ชม.)
+2. Architecture summary ให้ user
+3. 4 scoping questions (อธิบายแบบเด็กฟัง) → user เลือก 1B/2B/3A/4✓
+4. เขียน plan ละเอียด `plans/admin-system-v8.2.0.md` (~1600 lines)
+5. User สังเกตว่า plan อาจไม่ฟิต → verify CSS variables → revise plan แก้ 4 จุด
+
+**Phase B (เขียว mode, 2026-05-05 afternoon):**
+6. Phase 1 Backend Foundation (DB schema + migration + plan_limits + auth + billing + Pydantic + APP_VERSION)
+7. Phase 2 Admin module (admin.py + endpoints + /admin route)
+8. Phase 3 Frontend (admin.html + admin.js + styles + landing redirect)
+9. Phase 4 Self-test:
+   - Python syntax all 7 files OK
+   - JS syntax 2 files OK
+   - DB migration sandbox test PASS (caught + fixed bootstrap commit bug)
+   - Admin e2e 25 cases PASS
+   - Regression 61 tests (auth + signed URLs + email + plan limits) PASS
+
+---
+
+---
+
+## 🎯 Session Goal (2026-05-05)
+
+วาง plan สำหรับ admin system v8.2.0 — หน้า `/admin` แยกจาก `/app` พร้อม user management (plan/password/active/promote) + audit log viewer
+
+## 📋 What I did this session
+
+1. **Deep code reading** (~2.5 ชม.):
+   - Config + Database (19 tables, idempotent migration chain v5→v8.1)
+   - Auth + Google login (PKCE S256)
+   - Main.py 65+ endpoints (อ่านครบ 2932 lines)
+   - MCP tools registry (30 tools)
+   - Retriever (7-layer RAG) + Organizer (cluster + map-reduce)
+   - LINE bot (10 intents) + bot_handlers
+   - Plan limits (Free/Starter/Admin × 10 quota fields)
+   - Billing (Stripe webhook = source of truth)
+   - Email service (Resend)
+   - Frontend structure (landing.html / app.html)
+
+2. **Architecture summary** ให้ user — 9 feature groups, 35 backend modules, 12 frontend files, 17K+ บรรทัด
+
+3. **Scope discussion** กับ user — ระบุ admin primitive ที่มีอยู่แล้ว 8 จุด + gap 7 จุด
+
+4. **4 scoping questions** (อธิบายแบบเด็กฟัง — ไม่ใช้ jargon):
+   - Q1 Admin storage → user ตอบ **B** (DB column)
+   - Q2 Password reset → user ตอบ **B** (admin set + show ครั้งเดียว)
+   - Q3 Stripe collision → user ตอบ **A** (block downgrade)
+   - Q4 Audit log viewer → user ตอบ **✓ เอา**
+
+5. **เขียน plan ละเอียด** ใน [plans/admin-system-v8.2.0.md](../plans/admin-system-v8.2.0.md) (~1500 บรรทัด):
+   - Goal + Context (สิ่งที่มีอยู่ + decisions)
+   - 10 endpoints schema เต็ม + error codes
+   - Data model: 2 columns ใหม่ + idempotent migration + bootstrap from ADMIN_EMAILS
+   - Step-by-step 4 phases (DB Foundation → Admin module → Frontend → Test)
+   - 35 test scenarios (Happy 10 + Validation 8 + Auth 5 + Edge 10 + Migration 1 + Stripe 1)
+   - Done criteria checklist
+   - 5 Risks + 5 Open Questions (with defaults)
+   - 10 Gotchas + Reuse Patterns สำหรับเขียว
+
+## 📦 Output
+
+- **Plan file:** `.agent-memory/plans/admin-system-v8.2.0.md` (~1500 บรรทัด)
+- **Memory updates:**
+  - pipeline-state.md → `plan_pending_approval`
+  - last-session.md → this file
+
+## 🔄 Pipeline Next
+
+- 🔴 **User**: review plan + answer Open Questions Q1-Q5 (หรือยอมรับ default)
+- 🟢 **เขียว**: รอ user approve → เริ่ม Phase 1 (DB schema + migration)
+- 🔵 **ฟ้า**: รอเขียวเสร็จ → review + เขียน tests/test_admin.py (35 cases)
+
+---
+
+## 🚧 Pending User Action ที่ค้างจาก v8.1.0 (FYI — ไม่กระทบ v8.2.0 plan)
+
+1. Google Cloud Console: เพิ่ม 2 redirect URIs
+2. Manual smoke test ด้วย real Google account
+3. Submit OAuth verification ก่อน public >100 users
+4. Deploy: `git push origin master` + `fly deploy` (รวม v8.0.0 LINE Bot + v8.1.0 Google login + v8.2.0 Admin เมื่อ ship)
+
+---
+
+## 📅 Previous Session: 2026-05-04
 **Agent:** เขียว (Khiao) — single-agent 3-in-1 mode (plan + build + self-review)
 **Pipeline state:** `done` ✅ — v8.1.0 Google Sign-In shipped
 **Authorization:** User said "ดำเนินการตามคุณว่าได้เลย" — approved plan + 3-in-1 execution
 
 ---
 
-## 🎯 Session Goal
+## 🎯 Session Goal (2026-05-04)
 
 เพิ่ม "Sign in with Google" — ระบบ login ด้วย Google account ที่ reuse infrastructure ของ Drive BYOS เดิม (Google Cloud project + OAuth credentials + PKCE pattern) แต่แยก scope (login = openid+email+profile only ไม่ขอ drive.file)
 
