@@ -468,8 +468,7 @@ ee8699d chore: update domains to personaldatabank.fly.dev
 
 ## 📋 Pre-launch Backlog (ดู active-tasks.md)
 
-✅ **BACKLOG-008** — Restore plan_limits.py production values → SHIPPED `8fa3c70` (v7.6.0 Phase A1)
-   - Note: v8.0.2 `1c8d139` bumped ×10 for testing period — ก่อน public launch user ตัดสินใจว่า revert หรือคงไว้
+✅ **BACKLOG-008** — plan_limits ×10 baseline = production (CLOSED 2026-05-05) → see [decisions.md BILL-002](../project/decisions.md)
 ✅ **BACKLOG-009** — Wire email service for password reset → SHIPPED `698ba0d` (v7.6.0 Phase A2, Resend)
 
 **Pre-launch gates ที่ user ต้องทำเอง (ไม่ใช่ code work):**

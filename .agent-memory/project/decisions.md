@@ -129,6 +129,18 @@
 - Drive delete = trash (recoverable 30 วัน) ไม่ใช่ permanent — เผื่อ user เปลี่ยนใจ
 - Best-effort: ทุก step (raw, Drive, index) ห้าม raise — ถ้า fail ขั้นใดให้ log warning + ดำเนินต่อ (DB delete เป็น primary success criterion)
 
+## BILL-002: plan_limits ×10 baseline kept for public launch (v8.0.2, decided 2026-05-05)
+**Why:** v8.0.2 commit `1c8d139` bumped Free + Starter ×10 จาก v7.6.0 baseline เป็น "testing period". User decision 2026-05-05: ไม่ revert → ค่า ×10 = production baseline จริง (พ่วง pricing strategy).
+**Current values (production):**
+- Free: 50 files / 500MB / 100MB max / 50 summaries/mo / 100 exports/mo
+- Starter: 500 files / 10GB / 200MB max / 1000 summaries/mo / 3000 exports/mo / semantic search
+- Admin: 999999 ทุก field
+**Implication:**
+- ห้าม agent revert ค่าเป็น pre-v7.6.0 (Free 5/50MB, Starter 50/1GB) โดยไม่มี user instruction
+- Pricing strategy ต้องสอดคล้อง — ถ้า revenue ไม่คุ้ม cost ที่ Free 50 files / 500MB → user เปลี่ยน pricing ก่อน revisit limits
+- Comment ใน `backend/plan_limits.py:24` documented this — ห้ามลบหรือเปลี่ยนเป็น "Reduce before launch"
+- BACKLOG-008 = CLOSED (production gate ผ่าน)
+
 ## DUP-003: Duplicate detection trigger = organize-time (not upload-time) (v7.1, user override 2026-05-01)
 **Why:** Original plan trigger ตอน upload — แต่ user override ให้ย้ายไป organize-new หลังจากที่ฟ้า approve round แรกแล้ว. เหตุผลของ trigger location ใหม่:
 1. **vector_search index พร้อมเต็ม** — ตอน organize เสร็จ ทุกไฟล์ใหม่ถูก index แล้ว → semantic detection ทำงานได้เต็มที่

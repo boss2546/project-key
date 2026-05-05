@@ -21,7 +21,10 @@ ALL_FILE_TYPES = {
     "xlsx", "pptx", "html", "json", "rtf",
 }
 PLAN_LIMITS = {
-    # v8.0.2 — Testing period: ×10 from original baseline. Reduce before public launch.
+    # v8.0.2 — ×10 from original baseline. Decision (2026-05-05): keep these
+    # values for public launch — pricing strategy treats this as the production
+    # baseline. The pre-v7.6.0 numbers (Free 5/50MB, Starter 50/1GB) are NOT
+    # being restored. Adjust here directly if pricing changes later.
     "free": {
         "context_pack_limit": 10,
         "file_limit": 50,

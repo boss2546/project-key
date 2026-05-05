@@ -30,12 +30,12 @@
 
 ### ✅ DONE (shipped on master, ก่อน public launch ใช้งานได้แล้ว)
 
-- [x] **[BACKLOG-008] ✅ Restore plan_limits.py production values** — shipped commit `8fa3c70` (v7.6.0 Phase A1)
-  - **⚠️ Evolved:** v8.0.2 commit `1c8d139` ×10 จาก baseline สำหรับ "testing period"
-  - Current values: Free 50 files / 500MB / 100MB max ; Starter 500 files / 10GB / 200MB max
-  - Original baseline: Free 5/50MB/10MB ; Starter 50/1024MB/20MB
-  - **Pre-public-launch decision:** revert ×10 → original baseline หรือคงไว้ (พ่วง pricing strategy)
-  - File: [backend/plan_limits.py:15-60](../../backend/plan_limits.py#L15-L60)
+- [x] **[BACKLOG-008] ✅ CLOSED — plan_limits ×10 baseline = production** (decision 2026-05-05)
+  - shipped: `8fa3c70` (v7.6.0 Phase A1) + `1c8d139` (v8.0.2 ×10 bump)
+  - User decision 2026-05-05: keep ×10 values for public launch (พ่วง pricing strategy)
+  - Production baseline: Free 50/500MB/100MB ; Starter 500/10GB/200MB
+  - Decision recorded: [project/decisions.md BILL-002](../project/decisions.md)
+  - File: [backend/plan_limits.py:15-63](../../backend/plan_limits.py#L15-L63)
 
 - [x] **[BACKLOG-009] ✅ Wire email service for password reset** — shipped commit `698ba0d` (v7.6.0 Phase A2)
   - `backend/email_service.py` — Resend integration + bilingual TH/EN HTML+text templates
