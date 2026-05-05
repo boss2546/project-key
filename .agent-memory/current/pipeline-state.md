@@ -8,7 +8,7 @@
 ## 🎯 Current Pipeline State: `done` ✅ (v8.1.0 GOOGLE LOGIN SHIPPED — 2026-05-04)
 
 ### ✅ v8.1.0 Google Sign-In — DONE (2026-05-04)
-- **Plan:** [plans/google-login-v8.1.0.md](../plans/google-login-v8.1.0.md)
+- **Plan:** [plans/archive/google-login-v8.1.0.md](../plans/archive/google-login-v8.1.0.md)
 - **Mode:** Single-agent 3-in-1 per user authorization "ดำเนินการตามคุณว่าได้เลย" 2026-05-04
 - **Owner (build+review):** เขียว (Khiao)
 - **Foundation:** v8.0.7 master HEAD `0f68de8`
@@ -147,11 +147,11 @@
 - **Status:** Code complete + tested → **awaiting User push + fly deploy + Rich Menu deploy + mobile smoke test**
 
 ### Reference Documents
-- **Plan A+C:** [plans/foundation-v7.6.0.md](../plans/foundation-v7.6.0.md) (Section B marked deferred)
-- **Plan D-K:** [plans/line-bot-v8.0.0.md](../plans/line-bot-v8.0.0.md) (main focus)
-- **Briefing:** [handoff/supervisor-briefing-line-bot.md](../handoff/supervisor-briefing-line-bot.md)
-- **External setup:** [handoff/external-setup-checklist.md](../handoff/external-setup-checklist.md)
-- **Executor prompt:** [prompts/prompt-line-bot-browser-ai-executor.md](../prompts/prompt-line-bot-browser-ai-executor.md)
+- **Plan A+C:** [plans/archive/foundation-v7.6.0.md](../plans/archive/foundation-v7.6.0.md) (Section B marked deferred)
+- **Plan D-K:** [plans/archive/line-bot-v8.0.0.md](../plans/archive/line-bot-v8.0.0.md) (main focus)
+- **Briefing:** [handoff/archive/supervisor-briefing-line-bot.md](../handoff/archive/supervisor-briefing-line-bot.md)
+- **External setup:** [handoff/archive/external-setup-checklist.md](../handoff/archive/external-setup-checklist.md)
+- **Executor prompt:** [prompts/archive/prompt-line-bot-browser-ai-executor.md](../prompts/archive/prompt-line-bot-browser-ai-executor.md)
 
 ### Phase 0 ✅ DONE (2026-05-04 12:19 ICT)
 - Browser Worker (Antigravity) ทำเสร็จใน ~1.5 hr
@@ -192,7 +192,7 @@ Phase A เปลี่ยน plan_limits + email — กระทบ user behav
 ### 🔴 v7.6.0 Foundation — `plan_pending_approval` (2026-05-02) ⭐ ACTIVE PLAN (Phase A-C)
 
 **State:** `plan_pending_approval` — แดงเขียน plan เสร็จ รอ user approve
-**Plan file:** [plans/foundation-v7.6.0.md](../plans/foundation-v7.6.0.md)
+**Plan file:** [plans/archive/foundation-v7.6.0.md](../plans/archive/foundation-v7.6.0.md)
 **Author:** แดง (Daeng) — 2026-05-02
 **Priority:** 🔴 Critical — Pre-launch backlog ก่อน public launch
 **Estimated effort:** เขียว ~10-13 working days (~2-2.5 weeks) + ฟ้า ~3-4 days
@@ -236,7 +236,7 @@ Phase A เปลี่ยน plan_limits + email — กระทบ user behav
 ### 🟢 v8.0.0 LINE Bot Integration — `plan_pending_approval` (2026-05-02 reactivated) ⭐ ACTIVE (Phase D-K)
 
 **State:** `plan_pending_approval` (was deferred — reactivated 2026-05-02 per supervisor + executor model)
-**Plan file:** [plans/line-bot-v8.0.0.md](../plans/line-bot-v8.0.0.md)
+**Plan file:** [plans/archive/line-bot-v8.0.0.md](../plans/archive/line-bot-v8.0.0.md)
 **Bundle with:** v7.6.0 Foundation (must complete Phases A-C first)
 
 **Phases (D-K):**
@@ -255,7 +255,7 @@ Phase A เปลี่ยน plan_limits + email — กระทบ user behav
 - Email service for password reset (used in account link flow if user resets password)
 - MCP upload pattern (reused in bot upload handlers)
 
-**External setup required (User Phase 0):** ดู [handoff/external-setup-checklist.md](../handoff/external-setup-checklist.md)
+**External setup required (User Phase 0):** ดู [handoff/archive/external-setup-checklist.md](../handoff/archive/external-setup-checklist.md)
 - LINE Developer + Provider + 2 channels (Messaging API + Login)
 - Resend account (or use default sender)
 - Fly.io secrets (8-9 secrets total)

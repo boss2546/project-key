@@ -19,7 +19,7 @@
 - อ่านระบบ login ทั้งหมด: auth.py / database.py / config.py / main.py auth routes / landing.js / drive_oauth.py
 - Audit security: 6 critical + 7 high + 5 medium gaps
 - เสนอ 3 levels of upgrade — user เลือก Option B (Separated 2 OAuth flows)
-- Draft + commit plan: `plans/google-login-v8.1.0.md`
+- Draft + commit plan: `plans/archive/google-login-v8.1.0.md`
 
 ### Phase 1 — Backend (~5 ชม., 4 commits)
 1. **Schema migration** — เพิ่ม `User.google_sub` column + `idx_users_google_sub` UNIQUE index + idempotent ALTER block ใน `init_db()`
@@ -86,7 +86,7 @@
 
 | Metric | Value |
 |---|---|
-| Files NEW | 2 (`backend/google_login.py`, `plans/google-login-v8.1.0.md`) |
+| Files NEW | 2 (`backend/google_login.py`, `plans/archive/google-login-v8.1.0.md`) |
 | Files MODIFY | 8 (database.py, config.py, auth.py, main.py, landing.html, app.html, landing.js, app.js, styles.css, package.json) |
 | Lines added (backend) | ~310 |
 | Lines added (frontend) | ~200 |
