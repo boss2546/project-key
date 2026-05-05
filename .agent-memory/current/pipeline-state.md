@@ -468,11 +468,17 @@ ee8699d chore: update domains to personaldatabank.fly.dev
 
 ## 📋 Pre-launch Backlog (ดู active-tasks.md)
 
-ก่อน production launch ต้องตามเก็บ 2 รายการสำคัญ:
-- **BACKLOG-008** — Restore plan_limits.py production values (ตอนนี้ testing mode 999999 ทุก field)
-- **BACKLOG-009** — Wire email service for password reset (ตอนนี้ return reset_token ใน JSON ตรงๆ)
+✅ **BACKLOG-008** — Restore plan_limits.py production values → SHIPPED `8fa3c70` (v7.6.0 Phase A1)
+   - Note: v8.0.2 `1c8d139` bumped ×10 for testing period — ก่อน public launch user ตัดสินใจว่า revert หรือคงไว้
+✅ **BACKLOG-009** — Wire email service for password reset → SHIPPED `698ba0d` (v7.6.0 Phase A2, Resend)
 
-ทั้ง 2 ตัวเป็น "production launch gates" — ไม่ใช่ tech debt, รอ user signal launch
+**Pre-launch gates ที่ user ต้องทำเอง (ไม่ใช่ code work):**
+- 🚀 `fly deploy` (push master = `f8d25e7` ขึ้น production)
+- 🔴 Google Cloud Console redirect URIs (2 รายการ — สำหรับ v8.1.0 Google Login)
+- 📱 LINE Rich Menu setup script post-deploy
+- 🔁 Token rotation (LINE + Resend) — exposed in Browser Worker logs
+- 🧪 Manual smoke test (real Google + LINE app)
+- 📝 Submit Google OAuth verification (ก่อน >100 users)
 
 ---
 

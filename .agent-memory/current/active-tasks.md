@@ -1,76 +1,57 @@
 # 🎯 Active Tasks
 
 > Source of truth คือ [pipeline-state.md](pipeline-state.md) — ไฟล์นี้เป็น overview
-> Pipeline ตอนนี้ = `done` (v8.1.0 Google Sign-In ship แล้ว — รอ user push + deploy)
+> Pipeline ตอนนี้ = `done` (v8.1.0 Google Sign-In ship + push origin/master แล้ว — รอ user fly deploy)
 
 ---
 
 ## 🔄 Current Pipeline
 
-**State:** `done` ✅ — v8.1.0 Google Sign-In shipped 2026-05-04 (3-in-1 mode by เขียว)
+**State:** `done` ✅ — v8.1.0 Google Sign-In shipped + pushed to origin/master 2026-05-04 (3-in-1 mode by เขียว)
 
 **Recent shipped (master commits):**
-- v8.1.0 (2026-05-04) — Google Sign-In + token fragment redirect + USE_GOOGLE_LOGIN UX (5 commits, 16/16 self-test)
+- v8.1.0 (2026-05-04) — Google Sign-In + token fragment redirect + USE_GOOGLE_LOGIN UX (6 commits incl. clock-skew fix, 16/16 self-test)
 - v8.0.0 → v8.0.7 (2026-05-04) — LINE Bot Integration ครบ Phase D-K
 - v7.5.0 (2026-05-02) — Upload Resilience (4 phase, 346/346 tests)
 
-**Awaiting User:**
-- push + fly deploy (v8.0.0 LINE + v8.1.0 Google รวมกัน)
-- Google Cloud Console: เพิ่ม 2 redirect URIs (5 นาที)
-- Manual smoke test ด้วย real Google account
-- Submit OAuth verification ก่อน public >100 users
+**Master HEAD:** `f8d25e7` (= origin/master, working tree clean)
+
+**Awaiting User (cannot be done by agents):**
+- 🚀 `fly deploy` — push v8.0.0 LINE + v8.0.1-7 + v8.1.0 Google รวมกันขึ้น production
+- 🔴 Google Cloud Console: เพิ่ม 2 redirect URIs สำหรับ login flow (5 นาที)
+- 📱 LINE Rich Menu deploy: `fly ssh console -C "python scripts/setup_line_rich_menu.py"` (one-time, post-deploy)
+- 🧪 Manual smoke test: real Google account + real LINE app
+- 🔁 Token rotation (LINE Channel Access Token + Resend API key) — Browser Worker noted log exposure
+- 📝 Submit OAuth verification ก่อน public >100 users (1-3 วัน, free)
 
 ---
 
-## 🚨 Pre-Launch Backlog (สำคัญ — ต้องทำก่อน public launch)
+## 🚨 Pre-Launch Backlog
 
-- [ ] **[BACKLOG-008] 🔴 Restore plan_limits.py production values**
-  - Priority: 🔴 HIGH (block public launch — ตอนนี้ทุก plan = 999999 ทุก field)
-  - Estimated effort: S (~30 min — แก้ค่า + bump test fixtures + deploy)
-  - Reference: ค่าเดิมก่อน testing-mode neuter อยู่ใน commit `d8b0d54` diff
-  - Original values:
-    ```python
-    "free": {
-      "context_pack_limit": 1, "file_limit": 5, "storage_limit_mb": 50,
-      "max_file_size_mb": 10, "ai_summary_limit_monthly": 5,
-      "export_limit_monthly": 10, "refresh_limit_monthly": 0,
-      "semantic_search_enabled": False, "version_history_days": 0,
-      "allowed_file_types": {"pdf", "docx", "txt", "md", "csv"},
-    },
-    "starter": {
-      "context_pack_limit": 5, "file_limit": 50, "storage_limit_mb": 1024,
-      "max_file_size_mb": 20, "ai_summary_limit_monthly": 100,
-      "export_limit_monthly": 300, "refresh_limit_monthly": 10,
-      "semantic_search_enabled": True, "version_history_days": 7,
-      "allowed_file_types": {"pdf", "docx", "txt", "md", "csv", "png", "jpg"},
-    },
-    ```
-  - File: [backend/plan_limits.py:15-42](../../backend/plan_limits.py#L15-L42)
-  - User decide ก่อนทำ: ใช้ค่าเดิม หรือ revise (พ่วง pricing strategy)
+### ✅ DONE (shipped on master, ก่อน public launch ใช้งานได้แล้ว)
 
-- [ ] **[BACKLOG-009] 🔴 Wire email service for password reset (Phase 2)**
-  - Priority: 🔴 HIGH (block public launch — ตอนนี้ return reset_token ใน JSON ตรงๆ)
-  - Estimated effort: M (~3-4 hr — choose service + integration + drop token from response + smoke test)
-  - Files: [backend/auth.py:249-282](../../backend/auth.py#L249-L282)
-  - **User decide:** เลือก email service ก่อนทำ
-    - 🟢 **Resend** (แนะนำ): free 3000/เดือน, modern API, simple Python SDK
-    - 🟡 SendGrid: free 100/วัน, mature, มี Python SDK
-    - 🟡 Gmail SMTP: ฟรีจริง แต่ deliverability + rate limits ไม่ดีเท่า dedicated
-  - Tasks หลังเลือก service:
-    1. เพิ่ม `RESEND_API_KEY` (หรือเทียบเท่า) ใน `.env.example` + Fly.io secrets
-    2. เขียน helper `send_password_reset_email(email, reset_link)` ใน new `backend/email.py`
-    3. แก้ `request_password_reset()` ให้เรียก helper + drop `reset_token` จาก response
-    4. Add Privacy Policy + Terms of Service URL (สำหรับ unsubscribe link)
+- [x] **[BACKLOG-008] ✅ Restore plan_limits.py production values** — shipped commit `8fa3c70` (v7.6.0 Phase A1)
+  - **⚠️ Evolved:** v8.0.2 commit `1c8d139` ×10 จาก baseline สำหรับ "testing period"
+  - Current values: Free 50 files / 500MB / 100MB max ; Starter 500 files / 10GB / 200MB max
+  - Original baseline: Free 5/50MB/10MB ; Starter 50/1024MB/20MB
+  - **Pre-public-launch decision:** revert ×10 → original baseline หรือคงไว้ (พ่วง pricing strategy)
+  - File: [backend/plan_limits.py:15-60](../../backend/plan_limits.py#L15-L60)
+
+- [x] **[BACKLOG-009] ✅ Wire email service for password reset** — shipped commit `698ba0d` (v7.6.0 Phase A2)
+  - `backend/email_service.py` — Resend integration + bilingual TH/EN HTML+text templates
+  - `backend/auth.py:296-299` — fire-and-forget `asyncio.create_task(send_password_reset_email(...))`
+  - Response no longer includes `reset_token` (anti-enumeration preserved)
+  - Resend account: axis.solutions.team@gmail.com, sender = noreply@resend.dev (MVP default)
 
 ---
 
 ## 🚀 Pending Production Deploy
 
-**Master HEAD:** `b8e8014` v7.4.0 SaaS responsive
-**Production (Fly.io):** v7.1.0
-**Gap:** 17 commits — รวม v7.1.5 + v7.2.0 + v7.3.0 + v7.4.0 + cleanup
+**Master HEAD:** `f8d25e7` v8.1.0 Google Sign-In (= origin/master)
+**Production (Fly.io):** unknown — last confirmed v7.1.0 (pre-deploy gap)
+**Gap:** ~80+ commits across v7.2.0 → v7.5.0 → v7.6.0 → v8.0.0-7 → v8.1.0
 
-ทำเสร็จบน master แต่ user ยังไม่เห็น — รอ `flyctl deploy -a personaldatabank`
+ทำเสร็จบน master + pushed แต่ user ยังไม่ deploy — รอ `flyctl deploy -a personaldatabank`
 
 ---
 

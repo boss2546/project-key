@@ -5,6 +5,122 @@
 
 ---
 
+## 🟦 [STATUS-2026-05-05] เก็บงานค้าง 3-in-1 — Memory sync + stale code cleanup
+
+**Date:** 2026-05-05
+**Mode:** 3-in-1 (🔴 แดง + 🟢 เขียว + 🔵 ฟ้า) — per user authorization "เก็บงานค้างทั้งหมดในคุณคนเดียว"
+**Outcome:** ✅ Memory cleanup + 1 stale-docstring fix. ไม่มี code feature ใหม่.
+
+### 🎯 สถานะจริง (verified จาก git + code)
+
+| Item | Status |
+|---|---|
+| Master HEAD | `f8d25e7 fix(google-login): clock skew tolerance + scope relax` |
+| origin/master | sync แล้ว (working tree clean — push ไปแล้ว ✅) |
+| APP_VERSION | 8.1.0 |
+| Pipeline state | `done` ✅ — ไม่มี feature ใน pipeline |
+| Inbox (3 agents) | clean — Resolved หมดตั้งแต่ 2026-05-04 |
+
+### ✅ งานที่ผมทำในรอบนี้ (low-risk, autonomous)
+
+1. **`backend/auth.py:270-272`** — แก้ docstring stale ที่ระบุ "still returns reset_token" (จริงๆ wire Resend ใน v7.6.0 ไปแล้ว — ดู `email_service.py` + `auth.py:296-299`)
+2. **`current/active-tasks.md`** — sync จริง:
+   - BACKLOG-008 → ✅ shipped `8fa3c70` (+ note ว่า v8.0.2 ×10 testing-period evolved)
+   - BACKLOG-009 → ✅ shipped `698ba0d` (Resend wired)
+   - "Pending Production Deploy" section: master HEAD แก้จาก `b8e8014` → `f8d25e7`
+3. **`current/pipeline-state.md`** — Pre-launch Backlog section ปรับให้แสดง shipped + เน้น user-only gates
+4. **Audit ครบทุก agent inbox** — ไม่มี new MSG ค้าง, ไม่มี blocker
+
+### 🔴 งานที่พี่ต้องทำเอง (ผมทำแทนไม่ได้)
+
+#### 1. Production deploy
+```bash
+fly deploy
+```
+- Push master `f8d25e7` ขึ้น production (gap ~80+ commits จาก v7.2.0 → v8.1.0)
+- รวม v8.0.0 LINE Bot + v8.0.1-7 patches + v8.1.0 Google Login
+
+#### 2. Google Cloud Console (สำหรับ v8.1.0 Google Login)
+เพิ่ม 2 redirect URIs:
+- `https://personaldatabank.fly.dev/api/auth/google/callback`
+- `http://localhost:8000/api/auth/google/callback`
+(โครงการเดิม reuse จาก Drive BYOS)
+
+#### 3. LINE Rich Menu (post-deploy, one-time)
+```bash
+fly ssh console -C "python scripts/setup_line_rich_menu.py"
+```
+หรือ run local กับ env var:
+```bash
+LINE_CHANNEL_ACCESS_TOKEN=<from_secrets> python scripts/setup_line_rich_menu.py
+```
+
+#### 4. Manual smoke test (post-deploy)
+- 🌐 Web: register/login → profile modal → LINE section visible
+- 🔐 Google login: คลิก "Sign in with Google" → real Google consent → return → ใช้ได้
+- 📱 LINE: add bot @402wfbfd → follow event → link prompt → confirm → welcome flow
+- 📤 LINE upload: ส่ง PDF → ได้ confirmation Flex card → file ปรากฏใน /api/files
+- 📋 Rich Menu: กดทุก tile (6 ปุ่ม) → response ถูก
+
+#### 5. Token rotation (security — Browser Worker noted exposure)
+- LINE Console → Messaging API channel → "Reissue" Channel Access Token
+- Resend Dashboard → API Keys → Delete + Create new
+- `fly secrets set LINE_CHANNEL_ACCESS_TOKEN=<new>` + `fly secrets set RESEND_API_KEY=<new>`
+- Re-deploy
+
+#### 6. Submit Google OAuth verification (ก่อน public >100 users)
+- Scope: `openid + email + profile` = non-sensitive (1-3 วัน turnaround, ฟรี)
+- Drive BYOS scope (`drive.file`) จะ verify แยก
+
+### 🟡 Decision pending (พี่ตัดสินใจ ก่อน public launch)
+
+#### BACKLOG-008 — plan_limits ×10 testing period
+ตอนนี้ (`backend/plan_limits.py:25-49`):
+| Plan | Files | Storage | Max file | Monthly summary |
+|---|---|---|---|---|
+| Free | 50 | 500 MB | 100 MB | 50 |
+| Starter | 500 | 10 GB | 200 MB | 1000 |
+
+Original baseline (ก่อน testing bump):
+| Plan | Files | Storage | Max file | Monthly summary |
+|---|---|---|---|---|
+| Free | 5 | 50 MB | 10 MB | 5 |
+| Starter | 50 | 1 GB | 20 MB | 100 |
+
+**ทางเลือก:**
+- 🅰️ Revert → original baseline (ก่อน public)
+- 🅱️ Cong ค่า ×10 ไว้ตลอด (พ่วง pricing strategy)
+- 🅲️ Revise ค่ากลาง (เช่น ×5)
+
+ถ้าพี่บอกเลือก → ผม (เขียว) ทำ migration commit ได้
+
+### 📋 Production deploy checklist (พี่ tick ระหว่าง deploy)
+
+```
+☐ git status ตรวจ working tree clean (ตอนนี้ ✅)
+☐ git push origin master (ตอนนี้ ✅ pushed แล้ว — verify อีกครั้ง: git log origin/master..HEAD = empty)
+☐ fly secrets list → ตรวจ 18 secrets ครบ (9 base + 9 LINE/email)
+☐ fly deploy → wait ~3-5 min
+☐ curl https://personaldatabank.fly.dev/api/mcp/info → version 8.1.0
+☐ Google Console redirect URIs (2 รายการ)
+☐ python scripts/setup_line_rich_menu.py (one-time)
+☐ Manual smoke test ทุก checklist
+☐ Token rotation (LINE + Resend)
+```
+
+### 🔮 Next pipeline (ถ้าพี่อยากเริ่มงานต่อ)
+
+ไม่มี feature ใน pipeline — ผมรอคำสั่ง. ตัวเลือกที่เห็นใน memory:
+
+1. **Auth Hardening Level 1** — rate limit + constant-time login + reset token revocation + password policy + revocation list (ตามที่ last-session.md เกริ่นไว้)
+2. **MCP USP Section B** — `upload_from_url` (deferred จาก v7.7.0 เดิม)
+3. **BACKLOG อื่นๆ** ใน active-tasks.md (BYOS multi-account, Drive Push Notifications, Custom domain, ฯลฯ)
+4. **Landing page redesign** — memory MEMORY.md ระบุ vision cinematic Apple/Stripe-style + brand voice ที่ landing.html ปัจจุบัน drift
+
+— Claude (3-in-1 mode: แดง + เขียว + ฟ้า)
+
+---
+
 ## ✅ [REVIEW-001] LINE Bot v8.0.0 + Foundation v7.6.0 — READY TO DEPLOY
 
 **Date:** 2026-05-04

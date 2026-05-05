@@ -267,9 +267,9 @@ async def request_password_reset(db: AsyncSession, email: str) -> dict:
     exists. Always returns a uniform success-shaped response so attackers can't
     map registered emails by probing this endpoint.
 
-    NOTE: still returns `reset_token` directly because there is no email
-    sending pipeline yet. TODO (Phase 2): wire SMTP/SendGrid, drop
-    `reset_token` from response, and email a one-shot signed link instead.
+    v7.6.0: Reset link is delivered via email (Resend) — `reset_token` is no
+    longer returned in the response. Email send is fire-and-forget so a
+    Resend outage cannot block or differentiate the response (anti-enumeration).
     """
     email = email.lower().strip()
     result = await db.execute(select(User).where(User.email == email))
