@@ -28,6 +28,15 @@ class User(Base):
     # NULL = ผู้ใช้ไม่เคย login ผ่าน Google. ถ้า set แล้ว = stable across email changes.
     # ⚠️ Lookup priority ใน google_login flow: google_sub > email (sub เปลี่ยนไม่ได้, email เปลี่ยนได้)
     google_sub = Column(String, nullable=True, unique=True, index=True)
+    # v8.2.0 — Admin role flag (DB-driven, runtime promote/demote ได้)
+    # Lookup priority ใน _effective_plan(): user.is_admin (DB) > email ใน ADMIN_EMAILS (env legacy)
+    # Bootstrap: init_db() seed is_admin=1 ให้ email ที่อยู่ใน ADMIN_EMAILS ครั้งแรก
+    is_admin = Column(Boolean, default=False)
+    # v8.2.0 — Manual plan override flag (สำหรับ admin upgrade ตรงๆ ที่ไม่ผ่าน Stripe)
+    # True = ห้าม Stripe webhook overwrite plan/subscription_status ของ user คนนี้
+    # False (default) = Stripe webhook ทำงานปกติ
+    # ⚠️ checkout.session.completed จะ reset = False เสมอ (Stripe = source of truth ทันทีที่ user จ่ายเงินจริง)
+    manual_plan_override = Column(Boolean, default=False)
     # v5.9.2 — Stripe subscription
     plan = Column(String, default="free")                       # free, starter
     subscription_status = Column(String, default="free")        # free, starter_active, starter_past_due, starter_canceled
@@ -753,6 +762,48 @@ async def init_db():
                 )
             except Exception as e:
                 print(f"  ⚠️ users.google_sub index creation warning: {e}")
+
+            # v8.2.0 Migration — Admin system: is_admin + manual_plan_override
+            # is_admin = role flag (DB-driven, runtime promote/demote ผ่าน UI ได้)
+            # manual_plan_override = True เมื่อ admin set plan ตรงๆ ไม่ผ่าน Stripe
+            #   → Stripe webhook จะ skip user คนนี้ (กันถูกล้าง)
+            cursor = await db.execute("PRAGMA table_info(users)")
+            user_cols_v8_2 = [row[1] for row in await cursor.fetchall()]
+            if "is_admin" not in user_cols_v8_2:
+                await db.execute(
+                    "ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT 0"
+                )
+                migrated = True
+                print("  → Added: users.is_admin (v8.2.0 — Admin system)")
+            if "manual_plan_override" not in user_cols_v8_2:
+                await db.execute(
+                    "ALTER TABLE users ADD COLUMN manual_plan_override BOOLEAN DEFAULT 0"
+                )
+                migrated = True
+                print("  → Added: users.manual_plan_override (v8.2.0)")
+
+            # v8.2.0 Bootstrap — seed is_admin=1 จาก ADMIN_EMAILS env (idempotent — safe re-run)
+            # Why: ครั้งแรกใช้งานต้องมี admin login เข้า /admin ได้จาก env เพราะ DB ยังไม่มีใครเป็น admin
+            #     หลังจากนี้ admin คนใหม่ promote ผ่าน UI — ADMIN_EMAILS ยังคงเป็น break-glass fallback
+            # ⚠️ Commit ที่นี่เอง (ไม่ piggyback กับ `if migrated:` block ด้านล่าง) เพราะ
+            #     bootstrap อาจรันใน startup ที่ schema ครบแล้ว (migrated=False) — ถ้าไม่ commit
+            #     UPDATE จะหายไปเมื่อ aiosqlite connection ปิด
+            try:
+                from .config import ADMIN_EMAILS
+                if ADMIN_EMAILS:
+                    seeded = 0
+                    for email in ADMIN_EMAILS:
+                        cur = await db.execute(
+                            "UPDATE users SET is_admin = 1 "
+                            "WHERE LOWER(email) = ? AND COALESCE(is_admin, 0) = 0",
+                            (email.lower(),),
+                        )
+                        seeded += cur.rowcount or 0
+                    if seeded:
+                        await db.commit()
+                        print(f"  → Seeded is_admin=1 for {seeded} ADMIN_EMAILS user(s)")
+            except Exception as e:
+                print(f"  ⚠️ ADMIN_EMAILS bootstrap skipped: {e}")
 
             if migrated:
                 await db.commit()
