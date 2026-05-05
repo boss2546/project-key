@@ -73,14 +73,20 @@ def get_limits(user) -> dict:
 
 
 def _effective_plan(user) -> str:
-    """Determine effective plan considering subscription status + admin allowlist.
+    """Determine effective plan considering subscription status + admin role.
 
     starter_active / starter_past_due / starter_canceled (before period end)
     all count as 'starter' access.
 
-    Admins (email in ADMIN_EMAILS) override everything → 'admin' plan.
+    Admins override everything → 'admin' plan. Lookup priority:
+      1. v8.2.0 — user.is_admin (DB column, runtime promote/demote ผ่าน UI ได้)
+      2. v8.0.1 legacy — email in ADMIN_EMAILS env (break-glass fallback)
     """
-    # Admin override (v8.0.1) — staff/founder accounts bypass all limits
+    # v8.2.0 — DB-driven admin flag (highest priority, runtime mutable)
+    if getattr(user, "is_admin", False):
+        return "admin"
+
+    # v8.0.1 — legacy ADMIN_EMAILS env fallback (break-glass — กรณี DB row ยังไม่ seed)
     email = (getattr(user, "email", "") or "").lower()
     if email:
         try:

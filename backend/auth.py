@@ -204,12 +204,45 @@ async def get_current_user(
     return user
 
 
+async def require_admin(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """FastAPI dependency — ตรวจว่า user เป็น admin จริงก่อน hit endpoint.
+
+    ผ่านเฉพาะถ้า:
+      1. JWT valid + is_active=True (จาก get_current_user)
+      2. user.is_admin == True (DB column, v8.2.0) OR
+         email อยู่ใน ADMIN_EMAILS env (legacy break-glass fallback)
+
+    Use as: current_admin: User = Depends(require_admin)
+
+    เหตุผลที่ check ทั้ง 2 ทาง: ADMIN_EMAILS ยังเป็น fallback เผื่อกรณี DB row
+    ยังไม่ seed (เช่น DB ใหม่ + user สมัครก่อน startup migration เสร็จ)
+    """
+    is_admin_db = bool(getattr(current_user, "is_admin", False))
+    is_admin_env = False
+    email = (current_user.email or "").lower()
+    if email:
+        try:
+            from .config import ADMIN_EMAILS
+            is_admin_env = email in ADMIN_EMAILS
+        except ImportError:
+            pass
+
+    if not (is_admin_db or is_admin_env):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": {"code": "NOT_ADMIN", "message": "Admin access required"}},
+        )
+    return current_user
+
+
 async def get_optional_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db),
 ) -> User | None:
     """FastAPI dependency — returns user if authenticated, None if not.
-    
+
     Use for endpoints that work both with and without auth (e.g. landing page data).
     """
     if not credentials:
