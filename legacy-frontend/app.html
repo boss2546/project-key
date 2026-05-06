@@ -154,7 +154,7 @@
  </div>
  <div class="logo-text-area">
  <span class="logo-text">Personal Data Bank</span>
- <span class="logo-version">v9.0.1</span>
+ <span class="logo-version">v9.1.0</span>
  </div>
  </div>
  </div>
@@ -337,6 +337,12 @@
  <div class="section-header">
  <h2 data-i18n="myData.allFiles">All Files</h2>
  <span class="badge" id="file-count-badge">0</span>
+ </div>
+ <!-- v9.1.0 — Filter chips: ทั้งหมด / ประมวลผลแล้ว / Vault -->
+ <div class="file-filter-chips" id="file-filter-chips">
+   <button class="chip active" data-kind="all" data-i18n="myData.filterAll">ทั้งหมด <span class="chip-count" id="chip-count-all">0</span></button>
+   <button class="chip" data-kind="processed" data-i18n="myData.filterProcessed">ประมวลผลแล้ว <span class="chip-count" id="chip-count-processed">0</span></button>
+   <button class="chip" data-kind="vault" data-i18n="myData.filterVault">📦 คลัง <span class="chip-count" id="chip-count-vault">0</span></button>
  </div>
  <div class="file-list" id="file-list">
  <div class="empty-state">

@@ -4360,3 +4360,92 @@
   transform: translateX(3px);
   opacity: 1;
 }
+
+/* ═══════════════════════════════════════════
+   v9.1.0 — Raw File Vault (filter chips + badge + promote button)
+   ═══════════════════════════════════════════ */
+
+/* Filter chips above file list */
+.file-filter-chips {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.file-filter-chips .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary, #b0b0b0);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  min-height: 32px;
+}
+.file-filter-chips .chip:hover {
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--text-primary, #fff);
+}
+.file-filter-chips .chip.active {
+  background: var(--accent-color, #6366f1);
+  color: #fff;
+  border-color: var(--accent-color, #6366f1);
+}
+.file-filter-chips .chip-count {
+  background: rgba(0, 0, 0, 0.2);
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 20px;
+  text-align: center;
+}
+.file-filter-chips .chip.active .chip-count {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Vault badge on file card */
+.vault-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(135deg, #a855f7 0%, #ec4899 100%);
+  color: #fff;
+  font-weight: 600;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+/* Vault file row — subtle purple tint */
+.file-item.file-vault {
+  border-left: 3px solid #a855f7;
+}
+
+/* Promote button (try analyze) */
+.file-action-promote {
+  background: #ede9fe;
+  color: #6b21a8;
+  border: 1px solid #c4b5fd;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  margin-right: 6px;
+  transition: background 0.15s;
+}
+.file-action-promote:hover {
+  background: #ddd6fe;
+}
+
+@media (max-width: 768px) {
+  .file-filter-chips .chip { font-size: 12px; padding: 5px 10px; min-height: 36px; }
+  .vault-badge { font-size: 10px; padding: 1px 6px; }
+  .file-action-promote { display: none; }  /* mobile uses kebab menu */
+}

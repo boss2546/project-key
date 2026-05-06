@@ -595,6 +595,15 @@ const I18N = {
  'myData.uploadText': 'ลากไฟล์มาวาง หรือ คลิกเพื่อเลือกไฟล์',
  'myData.uploadHint': 'รองรับ เอกสาร / รูปภาพ (OCR ไทย) / Spreadsheet / เสียง + วิดีโอ (AI) / Code · 50+ formats · สูงสุด 200 MB · ครั้งละ 20 ไฟล์',
  'myData.allFiles': 'ไฟล์ทั้งหมด',
+ // v9.1.0 — Raw File Vault filter chips
+ 'myData.filterAll': 'ทั้งหมด',
+ 'myData.filterProcessed': 'ประมวลผลแล้ว',
+ 'myData.filterVault': '📦 คลัง',
+ 'vault.badge': 'คลัง',
+ 'vault.toastUpload': 'เก็บใน "คลัง" — AI ค้นหาด้วยชื่อไฟล์ได้ แต่อ่านเนื้อหาไม่ได้',
+ 'vault.tryAnalyze': 'ลองวิเคราะห์',
+ 'vault.promoteSuccess': 'วิเคราะห์สำเร็จ — ย้ายไป "ประมวลผลแล้ว"',
+ 'vault.promoteStillVault': 'ยังวิเคราะห์ไม่ได้ — เก็บในคลังต่อไป',
  'myData.noFiles': 'ยังไม่มีไฟล์ — เพิ่มไฟล์เข้าพื้นที่ส่วนตัวของคุณ',
  'myData.delete': 'ลบ',
 
@@ -850,6 +859,15 @@ const I18N = {
  'myData.uploadText': 'Drag files here or click to select',
  'myData.uploadHint': 'Supports docs / images (OCR) / spreadsheets / audio + video (AI) / code · 50+ formats · max 200 MB · up to 20 files at once',
  'myData.allFiles': 'All Files',
+ // v9.1.0 — Raw File Vault filter chips
+ 'myData.filterAll': 'All',
+ 'myData.filterProcessed': 'Processed',
+ 'myData.filterVault': '📦 Vault',
+ 'vault.badge': 'Vault',
+ 'vault.toastUpload': 'Stored in "Vault" — AI can search by filename but cannot read content',
+ 'vault.tryAnalyze': 'Try analyze',
+ 'vault.promoteSuccess': 'Analyzed successfully — moved to Processed',
+ 'vault.promoteStillVault': 'Cannot analyze yet — kept in vault',
  'myData.noFiles': 'No files yet — add files to your personal space',
  'myData.delete': 'Delete',
 
@@ -1271,6 +1289,7 @@ document.addEventListener('DOMContentLoaded', () => {
   try { initKebabMenus(); } catch (e) { console.warn('[init] initKebabMenus:', e); }
   try { initNavigation(); } catch (e) { console.warn('[init] initNavigation:', e); }
   try { initUpload(); } catch (e) { console.warn('[init] initUpload:', e); }
+  try { initFileFilterChips(); } catch (e) { console.warn('[init] initFileFilterChips:', e); }
   try { initProfile(); } catch (e) { console.warn('[init] initProfile:', e); }
   try { initChat(); } catch (e) { console.warn('[init] initChat:', e); }
   try { initGraphControls(); } catch (e) { console.warn('[init] initGraphControls:', e); }
@@ -1439,6 +1458,11 @@ async function uploadFiles(fileList) {
  // v7.5.0 — show toast briefly + open per-file result modal if anything skipped
  if (data.count > 0 && (!data.skipped || data.skipped.length === 0)) {
    showToast(`${t('toast.uploaded')} ${data.count} ${t('stat.files').toLowerCase()}`, 'success');
+ }
+ // v9.1.0 — Vault toast: ถ้ามี vault file ใน batch → แจ้ง user
+ const vaultCount = (data.uploaded || []).filter(u => u.file_kind === 'vault_only').length;
+ if (vaultCount > 0) {
+   setTimeout(() => showToast(`📦 ${vaultCount} ${t('vault.toastUpload')}`, 'info'), 1200);
  }
  if (data.skipped && data.skipped.length > 0) {
    // Quota-related → upgrade modal (preserve v5.9.x flow)
@@ -1744,14 +1768,78 @@ async function fireSkipApi(fileIds) {
  }
 }
 
+// v9.1.0 — current file filter (persisted in localStorage)
+let _filesFilterKind = localStorage.getItem('pdb_files_filter_kind') || 'all';
+
 async function loadFiles() {
  try {
- const res = await authFetch('/api/files', { _background: true });
+ const url = '/api/files?kind=' + encodeURIComponent(_filesFilterKind);
+ const res = await authFetch(url, { _background: true });
  const data = await res.json();
  renderFileList(data.files);
  document.getElementById('file-count-badge').textContent = data.files.length;
+ // v9.1.0 — update chip counts (load all 3 in parallel for accuracy)
+ updateFileFilterCounts();
  } catch (e) { console.error('Load files error:', e); }
 }
+
+// v9.1.0 — Update filter chip counts (read from /api/stats — single call)
+async function updateFileFilterCounts() {
+ try {
+   const res = await authFetch('/api/stats', { _background: true });
+   const stats = await res.json();
+   const total = stats.total_files || 0;
+   const processed = stats.processed_files || 0;
+   const vault = stats.vault_files || 0;
+   const setText = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = n; };
+   setText('chip-count-all', total);
+   setText('chip-count-processed', processed);
+   setText('chip-count-vault', vault);
+ } catch (e) { /* best-effort */ }
+}
+
+// v9.1.0 — Filter chip click handler
+function initFileFilterChips() {
+ document.querySelectorAll('#file-filter-chips .chip').forEach(chip => {
+   if (chip.dataset.kind === _filesFilterKind) chip.classList.add('active');
+   else chip.classList.remove('active');
+   chip.addEventListener('click', () => {
+     const kind = chip.dataset.kind;
+     if (kind === _filesFilterKind) return;
+     _filesFilterKind = kind;
+     localStorage.setItem('pdb_files_filter_kind', kind);
+     // Toggle active class
+     document.querySelectorAll('#file-filter-chips .chip').forEach(c => c.classList.toggle('active', c === chip));
+     loadFiles();
+   });
+ });
+ // v9.1.0 — Populate chip counts ตั้งแต่ init (ไม่ต้องรอ loadFiles)
+ // ลองทันที — ถ้าไม่มี token ก็ catch ได้ (best-effort)
+ updateFileFilterCounts();
+}
+window.updateFileFilterCounts = updateFileFilterCounts;
+
+// v9.1.0 — Promote vault file → processed
+async function promoteVaultFile(id) {
+ const isTH = getLang() === 'th';
+ try {
+   showLoadingOverlay(isTH ? 'กำลังลองวิเคราะห์...' : 'Trying to analyze...', 'default');
+   const res = await authFetch(`/api/files/${id}/promote`, { method: 'POST' });
+   const data = await res.json();
+   if (!res.ok) throw new Error(data?.detail?.error?.message || 'Promote failed');
+   if (data.promoted) {
+     showToast(isTH ? '✅ วิเคราะห์สำเร็จ — ย้ายไป "ประมวลผลแล้ว"' : '✅ Analyzed — moved to processed', 'success');
+   } else {
+     showToast(isTH ? '⚠️ ยังวิเคราะห์ไม่ได้ — เก็บใน Vault ต่อไป' : '⚠️ Cannot analyze yet — kept in vault', 'info');
+   }
+   loadFiles();
+ } catch (e) {
+   showToast(isTH ? 'ลองวิเคราะห์ไม่สำเร็จ' : 'Analysis failed', 'error');
+ } finally {
+   hideLoadingOverlay();
+ }
+}
+window.promoteVaultFile = promoteVaultFile;
 
 function renderFileList(files) {
  const container = document.getElementById('file-list');
@@ -1801,27 +1889,36 @@ function renderFileList(files) {
    ? `<span class="extraction-badge extraction-partial" title="${isThai ? 'บางส่วนถูกตัด' : 'Some content truncated'}">⚠️ ${isThai ? 'บางส่วนถูกตัด' : 'partial'}</span>`
    : '';
  // v7.5.0 — retry button if extract failed (encrypted/empty/ocr_failed/unsupported)
- const canRetry = !f.is_locked && extStatus !== 'ok' && extStatus !== 'partial';
+ const canRetry = !f.is_locked && extStatus !== 'ok' && extStatus !== 'partial' && extStatus !== 'vault';
  const retryBtn = canRetry
    ? `<button class="btn-sm file-action-retry" onclick="event.stopPropagation(); window.retryExtraction('${f.id}')" title="${isThai ? 'อ่านไฟล์ใหม่อีกครั้ง' : 'Re-extract'}">${isThai ? 'ลองอ่านใหม่' : 'Retry'}</button>`
    : '';
+ // v9.1.0 — Vault badge + try-again-promote button
+ const isVault = f.file_kind === 'vault_only';
+ const vaultBadge = isVault
+   ? `<span class="vault-badge" title="${isThai ? 'เก็บในคลัง — AI อ่านเนื้อหาไม่ได้แต่ค้นหาด้วยชื่อไฟล์ได้' : 'In vault — AI cannot read content but can search by filename'}">📦 ${isThai ? 'คลัง' : 'Vault'}</span>`
+   : '';
+ const promoteBtn = isVault && !f.is_locked
+   ? `<button class="btn-sm file-action-promote" onclick="event.stopPropagation(); window.promoteVaultFile('${f.id}')" title="${isThai ? 'ลองวิเคราะห์อีกครั้ง (เผื่อ AI รองรับแล้ว)' : 'Try analyze (in case AI now supports this)'}">${isThai ? 'ลองวิเคราะห์' : 'Try analyze'}</button>`
+   : '';
  return `
- <div class="file-item${lockedClass}" data-id="${f.id}" onclick="openFileDetail('${f.id}')">
+ <div class="file-item${lockedClass}${isVault ? ' file-vault' : ''}" data-id="${f.id}" onclick="openFileDetail('${f.id}')">
  <div class="file-icon ${f.filetype}">${f.filetype.toUpperCase()}${locked}</div>
  <div class="file-info">
  <div class="file-name">${f.filename}${f.is_locked ? ' <span class="locked-label">' + (isThai ? 'ล็อค' : 'Locked') + '</span>' : ''}</div>
  <div class="file-meta">
  <span>${f.text_length?.toLocaleString() || 0} chars</span>
  <span class="status-dot ${f.processing_status}"></span>
- ${freshness} ${sot} ${extBadge} ${chunkBadge} ${truncBadge} ${storageBadge}
+ ${vaultBadge} ${freshness} ${sot} ${extBadge} ${chunkBadge} ${truncBadge} ${storageBadge}
  </div>
  ${tags ? `<div class="file-tags">${tags}</div>` : ''}
  </div>
  <div class="file-actions">
- ${retryBtn}
+ ${promoteBtn} ${retryBtn}
  <button class="btn-sm file-action-desktop" onclick="event.stopPropagation(); window.deleteFile('${f.id}')">${deleteLabel}</button>
  <button class="kebab-btn file-action-mobile" onclick="event.stopPropagation(); window.toggleKebab(event, 'file-${f.id}')" aria-label="${isThai ? 'การกระทำเพิ่มเติม' : 'More actions'}">⋮</button>
  <div class="kebab-menu hidden" id="kebab-file-${f.id}">
+ ${isVault && !f.is_locked ? `<button class="kebab-menu-item" onclick="event.stopPropagation(); document.getElementById('kebab-file-${f.id}')?.classList.add('hidden'); window.promoteVaultFile('${f.id}')">${isThai ? 'ลองวิเคราะห์' : 'Try analyze'}</button>` : ''}
  ${canRetry ? `<button class="kebab-menu-item" onclick="event.stopPropagation(); document.getElementById('kebab-file-${f.id}')?.classList.add('hidden'); window.retryExtraction('${f.id}')">${isThai ? 'ลองอ่านใหม่' : 'Retry extract'}</button>` : ''}
  <button class="kebab-menu-item danger" onclick="event.stopPropagation(); document.getElementById('kebab-file-${f.id}')?.classList.add('hidden'); window.deleteFile('${f.id}')">${deleteLabel}</button>
  </div>
