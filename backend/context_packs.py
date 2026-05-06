@@ -64,9 +64,21 @@ async def create_pack(
     pack_type: str,
     title: str,
     source_file_ids: list[str],
-    source_cluster_ids: list[str]
+    source_cluster_ids: list[str],
+    intent: str = "",
+    scope: str = "",
+    created_via: str = "manual",
+    override_summary: str | None = None,
 ) -> dict:
-    """Create a new context pack by distilling source content with LLM."""
+    """Create a new context pack by distilling source content with LLM.
+
+    v9.2.0 — เพิ่ม intent/scope/created_via params + override_summary
+    - intent: "ใช้ทำอะไร" (default "" สำหรับ manual flow ที่ไม่กรอก)
+    - scope: "ครอบคลุมอะไร" (default "")
+    - created_via: "manual" | "ai_builder" — track ที่มา
+    - override_summary: ถ้า caller ส่งมา → ใช้แทน LLM distill (สำหรับ AI Pack Builder
+      ที่ confirm draft user แก้ summary แล้ว ไม่ต้องเรียก LLM ซ้ำ)
+    """
 
     # Gather source content
     source_texts = []
@@ -103,15 +115,30 @@ async def create_pack(
     if not source_texts:
         raise ValueError("No source content found for the selected files/collections")
 
-    # Generate distilled context via LLM
-    combined_source = "\n\n---\n\n".join(source_texts)
-    summary_text = await _generate_pack_content(pack_type, title, combined_source)
+    # v9.2.0 — ถ้า caller ส่ง override_summary มา (เช่น AI Pack Builder confirm
+    # หลัง user แก้ summary) → ไม่ distill ใหม่ ประหยัด LLM 1 ครั้ง
+    if override_summary is not None:
+        summary_text = override_summary
+    else:
+        combined_source = "\n\n---\n\n".join(source_texts)
+        summary_text = await _generate_pack_content(
+            pack_type, title, combined_source, intent=intent, scope=scope,
+        )
+
+    # v9.2.0 — frontmatter เก็บ intent + scope ด้วย เพื่อให้ .md export มีบริบทครบ
+    fm_lines = [f"type: {pack_type}", f"title: {title}"]
+    if intent:
+        fm_lines.append(f"intent: {intent}")
+    if scope:
+        fm_lines.append(f"scope: {scope}")
+    fm_lines.append(f"created_via: {created_via}")
+    frontmatter = "\n".join(fm_lines)
 
     # Write .md file
     md_filename = f"{pack_type}-context-{gen_id()}.md"
     md_path = os.path.join(CONTEXT_PACKS_DIR, md_filename)
     with open(md_path, 'w', encoding='utf-8') as f:
-        f.write(f"---\ntype: {pack_type}\ntitle: {title}\n---\n\n{summary_text}")
+        f.write(f"---\n{frontmatter}\n---\n\n{summary_text}")
 
     # Save to DB
     pack = ContextPack(
@@ -122,7 +149,10 @@ async def create_pack(
         summary_text=summary_text,
         md_path=md_path,
         source_file_ids=json.dumps(source_file_ids),
-        source_cluster_ids=json.dumps(source_cluster_ids)
+        source_cluster_ids=json.dumps(source_cluster_ids),
+        intent=intent,           # v9.2.0
+        scope=scope,             # v9.2.0
+        created_via=created_via, # v9.2.0 ("manual" หรือ "ai_builder")
     )
     db.add(pack)
     await db.commit()
@@ -236,14 +266,33 @@ async def regenerate_pack(db: AsyncSession, pack_id: str, user_id: str) -> dict 
     return _serialize_pack(pack)
 
 
-async def _generate_pack_content(pack_type: str, title: str, source_content: str) -> str:
-    """Use LLM to generate distilled context pack content."""
+async def _generate_pack_content(
+    pack_type: str,
+    title: str,
+    source_content: str,
+    intent: str = "",
+    scope: str = "",
+) -> str:
+    """Use LLM to generate distilled context pack content.
+
+    v9.2.0 — รับ intent + scope hint เพื่อให้ AI distill เน้นทิศทางที่ถูก
+    (ถ้า manual flow ที่ไม่กรอก → empty strings → behave เหมือน v9.0.x เดิม)
+    """
 
     type_label = PACK_TYPE_LABELS.get(pack_type, pack_type)
 
+    # v9.2.0 — ใส่ INTENT + SCOPE ใน system prompt ถ้ามีค่า (AI builder flow)
+    intent_block = ""
+    if intent or scope:
+        intent_block = "\n\nADDITIONAL CONTEXT (use to focus the distillation):"
+        if intent:
+            intent_block += f"\n- INTENT (ใช้สำหรับ): {intent}"
+        if scope:
+            intent_block += f"\n- SCOPE (ครอบคลุม): {scope}"
+
     system_prompt = f"""You are a context distillation AI. Your job is to create a high-level, reusable context document from multiple source documents.
 
-This is a "{type_label}" context pack titled "{title}".
+This is a "{type_label}" context pack titled "{title}".{intent_block}
 
 Rules:
 - Write ALL output in THAI language
@@ -252,7 +301,8 @@ Rules:
 - Structure the output clearly with sections
 - Be comprehensive but concise — this is a "ready-to-use context" not a raw dump
 - Include specific facts, names, dates, decisions when relevant
-- The output should help an AI understand the user's {type_label} context quickly"""
+- The output should help an AI understand the user's {type_label} context quickly
+- If INTENT/SCOPE are provided, prioritize content that matches them"""
 
     user_prompt = f"Distill the following source documents into a cohesive {type_label} context:\n\n{source_content[:8000]}"
 
@@ -295,4 +345,8 @@ def _serialize_pack(pack: ContextPack) -> dict:
         # locked_reason: null | "exceeds_free_plan_limit" | "subscription_expired"
         "is_locked": bool(getattr(pack, "is_locked", False)),
         "locked_reason": getattr(pack, "locked_reason", None),
+        # v9.2.0 — บริบทของ pack + ที่มา (สำหรับ frontend แสดง badge / guidance)
+        "intent": getattr(pack, "intent", "") or "",
+        "scope": getattr(pack, "scope", "") or "",
+        "created_via": getattr(pack, "created_via", "manual") or "manual",
     }
