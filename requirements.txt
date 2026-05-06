@@ -29,6 +29,9 @@ python-pptx>=0.6.23
 beautifulsoup4>=4.12.0
 striprtf>=0.0.26
 
+# v9.0.0 — HEIC/HEIF support (iPhone photos)
+pillow-heif>=0.18.0
+
 # Vector search (RAGFlow-inspired)
 chromadb>=1.5.0
 

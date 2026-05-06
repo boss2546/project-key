@@ -19,6 +19,9 @@ ALL_FILE_TYPES = {
     "pdf", "docx", "txt", "md", "csv",
     "png", "jpg", "jpeg", "webp",
     "xlsx", "pptx", "html", "json", "rtf",
+    # v9.0.0 — extra image formats (Pillow native + HEIC plugin + Tesseract OCR)
+    "heic", "heif",                   # iPhone default photo format
+    "gif", "bmp", "tiff", "tif",      # PIL native
 }
 PLAN_LIMITS = {
     # v8.0.2 — ×10 from original baseline. Decision (2026-05-05): keep these

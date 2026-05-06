@@ -33,6 +33,17 @@ try:
 except ImportError:
     logger.warning("OCR not available — PDF image extraction disabled")
 
+# v9.0.0 — HEIC/HEIF support (iPhone photos)
+# Without this, PIL.Image.open(.heic) raises UnidentifiedImageError
+_HAS_HEIF = False
+try:
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+    _HAS_HEIF = True
+    logger.info("HEIF/HEIC support enabled (pillow-heif)")
+except ImportError:
+    logger.warning("HEIC/HEIF not available — install pillow-heif for iPhone photo support")
+
 
 def extract_text(filepath: str, filetype: str) -> str:
     """Extract text from a file.
@@ -62,7 +73,10 @@ def extract_text(filepath: str, filetype: str) -> str:
             return _extract_docx_basic(filepath)
         elif filetype in ("txt", "md", "csv"):
             return _extract_txt(filepath)
-        elif filetype in ("png", "jpg", "jpeg", "webp"):
+        elif filetype in ("png", "jpg", "jpeg", "webp",
+                          # v9.0.0 — extra image formats via PIL native + Tesseract OCR
+                          "heic", "heif",   # iPhone photos (needs pillow-heif)
+                          "gif", "bmp", "tiff", "tif"):  # PIL native support
             return _extract_image_ocr(filepath)
         elif filetype == "xlsx":
             return _extract_xlsx(filepath)
@@ -84,7 +98,8 @@ def extract_text(filepath: str, filetype: str) -> str:
                 return _extract_pdf_with_fallbacks(filepath)
             elif filetype == "docx":
                 return _extract_docx_basic(filepath)
-            elif filetype in ("png", "jpg", "jpeg", "webp"):
+            elif filetype in ("png", "jpg", "jpeg", "webp",
+                              "heic", "heif", "gif", "bmp", "tiff", "tif"):
                 return _extract_image_ocr(filepath)
         except Exception:
             pass
