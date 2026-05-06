@@ -325,6 +325,33 @@ class ContextPackRequest(BaseModel):
     source_file_ids: list[str] = []
     source_cluster_ids: list[str] = []
 
+# ─── v9.2.0 AI Pack Builder ─────────────────────────────────────
+class AIBuilderClarifyRequest(BaseModel):
+    prompt: str = Field(..., min_length=10, max_length=500)
+
+class AIBuilderClarification(BaseModel):
+    """ต้องมี exactly 1 ใน 3 fields — validate ที่ ai_pack_builder.propose_pack"""
+    selected_option_id: int | None = None
+    freetext: str | None = Field(default=None, max_length=500)
+    skipped: bool | None = None
+
+class AIBuilderProposeRequest(BaseModel):
+    session_id: str
+    clarification: AIBuilderClarification
+    preferred_type: str | None = None  # profile|study|work|project (validate ที่ AI level)
+
+class AIBuilderConfirmEdits(BaseModel):
+    title: str | None = None
+    type: str | None = None
+    intent: str | None = None
+    scope: str | None = None
+    summary_text: str | None = None
+    included_source_ids: list[str] | None = None
+
+class AIBuilderConfirmRequest(BaseModel):
+    draft_id: str
+    edits: AIBuilderConfirmEdits | None = None
+
 class MetadataUpdateRequest(BaseModel):
     tags: list[str] | None = None
     aliases: list[str] | None = None
@@ -2010,6 +2037,138 @@ async def api_regenerate_pack(pack_id: str, current_user: User = Depends(get_cur
     except Exception as e:
         logger.error(f"Pack regeneration failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# ═══════════════════════════════════════════
+# v9.2.0 — AI PACK BUILDER (clarify → propose → confirm)
+# ═══════════════════════════════════════════
+
+@app.post("/api/context-packs/ai-build/clarify")
+async def api_ai_build_clarify(
+    req: AIBuilderClarifyRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Step 0: AI gen clarifying question + options (หรือ skip ถ้า prompt ละเอียดพอ).
+
+    Pre-checks pack quota + ai_summary quota ก่อนเรียก LLM — กัน user เริ่ม flow
+    ที่ทำต่อไม่ได้ (เปลือง LLM)
+    """
+    from .ai_pack_builder import clarify_prompt
+
+    # Quota guards — pack count + monthly ai_summary
+    pack_err = await check_pack_create_allowed(db, current_user)
+    if pack_err:
+        raise HTTPException(status_code=403, detail=pack_err["error"])
+    ai_err = await check_summary_allowed(db, current_user)
+    if ai_err:
+        raise HTTPException(status_code=403, detail=ai_err["error"])
+
+    # ดึง user lang จาก profile หรือ default ไทย — frontend ก็ส่งมาเองได้ในอนาคต
+    user_lang = "th"
+    try:
+        result = await clarify_prompt(db, current_user.id, req.prompt, user_lang=user_lang)
+        return result
+    except ValueError as e:
+        msg = str(e)
+        if "NO_SOURCES_AVAILABLE" in msg:
+            raise HTTPException(
+                status_code=400,
+                detail="ยังไม่มีไฟล์หรือ collection ในระบบ — อัปโหลดไฟล์ก่อน",
+            )
+        raise HTTPException(status_code=400, detail=msg)
+    except RuntimeError as e:
+        msg = str(e)
+        if "LLM_RESPONSE_INVALID" in msg:
+            raise HTTPException(status_code=400, detail="AI ตอบกลับไม่ถูกต้อง — ลองใหม่อีกครั้ง")
+        raise HTTPException(status_code=503, detail="ระบบ AI ไม่พร้อมใช้งาน — ลองใหม่ภายหลัง")
+    except Exception as e:
+        logger.exception(f"clarify failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/context-packs/ai-build/propose")
+async def api_ai_build_propose(
+    req: AIBuilderProposeRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Step 1+2: AI build draft proposal (select sources + distill summary)."""
+    from .ai_pack_builder import propose_pack
+
+    # Re-check quota (user อาจสร้าง pack อื่นไประหว่างทาง)
+    pack_err = await check_pack_create_allowed(db, current_user)
+    if pack_err:
+        raise HTTPException(status_code=403, detail=pack_err["error"])
+    ai_err = await check_summary_allowed(db, current_user)
+    if ai_err:
+        raise HTTPException(status_code=403, detail=ai_err["error"])
+
+    clarification_dict = req.clarification.model_dump(exclude_none=True)
+    user_lang = "th"
+    try:
+        return await propose_pack(
+            db, current_user.id, req.session_id,
+            clarification_dict, preferred_type=req.preferred_type,
+            user_lang=user_lang,
+        )
+    except ValueError as e:
+        msg = str(e)
+        if "SESSION_NOT_FOUND" in msg:
+            raise HTTPException(status_code=404, detail="Session หมดอายุ — เริ่มใหม่")
+        if "INVALID_CLARIFICATION" in msg:
+            raise HTTPException(status_code=400, detail=msg)
+        raise HTTPException(status_code=400, detail=msg)
+    except RuntimeError as e:
+        msg = str(e)
+        if "LLM_RESPONSE_INVALID" in msg:
+            raise HTTPException(status_code=400, detail="AI ตอบกลับไม่ถูกต้อง — ลองใหม่อีกครั้ง")
+        raise HTTPException(status_code=503, detail="ระบบ AI ไม่พร้อมใช้งาน")
+    except Exception as e:
+        logger.exception(f"propose failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/context-packs/ai-build/confirm")
+async def api_ai_build_confirm(
+    req: AIBuilderConfirmRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Step 3: Save draft as real ContextPack."""
+    from .ai_pack_builder import confirm_pack
+
+    edits_dict = req.edits.model_dump(exclude_none=True) if req.edits else None
+    try:
+        return await confirm_pack(db, current_user, req.draft_id, edits_dict)
+    except ValueError as e:
+        msg = str(e)
+        if "DRAFT_NOT_FOUND" in msg:
+            raise HTTPException(status_code=404, detail="Draft หมดอายุ — สร้างใหม่")
+        if "INVALID_TYPE" in msg:
+            raise HTTPException(status_code=400, detail="type ต้องเป็น profile/study/work/project")
+        if "NO_SOURCES_SELECTED" in msg:
+            raise HTTPException(status_code=400, detail="ต้องเลือก source อย่างน้อย 1 อัน")
+        raise HTTPException(status_code=400, detail=msg)
+    except RuntimeError as e:
+        msg = str(e)
+        if "PACK_LIMIT_REACHED" in msg:
+            raise HTTPException(status_code=403, detail=msg)
+        raise HTTPException(status_code=500, detail=msg)
+    except Exception as e:
+        logger.exception(f"confirm failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/context-packs/ai-build/drafts/{draft_id}")
+async def api_ai_build_discard(
+    draft_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Discard draft (cleanup cache) — graceful no-op ถ้าไม่เจอ"""
+    from .ai_pack_builder import discard_draft
+    discarded = discard_draft(current_user.id, draft_id)
+    return {"status": "discarded" if discarded else "not_found"}
+
 
 # ═══════════════════════════════════════════
 # CONTEXT MEMORY APIs (v5.5)
