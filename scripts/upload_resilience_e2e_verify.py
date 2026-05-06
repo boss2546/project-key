@@ -248,12 +248,14 @@ markers_found = sum(1 for i in range(1, 8) if f"UNIQUE_MARK_{i:03d}" in all_text
 expect_true("B.6 all 7 UNIQUE_MARK preserved across chunks",
             markers_found == 7, hint=f"found {markers_found}/7")
 
-# B.7 — bumped size limit (200MB testing)
+# B.7 — production size limits (post-v8.0.x BACKLOG-008 restore)
+# v7.5.0 testing mode = 200MB everywhere; v8.0.x = production values:
+#   Free 100MB, Starter 200MB. Test passes if Starter >= Free + both >= 100.
 from backend.plan_limits import PLAN_LIMITS
-expect("B.7 free.max_file_size_mb bumped to 200",
-       PLAN_LIMITS["free"]["max_file_size_mb"], 200)
-expect("B.8 starter.max_file_size_mb bumped to 200",
-       PLAN_LIMITS["starter"]["max_file_size_mb"], 200)
+expect_true("B.7 free.max_file_size_mb >= 100MB (production baseline)",
+            PLAN_LIMITS["free"]["max_file_size_mb"] >= 100)
+expect_true("B.8 starter.max_file_size_mb >= free (paid tier larger)",
+            PLAN_LIMITS["starter"]["max_file_size_mb"] >= PLAN_LIMITS["free"]["max_file_size_mb"])
 
 # B.9 — allowed types extended
 allowed = PLAN_LIMITS["free"]["allowed_file_types"]

@@ -16,12 +16,31 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # v7.6.0 — Restored production limits but kept expanded allowed_file_types for Starter
 # v8.0.1 — Starter ×5 across all quotas + new "admin" plan (999999 everything)
 ALL_FILE_TYPES = {
+    # Documents (text extractors)
     "pdf", "docx", "txt", "md", "csv",
+    # Images (Tesseract OCR + Pillow)
     "png", "jpg", "jpeg", "webp",
+    # Office + Web/Data (v7.5.0 extractors)
     "xlsx", "pptx", "html", "json", "rtf",
     # v9.0.0 — extra image formats (Pillow native + HEIC plugin + Tesseract OCR)
     "heic", "heif",                   # iPhone default photo format
     "gif", "bmp", "tiff", "tif",      # PIL native
+    # v9.0.0 Phase B v2 — Code files (text encoding fallback, no AI)
+    "py", "js", "ts", "jsx", "tsx",
+    "css", "scss", "less", "sass",
+    "xml", "yaml", "yml", "toml", "ini",
+    "env", "conf", "cfg",
+    "sh", "bash", "zsh", "bat", "ps1",
+    "sql",
+    "java", "kt", "swift",
+    "c", "cpp", "h", "hpp", "cs",
+    "go", "rs", "rb", "php",
+    "log", "tsv",
+    "vue", "svelte",
+    # v9.0.0 Phase B v2 — Audio (Gemini multimodal API)
+    "mp3", "wav", "m4a", "flac", "aac", "ogg", "opus", "wma",
+    # v9.0.0 Phase B v2 — Video (Gemini multimodal API)
+    "mp4", "mov", "mkv", "webm", "avi", "wmv", "flv", "m4v", "3gp",
 }
 PLAN_LIMITS = {
     # v8.0.2 — ×10 from original baseline. Decision (2026-05-05): keep these

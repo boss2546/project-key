@@ -32,6 +32,9 @@ striprtf>=0.0.26
 # v9.0.0 — HEIC/HEIF support (iPhone photos)
 pillow-heif>=0.18.0
 
+# v9.0.0 Phase B v2 — Gemini multimodal (audio/video)
+google-genai>=0.3.0
+
 # Vector search (RAGFlow-inspired)
 chromadb>=1.5.0
 

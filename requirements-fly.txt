@@ -31,6 +31,10 @@ striprtf>=0.0.26
 # v9.0.0 — HEIC/HEIF support (iPhone photos default format)
 pillow-heif>=0.18.0
 
+# v9.0.0 Phase B v2 — Gemini multimodal (audio/video)
+# Optional: ทำงานได้ต่อเมื่อ GOOGLE_API_KEY env var ถูก set
+google-genai>=0.3.0
+
 # Stripe Payment (v5.9.2)
 stripe>=8.0.0
 

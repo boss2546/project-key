@@ -71,7 +71,19 @@ def extract_text(filepath: str, filetype: str) -> str:
             return _extract_pdf_with_fallbacks(filepath)
         elif filetype == "docx":
             return _extract_docx_basic(filepath)
-        elif filetype in ("txt", "md", "csv"):
+        elif filetype in ("txt", "md", "csv",
+                          # v9.0.0 — code files (text-based, encoding fallback ใช้ได้เลย)
+                          "py", "js", "ts", "jsx", "tsx",          # Python / JS / TS
+                          "css", "scss", "less", "sass",            # Stylesheets
+                          "xml", "yaml", "yml", "toml", "ini",      # Config
+                          "env", "conf", "cfg",                     # More config
+                          "sh", "bash", "zsh", "bat", "ps1",        # Shell scripts
+                          "sql",                                    # Database queries
+                          "java", "kt", "swift",                    # Mobile
+                          "c", "cpp", "h", "hpp", "cs",             # Compiled
+                          "go", "rs", "rb", "php",                  # Other languages
+                          "log", "tsv",                             # Data logs
+                          "vue", "svelte"):                         # Components
             return _extract_txt(filepath)
         elif filetype in ("png", "jpg", "jpeg", "webp",
                           # v9.0.0 — extra image formats via PIL native + Tesseract OCR
@@ -89,6 +101,11 @@ def extract_text(filepath: str, filetype: str) -> str:
         elif filetype == "rtf":
             return _extract_rtf(filepath)
         else:
+            # v9.0.0 — Phase B v2: ตรวจ AI multimodal formats (audio/video)
+            # Return marker — caller (main.py upload) จะ route ไป ai_ingest.ingest_via_ai()
+            from .ai_ingest import is_ai_format
+            if is_ai_format(filetype):
+                return f"[AI ingest needed: {filetype}]"
             return f"[Unsupported file type: {filetype}]"
     except Exception as e:
         logger.error(f"Extraction failed for {filepath}: {e}")

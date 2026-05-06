@@ -492,8 +492,19 @@ async def upload_files(
         with open(raw_path, "wb") as f:
             f.write(contents)
 
-        # Extract text
+        # Extract text (sync — pdf/docx/image/etc.)
         extracted = extract_text(raw_path, ext)
+
+        # v9.0.0 Phase B v2 — Audio/Video → Gemini multimodal API (async)
+        # extract_text() returns "[AI ingest needed: mp3]" for audio/video
+        # → route to ai_ingest module which calls Gemini Files API
+        if extracted.startswith("[AI ingest needed:"):
+            try:
+                from .ai_ingest import ingest_via_ai
+                extracted = await ingest_via_ai(raw_path, ext)
+            except Exception as e:
+                logger.error(f"AI ingest failed for {original_name}: {e}")
+                extracted = f"[AI ingest error: {type(e).__name__}: {str(e)[:200]}]"
 
         # v7.1 — compute SHA-256 hash ของ normalized text สำหรับ exact-match
         # คืน None ถ้า text สั้นเกิน / extraction error → ลง DB เป็น NULL
