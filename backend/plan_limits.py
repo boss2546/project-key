@@ -35,7 +35,10 @@ PLAN_LIMITS = {
         "refresh_limit_monthly": 0,
         "semantic_search_enabled": False,
         "version_history_days": 0,
-        "allowed_file_types": {"pdf", "docx", "txt", "md", "csv"},
+        # v9.0.0 — re-enable v7.5.0 formats (image OCR + xlsx/pptx/html/json/rtf)
+        # Backend extractors + Tesseract binary + Frontend accept ครบหมดตั้งแต่ v7.5.0
+        # ใช้ ALL_FILE_TYPES เดียวกับ Starter เพื่อ feature parity
+        "allowed_file_types": ALL_FILE_TYPES,
     },
     # Starter ×10 from v7.6.0 baseline (50/1024MB/20MB → 500/10GB/200MB)
     "starter": {
