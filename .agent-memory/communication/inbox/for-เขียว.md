@@ -8,6 +8,49 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
+### MSG-RAWVAULT 🟡 [HANDOFF] Plan v9.1.0 Raw File Vault — รอ user approve
+**From:** แดง (Daeng)
+**Date:** 2026-05-07
+**Re:** plans/raw-vault-v9.1.0.md
+**Status:** 🔴 New — รอ user ตอบ Q1-Q8 ก่อน build
+
+สวัสดีเขียว 🟢
+
+User ขอให้ทำระบบเก็บไฟล์ที่ระบบไม่รองรับ (.zip/.doc/.pages/.psd/etc.) ให้เป็น "Vault" แยก แทนการทิ้ง — เป็น kind="vault_only" ใน DB
+
+### Scope สั้นๆ
+- DB column ใหม่: `file_kind` ("processed" | "vault_only") + index + migration
+- Upload behavior: UNSUPPORTED_TYPE → save vault (ไม่ skip)
+- New endpoint: `POST /api/files/{id}/promote` — ย้าย vault → processed
+- List filter: `?kind=all|processed|vault`
+- Frontend: filter chips + 📦 vault badge + try-again button
+- Organize/cluster/chat: filter `file_kind="processed"` ทุก query
+- BYOS: vault → folder แยก
+- Tests: ~30 pytest + ~30 backend E2E + ~7 Playwright
+
+### Critical reminders
+1. **Order of check ใน upload** — ext flag → quota → empty → size → save → extract (ถ้า not vault)
+2. **Migration backfill** — `UPDATE files SET file_kind='processed' WHERE file_kind IS NULL` (existing rows)
+3. **Vault NOT in vector_search** — empty extracted_text → ไม่ index อยู่แล้ว
+4. **Vault NOT in organize** — เพิ่ม `file_kind="processed"` ใน WHERE clause ของ organize.py:21 + :433
+5. **Promote ≠ Reprocess** — แยก endpoint ต่างกัน
+
+### Plan path
+[plans/raw-vault-v9.1.0.md](../../plans/raw-vault-v9.1.0.md) — มี:
+- Step-by-step 9 steps สำหรับ build
+- Q1-Q8 open questions (มี default แนะนำทุกข้อ)
+- Test scenarios 3 layers + manual smoke
+- Done criteria + risks + notes
+
+**Pending:** User approve plan ก่อน — รอ Q1-Q8
+
+ขอบคุณครับ 🔴
+
+— แดง (Daeng)
+
+---
+
+
 _ไม่มี — เขียวอ่านครบแล้ว_
 
 ---

@@ -57,6 +57,58 @@
 
 ---
 
+## 🎯 Parallel: `plan_pending_approval` 🔴 (v9.2.1 UI MOBILE FIXES — 2026-05-07)
+
+### 🔴 v9.2.1 UI Mobile Critical Fixes — `plan_pending_approval` (2026-05-07)
+- **Plan:** [plans/ui-mobile-fixes-v9.1.1.md](../plans/ui-mobile-fixes-v9.1.1.md) (filename keeps v9.1.1 — ship as v9.2.1 because base is now v9.2.0)
+- **Author:** แดง (Daeng) — 2026-05-07
+- **Foundation:** v9.2.0 master (after AI Pack Builder ships)
+- **Version bump:** 9.2.0 → **9.2.1** (UI patch — frontend-only, no API/schema)
+- **Effort:** เขียว ~10-12 ชม. + ฟ้า ~2 ชม.
+- **Risk:** 🟢 Low — additive CSS + light HTML/JS, ไม่กระทบ AI Builder logic
+
+**Audit-driven scope (Playwright mobile audit 2026-05-07):**
+- 🔴 **9 P0 critical:** `#guide-fab` ทับปุ่มใน 6 จุด (save-profile + zoom + token + close + copy + history) + chat sources-panel ตกจอ + toast ทับ FAB ×2
+- 🟠 **35+ P1 touch targets <44px:** sidebar nav-item 35h, toggle-btn 27h, copy-btn 28×28, btn-history 25h, btn-logout 24×24, toast-close 19×18 (Apple HIG / WCAG 2.5.5 violation)
+- 🟠 **5 P1 responsive overflow:** Context Memory header + MCP Logs filter + Graph header + MCP Setup card + sources-panel mobile
+- 🟡 **1 P1 vertical clip:** profile modal 1900px ใน 600px viewport — split tabs Account/Profile/Personality/Connectors
+- 🟡 **396 P2 a11y:** 384 inputs ไม่มี `<label for=>` + 12 icon-buttons ไม่มี aria-label
+
+**6 Phases × 18 Milestones (M1.1 → M6.2) × ~38 Playwright cases:**
+- Phase 1 (~3 ชม., M1.1-M1.3): P0 — `body.modal-open` toggle + sources-panel mobile collapse + toast reposition
+- Phase 2 (~3 ชม., M2.1-M2.5): Touch targets ≥44px — extend `@media (max-width: 768px)` rule
+- Phase 3 (~2 ชม., M3.1-M3.4): Responsive overflow — flex-wrap rules ที่ 4 หน้า
+- Phase 4 (~1.5 ชม., M4.1-M4.2): Profile modal 4-tab split + save reachable
+- Phase 5 (~3 ชม., M5.1-M5.2): A11y — `for=id` + `aria-label` (programmatic scan)
+- Phase 6 (~0.5 ชม., M6.1-M6.2): final integration sweep + desktop no-regression + version bump
+
+**Milestone-driven verification:**
+- ทุก fix มี Playwright assertion inline ใน plan
+- เขียวต้อง `npx playwright test --grep "@Mx.y"` PASS ก่อน commit + ก่อน move ไป fix ถัดไป
+- `python scripts/check_milestone.py` orchestrate ตามลำดับ + fail-fast
+- Spec file: `tests/e2e-ui/v9.2.1-milestones.spec.js` (รวม ~38 test cases)
+
+**Files (6 modified + 2 new):**
+- shared.css + styles.css (extend mobile rule + modal observer + tab styles)
+- app.html + landing.html + admin.html (label-for + aria-label + tabs structure)
+- app.js + landing.js (modal observer + tab switch)
+- backend/config.py (APP_VERSION 9.2.0 → 9.2.1)
+- scripts/ui_mobile_audit.py (NEW) + tests/e2e-ui/v9.2.1-mobile-fixes.spec.js (NEW, 18 cases)
+
+**Audit artifacts ready:**
+- `tests/e2e-ui/mobile-audit-temp.spec.js` (delete หลัง v9.2.1 ship)
+- `tests/e2e-ui/mobile-audit-deep.spec.js` (delete หลัง v9.2.1 ship)
+- 48 screenshots + 6 JSONL findings ใน `mobile-audit-results/` + `mobile-audit-deep-results/`
+
+**Dependency on v9.2.0:** Build บน base v9.2.0 master หลัง AI Pack Builder ship → AI builder modal จะได้ `body.modal-open` rule ทันที (guide-fab จะไม่บังปุ่ม "ส่งให้ AI" / "บันทึก Pack" / "ลองใหม่")
+
+**Open Questions (Q1-Q8 — มี default ทุกข้อ):**
+- Q1 chat-toggle-sources position → header / Q2 tab order Account→Profile→Personality→Connectors / Q3 hide guide-fab via JS+CSS / Q4 desktop unaffected / Q5 sources hide-by-default / Q6 cleanup audit specs delete / Q7 ship after v9.2.0 / Q8 toast bottom 160px acceptable
+
+**Pending:** User review plan + approve → state `plan_approved` → เขียวเริ่ม build (หลัง v9.2.0 ship)
+
+---
+
 ## 🎯 Previous: `plan_pending_approval` 🔴 (v9.2.0 plan only — superseded by build above)
 
 ### 🔴 v9.2.0 AI Pack Builder — `plan_pending_approval` (2026-05-07)
