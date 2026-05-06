@@ -358,8 +358,26 @@ function _handleGoogleLoginFragment() {
   // Clean URL (เอา fragment ออก) — ต้องอยู่ที่ /app
   window.history.replaceState({}, document.title, '/app');
   _isInitVerified = true;
-  if (showApp()) initAppData();
-  showToast(getLang() === 'th' ? 'เข้าสู่ระบบสำเร็จ!' : 'Signed in successfully', 'success');
+  // v8.1.1 — fix B1: probe admin status สำหรับ first-arrival จาก Google
+  // ถ้า admin → redirect ไป /admin (เหมือน flow email login จาก landing modal)
+  // ถ้า user ปกติ → showApp() ตามเดิม (อยู่ /app)
+  // เหตุผล: showApp() บน /app skip admin probe เพื่อกัน loop ตอน admin "← กลับ /app"
+  // แต่ first-time arrival จาก Google ยังไม่เคยไป /admin = ไม่ใช่ loop
+  fetch('/api/admin/me', { headers: { 'Authorization': 'Bearer ' + jwt } })
+   .then(res => {
+    if (res.ok) {
+     window.location.href = '/admin';
+    } else {
+     // Non-admin: render /app ปกติ
+     if (showApp()) initAppData();
+     showToast(getLang() === 'th' ? 'เข้าสู่ระบบสำเร็จ!' : 'Signed in successfully', 'success');
+    }
+   })
+   .catch(() => {
+    // Network error → fallback ไป /app ปกติ
+    if (showApp()) initAppData();
+    showToast(getLang() === 'th' ? 'เข้าสู่ระบบสำเร็จ!' : 'Signed in successfully', 'success');
+   });
   return true;
  } catch (e) {
   console.error('[google-login] fragment decode failed:', e);
@@ -427,9 +445,17 @@ function initAuth() {
  document.getElementById('switch-reset-to-login')?.addEventListener('click', (e) => { e.preventDefault(); showAuthModal('login'); });
  document.getElementById('btn-login')?.addEventListener('click', doLogin);
  document.getElementById('btn-register')?.addEventListener('click', doRegister);
- // v8.1.0 — Google Sign-In buttons (มี 2 ตัว: ใน login form + register form)
+ // v8.1.1 — Unified Google Sign-In: ปุ่มเดียวบน login form ใช้ได้ทั้งสมัครใหม่ + login
+ // (backend login_or_create_google_user คือ "find-or-create" — ไม่ต้องแยก 2 ปุ่ม)
  document.getElementById('btn-google-login-login')?.addEventListener('click', doGoogleLogin);
- document.getElementById('btn-google-login-register')?.addEventListener('click', doGoogleLogin);
+ // v8.1.1 — link จาก register form → switch ไป login form แล้ว trigger Google
+ // (user ที่อยู่หน้า "สมัครสมาชิก" เลือกจะใช้ Google → ไปยังจุดเดียวที่มีปุ่ม)
+ document.getElementById('switch-to-login-google')?.addEventListener('click', (e) => {
+  e.preventDefault();
+  showAuthModal('login');
+  // เลื่อนไป login form แล้วโฟกัส Google button (ผู้ใช้เห็นชัดว่าตัวเลือกอยู่ตรงนี้)
+  setTimeout(() => document.getElementById('btn-google-login-login')?.focus(), 100);
+ });
  document.getElementById('btn-forgot-submit')?.addEventListener('click', doForgotPassword);
  document.getElementById('btn-reset-submit')?.addEventListener('click', doResetPassword);
 

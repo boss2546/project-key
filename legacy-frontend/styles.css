@@ -4080,6 +4080,22 @@
   white-space: nowrap;
 }
 
+/* v8.1.1 — Hint text for unified Google sign-in flow */
+.auth-switch-muted {
+  font-size: 12px;
+  color: var(--text-muted, #888);
+  text-align: center;
+  margin: 8px 0 4px;
+  line-height: 1.5;
+}
+.auth-switch-muted a {
+  color: var(--accent, #6366f1);
+  text-decoration: none;
+}
+.auth-switch-muted a:hover {
+  text-decoration: underline;
+}
+
 /* ═══════════════════════════════════════════
    ADMIN PANEL — v8.2.0
    หน้า /admin (admin.html) — หน้าแยกจาก /app
