@@ -158,6 +158,13 @@ async def delete_pack(db: AsyncSession, pack_id: str, user_id: str) -> bool:
 
     await db.delete(pack)
     await db.commit()
+
+    # v9.0.1 — Bug fix: ลบ pack ออกจาก TF-IDF index ด้วย กัน ghost results ใน
+    # chat/MCP search หลัง delete (เดิมใช้ index_file ตอน create แต่ไม่มี cleanup
+    # ตอน delete → search ยัง hit pack ที่ลบไปแล้วจน restart server)
+    # remove_file ปลอดภัย no-op ถ้า pack-id ไม่อยู่ใน index (เช่นหลัง restart ก่อน rebuild)
+    vector_search.remove_file(f"pack-{pack_id}", user_id=user_id)
+
     return True
 
 
@@ -213,6 +220,19 @@ async def regenerate_pack(db: AsyncSession, pack_id: str, user_id: str) -> dict 
             f.write(f"---\ntype: {pack.type}\ntitle: {pack.title}\n---\n\n{new_summary}")
 
     await db.commit()
+
+    # v9.0.1 — Bug fix: re-index TF-IDF เพื่อให้ chat/MCP search เห็น summary ใหม่
+    # (เดิม regenerate อัปเดตแค่ DB row + .md file → search ยังคืน summary เก่า
+    # จน user upload/regenerate ไฟล์อื่นแล้ว IDF ถูก rebuild ทั้งหมด)
+    # index_file overwrites by file_id key — idempotent ปลอดภัย
+    vector_search.index_file(
+        file_id=f"pack-{pack.id}",
+        filename=f"context-pack:{pack.title}",
+        text=new_summary,
+        cluster_title=f"context-pack-{pack.type}",
+        user_id=user_id,
+    )
+
     return _serialize_pack(pack)
 
 
@@ -269,5 +289,10 @@ def _serialize_pack(pack: ContextPack) -> dict:
         "source_cluster_ids": json.loads(pack.source_cluster_ids) if pack.source_cluster_ids else [],
         "source_count": len(json.loads(pack.source_file_ids or "[]")) + len(json.loads(pack.source_cluster_ids or "[]")),
         "created_at": pack.created_at.isoformat() if pack.created_at else "",
-        "updated_at": pack.updated_at.isoformat() if pack.updated_at else ""
+        "updated_at": pack.updated_at.isoformat() if pack.updated_at else "",
+        # v9.0.1 — UI guard: client รู้ก่อนกด regenerate ว่า pack ล็อคอยู่ไหม
+        # (เดิม API ไม่ expose → user กดแล้วเพิ่งเจอ 403 ทำให้สับสน)
+        # locked_reason: null | "exceeds_free_plan_limit" | "subscription_expired"
+        "is_locked": bool(getattr(pack, "is_locked", False)),
+        "locked_reason": getattr(pack, "locked_reason", None),
     }
