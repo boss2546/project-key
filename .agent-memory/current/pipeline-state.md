@@ -5,7 +5,102 @@
 
 ---
 
-## 🎯 Current Pipeline State: `done` ✅ (v8.2.0 ADMIN SYSTEM RELEASED — 2026-05-06)
+## 🎯 Current Pipeline State: `built_pending_review` 🟡 (v9.0.1 CONTEXT PACK CORRECTNESS — 2026-05-07)
+
+### 🟡 v9.0.1 Context Pack Correctness — BUILT in 3-in-1 mode (2026-05-07)
+- **Plan:** [plans/context-pack-correctness-v8.3.0.md](../plans/context-pack-correctness-v8.3.0.md) (versioned 8.3.0 ใน plan, ship เป็น 9.0.1 patch ของ v9.0.0 base)
+- **Mode:** 3-in-1 single-agent (แดง→เขียว ใน session เดียว) — User authorize "ตัดสินใจแทนผม ตัวเลือกที่ดีที่สุด"
+- **Author:** แดง→เขียว — 2026-05-07
+- **Foundation:** master HEAD `ed22b1b` (v9.0.0 multimodal expansion)
+- **APP_VERSION:** 9.0.0 → 9.0.1
+- **Self-test verdict:** ✅ APPROVE — 21/21 smoke + 25/25 admin regression + 60/61 pytest = **106/107 PASS** (1 stale unrelated)
+
+### What shipped (3 commits + 1 chore pending)
+- `c6c0ee6` fix(context-pack): vector index sync + expose is_locked in API [v9.0.1]
+- `d70b80d` fix(context-pack): UI lock guard + preflight check [v9.0.1]
+- `2005ab5` fix(mcp): create_context_pack accept cluster_ids parity with web [v9.0.1]
+- (pending) chore: bump APP_VERSION 9.0.1 + smoke test + memory
+
+**Files (5 modified + 1 new):**
+- backend/context_packs.py — delete: vector remove, regenerate: vector re-index, serialize: expose is_locked + locked_reason
+- backend/mcp_tools.py — create_context_pack รับ cluster_ids parity กับ web
+- legacy-frontend/app.js — pack card lock state + preflight ใน regeneratePack
+- legacy-frontend/styles.css — .pack-card.is-locked + .pack-locked-badge
+- backend/config.py + legacy-frontend/app.html — version bump 9.0.0 → 9.0.1
+- scripts/context_pack_correctness_smoke.py (NEW, 21 cases)
+
+### Test Results
+- ✅ 21/21 smoke: T1-T4 happy path + serialize / T5-T8 bug fixes / T9-T11 validation / T12-T14 API integration
+- ✅ 25/25 admin_e2e (v8.2.0 regression)
+- ✅ 60/61 pytest (test_auth_password_reset + test_signed_urls + test_email_service + test_plan_limits_restored)
+- ⚠️ 1 stale FAIL: test_plan_limits_restored::test_free_file_type_png_rejected — pre-existing (v9.0.0 commit `a491be3` re-enabled PNG for free plan, test ยังไม่ update) — **ไม่ใช่ regression จาก v9.0.1**
+- ✅ Python syntax OK 3 files / JS syntax OK app.js
+
+### Open Questions ที่ใช้ default (per user "ตัดสินใจแทนผม")
+- Q1 Block delete locked? → **NO (คงเดิม)** — user ลดข้อมูลให้ฟิตแพลนได้
+- Q2 Expose locked_reason? → **YES (expose ทั้งคู่)**
+- Q3 Bundle commits? → **แยก 4 commits** ตาม pattern v8.1/v8.2
+- Q4 Lock badge ตำแหน่ง? → **prefix ใน title** (`🔒 Title`)
+- Q5 Tooltip lang? → **follow getLang()** (TH/EN)
+
+### Awaiting User Action
+1. 🔴 **Review code + smoke test** ใน browser (pack card state, regenerate guard)
+2. 🟢 **Push + deploy** (รวม v9.0.0 + v9.0.1 + v8.0/8.1/8.2 ที่ค้างอยู่)
+3. 🟡 (optional) ตัดสินใจ proceed กับ v9.1.0 Raw Vault หรือ v8.4.0 Pack Auto-Suggest ต่อ
+
+---
+
+## 🎯 Previous: `plan_pending_approval` 🔴 (v9.1.0 RAW VAULT — 2026-05-07)
+
+### 🔴 v9.1.0 Raw File Vault — `plan_pending_approval` (2026-05-07)
+- **Plan:** [plans/raw-vault-v9.1.0.md](../plans/raw-vault-v9.1.0.md)
+- **Author:** แดง (Daeng) — 2026-05-07
+- **Foundation:** master HEAD `ed22b1b` (v9.0.0 multimodal expansion)
+- **Estimated effort:** เขียว 4.5 ชม. + ฟ้า test 3 ชม. = ~7-8 ชม.
+
+**Goal:** ระบบเก็บไฟล์ที่ AI อ่านไม่ได้ให้เป็น "Vault" แยก แทนการทิ้ง — user download/manage/promote ได้
+
+**Scope:**
+- เพิ่ม column `file_kind` ("processed" / "vault_only") + index
+- Upload UNSUPPORTED_TYPE ext → save raw + mark vault (ไม่ skip)
+- New endpoint `POST /api/files/{id}/promote` — ลอง extract vault → processed
+- List filter `?kind=all|processed|vault`
+- Frontend: filter chips + 📦 vault badge + try-again button
+- Organize/cluster/chat ไม่ join vault files
+- BYOS: vault → folder แยก
+
+**Open Questions (Q1-Q8):** ละเอียดใน plan — แดงแนะนำ default ทุกข้อ user ตอบ "ตามที่แดงแนะนำ" ก็ได้
+
+**Pending:** User approve plan + ตอบ Q1-Q8 → state เปลี่ยน `plan_approved` → เขียวเริ่ม build
+
+---
+
+### 🔴 v8.3.0 Context Pack Correctness Fixes — `plan_pending_approval` (2026-05-07)
+- **Plan:** [plans/context-pack-correctness-v8.3.0.md](../plans/context-pack-correctness-v8.3.0.md)
+- **Author:** แดง (Daeng) — 2026-05-07
+- **Foundation:** v8.2.0 master HEAD `2fa251c` (RELEASED)
+- **Philosophy:** Correctness only — feature work (auto-suggest, cluster selector, refresh quota, empty state) เลื่อน v8.4.0
+- **Risk:** 🟢 Low — additive API fields + internal side-effect fixes, no contract break
+- **Effort:** เขียว ~0.5–1 วัน + ฟ้า ~0.5 วัน
+
+**4 fixes scope:**
+1. Vector index sync (delete_pack + regenerate_pack ต้อง sync TF-IDF index — ปัจจุบัน drift)
+2. Expose `is_locked` + `locked_reason` ใน API serialize
+3. Frontend lock state UI (opacity, badge, disabled, tooltip, preflight check)
+4. MCP `create_context_pack` รับ `cluster_ids` (parity กับ web API ที่รองรับอยู่แล้ว)
+
+**Files (5):** context_packs.py + mcp_tools.py + app.js + styles.css + scripts/context_pack_correctness_smoke.py (NEW, 14 cases)
+
+**Open Questions (5 — มี default ทุกข้อ):**
+- Q1 Block delete locked? → NO (คงเดิม) · Q2 Expose locked_reason? → YES · Q3 Commits? → แยก 4 · Q4 Badge position? → prefix in title · Q5 Tooltip lang? → follow getLang()
+
+**Verification (deep-dive 2026-05-07):** DB จริง = 0 ContextPack rows / 76 users → adoption 0% / 0 ContextInjectionLogs / vector_search = TF-IDF in-memory (memory เก่าบอกผิดว่าเป็น ChromaDB) / MCP_PERMISSIONS = in-memory dict
+
+**Pending:** User review plan + answer Q1-Q5 → `plan_approved` → เขียวเริ่ม build
+
+---
+
+## 🎯 Previous: `done` ✅ (v8.2.0 ADMIN SYSTEM RELEASED — 2026-05-06)
 
 ### 🟢 v8.2.0 Admin System — RELEASED by ฟ้า (2026-05-06)
 - **Plan:** [plans/admin-system-v8.2.0.md](../plans/admin-system-v8.2.0.md)

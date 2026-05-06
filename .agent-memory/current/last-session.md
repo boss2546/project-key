@@ -1,6 +1,46 @@
 # 📅 Last Session Summary
 
-**Date:** 2026-05-05 → 2026-05-06
+**Date:** 2026-05-07
+**Agent:** แดง→เขียว (single-agent 3-in-1 mode)
+**Pipeline state:** `built_pending_review` 🟡 — v9.0.1 Context Pack Correctness BUILT
+**Authorization:** User said "ตัดสินใจแทนผมได้เลย ให้เป็นตัวเลือกที่ดีที่สุด"
+
+---
+
+## 🎯 v9.0.1 Built (2026-05-07) — Context Pack Correctness Fixes
+
+**Result:** Bug fix bundle 4 issues — DB row + .md + vector_search + UI guard + MCP parity. **21/21 smoke + 25/25 admin regression + 60/61 pytest = 106/107 PASS** (1 stale unrelated to v9.0.1)
+
+**Approach:**
+1. แดง mode (morning): Deep-dive ระบบ Context Pack ทั้ง stack (DB + backend + MCP + frontend + retriever + graph_builder)
+2. แดง mode: Verify ใน DB จริง — 0 ContextPack rows / 76 users → adoption 0%, vector_search ใช้ TF-IDF in-memory ไม่ใช่ ChromaDB ตามที่ memory เก่าบอก
+3. แดง mode: เขียน plan correctness-only (ไม่ใส่ feature ใหม่) ที่ [plans/context-pack-correctness-v8.3.0.md](../plans/context-pack-correctness-v8.3.0.md)
+4. User authorize 3-in-1 + accept all defaults (Q1-Q5)
+5. เขียว mode: Build 4 fixes ตาม plan + bump APP_VERSION 9.0.0 → 9.0.1 (ship เป็น patch ของ v9.0.0)
+6. เขียว mode: Self-test 21/21 smoke + 25/25 admin regression + pytest
+
+**Files (5 modified + 1 new):**
+- backend/context_packs.py — vector_search.remove_file ใน delete + index_file ใน regenerate + expose is_locked/locked_reason ใน serialize
+- backend/mcp_tools.py — create_context_pack รับ cluster_ids parity กับ web
+- legacy-frontend/app.js — pack card lock state render + preflight ใน regeneratePack
+- legacy-frontend/styles.css — .pack-card.is-locked + .pack-locked-badge
+- backend/config.py + legacy-frontend/app.html — version bump
+- scripts/context_pack_correctness_smoke.py (NEW, 21 cases รวม T1-T14 ใน plan + sub-cases T1b/T1c/T4b/T5b/T6b/T7b/T12b)
+
+**Commits (4):**
+1. `c6c0ee6` fix(context-pack): vector index sync + expose is_locked in API
+2. `d70b80d` fix(context-pack): UI lock guard + preflight check
+3. `2005ab5` fix(mcp): create_context_pack accept cluster_ids parity with web
+4. (pending) chore: bump APP_VERSION + smoke test + memory
+
+**Bug found + fixed during build:** ไม่มี — plan ละเอียดทำให้ build smooth ทุก step
+
+**Test result note:** 1 stale FAIL `test_plan_limits_restored::test_free_file_type_png_rejected` เป็น pre-existing จาก v9.0.0 commit `a491be3` (re-enabled PNG for free plan) — ไม่ใช่ regression จาก v9.0.1
+
+---
+
+## 📅 Previous Session: 2026-05-05 → 2026-05-06 (v8.2.0 Admin)
+
 **Agent:** แดง→เขียว→ฟ้า (single-agent 3-in-1 mode, full pipeline)
 **Pipeline state:** `done` ✅ — v8.2.0 Admin System RELEASED to Fly.io
 **Authorization:** User said "อยากให้คุณลงมือทำเองเลยแต่คุณคือเดียว" — approved 3-in-1 execution
