@@ -130,8 +130,10 @@ expect("A.4 mixed batch returns 200", r.status_code, 200)
 data = r.json()
 skipped = data.get("skipped", [])
 codes = {s.get("code") for s in skipped}
-expect_true("A.5 skip contains UNSUPPORTED_TYPE",
-            "UNSUPPORTED_TYPE" in codes, hint=f"got codes={codes}")
+# v9.1.0 — UNSUPPORTED_TYPE ext เปลี่ยนเป็น vault (ไม่ skip) → ตรวจ uploaded แทน
+uploaded_kinds = {u.get("file_kind") for u in (data.get("uploaded") or [])}
+expect_true("A.5 .xyz unsupported → vault_only (v9.1.0 — ไม่ skip)",
+            "vault_only" in uploaded_kinds, hint=f"got kinds={uploaded_kinds}")
 expect_true("A.6 skip contains FILE_TOO_LARGE",
             "FILE_TOO_LARGE" in codes, hint=f"got codes={codes}")
 expect_true("A.7 skip contains EMPTY_FILE",
@@ -502,15 +504,17 @@ if rtf_path.exists():
     expect("D.15 rtf upload returns 200", r.status_code, 200)
     expect_true("D.16 rtf accepted", r.json().get("count") == 1)
 
-# D.17 — .doc still rejected (not added to allowed_types)
+# D.17 — v9.1.0 — .doc → vault (ไม่ skip — เก็บ raw แทน)
 r_doc = client.post(
     "/api/upload",
     files=[("files", ("legacy.doc", b"fake legacy word doc", "application/msword"))],
     headers=headers_d,
 )
-doc_skipped = r_doc.json().get("skipped", [])
-expect_true("D.17 .doc still rejected as UNSUPPORTED_TYPE",
-            any(s.get("code") == "UNSUPPORTED_TYPE" and s.get("filename") == "legacy.doc"
-                for s in doc_skipped))
+doc_data = r_doc.json()
+doc_uploaded = doc_data.get("uploaded", [])
+expect_true("D.17 .doc → vault_only (v9.1.0 — ไม่ skip + เก็บ raw)",
+            any(u.get("file_kind") == "vault_only" and u.get("filename") == "legacy.doc"
+                for u in doc_uploaded),
+            hint=f"got uploaded={doc_uploaded} skipped={doc_data.get('skipped')}")
 
 sys.exit(_summary())

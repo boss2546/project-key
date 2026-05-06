@@ -6,7 +6,8 @@ const { defineConfig } = require("@playwright/test");
 
 module.exports = defineConfig({
   testDir: "./tests/e2e-ui",
-  testMatch: /v7\.5\.0-standalone\.spec\.js/,
+  // v9.1.0: include vault spec alongside v7.5.0 standalone (same Python http.server)
+  testMatch: /(v7\.5\.0-standalone|v9\.1\.0-vault)\.spec\.js/,
   timeout: 30000,
   expect: { timeout: 10000 },
   fullyParallel: false,
