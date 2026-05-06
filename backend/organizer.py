@@ -17,8 +17,13 @@ async def organize_files(db: AsyncSession, user_id: str):
     """Run the full organization pipeline: cluster → score → summarize."""
 
     # 1. Get all files with extracted text (eagerly load relationships for async)
+    # v9.1.0: exclude vault files (file_kind="vault_only") — vault ไม่ join cluster
     result = await db.execute(
-        select(File).where(File.user_id == user_id, File.extracted_text != "")
+        select(File).where(
+            File.user_id == user_id,
+            File.extracted_text != "",
+            File.file_kind == "processed",  # v9.1.0 vault exclusion
+        )
         .options(selectinload(File.insight), selectinload(File.summary), selectinload(File.cluster_maps))
     )
     files = result.scalars().all()
@@ -431,6 +436,7 @@ async def organize_new_files(db: AsyncSession, user_id: str) -> dict:
         select(File).where(
             File.user_id == user_id,
             File.extracted_text != "",
+            File.file_kind == "processed",  # v9.1.0 vault exclusion
             ~exists(select(FileSummary.file_id).where(FileSummary.file_id == File.id))
         ).options(selectinload(File.insight), selectinload(File.summary), selectinload(File.cluster_maps))
     )

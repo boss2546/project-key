@@ -103,6 +103,13 @@ class File(Base):
     chunk_count = Column(Integer, default=0)
     is_truncated = Column(Boolean, default=False)
 
+    # v9.1.0 — Raw File Vault (file_kind classification)
+    # "processed" = ext อยู่ใน ALL_FILE_TYPES → extract + AI pipeline ปกติ
+    # "vault_only" = ext ไม่รองรับ → save raw + ค้นหาด้วย filename+ext เท่านั้น
+    #                (extracted_text = "[Vault file] {name} (ext: {ext}) {tokens}")
+    # Indexed เพราะ list filter ใช้บ่อย (?kind=vault|processed)
+    file_kind = Column(String, default="processed", index=True)
+
     owner = relationship("User", back_populates="files")
     insight = relationship("FileInsight", uselist=False, back_populates="file", cascade="all, delete-orphan")
     summary = relationship("FileSummary", uselist=False, back_populates="file", cascade="all, delete-orphan")
@@ -728,6 +735,33 @@ async def init_db():
                 )
                 migrated = True
                 print("  → Added: files.is_truncated (v7.5.0 — big file overflow flag)")
+
+            # v9.1.0 Migration — Raw File Vault (file_kind classification)
+            # Existing rows: ทุก row ที่มีอยู่ตอนนี้ผ่าน upload validation เดิม → ext ใน
+            # allowed_types → file_kind="processed". ใช้ UPDATE backfill (ALTER ... DEFAULT
+            # ใช้กับ INSERT ใหม่เท่านั้น — existing rows ได้ NULL).
+            cursor = await db.execute("PRAGMA table_info(files)")
+            file_cols_v910 = [row[1] for row in await cursor.fetchall()]
+            if "file_kind" not in file_cols_v910:
+                await db.execute(
+                    "ALTER TABLE files ADD COLUMN file_kind TEXT DEFAULT 'processed'"
+                )
+                # Backfill existing NULL → 'processed' (ปกติ NULL ถูก treat เป็น default
+                # ในบาง query แต่ explicit ดีกว่า — กัน WHERE file_kind='processed' พลาด)
+                await db.execute(
+                    "UPDATE files SET file_kind='processed' WHERE file_kind IS NULL"
+                )
+                migrated = True
+                print("  → Added: files.file_kind (v9.1.0 — Raw Vault) + backfilled existing")
+
+            # Index สำหรับ list filter (?kind=vault|processed)
+            try:
+                await db.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_files_file_kind "
+                    "ON files(file_kind)"
+                )
+            except Exception as e:
+                print(f"  ⚠️ files.file_kind index warning: {e}")
 
             # v8.0.0 Migration — LINE Bot Integration (line_users table)
             # Table ถูกสร้างโดย Base.metadata.create_all ก่อนหน้าแล้ว (idempotent)
