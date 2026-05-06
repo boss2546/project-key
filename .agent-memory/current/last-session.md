@@ -1,9 +1,36 @@
 # 📅 Last Session Summary
 
-**Date:** 2026-05-07
-**Agent:** แดง→เขียว (single-agent 3-in-1 mode)
-**Pipeline state:** `built_pending_review` 🟡 — v9.0.1 Context Pack Correctness BUILT
-**Authorization:** User said "ตัดสินใจแทนผมได้เลย ให้เป็นตัวเลือกที่ดีที่สุด"
+**Date:** 2026-05-07 (extended session)
+**Agent:** แดง→เขียว (single-agent 3-in-1 mode, multiple features)
+**Pipeline state:** `built_pending_review` 🟡 — v9.2.0 AI Pack Builder BUILT (latest)
+**Authorization:** User approved 3-in-1 mode + "ตัดสินใจแทนผม ตัวเลือกที่ดีที่สุด"
+
+## 🎯 v9.2.0 AI Pack Builder Built (2026-05-07)
+
+**Result:** ระบบให้ AI ช่วยสร้าง Context Pack จาก natural-language prompt — flow 4 view states (input → clarify → loading → preview) + form-based edit + vault filter. **47/47 PASS** (26 builder + 21 v9.0.1 regression)
+
+**4 commits shipped:**
+- `05f2138` feat(db): schema +3 columns + migration
+- `6f99609` feat(api): create_pack signature extended
+- `33ca37e` feat(ai): ai_pack_builder module + 4 endpoints
+- `112e93e` feat(frontend): modal + clarify→preview→edit flow
+
+**Key design decisions per user:**
+- Q1 บริบท fields → intent + scope (2 fields)
+- Q2 User edit → form-based (ตัด source + แก้ทุก field)
+- Q3 AI sources → files + clusters (matches manual flow + vault filter)
+- Q4 ลองใหม่ → retry button (กลับ input state)
+- Q5 Cost guard → nab ai_summary quota (1 ครั้ง/confirmed pack)
+- Q6 Clarify step → AI ตัดสินใจเอง (skip ถ้า prompt ละเอียด ≥2/3)
+- Plus: quality options (CONCRETE + 25-60 words + DIFFERENTIATED)
+
+**Verified during fit-check:**
+- ⚠️ Discovery: Raw Vault v9.1.0 ก็ ship แล้วบางส่วน (file_kind column + organizer filter) → AI Builder ใส่ vault filter
+- APP_VERSION foundation = 9.1.0 (ไม่ใช่ 9.0.1 ตามที่ plan แรกเขียน)
+
+---
+
+## 🎯 v9.0.1 Built (2026-05-07 earlier in same session) — Context Pack Correctness Fixes
 
 ---
 

@@ -5,7 +5,114 @@
 
 ---
 
-## 🎯 Current Pipeline State: `built_pending_review` 🟡 (v9.0.1 CONTEXT PACK CORRECTNESS — 2026-05-07)
+## 🎯 Current Pipeline State: `built_pending_review` 🟡 (v9.2.0 AI PACK BUILDER — BUILT 2026-05-07)
+
+### 🟡 v9.2.0 AI Pack Builder — BUILT in 3-in-1 mode (2026-05-07)
+- **Plan:** [plans/ai-pack-builder-v9.2.0.md](../plans/ai-pack-builder-v9.2.0.md)
+- **Mode:** 3-in-1 single-agent (แดง→เขียว ใน session เดียว) — User authorize
+- **Author:** แดง→เขียว — 2026-05-07
+- **Foundation:** v9.1.0 master (Raw Vault + correctness fixes)
+- **APP_VERSION:** 9.1.0 → 9.2.0
+- **Self-test verdict:** ✅ APPROVE — 26/26 AI builder smoke + 21/21 v9.0.1 correctness regression = **47/47 PASS**
+
+### Commits shipped (4)
+- `05f2138` feat(db): context_packs intent/scope/created_via columns + migration
+- `6f99609` feat(api): create_pack accept intent/scope/created_via + override_summary
+- `33ca37e` feat(ai): ai_pack_builder module + 4 endpoints (clarify/propose/confirm/discard)
+- `112e93e` feat(frontend): AI Pack Builder modal + clarify→preview→edit flow
+- (pending) chore: bump APP_VERSION + plan + smoke + memory
+
+### What shipped
+**Backend (4 files, ~830 lines new):**
+- `backend/database.py` — ContextPack +3 columns (intent/scope/created_via) + idempotent migration
+- `backend/context_packs.py` — create_pack รับ params ใหม่ + override_summary + serialize expose
+- `backend/ai_pack_builder.py` (NEW, ~400 lines) — 2 caches + 3-step LLM flow + vault filter + cross-user steal guard
+- `backend/main.py` — 4 Pydantic models + 4 endpoints (clarify/propose/confirm/discard)
+
+**Frontend (3 files, ~520 lines new):**
+- `legacy-frontend/app.html` — ปุ่ม "🪄 ให้ AI สร้างให้" + AI Builder modal (4 view states)
+- `legacy-frontend/app.js` — 11 functions (open/close/submit/render/confirm/retry/back) + state machine + 16 i18n keys
+- `legacy-frontend/styles.css` — ~150 lines AI Builder styles + mobile @media
+
+**Tests:**
+- `scripts/ai_pack_builder_smoke.py` (NEW, 26 cases) — 25/25 plan + 1 extra T-A7b vault snapshot
+
+### Test Results (47/47 PASS)
+- ✅ 26/26 AI Pack Builder smoke (Group A clarify+vault 7 / B propose 5 / C happy 5 / D validation 5 / E auth+multi-user 3)
+- ✅ 21/21 context pack correctness regression (v9.0.1)
+- ✅ Python syntax 5 files / JS syntax app.js
+- ✅ Quality assertions T-A2 (options quote real filenames) + T-A3 (25-80 words)
+- ✅ Cross-user steal guard T-E2 (User B ไม่สามารถ confirm draft ของ User A)
+- ✅ LLM call count exact (T-C4: 2 json + 1 pro per confirmed pack)
+- ✅ Vault filter T-A7 (vault file ไม่ปรากฏใน inventory)
+
+### Awaiting User Action
+1. 🔴 **Manual smoke test ใน browser** — ทดสอบ flow จริง:
+   - Vague prompt ("ช่วยสร้าง pack เกี่ยวกับการเรียน") → ดู clarify view + 4 options
+   - Detailed prompt ("สร้าง pack จาก calculus.pdf focus สูตร exclude assignment") → skip clarify
+   - Edit form (uncheck source + แก้ title) → save
+   - ปุ่ม retry → กลับ input state พร้อม prompt เดิม
+2. 🟢 **Push + deploy** (รวม v9.0.1 correctness + v9.1.0 Raw Vault + v9.2.0 AI Builder)
+3. 🟡 ตัดสินใจ feature ต่อ — auto-suggest pack หลัง organize / pack sharing / etc.
+
+---
+
+## 🎯 Previous: `plan_pending_approval` 🔴 (v9.2.0 plan only — superseded by build above)
+
+### 🔴 v9.2.0 AI Pack Builder — `plan_pending_approval` (2026-05-07)
+- **Plan:** [plans/ai-pack-builder-v9.2.0.md](../plans/ai-pack-builder-v9.2.0.md)
+- **Author:** แดง (Daeng) — 2026-05-07
+- **Foundation:** v9.1.0 (current master — APP_VERSION ใน config.py = 9.1.0; Raw Vault + correctness fixes ship แล้ว verified 2026-05-07)
+- **Version bump:** 9.1.0 → **9.2.0**
+- **Verified dependencies (2026-05-07 fit-check):** ✅ helper functions มีครบ (check_pack_create_allowed, check_summary_allowed, log_usage) ✅ modal pattern (.modal-overlay/.modal/.btn-close) มีใน shared.css ✅ i18n (getLang, escapeHtml, t) ใน app.js ✅ ContextPack columns ปัจจุบัน 12 (intent/scope/created_via ยังไม่มี — migration จำเป็น) ⚠️ Raw Vault file_kind filter จำเป็น (organizer.py pattern)
+- **Effort:** เขียว ~3-3.5 วัน + ฟ้า ~0.5-1 วัน (เพิ่ม 0.5 วันจาก revision)
+- **Risk:** 🟡 Medium — 3 LLM calls per build (clarify + select + distill), schema migration, draft cache
+
+**Revision note 2026-05-07 (rev 2):** User refined 2 จุดเพิ่ม:
+1. **Options ต้องคุณภาพ** — concrete + actionable + quote ชื่อไฟล์/cluster จริงจาก inventory + summary 25-60 คำ ไม่ใช่ label สั้นๆ
+2. **Skip clarify ถ้า prompt ละเอียด** — AI ตัดสินใจเอง: ถ้า prompt มี ≥2 ใน 3 (SOURCE/SCOPE/FOCUS) → ข้าม clarify ไป build draft ทันที
+
+**Vision (จาก user 2026-05-07 — revised):**
+> "มีปุ่มในหน้า Pack แล้วพิมพ์ว่าอยากได้ pack อะไร → AI ขึ้นคำถามเป็นตัวเลือก 1-4 ให้เลือก หรือใส่ข้อความอธิบายเพิ่ม หรือ skip ให้ AI จัดการเอง → AI สร้าง draft → user confirm/edit → save. อยากให้ pack มี 'บริบท' (intent + scope) ด้วย"
+
+**Scope (6 design decisions ที่ user ยอมรับ default + 1 new):**
+- Q1 บริบท fields → **intent + scope** (2 fields ใหม่ใน ContextPack)
+- Q2 User edit → **form-based** (ตัด source + แก้ทุก field ได้)
+- Q3 AI source pool → **files + clusters**
+- Q4 ลองใหม่ → **retry button** (กลับไป state="input")
+- Q5 Cost guard → **nab `ai_summary` quota** — นับ 1 ครั้งต่อ confirmed pack (รวม 3 LLM calls)
+- **Q6 Clarifying step (NEW)** → **1 round, 4 options + free-text + skip**
+
+**Files (3 modified + 3 new):**
+- backend/database.py — เพิ่ม intent/scope/created_via columns + idempotent migration
+- backend/context_packs.py — create_pack รับ params ใหม่ + serialize expose
+- backend/main.py — 3 Pydantic models + 4 new endpoints (/clarify, /propose, /confirm, DELETE /drafts/{id})
+- backend/ai_pack_builder.py (NEW, ~380 lines) — 3-step LLM flow (clarify → select → distill) + 2 caches (session + draft, 30 min TTL)
+- legacy-frontend/app.html + app.js + styles.css — ปุ่ม "🪄 ให้ AI สร้างให้" + AI Builder modal (4 view states)
+- scripts/ai_pack_builder_smoke.py (NEW, 22 cases)
+
+**Architecture highlights:**
+- 3-step LLM: (0) clarify question + 4 options → (1) select sources + draft metadata → (2) distill summary
+- 2 caches: `_SESSION_CACHE` (clarify state + inventory snapshot) + `_DRAFT_CACHE` (final proposal)
+- Inventory cap 30 (clarify) / 50 (propose) — token efficiency
+- Quota check ที่ /clarify (entry point) — กัน user เริ่ม flow ที่ทำไม่จบได้
+- log_usage("ai_summary") ใน confirm เท่านั้น (1 ครั้งต่อ confirmed pack แม้จะใช้ LLM 3 ครั้ง)
+
+**Open Questions (8 — มี default ทุกข้อ):**
+- Q1 Inventory cap? → **Default: 30 (clarify) / 50 (propose)**
+- Q2 preferred_type ใน UI? → **Default: ไม่มี (preserve API field)**
+- Q3 ปุ่ม label? → **Default: TH "🪄 ให้ AI สร้างให้" / EN "🪄 AI Build for me"**
+- Q4 TTL? → **Default: 30 นาที (ทั้ง session + draft)**
+- Q5 Retry กลับไปไหน? → **Default: state="input" (prompt เดิมยังอยู่)**
+- Q6 Clarify ทำทุกครั้ง? → **Default: AI ตัดสินใจเอง — skip ถ้า prompt มี ≥2 ใน 3 (SOURCE/SCOPE/FOCUS)**
+- Q7 เปลี่ยน option ก่อน submit? → **Default: ใช่ (radio behavior)**
+- Q8 Options language? → **Default: follow getLang() (TH/EN)**
+
+**Pending action:** User review plan + approve (หรือ revise) → state `plan_approved` → เขียวเริ่ม build
+
+---
+
+## 🎯 Previous: `built_pending_review` 🟡 (v9.0.1 CONTEXT PACK CORRECTNESS — 2026-05-07)
 
 ### 🟡 v9.0.1 Context Pack Correctness — BUILT in 3-in-1 mode (2026-05-07)
 - **Plan:** [plans/context-pack-correctness-v8.3.0.md](../plans/context-pack-correctness-v8.3.0.md) (versioned 8.3.0 ใน plan, ship เป็น 9.0.1 patch ของ v9.0.0 base)
