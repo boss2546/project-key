@@ -227,6 +227,14 @@ class ContextPack(Base):
     is_locked = Column(Boolean, default=False)
     locked_reason = Column(String, nullable=True)   # exceeds_free_plan_limit, subscription_expired
 
+    # v9.2.0 — บริบทของ pack (intent + scope) ที่ AI Pack Builder + manual create
+    # ใช้ตัดสินใจ inject pack ตอนไหนใน chat. NULL/empty = legacy pack (pre-v9.2.0)
+    # หรือ user ที่สร้างผ่าน manual flow ที่ไม่กรอกฟิลด์เหล่านี้
+    intent = Column(Text, default="")          # "ใช้สำหรับอะไร" — short purpose statement
+    scope = Column(Text, default="")           # "ครอบคลุมอะไร / ไม่ครอบคลุมอะไร"
+    # v9.2.0 — track ที่มาของ pack สำหรับ analytics + UI hints (badge ในอนาคต)
+    created_via = Column(String, default="manual")   # "manual" | "ai_builder"
+
 
 class ContextInjectionLog(Base):
     """Log of what context was injected for each chat query."""
@@ -762,6 +770,34 @@ async def init_db():
                 )
             except Exception as e:
                 print(f"  ⚠️ files.file_kind index warning: {e}")
+
+            # v9.2.0 Migration — AI Pack Builder context fields
+            # เพิ่ม intent + scope + created_via ใน context_packs (idempotent)
+            # Existing rows: ทุก row ก่อน v9.2.0 = manual created → DEFAULT ค่าครอบคลุม
+            cursor = await db.execute("PRAGMA table_info(context_packs)")
+            pack_cols_v920 = [row[1] for row in await cursor.fetchall()]
+            if "intent" not in pack_cols_v920:
+                await db.execute(
+                    "ALTER TABLE context_packs ADD COLUMN intent TEXT DEFAULT ''"
+                )
+                migrated = True
+                print("  → Added: context_packs.intent (v9.2.0 — AI Pack Builder)")
+            if "scope" not in pack_cols_v920:
+                await db.execute(
+                    "ALTER TABLE context_packs ADD COLUMN scope TEXT DEFAULT ''"
+                )
+                migrated = True
+                print("  → Added: context_packs.scope (v9.2.0 — AI Pack Builder)")
+            if "created_via" not in pack_cols_v920:
+                await db.execute(
+                    "ALTER TABLE context_packs ADD COLUMN created_via TEXT DEFAULT 'manual'"
+                )
+                # Backfill existing rows ให้ explicit (กัน NULL ในการ query analytics)
+                await db.execute(
+                    "UPDATE context_packs SET created_via='manual' WHERE created_via IS NULL"
+                )
+                migrated = True
+                print("  → Added: context_packs.created_via (v9.2.0) + backfilled existing")
 
             # v8.0.0 Migration — LINE Bot Integration (line_users table)
             # Table ถูกสร้างโดย Base.metadata.create_all ก่อนหน้าแล้ว (idempotent)
