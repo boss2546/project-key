@@ -357,26 +357,31 @@ function _handleGoogleLoginFragment() {
   localStorage.setItem('pdb_user', JSON.stringify(state.currentUser));
   // Clean URL (เอา fragment ออก) — ต้องอยู่ที่ /app
   window.history.replaceState({}, document.title, '/app');
+  // v8.1.2 perf: token เพิ่งออกจาก backend (verified ID token + signed JWT) →
+  // เชื่อใจได้ทันที, ไม่ต้อง re-verify ผ่าน /api/auth/me ที่ initAuth ทำต่อ
   _isInitVerified = true;
-  // v8.1.1 — fix B1: probe admin status สำหรับ first-arrival จาก Google
-  // ถ้า admin → redirect ไป /admin (เหมือน flow email login จาก landing modal)
-  // ถ้า user ปกติ → showApp() ตามเดิม (อยู่ /app)
-  // เหตุผล: showApp() บน /app skip admin probe เพื่อกัน loop ตอน admin "← กลับ /app"
-  // แต่ first-time arrival จาก Google ยังไม่เคยไป /admin = ไม่ใช่ loop
+  // v8.1.2 perf: แสดง app shell + loading overlay ทันทีโดยใช้ JWT payload ที่ decode แล้ว
+  // (ก่อนหน้านี้ block ที่ /api/admin/me probe ~200-500ms — ตอนนี้ render ก่อน probe)
+  showToast(getLang() === 'th' ? 'เข้าสู่ระบบสำเร็จ! กำลังโหลด...' : 'Signed in! Loading...', 'success');
+  // v8.1.1 — admin probe สำหรับ first-arrival จาก Google. cache result ใน sessionStorage
+  // เพื่อให้ _revealAdminLinkIfAdmin() ใน app.js ไม่ต้อง fetch ซ้ำ (ประหยัด 1 request)
   fetch('/api/admin/me', { headers: { 'Authorization': 'Bearer ' + jwt } })
    .then(res => {
+    // Cache result regardless of admin/non-admin (positive + negative cache)
+    try {
+     sessionStorage.setItem('pdb_admin_probe', res.ok ? '1' : '0');
+     sessionStorage.setItem('pdb_admin_probe_ts', String(Date.now()));
+    } catch (_) { /* sessionStorage may be unavailable in private mode */ }
     if (res.ok) {
      window.location.href = '/admin';
     } else {
      // Non-admin: render /app ปกติ
      if (showApp()) initAppData();
-     showToast(getLang() === 'th' ? 'เข้าสู่ระบบสำเร็จ!' : 'Signed in successfully', 'success');
     }
    })
    .catch(() => {
-    // Network error → fallback ไป /app ปกติ
+    // Network error → fallback ไป /app ปกติ (ไม่ cache เพราะไม่รู้ผลจริง)
     if (showApp()) initAppData();
-    showToast(getLang() === 'th' ? 'เข้าสู่ระบบสำเร็จ!' : 'Signed in successfully', 'success');
    });
   return true;
  } catch (e) {
@@ -472,6 +477,13 @@ function initAuth() {
  // v7.5.1 — diagnostic logging + 1-retry on 401 to catch transient errors
  console.log('[auth] initAuth — token present:', !!state.authToken, 'user present:', !!state.currentUser);
  if (state.authToken && state.currentUser) {
+ // v8.1.2 perf: ถ้า _isInitVerified=true แล้ว (เพิ่งมาจาก Google fragment handler
+ // ที่ verify ผ่าน backend แล้ว) → ข้าม /api/auth/me retry loop เพื่อประหยัด
+ // 1 round-trip และไม่ duplicate กับ admin probe ที่ทำไปแล้ว
+ if (_isInitVerified) {
+  console.log('[auth] already verified (Google fragment) — skip /api/auth/me');
+  return;
+ }
  // Show app shell immediately (ไม่ให้ user เห็น landing page flash)
  // If showApp triggered a redirect, the destination page will run its
  // own initAuth+verify; bail out here to avoid aborted in-flight fetches.

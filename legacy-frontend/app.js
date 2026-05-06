@@ -312,11 +312,30 @@ function initAppData() {
 }
 
 // v8.2.0 — Show sidebar Admin Panel button เฉพาะ admin (best-effort, hidden by default)
+// v8.1.2 perf: ใช้ sessionStorage cache จาก Google fragment handler (set ใน landing.js)
+// → หลัง Google login ไม่ต้องยิง /api/admin/me ซ้ำ (ประหยัด 1 request, ~200-500ms)
 function _revealAdminLinkIfAdmin() {
  const btn = document.getElementById('btn-admin-panel');
  if (!btn) return;
+ // Try cache first — TTL 60 วินาที (just enough for first /app load after login)
+ try {
+  const cached = sessionStorage.getItem('pdb_admin_probe');
+  const ts = parseInt(sessionStorage.getItem('pdb_admin_probe_ts') || '0', 10);
+  if (cached !== null && (Date.now() - ts) < 60000) {
+   if (cached === '1') btn.classList.remove('hidden');
+   return; // skip network call entirely
+  }
+ } catch (_) { /* sessionStorage unavailable */ }
+ // Cache miss → fetch as before
  authFetch('/api/admin/me', { _background: true })
-  .then(res => { if (res && res.ok) btn.classList.remove('hidden'); })
+  .then(res => {
+   if (res && res.ok) btn.classList.remove('hidden');
+   // Cache for next reveal call
+   try {
+    sessionStorage.setItem('pdb_admin_probe', res && res.ok ? '1' : '0');
+    sessionStorage.setItem('pdb_admin_probe_ts', String(Date.now()));
+   } catch (_) {}
+  })
   .catch(() => { /* fallback: keep hidden */ });
 }
 
