@@ -2172,13 +2172,24 @@ async function loadKnowledge() {
  if (!data.packs.length) {
  html += `<div class="empty-state"><p>${emptyMsg}</p></div>`;
  } else {
- html += data.packs.map(p => `
- <div class="pack-card" data-pack-id="${p.id}">
+ // v9.0.1 — แสดง locked state: opacity drop + 🔒 badge + regenerate disabled
+ html += data.packs.map(p => {
+ const isLocked = !!p.is_locked;
+ const lockedClass = isLocked ? 'is-locked' : '';
+ const lockedBadge = isLocked
+ ? `<span class="pack-locked-badge" title="${getLang() === 'th' ? 'ล็อค (เกินโควต้าแพลน) — อัปเกรดเพื่อปลดล็อค' : 'Locked (exceeds plan limit) — upgrade to unlock'}">🔒</span>`
+ : '';
+ const regenTitle = isLocked
+ ? (getLang() === 'th' ? 'Pack ล็อคอยู่ — regenerate ไม่ได้' : 'Pack locked — cannot regenerate')
+ : 'Regenerate';
+ const regenAttr = isLocked ? 'disabled' : '';
+ return `
+ <div class="pack-card ${lockedClass}" data-pack-id="${p.id}">
  <div class="pack-card-header">
- <div class="pack-card-title"> ${escapeHtml(p.title)}</div>
+ <div class="pack-card-title">${lockedBadge} ${escapeHtml(p.title)}</div>
  <div class="pack-card-actions">
- <button onclick="regeneratePack('${p.id}')" title="Regenerate"></button>
- <button class="btn-danger" onclick="deletePack('${p.id}')" title="Delete"></button>
+ <button onclick="regeneratePack('${p.id}')" title="${regenTitle}" ${regenAttr}>🔄</button>
+ <button class="btn-danger" onclick="deletePack('${p.id}')" title="Delete">🗑</button>
  </div>
  </div>
  <div class="pack-card-summary">${escapeHtml(p.summary_text?.substring(0, 200) || '')}${p.summary_text?.length > 200 ? '...' : ''}</div>
@@ -2186,7 +2197,8 @@ async function loadKnowledge() {
  <span class="badge">${p.type}</span>
  ${p.created_at ? `<span>${formatDate(p.created_at)}</span>` : ''}
  </div>
- </div>`).join('');
+ </div>`;
+ }).join('');
  }
  container.innerHTML = html;
  } catch (e) { container.innerHTML = `<div class="empty-state"><p>${t('knowledge.loadFailed')}</p></div>`; }
@@ -2374,6 +2386,18 @@ async function deletePack(packId) {
 }
 
 async function regeneratePack(packId) {
+ // v9.0.1 — preflight: ถ้า pack ล็อค ไม่เรียก API (เลี่ยง 403 toast ที่ผู้ใช้สับสน)
+ // Backend ยังมี is_locked guard ที่ endpoint อยู่ดี — ฝั่งนี้แค่ early-out ให้ UX ดี
+ const card = document.querySelector(`[data-pack-id="${packId}"]`);
+ if (card && card.classList.contains('is-locked')) {
+ showToast(
+ getLang() === 'th'
+ ? 'Pack นี้ถูกล็อค — อัปเกรดเป็น Starter เพื่อปลดล็อค'
+ : 'This pack is locked — upgrade to Starter to unlock',
+ 'warning'
+ );
+ return;
+ }
  try {
  showToast(getLang() === 'th' ? 'กำลัง regenerate...' : 'Regenerating...', 'info');
  const res = await authFetch(`/api/context-packs/${packId}/regenerate`, { method: 'POST' });
