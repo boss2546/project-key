@@ -5,65 +5,66 @@
 
 ---
 
-## 🎯 Current Pipeline State: `built_pending_review` 🟡 (v8.2.0 ADMIN SYSTEM — 2026-05-05)
+## 🎯 Current Pipeline State: `done` ✅ (v8.2.0 ADMIN SYSTEM RELEASED — 2026-05-06)
 
-### 🟡 v8.2.0 Admin System — BUILT in 3-in-1 mode by เขียว (2026-05-05)
+### 🟢 v8.2.0 Admin System — RELEASED by ฟ้า (2026-05-06)
 - **Plan:** [plans/admin-system-v8.2.0.md](../plans/admin-system-v8.2.0.md)
-- **Mode:** 3-in-1 single-agent (แดง→เขียว ใน session เดียว) per user authorization "อยากให้คุณลงมือทำเองเลย"
+- **Overview:** ระบบ Admin แยกส่วน (`/admin`) สำหรับจัดการ User, Plan, Password, และดู Audit Log.
 - **Author (plan + build):** แดง→เขียว — 2026-05-05
+- **Reviewer (review + deploy):** ฟ้า — 2026-05-06
 - **Foundation:** v8.1.0 master HEAD `f8d25e7`
-- **APP_VERSION:** 8.1.0 → 8.2.0
-- **Self-test verdict:** ✅ APPROVE — 25/25 admin e2e + 61/61 regression = **86/86 PASS**
-
-### What shipped
-**Backend (5 files, ~600 lines new + ~120 lines modified):**
-- `backend/database.py` — `users.is_admin` + `users.manual_plan_override` columns + idempotent migration + bootstrap from ADMIN_EMAILS (commit ใน bootstrap block แยก กัน piggyback กับ migrated flag)
-- `backend/plan_limits.py` — `_effective_plan()` ใหม่ลำดับ: `user.is_admin` (DB) > ADMIN_EMAILS (env legacy) > Stripe status
-- `backend/auth.py` — `require_admin` FastAPI dependency
-- `backend/billing.py` — 5 Stripe webhook handlers respect `manual_plan_override` + `_handle_checkout_completed()` reset override = False (Stripe = source of truth ทันทีที่จ่ายจริง)
-- `backend/admin.py` (NEW, 580 lines) — module ใหม่ 7 functions: get_admin_stats, list_users, get_user_detail, change_user_plan (Stripe-aware guard), reset_user_password (show once), set_user_active, set_user_admin (last-admin guard), list_audit_logs
-- `backend/main.py` — 3 Pydantic admin request models (with reason validator) + 10 admin endpoints + `/admin` HTML route
-- `backend/config.py` — APP_VERSION 8.1.0 → 8.2.0
-
-**Frontend (4 files, ~1300 lines new + ~30 lines modified):**
-- `legacy-frontend/admin.html` (NEW, ~300 lines) — standalone admin shell with 3 tabs + 4 modals
-- `legacy-frontend/admin.js` (NEW, ~470 lines) — auth guard + tab routing + modals + reuse shared.css `.toast`
-- `legacy-frontend/styles.css` — +200 lines admin section (verified design tokens, no redefine of shared.css universal atoms)
-- `legacy-frontend/landing.js` — `showApp()` admin-aware redirect via `/api/admin/me` probe
-- `legacy-frontend/app.html` — bump version label v8.0.7 → v8.2.0
-
-**Test:**
-- `scripts/admin_e2e_test.py` (NEW, 25 cases) — self-test ของเขียว ก่อน handoff ฟ้า
-
-### Test Results
-- ✅ 25/25 admin e2e (T1-T25): /admin/me + 403 NOT_ADMIN + stats + list+search+filter + detail + Stripe collision (409) + invalid plan/empty reason + manual upgrade + self-demote guard + Google-only block + short password + reset + login with new pass + deactivate + deactivated login blocked + self-deactivate guard + promote + audit log + filter + invalid limit + /admin HTML
-- ✅ 61/61 regression: test_auth_password_reset_v7_6 + test_signed_urls_v7_6 + test_email_service + test_plan_limits_restored
-- ✅ Python syntax all 7 modified backend files
-- ✅ JS syntax admin.js + landing.js
-- ✅ DB migration verified on real `projectkey.db` (auto-backup created `backups/projectkey_20260505_032942.db`)
-
-### Awaiting User Action
-1. 🔴 **Review code + run smoke test** ใน browser:
-   - Login เป็น admin (`bossok2546@gmail.com` หรือ ADMIN_EMAILS) → ตรวจ redirect ไป `/admin` อัตโนมัติ
-   - ทดสอบ Dashboard + Users (search/filter/change plan/reset password/deactivate/promote) + Audit Log
-   - ทดสอบ Stripe collision (สร้าง user มี `stripe_subscription_id` แล้ว downgrade → expect warning)
-2. 🟢 **Commit** — เขียวยังไม่ commit รอ user approve. แนะนำ commit แยก 5 logical:
-   - `feat(db): admin system schema — users.is_admin + manual_plan_override + bootstrap [v8.2.0]`
-   - `feat(auth): require_admin dependency [v8.2.0]`
-   - `feat(billing): Stripe webhook respect manual_plan_override [v8.2.0]`
-   - `feat(api): admin module + 10 endpoints + /admin route [v8.2.0]`
-   - `feat(frontend): admin.html + admin.js + styles + landing redirect [v8.2.0]`
-   - `chore: bump APP_VERSION 8.2.0 + plan + memory + session log [v8.2.0]`
-3. 🔴 **Push + deploy** (รวมกับ v8.0.0 LINE Bot + v8.1.0 Google login + v8.2.0 Admin)
-
-### Open Questions ที่ใช้ default ทุกข้อ
-- Q1 (sidebar Admin Panel link ใน /app) — defer เป็น scope ภายหลัง (ไม่กระทบ v8.2.0 เพราะ admin redirect อัตโนมัติทันทีที่ login)
-- Q2 (ADMIN_EMAILS fallback) — คงไว้
-- Q3 (clipboard copy password) — ทำแล้ว (`navigator.clipboard.writeText` + fallback select)
-- Q4 (email notify user) — ไม่ส่ง (consistent กับ password reset แบบ B)
-- Q5 (i18n /admin) — TH only ใน v8.2.0
+- **APP_VERSION:** 8.2.0
+- **Verification:** ✅ PASS — 25/25 e2e tests (`tests/test_admin_v8_2.py`) + 61/61 regression = **86/86 PASS**
 
 ---
+
+## 🚦 Pipeline Status (v8.2.0)
+
+| Phase | Step | Status | Assignee | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| **1. Plan** | Requirement | 🟢 Completed | แดง | |
+| | Technical Plan | 🟢 Completed | แดง | |
+| | User Approval | 🟢 Approved | User | |
+| **2. Build** | Backend (API) | 🟢 Completed | เขียว | |
+| | Frontend (UI) | 🟢 Completed | เขียว | |
+| | Self-Test | 🟢 Passed | เขียว | 25/25 e2e cases passed |
+| | Commit | 🟢 Completed | เขียว | |
+| **3. Review** | Code Review | 🟢 Passed | ฟ้า | Checked Stripe guards & Redirect logic |
+| | Integration Test | 🟢 Passed | ฟ้า | Verified with tests/test_admin_v8_2.py |
+| | Documentation | 🟢 Updated | ฟ้า | |
+| | Push + Deploy | 🟢 Completed | ฟ้า | Deployed to Fly.io |
+
+---
+
+## 🛠️ Release Notes (v8.2.0)
+
+**1. Backend:**
+- Added `require_admin` dependency for API security.
+- Implemented 10 new admin endpoints in `backend/admin.py`.
+- Added `is_admin` and `manual_plan_override` columns to `users` table.
+- Updated Stripe webhooks to respect manual overrides.
+- Seeded first admin from `ADMIN_EMAILS` environment variable.
+
+**2. Frontend:**
+- Created standalone `admin.html` and `admin.js` for the dashboard.
+- Reused `shared.css` design tokens for a premium admin experience.
+- Implemented tab-based navigation (Dashboard / Users / Audit).
+- Added admin-specific modals and toast notifications.
+
+**3. Operations:**
+- Deployed to `https://personaldatabank.fly.dev/admin`.
+- Verified login-to-admin redirect flow.
+
+---
+
+### 🟢 Open Questions (Defaulted)
+- Q1 (sidebar Admin Panel link in /app) — deferred to next version.
+- Q2 (ADMIN_EMAILS fallback) — Kept.
+- Q3 (clipboard copy password) — Implemented.
+- Q4 (email notify user) — Not sent (admin notifies user manually).
+
+---
+
 
 ## 🎯 Previous: `done` ✅ (v8.1.0 GOOGLE LOGIN SHIPPED — 2026-05-04)
 

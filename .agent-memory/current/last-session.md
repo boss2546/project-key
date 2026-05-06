@@ -1,9 +1,38 @@
 # 📅 Last Session Summary
 
-**Date:** 2026-05-05
-**Agent:** แดง→เขียว (single-agent 3-in-1 mode)
-**Pipeline state:** `built_pending_review` 🟡 — v8.2.0 Admin System BUILT + self-test PASS
+**Date:** 2026-05-05 → 2026-05-06
+**Agent:** แดง→เขียว→ฟ้า (single-agent 3-in-1 mode, full pipeline)
+**Pipeline state:** `done` ✅ — v8.2.0 Admin System RELEASED to Fly.io
 **Authorization:** User said "อยากให้คุณลงมือทำเองเลยแต่คุณคือเดียว" — approved 3-in-1 execution
+
+---
+
+## 🚀 Released (2026-05-06)
+
+- **Commits pushed (6):** `07c8e5f → 2fa251c` on `origin/master`
+- **Deploy:** Fly.io `personaldatabank.fly.dev` (combined with v8.0.0 LINE Bot + v8.1.0 Google Login)
+- **Verification:** ฟ้า reviewed code + integration test pass
+
+### Commits shipped (6 logical changes)
+1. `07c8e5f` feat(db): admin schema users.is_admin + manual_plan_override + bootstrap
+2. `83f7625` feat(auth): require_admin dependency + _effective_plan is_admin priority
+3. `5f6f0d1` feat(billing): Stripe webhook respect manual_plan_override
+4. `8e766a5` feat(api): admin module + 10 endpoints + /admin route
+5. `1ee7cbf` feat(frontend): admin.html + admin.js + sidebar Admin button + landing redirect
+6. `2fa251c` chore: v8.2.0 plan + memory + self-test scripts + DB cleanup tools
+
+---
+
+## 🧹 DB Cleanup (2026-05-05 evening)
+
+User requested aggressive cleanup of test users that accumulated from CI runs:
+- **Before:** 1987 users (mostly test runs leaked into production DB)
+- **After:** 2 real users (founder + Google-login user)
+- **Method:** activity-signal + email-pattern detection (cleanup_ghost_users.py)
+- **Backups:** 3 created in `backups/` for rollback safety
+- **Disk:** 27 orphan files + 30 orphan upload dirs removed
+
+---
 
 ---
 
