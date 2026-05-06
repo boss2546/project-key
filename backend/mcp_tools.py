@@ -126,11 +126,14 @@ TOOL_REGISTRY = {
     # ─── ✏️ CREATE & EDIT (5) ───
     "create_context_pack": {
         "name": "create_context_pack",
-        "description": "Create a new context pack from selected files. Types: profile, study, work, project.",
+        "description": "Create a new context pack from selected files and/or collections. Types: profile, study, work, project. Must provide at least one of file_ids or cluster_ids.",
         "params": [
             {"name": "title", "type": "string", "required": True},
             {"name": "type", "type": "string", "required": True},
-            {"name": "file_ids", "type": "array", "required": True},
+            # v9.0.1 — file_ids ปลด required (ใช้ cluster_ids อย่างเดียวก็สร้างได้ ตามที่ web API รองรับ)
+            {"name": "file_ids", "type": "array", "required": False},
+            # v9.0.1 — เพิ่ม cluster_ids parity กับ web POST /api/context-packs (เดิม MCP ตัดทิ้ง)
+            {"name": "cluster_ids", "type": "array", "required": False},
         ],
         "category": "edit",
         "annotations": {"title": "Create Pack", "readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False},
@@ -978,10 +981,15 @@ async def _tool_explore_graph(db: AsyncSession, user_id: str, node_id: str = Non
 # ═══════════════════════════════════════════
 
 async def _tool_create_context_pack(db: AsyncSession, user_id: str, params: dict) -> dict:
-    """Create a new context pack."""
+    """Create a new context pack.
+
+    v9.0.1 — เพิ่ม cluster_ids parity กับ web POST /api/context-packs
+    (เดิม MCP รับแค่ file_ids ทั้งที่ create_pack รองรับ cluster_ids ด้วย)
+    """
     title = params.get("title")
     pack_type = params.get("type")
-    file_ids = params.get("file_ids", [])
+    file_ids = params.get("file_ids", []) or []
+    cluster_ids = params.get("cluster_ids", []) or []
 
     if not title:
         raise ValueError("title is required")
@@ -989,10 +997,11 @@ async def _tool_create_context_pack(db: AsyncSession, user_id: str, params: dict
         raise ValueError("type is required")
     if pack_type not in {"profile", "study", "work", "project"}:
         raise ValueError("type must be one of: profile, study, work, project")
-    if not file_ids:
-        raise ValueError("file_ids must contain at least one file ID")
+    # v9.0.1 — ต้องมีอย่างน้อย 1 list ที่ไม่ว่าง (matches web API validation ใน main.py:1849)
+    if not file_ids and not cluster_ids:
+        raise ValueError("Must provide file_ids or cluster_ids (at least one non-empty list)")
 
-    pack = await create_pack(db, user_id, pack_type, title, file_ids, [])
+    pack = await create_pack(db, user_id, pack_type, title, file_ids, cluster_ids)
 
     return {
         "status": "created",
@@ -1000,6 +1009,7 @@ async def _tool_create_context_pack(db: AsyncSession, user_id: str, params: dict
         "title": title,
         "type": pack_type,
         "file_count": len(file_ids),
+        "cluster_count": len(cluster_ids),
     }
 
 
