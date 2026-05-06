@@ -2473,6 +2473,160 @@
   color: var(--text-muted);
 }
 
+/* v9.2.0 — AI Pack Builder modal + 4 view states */
+.ai-builder-modal {
+  width: 90vw;
+  max-width: 720px;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+}
+.ai-builder-modal .modal-body {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 200px;
+}
+.ai-builder-state.hidden { display: none; }
+
+/* Loading state */
+.ai-loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  gap: 16px;
+}
+.ai-loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--surface-2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.ai-loading-text {
+  color: var(--text-secondary);
+  font-size: 14px;
+  text-align: center;
+}
+
+/* Clarify state */
+.ai-clarify-question {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 16px 0;
+  color: var(--text-primary);
+}
+.ai-clarify-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.ai-clarify-option {
+  display: flex;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  background: var(--surface-1);
+}
+.ai-clarify-option:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
+}
+.ai-clarify-option input[type="radio"] {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.ai-clarify-option:has(input[type="radio"]:checked) {
+  border-color: var(--accent);
+  background: var(--accent-glow);
+}
+.ai-clarify-option-body { flex: 1; }
+.ai-clarify-option-title {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 4px;
+  color: var(--text-primary);
+}
+.ai-clarify-option-summary {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.ai-clarify-or {
+  text-align: center;
+  margin: 16px 0;
+  position: relative;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.ai-clarify-or::before, .ai-clarify-or::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 40%;
+  height: 1px;
+  background: var(--border);
+}
+.ai-clarify-or::before { left: 0; }
+.ai-clarify-or::after { right: 0; }
+
+/* Preview state */
+.ai-preview-intro { margin-bottom: 12px; font-size: 13px; }
+.ai-source-checkbox-list {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  max-height: 180px;
+  overflow-y: auto;
+  background: var(--surface-1);
+}
+.ai-source-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.ai-source-checkbox:hover { background: var(--bg-hover); }
+.ai-source-checkbox input[type="checkbox"] { flex-shrink: 0; }
+.ai-source-kind { font-size: 14px; }
+.ai-source-title {
+  font-size: 13px;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ai-summary-textarea {
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+/* Footer state-dependent buttons */
+.ai-builder-footer {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.ai-builder-footer .btn.hidden { display: none; }
+
+@media (max-width: 600px) {
+  .ai-builder-modal { width: 96vw; max-width: 96vw; }
+  .ai-clarify-option { padding: 10px; }
+  .ai-clarify-option-summary { font-size: 12px; }
+}
+
 /* v9.0.1 — Locked pack visual state (downgrade-protection UX) */
 .pack-card.is-locked {
   opacity: 0.65;

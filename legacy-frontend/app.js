@@ -2278,11 +2278,16 @@ async function loadKnowledge() {
  const res = await authFetch('/api/context-packs');
  const data = await res.json();
  const createBtnLabel = getLang() === 'th' ? '+ สร้าง Pack' : '+ Create Pack';
+ // v9.2.0 — AI Pack Builder entry point
+ const aiBtnLabel = getLang() === 'th' ? '🪄 ให้ AI สร้างให้' : '🪄 AI Build for me';
  const emptyMsg = getLang() === 'th' ? 'ยังไม่มี Context Pack — สร้างเพื่อจัดกลุ่มข้อมูลให้ AI' : 'No context packs yet — create one to bundle data for AI';
 
  let html = `<div class="packs-header">
  <span>${data.count || 0} pack${data.count !== 1 ? 's' : ''}</span>
- <button class="btn btn-primary" onclick="openCreatePackModal()">${createBtnLabel}</button>
+ <div class="packs-header-actions" style="display:flex;gap:8px">
+  <button class="btn btn-outline" onclick="openAIPackBuilder()">${aiBtnLabel}</button>
+  <button class="btn btn-primary" onclick="openCreatePackModal()">${createBtnLabel}</button>
+ </div>
  </div>`;
 
  if (!data.packs.length) {
@@ -2539,6 +2544,281 @@ document.getElementById('pack-create-btn')?.addEventListener('click', submitCrea
 document.getElementById('pack-modal-overlay')?.addEventListener('click', (e) => {
  if (e.target === e.currentTarget) closePackModal();
 });
+
+// ═══════════════════════════════════════════
+// v9.2.0 — AI PACK BUILDER (clarify → propose → confirm)
+// ═══════════════════════════════════════════
+
+// State สำหรับ flow ปัจจุบัน — เก็บ session_id + draft_id ระหว่าง view transitions
+let _aiBuilderState = {
+ sessionId: null,
+ draftId: null,
+ lastPrompt: '',  // สำหรับ retry button (กลับไป state="input" แสดง prompt เดิม)
+};
+
+function _aiSwitchView(stateName) {
+ // hide ทุก view + แสดงเฉพาะที่ระบุ
+ ['input', 'clarify', 'loading', 'preview'].forEach(s => {
+  document.getElementById(`ai-state-${s}`)?.classList.toggle('hidden', s !== stateName);
+ });
+ // toggle footer buttons ตาม state
+ const visibilityMap = {
+  input:   { 'ai-builder-submit-prompt': true,  'ai-clarify-skip': false, 'ai-clarify-submit': false, 'ai-preview-confirm': false, 'ai-preview-retry': false, 'ai-builder-back': false },
+  clarify: { 'ai-builder-submit-prompt': false, 'ai-clarify-skip': true,  'ai-clarify-submit': true,  'ai-preview-confirm': false, 'ai-preview-retry': false, 'ai-builder-back': true  },
+  loading: { 'ai-builder-submit-prompt': false, 'ai-clarify-skip': false, 'ai-clarify-submit': false, 'ai-preview-confirm': false, 'ai-preview-retry': false, 'ai-builder-back': false },
+  preview: { 'ai-builder-submit-prompt': false, 'ai-clarify-skip': false, 'ai-clarify-submit': false, 'ai-preview-confirm': true,  'ai-preview-retry': true,  'ai-builder-back': false },
+ };
+ const map = visibilityMap[stateName] || {};
+ Object.entries(map).forEach(([id, show]) => {
+  const el = document.getElementById(id);
+  if (el) el.classList.toggle('hidden', !show);
+ });
+}
+
+function openAIPackBuilder() {
+ _aiBuilderState = { sessionId: null, draftId: null, lastPrompt: '' };
+ document.getElementById('ai-builder-prompt').value = '';
+ document.getElementById('ai-clarify-freetext').value = '';
+ _aiSwitchView('input');
+ document.getElementById('ai-builder-modal-overlay').classList.remove('hidden');
+}
+
+async function closeAIPackBuilder() {
+ // ถ้ามี draft ค้าง → discard ผ่าน API (cleanup memory)
+ if (_aiBuilderState.draftId) {
+  try {
+   await authFetch(`/api/context-packs/ai-build/drafts/${_aiBuilderState.draftId}`, { method: 'DELETE' });
+  } catch (e) { /* silent */ }
+ }
+ _aiBuilderState = { sessionId: null, draftId: null, lastPrompt: '' };
+ document.getElementById('ai-builder-modal-overlay').classList.add('hidden');
+}
+
+async function submitAIBuilderPrompt() {
+ const prompt = document.getElementById('ai-builder-prompt').value.trim();
+ if (prompt.length < 10) {
+  showToast(getLang() === 'th' ? 'พิมพ์อธิบายอย่างน้อย 10 ตัวอักษร' : 'Describe with at least 10 characters', 'error');
+  return;
+ }
+ if (prompt.length > 500) {
+  showToast(getLang() === 'th' ? 'ข้อความยาวเกิน 500 ตัวอักษร' : 'Text exceeds 500 characters', 'error');
+  return;
+ }
+ _aiBuilderState.lastPrompt = prompt;
+ _aiSwitchView('loading');
+ document.getElementById('ai-loading-text').textContent =
+  getLang() === 'th' ? 'AI กำลังวิเคราะห์... อาจใช้เวลา 5-15 วินาที' : 'AI analyzing... may take 5-15s';
+
+ try {
+  const res = await authFetch('/api/context-packs/ai-build/clarify', {
+   method: 'POST',
+   headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({ prompt }),
+  });
+  if (res.status === 403) {
+   const err = await res.json();
+   showUpgradeModal(err.detail || 'Quota reached');
+   _aiSwitchView('input');
+   return;
+  }
+  if (!res.ok) {
+   const err = await res.json();
+   showToast(`Error: ${err.detail || 'unknown'}`, 'error');
+   _aiSwitchView('input');
+   return;
+  }
+  const data = await res.json();
+  _aiBuilderState.sessionId = data.session_id;
+  if (data.skip_clarify) {
+   // AI เข้าใจ prompt ดีพอแล้ว — ข้ามไป /propose ทันที
+   showToast(getLang() === 'th' ? 'AI เข้าใจ prompt ของคุณแล้ว — กำลังสร้าง draft...' : 'AI understood your prompt — building draft...', 'info');
+   await _aiCallPropose({ skipped: true });
+  } else {
+   // Render clarify view
+   _aiRenderClarify(data);
+   _aiSwitchView('clarify');
+  }
+ } catch (e) {
+  showToast(t('toast.error'), 'error');
+  _aiSwitchView('input');
+ }
+}
+
+function _aiRenderClarify(data) {
+ document.getElementById('ai-clarify-question').textContent = data.question || '';
+ const list = document.getElementById('ai-clarify-options');
+ list.innerHTML = (data.options || []).map(opt => `
+  <label class="ai-clarify-option" data-option-id="${opt.id}">
+   <input type="radio" name="ai-clarify-radio" value="${opt.id}">
+   <div class="ai-clarify-option-body">
+    <div class="ai-clarify-option-title">${escapeHtml(opt.title || '')}</div>
+    <div class="ai-clarify-option-summary">${escapeHtml(opt.summary || '')}</div>
+   </div>
+  </label>
+ `).join('');
+ const ftEl = document.getElementById('ai-clarify-freetext');
+ ftEl.value = '';
+ if (data.freetext_hint) ftEl.placeholder = data.freetext_hint;
+}
+
+async function submitClarification() {
+ const radio = document.querySelector('input[name="ai-clarify-radio"]:checked');
+ const freetext = document.getElementById('ai-clarify-freetext').value.trim();
+ let clarification;
+ if (freetext) {
+  clarification = { freetext };
+ } else if (radio) {
+  clarification = { selected_option_id: parseInt(radio.value, 10) };
+ } else {
+  showToast(getLang() === 'th' ? 'เลือกตัวเลือกหรือพิมพ์อธิบายเพิ่ม' : 'Select an option or type a description', 'error');
+  return;
+ }
+ await _aiCallPropose(clarification);
+}
+
+async function skipClarify() {
+ await _aiCallPropose({ skipped: true });
+}
+
+async function _aiCallPropose(clarification) {
+ _aiSwitchView('loading');
+ document.getElementById('ai-loading-text').textContent =
+  getLang() === 'th' ? 'AI กำลังเลือก source + เขียนสรุป...' : 'AI selecting sources + writing summary...';
+ try {
+  const res = await authFetch('/api/context-packs/ai-build/propose', {
+   method: 'POST',
+   headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({
+    session_id: _aiBuilderState.sessionId,
+    clarification,
+   }),
+  });
+  if (res.status === 403) {
+   const err = await res.json();
+   showUpgradeModal(err.detail || 'Quota reached');
+   _aiSwitchView('input');
+   return;
+  }
+  if (res.status === 404) {
+   showToast(getLang() === 'th' ? 'Session หมดอายุ — เริ่มใหม่' : 'Session expired — start over', 'error');
+   _aiSwitchView('input');
+   return;
+  }
+  if (!res.ok) {
+   const err = await res.json();
+   showToast(`Error: ${err.detail || 'unknown'}`, 'error');
+   _aiSwitchView('input');
+   return;
+  }
+  const draft = await res.json();
+  _aiBuilderState.draftId = draft.draft_id;
+  _aiRenderPreview(draft);
+  _aiSwitchView('preview');
+ } catch (e) {
+  showToast(t('toast.error'), 'error');
+  _aiSwitchView('input');
+ }
+}
+
+function _aiRenderPreview(draft) {
+ document.getElementById('ai-preview-title').value = draft.title || '';
+ document.getElementById('ai-preview-type').value = draft.type || 'project';
+ document.getElementById('ai-preview-intent').value = draft.intent || '';
+ document.getElementById('ai-preview-scope').value = draft.scope || '';
+ document.getElementById('ai-preview-summary').value = draft.summary_text || '';
+ const list = document.getElementById('ai-preview-sources');
+ list.innerHTML = (draft.sources || []).map(s => `
+  <label class="ai-source-checkbox">
+   <input type="checkbox" value="${escapeHtml(s.id)}" ${s.included ? 'checked' : ''}>
+   <span class="ai-source-kind">${s.kind === 'cluster' ? '📁' : '📄'}</span>
+   <span class="ai-source-title">${escapeHtml(s.title || s.id)}</span>
+  </label>
+ `).join('');
+}
+
+async function confirmAIDraft() {
+ if (!_aiBuilderState.draftId) return;
+ const includedIds = Array.from(document.querySelectorAll('#ai-preview-sources input[type=checkbox]:checked')).map(cb => cb.value);
+ if (!includedIds.length) {
+  showToast(getLang() === 'th' ? 'เลือก source อย่างน้อย 1 อัน' : 'Select at least 1 source', 'error');
+  return;
+ }
+ const edits = {
+  title: document.getElementById('ai-preview-title').value.trim(),
+  type: document.getElementById('ai-preview-type').value,
+  intent: document.getElementById('ai-preview-intent').value.trim(),
+  scope: document.getElementById('ai-preview-scope').value.trim(),
+  summary_text: document.getElementById('ai-preview-summary').value.trim(),
+  included_source_ids: includedIds,
+ };
+ if (!edits.title) {
+  showToast(getLang() === 'th' ? 'กรุณาตั้งชื่อ Pack' : 'Please enter a pack name', 'error');
+  return;
+ }
+ const btn = document.getElementById('ai-preview-confirm');
+ btn.disabled = true;
+ try {
+  const res = await authFetch('/api/context-packs/ai-build/confirm', {
+   method: 'POST',
+   headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({ draft_id: _aiBuilderState.draftId, edits }),
+  });
+  if (res.status === 403) {
+   const err = await res.json();
+   showUpgradeModal(err.detail || 'Pack limit reached');
+   btn.disabled = false;
+   return;
+  }
+  if (!res.ok) {
+   const err = await res.json();
+   showToast(`Error: ${err.detail || 'unknown'}`, 'error');
+   btn.disabled = false;
+   return;
+  }
+  // Success — pack saved
+  const pack = await res.json();
+  showToast(getLang() === 'th' ? `สร้าง Pack "${pack.title}" สำเร็จ!` : `Pack "${pack.title}" created!`, 'success');
+  _aiBuilderState.draftId = null;  // กัน DELETE ตอน close
+  document.getElementById('ai-builder-modal-overlay').classList.add('hidden');
+  loadKnowledge();
+  loadStats();
+  loadUsageInfo();
+ } catch (e) {
+  showToast(t('toast.error'), 'error');
+ }
+ btn.disabled = false;
+}
+
+async function retryAIDraft() {
+ // Discard draft + กลับไป state="input" — prompt เดิมยังอยู่
+ if (_aiBuilderState.draftId) {
+  try { await authFetch(`/api/context-packs/ai-build/drafts/${_aiBuilderState.draftId}`, { method: 'DELETE' }); }
+  catch (e) { /* silent */ }
+  _aiBuilderState.draftId = null;
+ }
+ _aiBuilderState.sessionId = null;
+ document.getElementById('ai-builder-prompt').value = _aiBuilderState.lastPrompt;
+ _aiSwitchView('input');
+}
+
+function backFromClarify() {
+ // กลับจาก clarify state → input
+ _aiBuilderState.sessionId = null;
+ _aiSwitchView('input');
+}
+
+// AI Builder modal event listeners
+document.getElementById('ai-builder-close')?.addEventListener('click', closeAIPackBuilder);
+document.getElementById('ai-builder-cancel')?.addEventListener('click', closeAIPackBuilder);
+document.getElementById('ai-builder-modal-overlay')?.addEventListener('click', (e) => {
+ if (e.target === e.currentTarget) closeAIPackBuilder();
+});
+document.getElementById('ai-builder-submit-prompt')?.addEventListener('click', submitAIBuilderPrompt);
+document.getElementById('ai-clarify-submit')?.addEventListener('click', submitClarification);
+document.getElementById('ai-clarify-skip')?.addEventListener('click', skipClarify);
+document.getElementById('ai-builder-back')?.addEventListener('click', backFromClarify);
+document.getElementById('ai-preview-confirm')?.addEventListener('click', confirmAIDraft);
+document.getElementById('ai-preview-retry')?.addEventListener('click', retryAIDraft);
 
 // ═══════════════════════════════════════════
 // GRAPH (Obsidian-style)

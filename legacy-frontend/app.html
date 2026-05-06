@@ -154,7 +154,7 @@
  </div>
  <div class="logo-text-area">
  <span class="logo-text">Personal Data Bank</span>
- <span class="logo-version">v9.1.0</span>
+ <span class="logo-version">v9.2.0</span>
  </div>
  </div>
  </div>
@@ -499,6 +499,95 @@
  <button class="btn btn-primary" id="pack-create-btn">Create Pack</button>
  </div>
  </div>
+ </div>
+
+ <!-- v9.2.0 — AI Pack Builder Modal (4 view states: input → clarify → loading → preview) -->
+ <div class="modal-overlay hidden" id="ai-builder-modal-overlay">
+  <div class="modal ai-builder-modal">
+   <div class="modal-header">
+    <h2 id="ai-builder-title">🪄 <span data-i18n="aiBuilder.title">ให้ AI สร้าง Pack ให้</span></h2>
+    <button class="btn-close" id="ai-builder-close" type="button">&times;</button>
+   </div>
+
+   <!-- View 1: Input prompt -->
+   <div class="modal-body ai-builder-state ai-state-input" id="ai-state-input">
+    <p class="text-muted" data-i18n="aiBuilder.inputDesc">บอก AI ว่าอยากได้ pack เกี่ยวกับอะไร — AI จะช่วยเลือกไฟล์ + เขียนสรุปให้</p>
+    <div class="form-group">
+     <label data-i18n="aiBuilder.promptLabel">บรรยายสิ่งที่อยากได้</label>
+     <textarea id="ai-builder-prompt" class="form-input" rows="4"
+       placeholder="เช่น 'อยากได้ pack เกี่ยวกับการเรียน term นี้' หรือ 'รวมไฟล์ proposal ทั้งหมดที่เกี่ยวกับโปรเจกต์ X'"></textarea>
+     <p class="form-hint text-muted" style="font-size:11px;margin-top:4px">
+      <span data-i18n="aiBuilder.tipLabel">เคล็ดลับ:</span> <span data-i18n="aiBuilder.tipText">ระบุไฟล์/หัวข้อ + ขอบเขต + จุดเน้น → AI จะข้ามคำถาม clarify ไปสร้างให้เลย</span>
+     </p>
+    </div>
+   </div>
+
+   <!-- View 2: Clarify (radio options + freetext + skip) -->
+   <div class="modal-body ai-builder-state ai-state-clarify hidden" id="ai-state-clarify">
+    <h3 class="ai-clarify-question" id="ai-clarify-question">—</h3>
+    <div class="ai-clarify-options" id="ai-clarify-options"><!-- rendered by JS --></div>
+    <div class="ai-clarify-or"><span data-i18n="aiBuilder.or">หรือ</span></div>
+    <div class="form-group">
+     <label data-i18n="aiBuilder.freetextLabel">พิมพ์อธิบายเพิ่ม (optional)</label>
+     <textarea id="ai-clarify-freetext" class="form-input" rows="3" placeholder=""></textarea>
+    </div>
+   </div>
+
+   <!-- View 3: Loading -->
+   <div class="modal-body ai-builder-state ai-state-loading hidden" id="ai-state-loading">
+    <div class="ai-loading-state">
+     <div class="ai-loading-spinner"></div>
+     <p class="ai-loading-text" id="ai-loading-text" data-i18n="aiBuilder.loading">AI กำลังคิด… อาจใช้เวลาสักครู่</p>
+    </div>
+   </div>
+
+   <!-- View 4: Preview draft -->
+   <div class="modal-body ai-builder-state ai-state-preview hidden" id="ai-state-preview">
+    <p class="ai-preview-intro text-muted" data-i18n="aiBuilder.previewIntro">นี่คือสิ่งที่ AI จัดให้ — แก้ไขได้ก่อนบันทึก</p>
+    <div class="form-group">
+     <label data-i18n="aiBuilder.titleLabel">ชื่อ Pack</label>
+     <input type="text" id="ai-preview-title" class="form-input">
+    </div>
+    <div class="form-row" style="display:flex;gap:8px">
+     <div class="form-group" style="flex:1">
+      <label data-i18n="aiBuilder.typeLabel">ประเภท</label>
+      <select id="ai-preview-type" class="form-input">
+       <option value="profile">Profile</option>
+       <option value="study">Study</option>
+       <option value="work">Work</option>
+       <option value="project">Project</option>
+      </select>
+     </div>
+    </div>
+    <div class="form-group">
+     <label data-i18n="aiBuilder.intentLabel">บริบท: ใช้สำหรับ</label>
+     <textarea id="ai-preview-intent" class="form-input" rows="2"></textarea>
+    </div>
+    <div class="form-group">
+     <label data-i18n="aiBuilder.scopeLabel">บริบท: ครอบคลุม</label>
+     <textarea id="ai-preview-scope" class="form-input" rows="2"></textarea>
+    </div>
+    <div class="form-group">
+     <label data-i18n="aiBuilder.sourcesLabel">ไฟล์/Collection ที่ใช้ (uncheck เพื่อตัดออก)</label>
+     <div class="ai-source-checkbox-list" id="ai-preview-sources"><!-- rendered by JS --></div>
+    </div>
+    <div class="form-group">
+     <label data-i18n="aiBuilder.summaryLabel">สรุปเนื้อหา (แก้ได้)</label>
+     <textarea id="ai-preview-summary" class="form-input ai-summary-textarea" rows="8"></textarea>
+    </div>
+   </div>
+
+   <!-- Footer — buttons เปลี่ยนตาม state -->
+   <div class="modal-footer ai-builder-footer">
+    <button class="btn btn-outline" id="ai-builder-cancel" type="button" data-i18n="aiBuilder.cancel">ยกเลิก</button>
+    <button class="btn btn-ghost hidden" id="ai-builder-back" type="button" data-i18n="aiBuilder.back">← ย้อนกลับ</button>
+    <button class="btn btn-ghost hidden" id="ai-clarify-skip" type="button" data-i18n="aiBuilder.skip">ข้าม — ให้ AI ตัดสินใจเอง</button>
+    <button class="btn btn-primary" id="ai-builder-submit-prompt" type="button" data-i18n="aiBuilder.submit">ส่งให้ AI</button>
+    <button class="btn btn-primary hidden" id="ai-clarify-submit" type="button" data-i18n="aiBuilder.confirmClarify">ยืนยันตัวเลือก</button>
+    <button class="btn btn-primary hidden" id="ai-preview-confirm" type="button" data-i18n="aiBuilder.savePack">✓ บันทึก Pack</button>
+    <button class="btn btn-ghost hidden" id="ai-preview-retry" type="button" data-i18n="aiBuilder.tryAgain">🔄 ลองใหม่</button>
+   </div>
+  </div>
  </div>
  </section>
 
