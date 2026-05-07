@@ -2,6 +2,7 @@
 import os
 import re
 import json
+import asyncio
 import logging
 from datetime import datetime
 
@@ -449,6 +450,27 @@ def _make_skip(code: str, filename: str, **fmt_args) -> dict:
     }
 
 
+# v9.2.0 — Per-user quota lock for parallel uploads.
+# Frontend may POST /api/upload concurrently (one file per request) to speed up
+# multi-file uploads. Without this lock, two parallel requests for the same
+# user could each read live_count=N and both pass `N < limit` — blowing past
+# the file_limit. The lock serializes only the atomic
+# "count + reserve slot via placeholder INSERT" critical section. Slow work
+# (extract_text, ai_ingest) runs outside the lock so parallel uploads from the
+# same user remain genuinely parallel at the CPU/IO layer.
+_USER_QUOTA_LOCKS: dict[str, asyncio.Lock] = {}
+_USER_QUOTA_LOCKS_GUARD = asyncio.Lock()
+
+
+async def _get_user_quota_lock(user_id: str) -> asyncio.Lock:
+    async with _USER_QUOTA_LOCKS_GUARD:
+        lock = _USER_QUOTA_LOCKS.get(user_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            _USER_QUOTA_LOCKS[user_id] = lock
+        return lock
+
+
 @app.post("/api/upload")
 async def upload_files(
     files: list[UploadFile],
@@ -473,67 +495,75 @@ async def upload_files(
     allowed_types = _limits["allowed_file_types"]
     max_bytes = _limits["max_file_size_mb"] * 1024 * 1024
 
-    # v5.9.3 — check file count limit before processing
     from .plan_limits import get_file_count as _fc
-    current_count = await _fc(db, current_user.id)
     file_limit = _limits["file_limit"]
 
     # v7.0.1 — track per-file payloads so we can push to Drive after DB commit
     pending_drive_pushes: list[tuple[str, str, bytes, str, str]] = []
 
+    # v9.2.0 — per-user lock for atomic quota reservation across parallel requests
+    quota_lock = await _get_user_quota_lock(current_user.id)
+
     for upload_file in files:
-        # Strip any client-supplied directory components — `upload_file.filename`
-        # is attacker-controlled. `os.path.basename` defangs `../` traversal,
-        # absolute paths, and Windows-style `..\\` on POSIX servers.
         original_name = os.path.basename(upload_file.filename or "") or "unnamed"
         ext = original_name.rsplit(".", 1)[-1].lower() if "." in original_name else ""
 
-        # v9.1.0 — Raw File Vault: ext ที่ไม่อยู่ใน allowed_types
-        # → save raw + mark vault (เคยเป็น SKIP UNSUPPORTED_TYPE) ไม่ทิ้งไฟล์อีกแล้ว
-        # vault file index ผ่าน vector_search ด้วย filename + ext tokens (Q5 user decision)
+        # v9.1.0 — Raw File Vault
         is_vault = ext not in allowed_types
 
-        # v5.9.3 — check file count (vault counts toward quota — Q1 user decision)
-        if current_count + len(uploaded) >= file_limit:
-            skipped.append(_make_skip("QUOTA_EXCEEDED", original_name, limit=file_limit))
+        contents = await upload_file.read()
+
+        if len(contents) == 0:
+            skipped.append(_make_skip("EMPTY_FILE", original_name))
             continue
 
-        # Save raw file — per-user directory (v5.1)
+        if len(contents) > max_bytes:
+            skipped.append(_make_skip("FILE_TOO_LARGE", original_name, limit=_limits["max_file_size_mb"]))
+            continue
+
+        # ── Atomic quota reservation (per-user lock) ──────────────────────
+        # Re-read live count from DB inside the lock so concurrent requests
+        # see each other's reservations. Insert+commit a placeholder row
+        # immediately to "claim" the slot before releasing the lock.
         file_id = gen_id()
         user_upload_dir = os.path.join(UPLOAD_DIR, current_user.id)
         os.makedirs(user_upload_dir, exist_ok=True)
         safe_filename = f"{file_id}_{original_name}"
         raw_path = os.path.join(user_upload_dir, safe_filename)
 
-        contents = await upload_file.read()
+        async with quota_lock:
+            live_count = await _fc(db, current_user.id)
+            if live_count >= file_limit:
+                skipped.append(_make_skip("QUOTA_EXCEEDED", original_name, limit=file_limit))
+                continue
+            placeholder = File(
+                id=file_id,
+                user_id=current_user.id,
+                filename=original_name,
+                filetype=ext,
+                raw_path=raw_path,
+                extracted_text="",
+                processing_status="processing",
+                content_hash=None,
+                extraction_status="pending",
+                file_kind="vault_only" if is_vault else "processed",
+            )
+            db.add(placeholder)
+            await db.commit()
 
-        # v7.5.0 — empty file detection (ก่อน save — ทั้ง processed + vault)
-        if len(contents) == 0:
-            skipped.append(_make_skip("EMPTY_FILE", original_name))
-            continue
-
-        # Validate size (vault ใช้ limit เดียวกัน — Q1 user decision)
-        if len(contents) > max_bytes:
-            skipped.append(_make_skip("FILE_TOO_LARGE", original_name, limit=_limits["max_file_size_mb"]))
-            continue
-
+        # ── Slow work runs OUTSIDE the lock (parallel-safe) ───────────────
         with open(raw_path, "wb") as f:
             f.write(contents)
 
         if is_vault:
-            # v9.1.0 — Vault path: skip extraction, build searchable_text from
-            # filename + ext only (TF-IDF จะ index ตัวนี้ → AI chat ค้นเจอ)
             from .vault import build_vault_searchable_text
             extracted = build_vault_searchable_text(original_name, ext)
-            content_hash = None  # vault ไม่ทำ dedupe (Q6 user decision)
+            content_hash = None
             ext_status = "vault"
             proc_status = "vault_only"
             file_kind = "vault_only"
         else:
-            # Processed path: extract text เหมือนเดิม
             extracted = extract_text(raw_path, ext)
-
-            # v9.0.0 Phase B v2 — Audio/Video → Gemini multimodal API (async)
             if extracted.startswith("[AI ingest needed:"):
                 try:
                     from .ai_ingest import ingest_via_ai
@@ -541,28 +571,17 @@ async def upload_files(
                 except Exception as e:
                     logger.error(f"AI ingest failed for {original_name}: {e}")
                     extracted = f"[AI ingest error: {type(e).__name__}: {str(e)[:200]}]"
-
             content_hash = compute_content_hash(extracted)
             ext_status = classify_extraction_status(extracted)
             proc_status = "uploaded"
             file_kind = "processed"
 
-        # Save to DB
-        db_file = File(
-            id=file_id,
-            user_id=current_user.id,
-            filename=original_name,
-            filetype=ext,
-            raw_path=raw_path,
-            extracted_text=extracted,
-            processing_status=proc_status,
-            content_hash=content_hash,
-            extraction_status=ext_status,
-            file_kind=file_kind,  # v9.1.0
-        )
-        db.add(db_file)
+        placeholder.extracted_text = extracted
+        placeholder.processing_status = proc_status
+        placeholder.content_hash = content_hash
+        placeholder.extraction_status = ext_status
+        placeholder.file_kind = file_kind
 
-        # v7.0.1 — schedule Drive push for BYOS users (best-effort, after commit)
         mime_guess = _guess_mime(ext, upload_file.content_type)
         pending_drive_pushes.append((file_id, original_name, contents, mime_guess, extracted))
 
@@ -573,7 +592,7 @@ async def upload_files(
             "uploaded_at": datetime.utcnow().isoformat(),
             "processing_status": proc_status,
             "text_length": len(extracted),
-            "file_kind": file_kind,  # v9.1.0 — frontend toast routes by kind
+            "file_kind": file_kind,
         })
 
     await db.commit()

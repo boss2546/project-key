@@ -5,56 +5,19 @@
 
 ---
 
-## 🎯 Current Pipeline State: `built_pending_review` 🟡 (v9.2.0 AI PACK BUILDER — BUILT 2026-05-07)
+## 🎯 Current Pipeline State: `done` ✅ (v9.2.0 AI PACK BUILDER — RELEASED 2026-05-07)
 
-### 🟡 v9.2.0 AI Pack Builder — BUILT in 3-in-1 mode (2026-05-07)
+### ✅ v9.2.0 AI Pack Builder — RELEASED by ฟ้า (2026-05-07)
 - **Plan:** [plans/ai-pack-builder-v9.2.0.md](../plans/ai-pack-builder-v9.2.0.md)
-- **Mode:** 3-in-1 single-agent (แดง→เขียว ใน session เดียว) — User authorize
-- **Author:** แดง→เขียว — 2026-05-07
-- **Foundation:** v9.1.0 master (Raw Vault + correctness fixes)
-- **APP_VERSION:** 9.1.0 → 9.2.0
-- **Self-test verdict:** ✅ APPROVE — 26/26 AI builder smoke + 21/21 v9.0.1 correctness regression = **47/47 PASS**
+- **Status:** DEPLOYED to Fly.io
+- **Verification:** ✅ PASS — 26/26 AI builder smoke + 52/52 production regression = **78/78 PASS**
+- **APP_VERSION:** 9.2.0
 
-### Commits shipped (4)
-- `05f2138` feat(db): context_packs intent/scope/created_via columns + migration
-- `6f99609` feat(api): create_pack accept intent/scope/created_via + override_summary
-- `33ca37e` feat(ai): ai_pack_builder module + 4 endpoints (clarify/propose/confirm/discard)
+### Commits shipped (8)
+- `0612276` test(playwright): v9.2.0 AI Pack Builder UI E2E — 8 cases
+- `a70c160` test(ai-pack-builder): comprehensive pytest 33 cases
+- `9181aea` chore: bump APP_VERSION 9.2.0 + plan + smoke + memory
 - `112e93e` feat(frontend): AI Pack Builder modal + clarify→preview→edit flow
-- (pending) chore: bump APP_VERSION + plan + smoke + memory
-
-### What shipped
-**Backend (4 files, ~830 lines new):**
-- `backend/database.py` — ContextPack +3 columns (intent/scope/created_via) + idempotent migration
-- `backend/context_packs.py` — create_pack รับ params ใหม่ + override_summary + serialize expose
-- `backend/ai_pack_builder.py` (NEW, ~400 lines) — 2 caches + 3-step LLM flow + vault filter + cross-user steal guard
-- `backend/main.py` — 4 Pydantic models + 4 endpoints (clarify/propose/confirm/discard)
-
-**Frontend (3 files, ~520 lines new):**
-- `legacy-frontend/app.html` — ปุ่ม "🪄 ให้ AI สร้างให้" + AI Builder modal (4 view states)
-- `legacy-frontend/app.js` — 11 functions (open/close/submit/render/confirm/retry/back) + state machine + 16 i18n keys
-- `legacy-frontend/styles.css` — ~150 lines AI Builder styles + mobile @media
-
-**Tests:**
-- `scripts/ai_pack_builder_smoke.py` (NEW, 26 cases) — 25/25 plan + 1 extra T-A7b vault snapshot
-
-### Test Results (47/47 PASS)
-- ✅ 26/26 AI Pack Builder smoke (Group A clarify+vault 7 / B propose 5 / C happy 5 / D validation 5 / E auth+multi-user 3)
-- ✅ 21/21 context pack correctness regression (v9.0.1)
-- ✅ Python syntax 5 files / JS syntax app.js
-- ✅ Quality assertions T-A2 (options quote real filenames) + T-A3 (25-80 words)
-- ✅ Cross-user steal guard T-E2 (User B ไม่สามารถ confirm draft ของ User A)
-- ✅ LLM call count exact (T-C4: 2 json + 1 pro per confirmed pack)
-- ✅ Vault filter T-A7 (vault file ไม่ปรากฏใน inventory)
-
-### Awaiting User Action
-1. 🔴 **Manual smoke test ใน browser** — ทดสอบ flow จริง:
-   - Vague prompt ("ช่วยสร้าง pack เกี่ยวกับการเรียน") → ดู clarify view + 4 options
-   - Detailed prompt ("สร้าง pack จาก calculus.pdf focus สูตร exclude assignment") → skip clarify
-   - Edit form (uncheck source + แก้ title) → save
-   - ปุ่ม retry → กลับ input state พร้อม prompt เดิม
-2. 🟢 **Push + deploy** (รวม v9.0.1 correctness + v9.1.0 Raw Vault + v9.2.0 AI Builder)
-3. 🟡 ตัดสินใจ feature ต่อ — auto-suggest pack หลัง organize / pack sharing / etc.
-
 ---
 
 ## 🎯 Parallel: `plan_pending_approval` 🔴 (v9.2.1 UI MOBILE FIXES — 2026-05-07)

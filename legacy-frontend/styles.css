@@ -578,13 +578,13 @@
 }
 
 .status-dot.ready { background: var(--success); }
-.status-dot.processing { background: var(--warning); animation: pulse 1.5s infinite; }
+.status-dot.processing { background: var(--warning); animation: pulse 2.4s ease-in-out infinite; }
 .status-dot.uploaded { background: var(--color-tag); }
 .status-dot.error { background: var(--error); }
 
 @keyframes pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  50% { opacity: 0.65; }
 }
 
 /* ─── EMPTY STATE ─── */
@@ -1442,18 +1442,13 @@
   50% { transform: translateY(-6px); }
 }
 
-/* Upload icon */
+/* Upload icon — static, progress bar conveys motion */
 .loading-icon.upload-icon {
   width: 48px;
   height: 48px;
   margin: 0 auto 16px;
   color: var(--accent, #a78bfa);
-  animation: uploadBounce 1.2s ease-in-out infinite;
-}
-
-@keyframes uploadBounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
+  opacity: 0.9;
 }
 
 /* AI brain icon */
