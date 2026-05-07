@@ -5,7 +5,68 @@
 
 ---
 
-## 🎯 Current Pipeline State: `done` ✅ (v9.2.0 AI PACK BUILDER — RELEASED 2026-05-07)
+## 🎯 Current Pipeline State: `plan_pending_approval` 🔴 (v9.3.0 SHARE PACK — 2026-05-07)
+
+### 🔴 v9.3.0 Share Context Pack — `plan_pending_approval` (2026-05-07)
+- **Plan:** [plans/share-pack-v9.3.0.md](../plans/share-pack-v9.3.0.md)
+- **Author:** แดง (Daeng) — 2026-05-07
+- **Foundation:** v9.2.1 master (after AI Pack Builder + Mobile Fixes ship)
+- **Effort:** เขียว ~3 วัน + ฟ้า ~1 วัน
+- **Risk:** 🟠 Medium-High — privacy-sensitive (ต้อง explicit consent + revoke ได้)
+
+**Vision (จาก user 2026-05-07):**
+> "อยากให้แชร์ context pack กับคนอื่นได้ — ฟีเจอร์นี้ต้องคิดทบทวนดีๆ"
+
+**Architecture: "Balanced" (Archetype B)**
+- Audience: **Email whitelist** (1-20 emails, lowercase) + recipient ต้อง login PDB
+- Permission: **View + Clone** (recipient คัดลอกเป็นของตัวเองได้)
+- Content: สรุป + intent + scope + ชื่อไฟล์ source (ไม่รวม content ไฟล์)
+- Lifecycle: TTL 7-90 วัน (default 30) + revoke ได้ทุกเมื่อ
+- Plan gate: Quota รายเดือน — Free 1, Starter 50, Admin unlimited
+
+**Privacy guards (non-negotiable):**
+1. Default = private (share = explicit action)
+2. Confirmation modal บังคับ checkbox "ยืนยันว่าเข้าใจว่าข้อมูลจะ share"
+3. Locked pack ห้าม share (PACK_LOCKED 400)
+4. Revoke ได้ทุกเมื่อ + audit log access แต่ละครั้ง
+5. Cloned pack ไม่มี source_file_ids (recipient ไม่ access ไฟล์ owner)
+
+**Schema:** 2 ตารางใหม่
+- `pack_shares` — share metadata (owner_user_id, allowed_emails, permission, expires_at, revoked_at, access stats)
+- `pack_share_accesses` — audit log (recipient_user_id, action, accessed_at)
+
+**API endpoints (6 ใหม่):**
+- POST /api/context-packs/{id}/share — สร้าง share
+- GET /api/context-packs/{id}/shares — list shares ของ pack
+- DELETE /api/context-packs/shares/{share_id} — revoke
+- GET /api/shared/pack/{token} — recipient view (auth-required)
+- POST /api/shared/pack/{token}/clone — clone to my workspace
+- GET /shared/pack/{token} — HTML page (recipient view)
+
+**Files (12 modified + 5 new):**
+- backend/database.py + plan_limits.py + main.py + context_packs.py + config.py (modify)
+- backend/pack_share.py (NEW, ~280 lines)
+- legacy-frontend/app.html + app.js + styles.css (modify — share modal + manager)
+- legacy-frontend/shared_pack.html + shared_pack.js (NEW — recipient page)
+- scripts/share_pack_smoke.py (NEW, 30 cases) + tests/test_share_pack_v9_3.py (NEW, 40+ cases)
+
+**Open Questions (Q1-Q8 — มี default ทุกข้อ):**
+- Q1 403 message → "ลิงก์นี้ไม่ได้แชร์ให้คุณ"
+- Q2 mask owner email → YES (te***@x.com)
+- Q3 cloned pack title → ใช้ของเดิม + intent มี note "Cloned from..."
+- Q4 GC revoked shares → ไม่ทำ v9.3 (audit history)
+- Q5 share badge → "🔗 N shared"
+- Q6 owner display → name only (mask email)
+- Q7 clone confirmation → ไม่ต้อง 2nd
+- Q8 TTL options → 7/14/**30**/60/90
+
+**Strategic alignment:** PDB brand "private" preserved — share ≠ public, ทุก share track + revoke ได้
+
+**Pending action:** User review plan + approve → state `plan_approved` → เขียวเริ่ม build (หลัง v9.2.0 + v9.2.1 ship)
+
+---
+
+## 🎯 Previous: `done` ✅ (v9.2.0 AI PACK BUILDER — RELEASED 2026-05-07)
 
 ### ✅ v9.2.0 AI Pack Builder — RELEASED by ฟ้า (2026-05-07)
 - **Plan:** [plans/ai-pack-builder-v9.2.0.md](../plans/ai-pack-builder-v9.2.0.md)

@@ -451,16 +451,15 @@ def _make_skip(code: str, filename: str, **fmt_args) -> dict:
 
 
 # v9.2.0 — Per-user quota lock for parallel uploads.
-# Frontend may POST /api/upload concurrently (one file per request) to speed up
-# multi-file uploads. Without this lock, two parallel requests for the same
-# user could each read live_count=N and both pass `N < limit` — blowing past
-# the file_limit. The lock serializes only the atomic
-# "count + reserve slot via placeholder INSERT" critical section. Slow work
-# (extract_text, ai_ingest) runs outside the lock so parallel uploads from the
-# same user remain genuinely parallel at the CPU/IO layer.
+# Frontend may now POST /api/upload concurrently (one file per request) to
+# speed up multi-file uploads. Without this lock, two parallel requests for
+# the same user could each read `current_count = N` and both pass the
+# `N+1 < limit` check, blowing past file_limit. The lock serializes ONLY the
+# atomic "count + reserve slot via placeholder INSERT" critical section —
+# slow work (extract_text, ai_ingest) still runs outside the lock so parallel
+# uploads from the same user remain genuinely parallel at the CPU/IO layer.
 _USER_QUOTA_LOCKS: dict[str, asyncio.Lock] = {}
 _USER_QUOTA_LOCKS_GUARD = asyncio.Lock()
-
 
 async def _get_user_quota_lock(user_id: str) -> asyncio.Lock:
     async with _USER_QUOTA_LOCKS_GUARD:
@@ -505,18 +504,23 @@ async def upload_files(
     quota_lock = await _get_user_quota_lock(current_user.id)
 
     for upload_file in files:
+        # Strip any client-supplied directory components — `upload_file.filename`
+        # is attacker-controlled. `os.path.basename` defangs `../` traversal,
+        # absolute paths, and Windows-style `..\\` on POSIX servers.
         original_name = os.path.basename(upload_file.filename or "") or "unnamed"
         ext = original_name.rsplit(".", 1)[-1].lower() if "." in original_name else ""
 
-        # v9.1.0 — Raw File Vault
+        # v9.1.0 — Raw File Vault: ext ที่ไม่อยู่ใน allowed_types
         is_vault = ext not in allowed_types
 
         contents = await upload_file.read()
 
+        # v7.5.0 — empty file detection (ก่อน save — ทั้ง processed + vault)
         if len(contents) == 0:
             skipped.append(_make_skip("EMPTY_FILE", original_name))
             continue
 
+        # Validate size (vault ใช้ limit เดียวกัน — Q1 user decision)
         if len(contents) > max_bytes:
             skipped.append(_make_skip("FILE_TOO_LARGE", original_name, limit=_limits["max_file_size_mb"]))
             continue
@@ -558,7 +562,7 @@ async def upload_files(
         if is_vault:
             from .vault import build_vault_searchable_text
             extracted = build_vault_searchable_text(original_name, ext)
-            content_hash = None
+            content_hash = None  # vault ไม่ทำ dedupe (Q6 user decision)
             ext_status = "vault"
             proc_status = "vault_only"
             file_kind = "vault_only"
@@ -571,11 +575,13 @@ async def upload_files(
                 except Exception as e:
                     logger.error(f"AI ingest failed for {original_name}: {e}")
                     extracted = f"[AI ingest error: {type(e).__name__}: {str(e)[:200]}]"
+
             content_hash = compute_content_hash(extracted)
             ext_status = classify_extraction_status(extracted)
             proc_status = "uploaded"
             file_kind = "processed"
 
+        # Finalize the placeholder row
         placeholder.extracted_text = extracted
         placeholder.processing_status = proc_status
         placeholder.content_hash = content_hash
@@ -592,7 +598,7 @@ async def upload_files(
             "uploaded_at": datetime.utcnow().isoformat(),
             "processing_status": proc_status,
             "text_length": len(extracted),
-            "file_kind": file_kind,
+            "file_kind": file_kind,  # v9.1.0 — frontend toast routes by kind
         })
 
     await db.commit()

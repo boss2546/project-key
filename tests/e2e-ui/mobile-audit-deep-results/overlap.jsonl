@@ -1,0 +1,59 @@
+{"vp":"320-iphone-se-1","page":"landing","overlaps":[]}
+{"vp":"320-iphone-se-1","page":"app/my-data","overlaps":[{"overlay":"#guide-fab","covered":"button","text":"×","covRect":{"L":268,"R":287,"T":482,"B":500}},{"overlay":"#toast-container .toast","covered":"button#fab-my-data","text":"","covRect":{"L":244,"R":300,"T":424,"B":480}},{"overlay":"#toast-container .toast","covered":"button#guide-fab","text":"","covRect":{"L":250,"R":296,"T":498,"B":544}}]}
+{"vp":"320-iphone-se-1","page":"app/knowledge-collections","overlaps":[]}
+{"vp":"320-iphone-se-1","page":"app/knowledge-packs","overlaps":[]}
+{"vp":"320-iphone-se-1","page":"app/graph","overlaps":[{"overlay":"#guide-fab","covered":"button#zoom-in-btn","text":"+","covRect":{"L":239,"R":271,"T":491,"B":523}},{"overlay":"#guide-fab","covered":"button#zoom-out-btn","text":"−","covRect":{"L":239,"R":271,"T":527,"B":559}}]}
+{"vp":"320-iphone-se-1","page":"app/chat","overlaps":[]}
+{"vp":"320-iphone-se-1","page":"app/context-memory","overlaps":[]}
+{"vp":"320-iphone-se-1","page":"app/mcp-setup","overlaps":[{"overlay":"#guide-fab","covered":"button#btn-copy-url","text":"","covRect":{"L":274,"R":302,"T":479,"B":507}}]}
+{"vp":"320-iphone-se-1","page":"app/tokens","overlaps":[]}
+{"vp":"320-iphone-se-1","page":"app/mcp-logs","overlaps":[]}
+{"vp":"320-iphone-se-1","page":"app/profile-modal","overlaps":[{"overlay":"#guide-fab","covered":"button#btn-save-profile","text":"บันทึกโปรไฟล์","covRect":{"L":167,"R":286,"T":477,"B":521}}]}
+{"vp":"320-iphone-se-1","page":"app/profile-personality","overlaps":[{"overlay":"#guide-fab","covered":"button#btn-save-profile","text":"บันทึกโปรไฟล์","covRect":{"L":167,"R":286,"T":477,"B":521}}]}
+{"vp":"320-iphone-se-1","page":"app/context-memory-longtext","overlaps":[]}
+{"vp":"375-iphone-se-2","page":"landing","overlaps":[]}
+{"vp":"375-iphone-se-2","page":"app/my-data","overlaps":[{"overlay":"#guide-fab","covered":"button","text":"×","covRect":{"L":323,"R":342,"T":581,"B":599}},{"overlay":"#toast-container .toast","covered":"button#fab-my-data","text":"","covRect":{"L":299,"R":355,"T":523,"B":579}},{"overlay":"#toast-container .toast","covered":"button#guide-fab","text":"","covRect":{"L":305,"R":351,"T":597,"B":643}}]}
+{"vp":"375-iphone-se-2","page":"app/knowledge-collections","overlaps":[]}
+{"vp":"375-iphone-se-2","page":"app/knowledge-packs","overlaps":[]}
+{"vp":"375-iphone-se-2","page":"app/graph","overlaps":[{"overlay":"#guide-fab","covered":"button#zoom-in-btn","text":"+","covRect":{"L":294,"R":326,"T":590,"B":622}},{"overlay":"#guide-fab","covered":"button#zoom-out-btn","text":"−","covRect":{"L":294,"R":326,"T":626,"B":658}}]}
+{"vp":"375-iphone-se-2","page":"app/chat","overlaps":[]}
+{"vp":"375-iphone-se-2","page":"app/context-memory","overlaps":[]}
+{"vp":"375-iphone-se-2","page":"app/mcp-setup","overlaps":[{"overlay":"#guide-fab","covered":"button#btn-generate-token","text":"สร้าง Token","covRect":{"L":208,"R":317,"T":579,"B":623}}]}
+{"vp":"375-iphone-se-2","page":"app/tokens","overlaps":[]}
+{"vp":"375-iphone-se-2","page":"app/mcp-logs","overlaps":[]}
+{"vp":"375-iphone-se-2","page":"app/profile-modal","overlaps":[{"overlay":"#guide-fab","covered":"button#btn-save-profile","text":"บันทึกโปรไฟล์","covRect":{"L":220,"R":339,"T":570,"B":614}}]}
+{"vp":"375-iphone-se-2","page":"app/profile-personality","overlaps":[{"overlay":"#guide-fab","covered":"button","text":"ประวัติ","covRect":{"L":271,"R":324,"T":636,"B":661}},{"overlay":"#guide-fab","covered":"button#btn-save-profile","text":"บันทึกโปรไฟล์","covRect":{"L":220,"R":339,"T":570,"B":614}}]}
+{"vp":"375-iphone-se-2","page":"app/context-memory-longtext","overlaps":[]}
+{"vp":"393-pixel-5","page":"landing","overlaps":[]}
+{"vp":"393-pixel-5","page":"app/my-data","overlaps":[{"overlay":"#guide-fab","covered":"button","text":"×","covRect":{"L":341,"R":360,"T":765,"B":783}},{"overlay":"#toast-container .toast","covered":"button#fab-my-data","text":"","covRect":{"L":317,"R":373,"T":707,"B":763}},{"overlay":"#toast-container .toast","covered":"button#guide-fab","text":"","covRect":{"L":323,"R":369,"T":781,"B":827}}]}
+{"vp":"393-pixel-5","page":"app/knowledge-collections","overlaps":[]}
+{"vp":"393-pixel-5","page":"app/knowledge-packs","overlaps":[]}
+{"vp":"393-pixel-5","page":"app/graph","overlaps":[{"overlay":"#guide-fab","covered":"button#zoom-in-btn","text":"+","covRect":{"L":312,"R":344,"T":774,"B":806}},{"overlay":"#guide-fab","covered":"button#zoom-out-btn","text":"−","covRect":{"L":312,"R":344,"T":810,"B":842}}]}
+{"vp":"393-pixel-5","page":"app/chat","overlaps":[]}
+{"vp":"393-pixel-5","page":"app/context-memory","overlaps":[]}
+{"vp":"393-pixel-5","page":"app/mcp-setup","overlaps":[]}
+{"vp":"393-pixel-5","page":"app/tokens","overlaps":[]}
+{"vp":"393-pixel-5","page":"app/mcp-logs","overlaps":[]}
+{"vp":"393-pixel-5","page":"app/profile-modal","overlaps":[{"overlay":"#guide-fab","covered":"button#btn-save-profile","text":"บันทึกโปรไฟล์","covRect":{"L":237,"R":356,"T":743,"B":787}}]}
+{"vp":"393-pixel-5","page":"app/profile-personality","overlaps":[{"overlay":"#guide-fab","covered":"button","text":"ประวัติ","covRect":{"L":288,"R":341,"T":809,"B":834}},{"overlay":"#guide-fab","covered":"button#btn-save-profile","text":"บันทึกโปรไฟล์","covRect":{"L":237,"R":356,"T":743,"B":787}}]}
+{"vp":"393-pixel-5","page":"app/context-memory-longtext","overlaps":[]}
+{"vp":"320-iphone-se-1","page":"landing","overlaps":[]}
+{"vp":"320-iphone-se-1","page":"app/my-data","overlaps":[{"overlay":"#guide-fab","covered":"button","text":"×","covRect":{"L":268,"R":287,"T":482,"B":500}},{"overlay":"#toast-container .toast","covered":"button#fab-my-data","text":"","covRect":{"L":244,"R":300,"T":424,"B":480}},{"overlay":"#toast-container .toast","covered":"button#guide-fab","text":"","covRect":{"L":250,"R":296,"T":498,"B":544}}]}
+{"vp":"320-iphone-se-1","page":"app/knowledge-collections","overlaps":[]}
+{"vp":"320-iphone-se-1","page":"app/knowledge-packs","overlaps":[]}
+{"vp":"320-iphone-se-1","page":"app/graph","overlaps":[{"overlay":"#guide-fab","covered":"button#zoom-in-btn","text":"+","covRect":{"L":239,"R":271,"T":491,"B":523}},{"overlay":"#guide-fab","covered":"button#zoom-out-btn","text":"−","covRect":{"L":239,"R":271,"T":527,"B":559}}]}
+{"vp":"320-iphone-se-1","page":"app/chat","overlaps":[]}
+{"vp":"320-iphone-se-1","page":"app/context-memory","overlaps":[]}
+{"vp":"320-iphone-se-1","page":"app/mcp-setup","overlaps":[]}
+{"vp":"320-iphone-se-1","page":"app/tokens","overlaps":[]}
+{"vp":"320-iphone-se-1","page":"app/mcp-logs","overlaps":[]}
+{"vp":"320-iphone-se-1","page":"app/profile-modal","overlaps":[{"overlay":"#guide-fab","covered":"button#btn-save-profile","text":"บันทึกโปรไฟล์","covRect":{"L":167,"R":286,"T":477,"B":521}}]}
+{"vp":"320-iphone-se-1","page":"app/profile-personality","overlaps":[{"overlay":"#guide-fab","covered":"button#btn-save-profile","text":"บันทึกโปรไฟล์","covRect":{"L":167,"R":286,"T":477,"B":521}}]}
+{"vp":"320-iphone-se-1","page":"app/context-memory-longtext","overlaps":[]}
+{"vp":"375-iphone-se-2","page":"landing","overlaps":[]}
+{"vp":"375-iphone-se-2","page":"app/my-data","overlaps":[{"overlay":"#guide-fab","covered":"button","text":"×","covRect":{"L":323,"R":342,"T":581,"B":599}},{"overlay":"#toast-container .toast","covered":"button#fab-my-data","text":"","covRect":{"L":299,"R":355,"T":523,"B":579}},{"overlay":"#toast-container .toast","covered":"button#guide-fab","text":"","covRect":{"L":305,"R":351,"T":597,"B":643}}]}
+{"vp":"375-iphone-se-2","page":"app/knowledge-collections","overlaps":[]}
+{"vp":"375-iphone-se-2","page":"app/knowledge-packs","overlaps":[]}
+{"vp":"375-iphone-se-2","page":"app/graph","overlaps":[{"overlay":"#guide-fab","covered":"button#zoom-in-btn","text":"+","covRect":{"L":294,"R":326,"T":590,"B":622}},{"overlay":"#guide-fab","covered":"button#zoom-out-btn","text":"−","covRect":{"L":294,"R":326,"T":626,"B":658}}]}
+{"vp":"375-iphone-se-2","page":"app/chat","overlaps":[]}
+{"vp":"375-iphone-se-2","page":"app/context-memory","overlaps":[]}
