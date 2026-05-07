@@ -1413,12 +1413,14 @@ window.addEventListener('beforeunload', (e) => {
  return '';
 });
 
-// v7.5.0 — Batch limits (sequential pipeline + 60s HTTP timeout at Fly.io)
-//   ≤20 files = silently proceed (proven safe in tests)
-//   21-50 files = warn but allow (likely OK but may push HTTP timeout)
-//   >50 files  = block + force user to split (organize-new will definitely time out)
-const BATCH_SAFE_LIMIT = 20;
-const BATCH_HARD_LIMIT = 50;
+// v9.2.1 — Batch limits (parallel pool 3 + 1 file/request — Fly.io 60s timeout
+// no longer the bottleneck for upload itself; organize-new is the next step
+// where huge batches still struggle).
+//   ≤100 files = silently proceed (parallel-safe)
+//   101-500   = warn but allow (organize-new may need to chunk later)
+//   >500      = block + force split (memory + organize-new timeout risk)
+const BATCH_SAFE_LIMIT = 100;
+const BATCH_HARD_LIMIT = 500;
 
 async function uploadFiles(fileList) {
  if (_uploadInFlight) {
@@ -1444,35 +1446,116 @@ async function uploadFiles(fileList) {
    if (!proceed) return;
  }
 
- const form = new FormData();
- for (const f of fileList) form.append('files', f);
  const isTH = getLang() === 'th';
- const baseMsg = (pct) => isTH ? `กำลังอัปโหลด ${count} ไฟล์... ${pct}%` : `Uploading ${count} file(s)... ${pct}%`;
+ const baseMsg = (pct, done) => isTH
+   ? `กำลังอัปโหลด... ${done}/${count} ไฟล์ • ${pct}%`
+   : `Uploading... ${done}/${count} files • ${pct}%`;
+ const processingMsg = (done) => isTH
+   ? `เซิร์ฟเวอร์ประมวลผล ${done}/${count} ไฟล์...`
+   : `Server processing ${done}/${count} files...`;
 
  _uploadInFlight = true;
- showLoadingOverlay(baseMsg(0), 'upload');
+ showLoadingOverlay(baseMsg(0, 0), 'upload');
+ const barEl0 = document.querySelector('.loading-overlay-card .loading-progress-bar');
+ const fillEl0 = document.querySelector('.loading-overlay-card .loading-progress-fill');
+ if (barEl0) barEl0.classList.remove('indeterminate');
+ if (fillEl0) fillEl0.style.width = '0%';
+
+ // v9.2.0+ — parallel uploads (concurrency 3, one file/request).
+ // Backend serializes ONLY quota check via per-user asyncio.Lock; extraction
+ // + AI ingest run in parallel. Aggregate uploaded[]/skipped[] across responses.
+ const UPLOAD_CONCURRENCY = 3;
+ const fileArr = Array.from(fileList);
+ const totalBytes = fileArr.reduce((s, f) => s + (f.size || 0), 0) || 1;
+ const loadedBytes = new Array(fileArr.length).fill(0);
+ const fileDone = new Array(fileArr.length).fill(false);
+ let bytesPhaseSwitched = false;
+
+ const updateProgressUI = () => {
+   const sumLoaded = loadedBytes.reduce((a, b) => a + b, 0);
+   const doneCount = fileDone.filter(Boolean).length;
+   const pct = Math.min(100, Math.round((sumLoaded / totalBytes) * 100));
+   const msgEl = document.querySelector('.loading-overlay-card .loading-message');
+   const fill = document.querySelector('.loading-overlay-card .loading-progress-fill');
+   if (!bytesPhaseSwitched) {
+     if (msgEl) msgEl.textContent = baseMsg(pct, doneCount);
+     if (fill) fill.style.width = pct + '%';
+     if (sumLoaded >= totalBytes) {
+       bytesPhaseSwitched = true;
+       const bar = document.querySelector('.loading-overlay-card .loading-progress-bar');
+       if (msgEl) msgEl.textContent = processingMsg(doneCount);
+       if (fill) fill.style.width = '';
+       if (bar) bar.classList.add('indeterminate');
+     }
+   } else {
+     if (msgEl) msgEl.textContent = processingMsg(doneCount);
+   }
+ };
+
+ const uploadOne = (file, idx) => new Promise((resolve) => {
+   const form = new FormData();
+   form.append('files', file);
+   const xhr = new XMLHttpRequest();
+   xhr.open('POST', '/api/upload');
+   if (state.authToken) xhr.setRequestHeader('Authorization', `Bearer ${state.authToken}`);
+   xhr.upload.onprogress = (ev) => {
+     if (!ev.lengthComputable) return;
+     loadedBytes[idx] = ev.loaded;
+     updateProgressUI();
+   };
+   xhr.upload.onload = () => {
+     loadedBytes[idx] = file.size || loadedBytes[idx];
+     updateProgressUI();
+   };
+   xhr.onload = () => {
+     fileDone[idx] = true;
+     updateProgressUI();
+     let body = null;
+     try { body = JSON.parse(xhr.responseText); } catch (_) {}
+     resolve({ status: xhr.status, body, file });
+   };
+   xhr.onerror = () => {
+     fileDone[idx] = true;
+     updateProgressUI();
+     resolve({ status: 0, body: null, file, networkError: true });
+   };
+   xhr.send(form);
+ });
 
  try {
- // XHR (not authFetch) so we get upload.onprogress events
- const data = await new Promise((resolve, reject) => {
-  const xhr = new XMLHttpRequest();
-  xhr.open('POST', '/api/upload');
-  if (state.authToken) xhr.setRequestHeader('Authorization', `Bearer ${state.authToken}`);
-  xhr.upload.onprogress = (ev) => {
-   if (!ev.lengthComputable) return;
-   const pct = Math.round((ev.loaded / ev.total) * 100);
-   const msgEl = document.querySelector('.loading-overlay-card .loading-message');
-   if (msgEl) msgEl.textContent = baseMsg(pct);
-  };
-  xhr.onload = () => {
-   if (xhr.status === 401) { reject(Object.assign(new Error('UNAUTHORIZED'), { status: 401 })); return; }
-   if (xhr.status >= 400) { reject(Object.assign(new Error(`HTTP ${xhr.status}`), { status: xhr.status, body: xhr.responseText })); return; }
-   try { resolve(JSON.parse(xhr.responseText)); }
-   catch (e) { reject(new Error('INVALID_JSON')); }
-  };
-  xhr.onerror = () => reject(new Error('NETWORK'));
-  xhr.send(form);
- });
+ const results = new Array(fileArr.length);
+ let cursor = 0;
+ const worker = async () => {
+   while (cursor < fileArr.length) {
+     const i = cursor++;
+     results[i] = await uploadOne(fileArr[i], i);
+   }
+ };
+ const workerCount = Math.min(UPLOAD_CONCURRENCY, fileArr.length);
+ await Promise.all(Array.from({ length: workerCount }, worker));
+
+ // Aggregate per-request responses into the shape downstream code expects.
+ let unauthorized = false;
+ let networkErr = false;
+ const aggUploaded = [];
+ const aggSkipped = [];
+ for (const r of results) {
+   if (!r) continue;
+   if (r.status === 401) { unauthorized = true; continue; }
+   if (r.status === 0 || r.networkError) { networkErr = true; continue; }
+   if (r.status >= 400) {
+     aggSkipped.push({ filename: r.file.name, code: 'UPLOAD_FAILED',
+                       reason: `HTTP ${r.status}`, message: `HTTP ${r.status}` });
+     continue;
+   }
+   if (r.body) {
+     if (Array.isArray(r.body.uploaded)) aggUploaded.push(...r.body.uploaded);
+     if (Array.isArray(r.body.skipped)) aggSkipped.push(...r.body.skipped);
+   }
+ }
+ if (unauthorized) { const err = new Error('UNAUTHORIZED'); err.status = 401; throw err; }
+ if (networkErr && aggUploaded.length === 0) throw new Error('NETWORK');
+ const data = { uploaded: aggUploaded, skipped: aggSkipped, count: aggUploaded.length };
 
  // v7.5.0 — show toast briefly + open per-file result modal if anything skipped
  if (data.count > 0 && (!data.skipped || data.skipped.length === 0)) {
