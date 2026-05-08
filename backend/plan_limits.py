@@ -55,6 +55,7 @@ PLAN_LIMITS = {
         "ai_summary_limit_monthly": 50,
         "export_limit_monthly": 100,
         "refresh_limit_monthly": 0,
+        "pack_share_limit_monthly": 5,    # v9.3.0 — share Context Pack
         "semantic_search_enabled": False,
         "version_history_days": 0,
         # v9.0.0 — re-enable v7.5.0 formats (image OCR + xlsx/pptx/html/json/rtf)
@@ -71,6 +72,7 @@ PLAN_LIMITS = {
         "ai_summary_limit_monthly": 1000,
         "export_limit_monthly": 3000,
         "refresh_limit_monthly": 100,
+        "pack_share_limit_monthly": 50,   # v9.3.0
         "semantic_search_enabled": True,
         "version_history_days": 70,
         "allowed_file_types": ALL_FILE_TYPES,
@@ -84,6 +86,7 @@ PLAN_LIMITS = {
         "ai_summary_limit_monthly": 999999,
         "export_limit_monthly": 999999,
         "refresh_limit_monthly": 999999,
+        "pack_share_limit_monthly": 999999,   # v9.3.0
         "semantic_search_enabled": True,
         "version_history_days": 999999,
         "allowed_file_types": ALL_FILE_TYPES,
@@ -240,8 +243,26 @@ async def get_monthly_refresh_count(db: AsyncSession, user_id: str, period_start
     return result.scalar() or 0
 
 
+async def get_monthly_pack_share_count(db: AsyncSession, user_id: str, period_start: datetime | None = None) -> int:
+    """v9.3.0 — Count pack shares created this billing period.
+
+    ⚠️ Important: revoked shares ALSO count (anti-abuse — กัน revoke→create loop)
+    """
+    from .database import UsageLog
+    if period_start is None:
+        period_start = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    result = await db.execute(
+        select(func.count(UsageLog.id)).where(
+            UsageLog.user_id == user_id,
+            UsageLog.action == "pack_share",
+            UsageLog.created_at >= period_start,
+        )
+    )
+    return result.scalar() or 0
+
+
 async def log_usage(db: AsyncSession, user_id: str, action: str):
-    """Record a usage event (ai_summary, export, refresh)."""
+    """Record a usage event (ai_summary, export, refresh, pack_share, pack_clone)."""
     from .database import UsageLog
     entry = UsageLog(user_id=user_id, action=action)
     db.add(entry)
@@ -331,6 +352,29 @@ async def check_export_allowed(db: AsyncSession, user) -> dict | None:
             starter_limit = PLAN_LIMITS["starter"]["export_limit_monthly"]
             return {"error": f"Export เดือนนี้ใช้ครบแล้ว ({free_limit}/{free_limit}) — อัปเกรดเป็น Starter เพื่อ Export {starter_limit} ครั้ง/เดือน", "upgrade": True}
         return {"error": "Export เดือนนี้ใช้ครบแล้ว — โควต้าจะรีเซ็ตรอบบิลถัดไป", "upgrade": False}
+    return None
+
+
+async def check_pack_share_create_allowed(db: AsyncSession, user) -> dict | None:
+    """v9.3.0 — Check if user can create another pack share this billing period.
+
+    Anti-abuse: revoked shares STILL count (เพื่อกัน revoke→create loop)
+    """
+    limits = get_limits(user)
+    period_start = _month_start_for_user(user)
+    used = await get_monthly_pack_share_count(db, user.id, period_start)
+    if used >= limits["pack_share_limit_monthly"]:
+        plan = _effective_plan(user)
+        if plan == "free":
+            starter_limit = PLAN_LIMITS["starter"]["pack_share_limit_monthly"]
+            return {
+                "error": f"Free plan แชร์ Pack ได้ {limits['pack_share_limit_monthly']} ครั้ง/เดือน — อัปเกรดเป็น Starter เพื่อแชร์ได้ {starter_limit} ครั้ง/เดือน",
+                "upgrade": True,
+            }
+        return {
+            "error": f"แชร์ Pack เดือนนี้ใช้ครบแล้ว ({limits['pack_share_limit_monthly']}) — โควต้าจะรีเซ็ตรอบบิลถัดไป",
+            "upgrade": False,
+        }
     return None
 
 

@@ -507,6 +507,30 @@ class DriveConnection(Base):
 # v8.0.0 — LINE Bot Integration
 # ═══════════════════════════════════════════
 
+class PackShare(Base):
+    """v9.3.0 — Share link metadata for Context Pack sharing.
+
+    Token = JWT signed (scope='pack_share', no exp) — verify ผ่าน DB row check
+    (revoked_at). ตัด audit log แยก — view_count + clone_count denormalized พอ.
+    """
+    __tablename__ = "pack_shares"
+    id = Column(String, primary_key=True, default=gen_id)
+    pack_id = Column(String, ForeignKey("context_packs.id"), nullable=False, index=True)
+    owner_user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+
+    # Settings — sender control
+    include_files = Column(Boolean, default=False)  # default = สรุปอย่างเดียว
+
+    # Lifecycle (no TTL — revoke-only)
+    revoked_at = Column(DateTime, nullable=True, index=True)
+
+    # Stats — denormalized via atomic UPDATE counter
+    view_count = Column(Integer, default=0)
+    clone_count = Column(Integer, default=0)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class LineUser(Base):
     """v8.0.0 — Mapping LINE user → PDB user (1 PDB user → 1 LINE account in MVP).
 
