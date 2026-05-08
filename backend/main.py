@@ -3175,6 +3175,7 @@ async def api_drive_status(user: User = Depends(get_current_user), db: AsyncSess
     drive_email: str | None = None
     last_sync_at: str | None = None
     last_sync_status: str | None = None
+    last_sync_error: str | None = None
     if user.storage_mode == STORAGE_MODE_BYOS:
         result = await db.execute(
             select(DriveConnection).where(DriveConnection.user_id == user.id)
@@ -3184,6 +3185,9 @@ async def api_drive_status(user: User = Depends(get_current_user), db: AsyncSess
             drive_email = conn.drive_email
             last_sync_at = conn.last_sync_at.isoformat() if conn.last_sync_at else None
             last_sync_status = conn.last_sync_status
+            # v9.3.0 — expose last_sync_error so UI can render "เชื่อมต่อใหม่"
+            # prompt with reason (e.g., invalid_grant after token revoke / app migrate).
+            last_sync_error = conn.last_sync_error
 
     return {
         "feature_available": _byos_cfg.is_byos_configured(),
@@ -3194,6 +3198,7 @@ async def api_drive_status(user: User = Depends(get_current_user), db: AsyncSess
         "drive_schema_version": DRIVE_SCHEMA_VERSION,
         "last_sync_at": last_sync_at,
         "last_sync_status": last_sync_status,
+        "last_sync_error": last_sync_error,
         "oauth_mode": "testing",  # หลัง Google verification → "production"
     }
 

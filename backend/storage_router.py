@@ -108,6 +108,48 @@ async def _build_drive_client(connection: DriveConnection):
     return DriveClient(plaintext)
 
 
+# v9.3.0 stability patch — mark connection as errored when Google rejects refresh
+# (invalid_grant / token_revoked etc.). Why: helpers ใช้ best-effort try/except
+# generic Exception → silent log แล้ว return False. ผู้ใช้ไม่รู้ว่า Drive ขาด
+# จนกว่าจะเปิด Profile → Storage Mode (ซึ่งก็ไม่บอก error). Patch นี้ persist
+# error → /api/drive/status คืน last_sync_status="error" + last_sync_error → UI
+# render "เชื่อมต่อใหม่" prompt.
+def _is_refresh_failure(exc: Exception) -> bool:
+    """True ถ้า exception เป็น Google OAuth refresh fail (invalid_grant / revoked).
+
+    Match by class name แทน import เพื่อหลีกเลี่ยง coupling — google.auth อาจ
+    ไม่ install ใน managed-only environment.
+    """
+    cls = type(exc).__name__
+    if cls == "RefreshError":
+        return True
+    msg = str(exc).lower()
+    return "invalid_grant" in msg or "token has been expired or revoked" in msg
+
+
+async def _mark_drive_connection_errored(
+    db: AsyncSession,
+    connection: DriveConnection,
+    exc: Exception,
+) -> None:
+    """Mark connection as errored — UI จะแสดงปุ่ม "เชื่อมต่อใหม่".
+
+    Best-effort: ถ้า commit fail ก็ไม่ raise (caller สำคัญกว่า error mark).
+    """
+    try:
+        connection.last_sync_status = "error"
+        connection.last_sync_error = f"invalid_grant: {exc}"[:255]
+        await db.commit()
+        logger.warning(
+            "BYOS: marked drive connection errored for user_id=%s — needs re-auth",
+            connection.user_id,
+        )
+    except Exception as commit_err:
+        logger.warning(
+            "BYOS: failed to mark connection error (non-fatal): %s", commit_err,
+        )
+
+
 async def _get_personal_folder_id(client, root_id: str) -> str:
     """หา (หรือสร้าง) /Personal Data Bank/personal/ — return ID."""
     return client.ensure_folder("personal", parent_id=root_id)
@@ -151,6 +193,9 @@ async def push_profile_to_drive_if_byos(
         return True
     except Exception as e:
         # Best-effort: log แต่ไม่ raise (cache เป็น primary, Drive เป็น mirror)
+        # v9.3.0 — invalid_grant / token revoke = persist error → UI prompt re-auth
+        if _is_refresh_failure(e):
+            await _mark_drive_connection_errored(db, conn, e)
         logger.warning(
             "BYOS: profile.json push failed for user %s (%s) — "
             "DB still has correct data, will retry next sync",

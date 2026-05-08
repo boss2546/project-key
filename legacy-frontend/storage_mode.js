@@ -205,10 +205,31 @@ function renderStorageModeUI() {
     }
   }
 
+  // v9.3.0 — invalid_grant / token revoked → render error state with re-connect prompt.
+  // Backend marks last_sync_status="error" + last_sync_error when push helpers detect
+  // RefreshError. UI surfaces this so user can re-auth without diving into logs.
+  const isErrored = isBYOS && isConnected && _driveStatus.last_sync_status === 'error';
+
   // Status description
   const statusDesc = document.getElementById('storage-mode-desc');
   if (statusDesc) {
-    if (isBYOS && isConnected) {
+    if (isErrored) {
+      const errMsg = _driveStatus.last_sync_error || 'invalid_grant';
+      statusDesc.innerHTML = `
+        <div class="storage-connected-info storage-errored">
+          <div class="storage-connected-row">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-warning, #f59e0b)" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span>${isTH ? 'การเชื่อมต่อ Google Drive หมดอายุ' : 'Google Drive connection expired'}</span>
+          </div>
+          <div class="storage-email">${_driveStatus.drive_email || ''}</div>
+          <div class="storage-sync-time storage-error-detail">${isTH ? 'เหตุผล' : 'Reason'}: ${errMsg}</div>
+          <div class="storage-folder">${isTH
+            ? 'กดปุ่มด้านล่างเพื่อเชื่อมต่อใหม่ — ข้อมูลของคุณยังอยู่ครบ'
+            : 'Click below to reconnect — your data is intact'
+          }</div>
+        </div>
+      `;
+    } else if (isBYOS && isConnected) {
       statusDesc.innerHTML = `
         <div class="storage-connected-info">
           <div class="storage-connected-row">
@@ -239,7 +260,19 @@ function renderStorageModeUI() {
   // Action buttons
   const actionsEl = document.getElementById('storage-mode-actions');
   if (actionsEl) {
-    if (isBYOS && isConnected) {
+    if (isErrored) {
+      // v9.3.0 — error state: prominent "เชื่อมต่อใหม่" + secondary disconnect
+      actionsEl.innerHTML = `
+        <button class="btn btn-primary btn-sm" id="btn-reconnect-drive" onclick="connectDrive()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+          ${isTH ? 'เชื่อมต่อใหม่' : 'Reconnect'}
+        </button>
+        <button class="btn btn-outline btn-sm" id="btn-disconnect-drive" onclick="disconnectDrive()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          ${isTH ? 'ยกเลิก' : 'Disconnect'}
+        </button>
+      `;
+    } else if (isBYOS && isConnected) {
       actionsEl.innerHTML = `
         <button class="btn btn-primary btn-sm" id="btn-sync-drive" onclick="syncDriveNow()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
