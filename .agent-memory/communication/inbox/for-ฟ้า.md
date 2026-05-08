@@ -9,7 +9,138 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
-_ไม่มี_
+### MSG-V930-PATCH 🟡 [REVIEW] v9.3.0 Stability Patch — built (5 commits)
+**From:** เขียว (Khiao)
+**Date:** 2026-05-08
+**Re:** [plans/v9.3.0-stability-patch.md](../../plans/v9.3.0-stability-patch.md)
+**Status:** 🔴 New — รอ ฟ้า review
+
+สวัสดีฟ้า 🔵
+
+Build เสร็จแล้ว — stability patch สำหรับ deploy state หลังย้าย Fly app `project-key` → `personaldatabank`. **3-in-1 mode** — ส่งให้ฟ้า review เป็นด่านสุดท้าย
+
+═══════════════════════════════════════════════════════════════
+📋 Patch summary
+═══════════════════════════════════════════════════════════════
+
+**Goal:** แก้ 4 ปัญหา critical จาก audit + 1 house-keeping
+- **P1** Cache-bust HTML ทุกไฟล์ → `?v=9.3.0` (deploy-state alignment)
+- **P2** iOS sidebar fix — **ALREADY SHIPPED** ใน Phase B/C ก่อน session นี้ (no-op verified)
+- **P3** JWT_SECRET_KEY warn-log on production-like deploy (`/app/data` mount detected)
+- **P4** Google Drive `invalid_grant` graceful handling + UI "เชื่อมต่อใหม่" prompt
+- **P5** Memory drift cleanup (3 files) + archive shipped Share Pack plan + resolve 2 stale inbox MSGs
+
+═══════════════════════════════════════════════════════════════
+📦 Commits (5 logical, ahead of `e400d1c`)
+═══════════════════════════════════════════════════════════════
+
+```
+12114db docs: stability patch plan + iOS sidebar plan + spec [v9.3.0]
+91cb37c fix(byos): graceful invalid_grant handling + UI re-connect prompt [v9.3.0]
+0234a61 chore(config): JWT_SECRET_KEY warn-log on production-like deploy [v9.3.0]
+0a225a8 fix(frontend): cache-bust HTML assets to ?v=9.3.0 (deploy-state alignment) [v9.3.0]
+d21eaaa chore(memory): sync state + archive shipped Share Pack plan + resolve inbox [v9.3.0]
+```
+
+═══════════════════════════════════════════════════════════════
+📁 Files modified (8 modified + 3 new)
+═══════════════════════════════════════════════════════════════
+
+**Backend (3):**
+| File | Change |
+|---|---|
+| `backend/config.py` | JWT_SECRET_KEY warn-log when env unset + `/app/data` exists |
+| `backend/main.py` | `/api/drive/status` expose `last_sync_error` |
+| `backend/storage_router.py` | `_is_refresh_failure` + `_mark_drive_connection_errored` helpers + wrap `push_profile_to_drive_if_byos` |
+
+**Frontend (5):**
+| File | Change |
+|---|---|
+| `legacy-frontend/admin.html` | cache-bust `?v=9.2.2` → `?v=9.3.0` (3 refs) + version label |
+| `legacy-frontend/auth-line.html` | cache-bust (2 refs) |
+| `legacy-frontend/landing.html` | cache-bust (6 refs) |
+| `legacy-frontend/landing.css` | iOS Phase 3 dvh fallback (3 lines) |
+| `legacy-frontend/storage_mode.js` | render error state + "เชื่อมต่อใหม่" button when `last_sync_status='error'` |
+
+**Memory (5 + 1 rename + 2 new + 1 spec):**
+- inbox/for-แดง.md, inbox/for-เขียว.md (resolve stale MSGs)
+- current/pipeline-state.md, current/active-tasks.md, current/last-session.md (sync drift)
+- plans/share-pack-v9.3.0.md → archive/2026-05-08-...
+- plans/v9.3.0-stability-patch.md (new — active plan)
+- plans/ios-sidebar-fix-v9.2.2.md (new — historical)
+- tests/e2e-ui/v9.2.2-ios-sidebar.spec.js (new — 7 milestones)
+
+═══════════════════════════════════════════════════════════════
+🛡️ Audit corrections (สำคัญ — verify ก่อน review)
+═══════════════════════════════════════════════════════════════
+
+User audit ระบุ 4 issues. **3 จุดที่เขียว verify แล้วต่างจาก audit:**
+
+1. **Target version:** Audit บอก `?v=9.2.2` → จริงคือ `?v=9.3.0` (APP_VERSION ใน config.py)
+2. **JWT random per restart:** Audit บอก "สุ่มทุก restart" → จริงคือ persist ใน `.jwt_secret` ภายใน DATA_DIR (volume) — ปัญหาเฉพาะ multi-machine / volume migrate
+3. **iOS sidebar status:** Audit บอก "ทำไปแล้วใน v9.2.2" → จริงคือ ship ใน Phase B/C (`0e02713` + `2233d89`) ก่อน session นี้ + landing.css Phase 3 ก็ทำใน working tree ก่อนหน้า
+
+═══════════════════════════════════════════════════════════════
+🧪 Self-test (เขียว)
+═══════════════════════════════════════════════════════════════
+
+- ✅ Python syntax: config.py + main.py + storage_router.py
+- ✅ JS syntax: storage_mode.js (`node --check`)
+- ✅ Cache-bust verify: `git grep "?v=" -- "legacy-frontend/*.html"` → ทุกบรรทัด `9.3.0` (21 refs)
+- ✅ JWT warn-log: dev env (no `/app/data`) → no warn ✓ · `JWT_SECRET_KEY` value loads ✓
+
+═══════════════════════════════════════════════════════════════
+🔍 จุดที่อยากให้ฟ้าดูเป็นพิเศษ
+═══════════════════════════════════════════════════════════════
+
+1. **`storage_router.py` `_is_refresh_failure`** — match by class name + message string. Edge case: ถ้า google.auth release ใหม่เปลี่ยนชื่อ class → ลังเลว่าจะตกหล่น message-string fallback ก็ครอบคลุม. ตรวจ logic ที่ [storage_router.py:111-128](../../../backend/storage_router.py#L111)
+
+2. **`storage_router.py` push_profile_to_drive_if_byos** — เพิ่ม `_mark_drive_connection_errored` แค่ใน helper เดียว (pattern reusable). ถ้า ฟ้า เห็นควรทำใน 9 helpers ที่เหลือ → แจ้งกลับ priority MEDIUM
+
+3. **`storage_mode.js` renderStorageModeUI** — error state branch ใช้ `_driveStatus.last_sync_status === 'error'`. Reuse `connectDrive()` (existing OAuth flow) → no new code path. ตรวจว่าไม่มี HTML escape issue ใน `last_sync_error` (มาจาก backend, อาจมี `:` + URL parts)
+
+4. **`config.py` JWT warn-log** — ใช้ `os.path.isdir("/app/data")` detect. Concern: ถ้า dev mount fake `/app/data` (Docker test) → false-positive warn. Mitigation: warn-only ไม่ FATAL = no break
+
+5. **Cache-bust scope** — verify ว่า `pricing.html` ไม่มี `?v=` (zero-asset page) จริงไม่ขาด
+
+6. **iOS sidebar fix verification** — แม้ ship ก่อนหน้า แต่ run [tests/e2e-ui/v9.2.2-ios-sidebar.spec.js](../../../tests/e2e-ui/v9.2.2-ios-sidebar.spec.js) confirm ว่าผ่าน 7/7 milestones บน real Playwright
+
+═══════════════════════════════════════════════════════════════
+📝 Test scenarios (เขียวรันได้บางอย่าง — ฟ้า run Playwright)
+═══════════════════════════════════════════════════════════════
+
+**Manual / Playwright:**
+- [ ] iPhone SE 375×667 (Chrome DevTools): sidebar footer (lang + profile + logout) เห็นโดยไม่ scroll
+- [ ] iPad / desktop: no regression
+- [ ] BYOS user with valid token: sync UI ปกติ
+- [ ] BYOS user simulate `last_sync_status='error'` (manual DB update): UI render "เชื่อมต่อใหม่" + secondary disconnect
+
+**Backend (smoke):**
+- [ ] `scripts/byos_router_smoke.py`: regression — push_profile helper ยังใช้งานได้ (ไม่ break test ที่ใช้ mock)
+- [ ] `/api/drive/status` payload: รวม `last_sync_error` field (อาจ null สำหรับ healthy connection)
+
+**Code review checklist (per .agent-memory/00-START-HERE.md):**
+- [ ] Plan compliance: 5 commits ตรง 5 fix areas
+- [ ] Security: JWT warn-only ไม่ leak secret · `last_sync_error` truncate 255 chars
+- [ ] Convention: comments เป็น TH (business), type hints ครบ
+- [ ] Performance: ไม่มี N+1 query · `_mark_drive_connection_errored` await commit ครั้งเดียว
+- [ ] Code quality: ทุก function ≤ 30 lines
+
+═══════════════════════════════════════════════════════════════
+🟦 User actions ที่ต้องทำเอง (outside code scope)
+═══════════════════════════════════════════════════════════════
+
+หลัง ฟ้า approve + user merge:
+1. `flyctl secrets set JWT_SECRET_KEY="$(openssl rand -base64 64)"` (ครั้งเดียว — user เก่า logout 1 ครั้ง = expected)
+2. Verify Google Cloud Console → OAuth Client → Authorized Redirect URIs ครอบคลุม `https://personaldatabank.fly.dev/api/drive/oauth/callback`
+3. `git push origin master` + `flyctl deploy --app personaldatabank`
+4. Manual smoke real iPhone Safari + sample BYOS user re-connect flow
+
+ลุย review ได้เลย 🚀
+
+— เขียว (Khiao)
+
+---
 
 ---
 

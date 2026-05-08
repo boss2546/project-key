@@ -5,13 +5,26 @@
 
 ---
 
-## 🎯 Current State: `plan_pending_approval` 🔴 (v9.3.0 STABILITY PATCH — 2026-05-08)
+## 🎯 Current State: `review_passed` ✅ (v9.3.0 STABILITY PATCH — 2026-05-08)
 
-**Master HEAD:** `dbf08cf` v9.3.0 Phase A foundation (committed, ahead of origin)
+**Master HEAD:** `12114db` v9.3.0 stability patch (5 commits ahead of origin)
 **APP_VERSION:** 9.3.0
-**Production:** 🟡 pending deployment (master ahead of origin · contains Share Pack + Phase A foundation)
-**Active plan:** [plans/v9.3.0-stability-patch.md](../plans/v9.3.0-stability-patch.md) — รอ user approve + answer Q1-Q6
-**Mode:** 3-in-1 (แดง+เขียว+ฟ้า ในคนเดียว) — รอ user authorize
+**Production:** 🟡 pending deployment — รอ user push + deploy
+**Active plan:** [plans/v9.3.0-stability-patch.md](../plans/v9.3.0-stability-patch.md)
+**Review report:** [communication/inbox/for-User.md REVIEW-V930-PATCH](../communication/inbox/for-User.md)
+**Mode:** 3-in-1 (แดง+เขียว+ฟ้า ในคนเดียว) — pipeline complete, รอ user push
+
+### Patch summary
+- ✅ P1 cache-bust HTML → `?v=9.3.0`
+- ✅ P2 iOS sidebar — verified shipped (no-op)
+- ✅ P3 JWT warn-log on production-like deploy
+- ✅ P4 Drive `invalid_grant` graceful + UI re-connect button
+- ✅ P5 memory sync + archive shipped plan + resolve inbox
+
+### Review tests
+- byos_router_smoke: 16/16 PASS · byos_foundation_smoke: 26/26 PASS
+- Python + JS syntax: OK · Cache-bust grep: 21/21 refs at `?v=9.3.0`
+- Issues: 0 critical / 0 high / 0 medium / 3 low (Phase 2 optional)
 
 ### What this patch does
 - P1 cache-bust HTML ทั้งหมด → `?v=9.3.0` (แก้ downgrade ใน working tree)

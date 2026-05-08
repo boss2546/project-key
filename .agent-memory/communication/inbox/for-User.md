@@ -5,6 +5,71 @@
 
 ---
 
+## 🔴 [REVIEW-V930-PATCH] ✅ APPROVE — v9.3.0 Stability Patch ready to push
+
+**From:** ฟ้า (Fah) [3-in-1 single agent: แดง+เขียว+ฟ้า]
+**Date:** 2026-05-08
+**Plan:** [plans/v9.3.0-stability-patch.md](../../plans/v9.3.0-stability-patch.md)
+**Verdict:** ✅ **APPROVE — ready to `git push` + `flyctl deploy`**
+
+### TL;DR
+
+แก้ 4 ปัญหา audit + 1 house-keeping ใน 5 commits clean · 0 critical/high/medium issues · regression smoke 16/16 + 26/26 PASS
+
+| ID | Fix | Files |
+|---|---|---|
+| P1 | Cache-bust HTML → `?v=9.3.0` | admin/auth-line/landing.html + landing.css |
+| ~~P2~~ | iOS sidebar — **ALREADY SHIPPED** ใน Phase B/C ก่อนหน้า (verified no-op) | — |
+| P3 | JWT_SECRET_KEY warn-log on production-like deploy | config.py |
+| P4 | Drive `invalid_grant` graceful + UI "เชื่อมต่อใหม่" prompt | main.py + storage_router.py + storage_mode.js |
+| P5 | Memory sync + archive Share Pack plan + resolve inbox | .agent-memory/ |
+
+### Commits (5, ahead of `e400d1c`)
+
+```
+12114db docs: stability patch plan + iOS sidebar plan + spec [v9.3.0]
+91cb37c fix(byos): graceful invalid_grant handling + UI re-connect prompt [v9.3.0]
+0234a61 chore(config): JWT_SECRET_KEY warn-log on production-like deploy [v9.3.0]
+0a225a8 fix(frontend): cache-bust HTML assets to ?v=9.3.0 [v9.3.0]
+d21eaaa chore(memory): sync state + archive shipped Share Pack plan [v9.3.0]
+```
+
+### Audit corrections (สำคัญ — verify ก่อน push)
+
+User audit ระบุ 4 issues. **3 จุด state จริงต่างจาก audit:**
+1. **Target version `?v=9.2.2`** → จริงคือ `?v=9.3.0` (APP_VERSION ใน config.py)
+2. **JWT random per restart** → จริงคือ persist `.jwt_secret` ใน volume — ปัญหาเฉพาะ multi-machine / volume migrate (เช่น app rename ที่เพิ่งทำ)
+3. **iOS sidebar "ทำไปแล้ว"** → จริงคือ ship ใน Phase B/C (commits `0e02713` + `2233d89`) ก่อน session นี้แล้ว
+
+### 🟦 User actions (ทำหลัง approve patch นี้)
+
+1. **JWT secret one-time:**
+   ```bash
+   flyctl secrets set JWT_SECRET_KEY="$(openssl rand -base64 64)" --app personaldatabank
+   ```
+   ⚠️ หลัง set + deploy → user ที่ login อยู่ทุกคนถูก logout 1 ครั้ง = expected
+
+2. **Verify Google Cloud Console** → OAuth 2.0 Client → Authorized Redirect URIs ครอบคลุม `https://personaldatabank.fly.dev/api/drive/oauth/callback` + `/api/auth/google/callback`
+
+3. **Push + deploy:**
+   ```bash
+   git push origin master
+   flyctl deploy --app personaldatabank
+   ```
+
+4. **Manual smoke (real device):**
+   - iPhone Safari: sidebar footer (lang + profile + logout) เห็นโดยไม่ scroll
+   - BYOS user เก่าที่ Drive sync ขาด → Profile → Storage Mode → ปุ่ม "เชื่อมต่อใหม่" ใช้งานได้
+
+### Phase 2 nice-to-have (optional, ไม่ block)
+
+- LOW-001: ขยาย `_is_refresh_failure` detection ไป 9 push helpers อื่น (push_graph/clusters/relations/contexts/summary/extracted)
+- LOW-002: HTML-escape `last_sync_error` ใน storage_mode.js (defensive)
+
+— ฟ้า (Fah) · 3-in-1 mode ฟ้าด่านสุดท้าย
+
+---
+
 ## 🟦 [STATUS-2026-05-05] เก็บงานค้าง 3-in-1 — Memory sync + stale code cleanup
 
 **Date:** 2026-05-05
