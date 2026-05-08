@@ -5,14 +5,23 @@
 
 ---
 
-## 🎯 Current State: `review_passed` ✅ (v9.3.0 STABILITY PATCH — 2026-05-08)
+## 🎯 Current State: `built_pending_review` 🟡 (v9.3.2 DISABLE DEDUP — 2026-05-08)
 
-**Master HEAD:** `12114db` v9.3.0 stability patch (5 commits ahead of origin)
-**APP_VERSION:** 9.3.0
-**Production:** 🟡 pending deployment — รอ user push + deploy
-**Active plan:** [plans/v9.3.0-stability-patch.md](../plans/v9.3.0-stability-patch.md)
-**Review report:** [communication/inbox/for-User.md REVIEW-V930-PATCH](../communication/inbox/for-User.md)
-**Mode:** 3-in-1 (แดง+เขียว+ฟ้า ในคนเดียว) — pipeline complete, รอ user push
+**Master HEAD:** `caba379` v9.3.2 disable duplicate detection (2 new commits)
+**APP_VERSION:** 9.3.0 (no bump — patch ของ minor เดิม)
+**Production:** 🟡 pending deployment — รอ user push + deploy (รวม v9.3.0 stability patch + v9.3.2 ในก้อนเดียว)
+**Active plan:** [plans/v9.3.2-disable-duplicate-detection.md](../plans/v9.3.2-disable-duplicate-detection.md)
+**Mode:** 3-in-1 (แดง+เขียว+ฟ้า ในคนเดียว) — `ฟ้า next`
+
+### Patch v9.3.2 summary
+- 🚧 Disabled `compute_content_hash` + `find_duplicate_for_file` + `detect_duplicates_for_batch` (3 public functions in duplicate_detector.py)
+- ✅ Bug fix: UnicodeEncodeError surrogate crash → no longer 500 on reprocess
+- ✅ Memory: DUP-004 + BACKLOG-009 + conventions disabled-features list
+- ✅ Re-enable path documented (single-flag flip + smoke test)
+
+### Self-test (เขียว)
+- duplicate_detector.py syntax OK · 3 functions return no-op · lone surrogate handled
+- byos_router_smoke: 16/16 PASS · byos_foundation_smoke: 26/26 PASS (regression)
 
 ### Patch summary
 - ✅ P1 cache-bust HTML → `?v=9.3.0`

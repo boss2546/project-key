@@ -5,6 +5,92 @@
 
 ---
 
+## 🔴 [REVIEW-V932-DEDUP] ✅ APPROVE — v9.3.2 Disable Duplicate Detection (HTTP 500 fix)
+
+**From:** ฟ้า (Fah) [3-in-1 single agent: แดง+เขียว+ฟ้า]
+**Date:** 2026-05-08
+**Plan:** [plans/v9.3.2-disable-duplicate-detection.md](../../plans/v9.3.2-disable-duplicate-detection.md)
+**Verdict:** ✅ **APPROVE — ready to push + deploy**
+
+### TL;DR
+
+ตัด duplicate detection ออกชั่วคราว · fix HTTP 500 ที่ user เห็นตอน reprocess "AI Keynote.pdf" · 2 commits clean · 0 critical/high/medium issues · ระบบหลักไม่กระทบ
+
+### Bug ที่ fix
+
+```
+File "/app/backend/main.py", line 1638, in reprocess_file
+    file.content_hash = compute_content_hash(new_text)
+File "/app/backend/duplicate_detector.py", line 108, in compute_content_hash
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+UnicodeEncodeError: 'utf-8' codec can't encode characters in
+position 12562-12563: surrogates not allowed
+```
+
+### Strategy: Soft-disable single-flag
+
+| What | Where |
+|---|---|
+| `_DEDUP_DISABLED = True` flag | [backend/duplicate_detector.py](../../../backend/duplicate_detector.py) top |
+| 3 functions early-return no-op | `compute_content_hash → None`, `find_duplicate_for_file → None`, `detect_duplicates_for_batch → []` |
+| `errors="replace"` ใส่ใน encode line ไว้แล้ว | flip flag = ปิด bug + เปิด feature ในขั้นเดียว |
+
+### Commits (2, ahead of `12114db` stability patch)
+
+```
+caba379 docs: DUP-004 decision + BACKLOG-009 + conventions disabled-features [v9.3.2]
+27dbc97 fix(dedup): disable duplicate detection (UnicodeEncodeError surrogate crash) [v9.3.2]
+```
+
+### Self-test results
+
+- ✅ Python syntax OK
+- ✅ `compute_content_hash` returns None for normal/empty/short text
+- ✅ **`compute_content_hash` handles lone surrogate without crash** (the bug fix)
+- ✅ `find_duplicate_for_file` returns None when disabled (no DB queries — perf preserved)
+- ✅ `detect_duplicates_for_batch` returns [] when disabled
+- ✅ `byos_router_smoke.py`: 16/16 PASS (regression)
+- ✅ `byos_foundation_smoke.py`: 26/26 PASS (regression)
+
+### Impact (ระบบที่ไม่กระทบ — verified)
+
+| ระบบ | สถานะ |
+|---|---|
+| File upload + extract + organize + chat | ✅ คงเดิม 100% |
+| Knowledge graph + clusters + summaries | ✅ ทำงานปกติ |
+| BYOS Drive sync + push helpers | ✅ ทำงานปกติ (smoke 16/16) |
+| Stripe + plan limits + admin | ✅ ไม่เกี่ยว |
+| MCP 30 tools | ✅ ไม่เกี่ยว |
+| Frontend dup-modal popup | 🚧 ไม่ trigger (response duplicates_found=[] เสมอ) |
+
+### Re-enable steps (เก็บใน TODO marker + DUP-004)
+
+1. Verify `errors="replace"` ใน `compute_content_hash.encode()` ยังอยู่ (ใส่ไว้แล้ว)
+2. Add pytest case: `compute_content_hash("normal\ud800text")` ต้องไม่ raise
+3. Flip `_DEDUP_DISABLED = False` (1-line change)
+4. รัน `python scripts/duplicate_detection_smoke.py` → expect 33/33 PASS
+5. Manual smoke: upload duplicate → /api/organize-new → popup ปรากฏ
+
+### 🟦 User actions ที่ต้องทำ (รวมกับ stability patch)
+
+1. **Push + deploy:**
+   ```bash
+   git push origin master
+   flyctl deploy --app personaldatabank
+   ```
+2. **JWT secret one-time** (ถ้ายังไม่ทำ):
+   ```bash
+   flyctl secrets set JWT_SECRET_KEY="$(openssl rand -base64 64)" --app personaldatabank
+   ```
+3. **Verify** Google Cloud Console redirect URIs (เห็น guide ในข้อความก่อน)
+4. **Manual smoke (post-deploy):**
+   - คลิก "ประมวลผลใหม่" บน "AI Keynote.pdf" → ต้องไม่เป็น 500 อีก ✅
+   - Upload + organize → AI cluster ไฟล์ซ้ำเข้ากลุ่มเดียวกัน (ไม่มี popup ต่างจากเดิม)
+
+— ฟ้า (Fah) · 3-in-1 mode
+
+---
+
 ## 🔴 [REVIEW-V930-PATCH] ✅ APPROVE — v9.3.0 Stability Patch ready to push
 
 **From:** ฟ้า (Fah) [3-in-1 single agent: แดง+เขียว+ฟ้า]
