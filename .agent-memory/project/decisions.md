@@ -153,3 +153,35 @@
 - Response field `duplicates_found` ย้ายจาก upload response → organize-new response
 - `organize_new_files()` return value เพิ่ม `file_ids` array (เพื่อให้ caller รัน detection ตามได้)
 - **ห้าม** ใส่ `duplicates_found` กลับเข้า upload response (frontend จะสับสน 2 จุด)
+
+## DUP-004: Duplicate detection DISABLED temporarily (v9.3.2, 2026-05-08)
+**Why:** `compute_content_hash()` crashes กับ `UnicodeEncodeError: surrogates not allowed` สำหรับ PDF text ที่มี lone surrogate code points (PDF font encoding edge case). Manifests เป็น HTTP 500 บน `POST /api/files/{id}/reprocess` ตามที่เห็นใน Fly.io log 2026-05-08 11:31:36 position 12562-12563.
+
+User decision: ตัด duplicate detection ออกชั่วคราว · ใช้ AI organizer (LLM clustering) จัดกลุ่มไฟล์ซ้ำเข้า cluster เดียวกันโดย implicit (semantic similarity ใน organize prompts) · กลับมาเปิดเมื่อ fix bug แล้ว.
+
+**Implementation:**
+- `_DEDUP_DISABLED = True` flag ที่ top of [backend/duplicate_detector.py](../../backend/duplicate_detector.py) — single source of truth
+- 3 public functions early-return no-op: `compute_content_hash → None`, `find_duplicate_for_file → None`, `detect_duplicates_for_batch → []`
+- Original logic preserved underneath — flip flag + verify smoke = full re-enable
+- `errors="replace"` ถูกใส่ใน `compute_content_hash` encode line แล้ว — เปิดกลับ = bug fix อัตโนมัติไม่ต้อง patch แยก
+
+**Implication:**
+- `files.content_hash` column ใน DB → NULL สำหรับไฟล์ใหม่ที่ upload หลัง v9.3.2 (existing rows ไม่กระทบ)
+- `/api/organize-new` response → `duplicates_found: []` เสมอ (contract preserved)
+- Frontend popup `dup-modal-overlay` ไม่ trigger (HTML/CSS/JS ทุกอย่างคงเดิม)
+- `/api/files/skip-duplicates` endpoint ยัง functional · แต่ไม่ถูกเรียกจาก UI
+- `pytest scripts/duplicate_detection_smoke.py` (33 cases) → จะ fail เพราะ no-op return · เก็บไว้เป็น "red flag" reminder
+- **Limited regression:** AI organizer + chat retrieval + vector search ไม่กระทบ — ระบบหลักทำงาน 100%
+
+**Re-enable steps (DO IN ORDER):**
+1. Confirm `errors="replace"` ยังอยู่ใน `compute_content_hash.encode()` (มีอยู่แล้วใน v9.3.2)
+2. Add pytest case: `compute_content_hash("normal\ud800text")` ต้องไม่ raise
+3. Flip `_DEDUP_DISABLED = False` ใน duplicate_detector.py (1-line change)
+4. รัน `python scripts/duplicate_detection_smoke.py` → expect 33/33 PASS
+5. Manual smoke: upload duplicate file → click "จัดระเบียบไฟล์ใหม่" → popup "ไฟล์ซ้ำ" ปรากฏ
+6. Update DUP-004 status → CLOSED + delete this section หรือ mark resolved
+
+**See also:**
+- [plan v9.3.2](../plans/v9.3.2-disable-duplicate-detection.md) — full impact analysis
+- [active-tasks.md](../current/active-tasks.md) BACKLOG-009 — re-enable tracking
+- [conventions.md](../contracts/conventions.md) — disabled-features list

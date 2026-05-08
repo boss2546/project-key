@@ -66,6 +66,7 @@
 - [ ] [BACKLOG-005] Custom domain (replace `personaldatabank.fly.dev`)
 - [ ] [BACKLOG-006] Submit Google OAuth verification (pairs with pre-launch gate above)
 - [ ] [BACKLOG-007] Frontend migration to React/Vue (per FE-001 — defer)
+- [ ] [BACKLOG-009] **Re-enable duplicate detection** — fix UnicodeEncodeError surrogate bug. Flip `_DEDUP_DISABLED = False` in [backend/duplicate_detector.py](../../backend/duplicate_detector.py) after adding pytest case. See [decisions.md DUP-004](../project/decisions.md#dup-004) + [plan v9.3.2](../plans/v9.3.2-disable-duplicate-detection.md).
 
 ---
 

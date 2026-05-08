@@ -131,3 +131,19 @@ Author-Agent: แดง (Daeng)
 - **ห้าม log:** passwords, tokens, full credit card numbers
 - **Validate:** ทุก user input ที่เข้า DB หรือ shell
 - **SQL:** ใช้ parameterized queries (database.py ทำให้แล้ว — อย่า bypass)
+
+---
+
+## 🚧 Currently disabled features (TODO list)
+
+ฟีเจอร์ที่ถูก disable ชั่วคราว · agent ห้ามลบ code/DB column · ต้องเปิดกลับตาม steps ใน decisions.md
+
+| Feature | Disabled in | Reason | Re-enable plan |
+|---|---|---|---|
+| **Duplicate Detection** (`compute_content_hash` + `find_duplicate_for_file` + `detect_duplicates_for_batch`) | v9.3.2 (2026-05-08) | `UnicodeEncodeError: surrogates not allowed` ใน PDF text edge case → HTTP 500 บน reprocess | [DUP-004](../project/decisions.md#dup-004) + [plan v9.3.2](../plans/v9.3.2-disable-duplicate-detection.md) + [BACKLOG-009](../current/active-tasks.md) |
+
+**กฎสำหรับ agents เมื่อแก้ disabled feature:**
+- ❌ ห้ามลบ source code ของ feature ที่ disable
+- ❌ ห้าม drop DB column ของ feature ที่ disable (per DB-003)
+- ✅ เปิดกลับโดย flip flag (เช่น `_DEDUP_DISABLED = False`) — ห้าม rewrite จากศูนย์
+- ✅ อ่าน TODO marker block ใน source file ก่อน flip — มี checklist ครบ
