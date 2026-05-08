@@ -42,6 +42,41 @@ from . import vector_search
 
 logger = logging.getLogger(__name__)
 
+# ════════════════════════════════════════════════════════════════
+# 🚧 TEMPORARILY DISABLED (v9.3.2 — 2026-05-08)
+# ════════════════════════════════════════════════════════════════
+# Duplicate detection is currently DISABLED because compute_content_hash()
+# crashes with UnicodeEncodeError on PDF text containing lone surrogate
+# code points (PDF font encoding edge case — see Fly.io log 2026-05-08
+# 11:31:36 "surrogates not allowed" position 12562-12563).
+#
+# All 3 public functions below early-return no-op results when this flag
+# is True (None / [] / None). Frontend popup never triggers because
+# /api/organize-new returns duplicates_found=[] always.
+#
+# REGRESSION SCOPE (limited):
+#   - User cannot detect "ไฟล์ซ้ำ" exact/semantic during organize-new.
+#   - AI organizer (LLM clustering) still groups similar files into the
+#     same cluster, so dup grouping is preserved implicitly via cluster.
+#   - Quota: user upload duplicate counts toward file_limit (no auto-skip).
+#
+# 🔧 TO RE-ENABLE (TODO — see decisions.md DUP-004):
+#   1. The encode line in compute_content_hash() below already uses
+#      errors="replace" — this fixes the surrogate bug at re-enable time.
+#      (Kept inline so flipping the flag = full re-enable, no extra fix.)
+#   2. Add pytest case feeding text with lone surrogate, e.g.:
+#         compute_content_hash("normal\ud800text")  # must not raise
+#   3. Flip _DEDUP_DISABLED = False below (single-line revert).
+#   4. Run scripts/duplicate_detection_smoke.py — expect 33/33 PASS.
+#   5. Manual smoke: upload duplicate → /api/organize-new → popup appears.
+#
+# References:
+#   - Plan: .agent-memory/plans/v9.3.2-disable-duplicate-detection.md
+#   - Decision: .agent-memory/project/decisions.md DUP-004
+#   - Bug origin: backend/main.py:1638 reprocess_file → compute_content_hash
+# ════════════════════════════════════════════════════════════════
+_DEDUP_DISABLED = True  # ← single source of truth · flip to False to re-enable
+
 # Threshold: similarity ≥ ค่านี้ถือว่า duplicate (ใช้กับ semantic match เท่านั้น —
 # exact match ใช้ 1.0 ตามนิยามของ SHA-256 collision)
 SIMILARITY_THRESHOLD: float = 0.80
@@ -98,14 +133,23 @@ def compute_content_hash(text: str) -> Optional[str]:
 
     Why None ไม่ใช่ empty string: เก็บ NULL ใน DB → exact-match SQL query จะไม่ match
     (NULL ≠ NULL ใน SQL) → ไฟล์ที่ extraction ล้มเหลว 2 ไฟล์จะไม่ false-match กันเอง
+
+    🚧 DISABLED v9.3.2: returns None always (see _DEDUP_DISABLED block above).
     """
+    if _DEDUP_DISABLED:
+        return None
     if not text or len(text) < MIN_TEXT_LENGTH_FOR_DETECTION:
         return None
     # Skip extraction error markers — ไม่ควร hash เพราะไม่ใช่ user content จริง
     if text.startswith("["):
         return None
     normalized = normalize_text(text)
-    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+    # errors="replace": surrogate code points (rare PDF font encoding artifacts)
+    # are replaced with U+FFFD instead of raising UnicodeEncodeError. Lossy hash
+    # for those rare cases is acceptable — better than crashing the request.
+    return hashlib.sha256(
+        normalized.encode("utf-8", errors="replace")
+    ).hexdigest()
 
 
 def _extract_topics(file: File) -> list[str]:
@@ -154,7 +198,11 @@ async def find_duplicate_for_file(
 
     Returns:
         DuplicateMatch ถ้าเจอ, None ถ้าไม่เจอ / text สั้นเกิน / extraction error
+
+    🚧 DISABLED v9.3.2: returns None always (see _DEDUP_DISABLED block above).
     """
+    if _DEDUP_DISABLED:
+        return None
     # Skip ไฟล์ที่ text สั้นเกิน — TF-IDF อ่อน + hash ไม่น่าเชื่อถือ
     if not new_text or len(new_text) < MIN_TEXT_LENGTH_FOR_DETECTION:
         return None
@@ -281,7 +329,11 @@ async def detect_duplicates_for_batch(
 
     Returns:
         List ของ DuplicateMatch — อาจว่างถ้าไม่มีไฟล์ไหนซ้ำ
+
+    🚧 DISABLED v9.3.2: returns [] always (see _DEDUP_DISABLED block above).
     """
+    if _DEDUP_DISABLED:
+        return []
     matches: list[DuplicateMatch] = []
     for file_id in new_file_ids:
         result = await db.execute(select(File).where(File.id == file_id))
