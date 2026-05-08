@@ -5,13 +5,14 @@
 
 ---
 
-## 🎯 Current State: `built_pending_review` 🟡 (v9.3.2 DISABLE DEDUP — 2026-05-08)
+## 🎯 Current State: `review_passed` ✅ (v9.3.2 DISABLE DEDUP — 2026-05-08)
 
-**Master HEAD:** `caba379` v9.3.2 disable duplicate detection (2 new commits)
-**APP_VERSION:** 9.3.0 (no bump — patch ของ minor เดิม)
-**Production:** 🟡 pending deployment — รอ user push + deploy (รวม v9.3.0 stability patch + v9.3.2 ในก้อนเดียว)
+**Master HEAD:** `f5d24c2` v9.3.2 disable duplicate detection (3 commits ahead of origin)
+**APP_VERSION:** 9.3.1 (existing — ผม no-bump เพราะเป็น patch ทักษะ feature flag เท่านั้น ไม่มี behavior change ที่ user เห็น)
+**Origin/master:** `cdef06b` v9.3.1 finalize (deployed — has Phase D+E + iOS sidebar mobile-scroll + bump 9.3.1)
+**Production:** 🟡 deploy v9.3.1 อยู่ · รอ user push v9.3.2 patch (3 commits)
 **Active plan:** [plans/v9.3.2-disable-duplicate-detection.md](../plans/v9.3.2-disable-duplicate-detection.md)
-**Mode:** 3-in-1 (แดง+เขียว+ฟ้า ในคนเดียว) — `ฟ้า next`
+**Mode:** 3-in-1 (แดง+เขียว+ฟ้า ในคนเดียว) — pipeline complete, รอ user push
 
 ### Patch v9.3.2 summary
 - 🚧 Disabled `compute_content_hash` + `find_duplicate_for_file` + `detect_duplicates_for_batch` (3 public functions in duplicate_detector.py)
