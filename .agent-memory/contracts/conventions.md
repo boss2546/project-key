@@ -57,6 +57,9 @@ files.sort(key=lambda f: -f.size)
 - ใช้ class-based selectors เป็นหลัก
 - ห้ามใช้ `!important` ถ้าไม่จำเป็น
 - ใช้ CSS variables สำหรับ theme colors
+- **(v9.3.0+)** ทุก CSS ต้อง follow [`ui-foundation.md`](ui-foundation.md) — token-only,
+  no new atom variants, no uppercase metric labels, focus rings, tabular-nums.
+  ฟ้า reject PR ที่ฝ่าฝืน checklist (§6)
 
 ### HTML
 - Semantic HTML5 tags (`<header>`, `<nav>`, `<main>`)
