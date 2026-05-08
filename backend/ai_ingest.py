@@ -90,16 +90,23 @@ async def ingest_via_ai(filepath: str, filetype: str) -> str:
 
     try:
         if ext in AUDIO_FORMATS:
-            return await _ingest_audio(filepath, ext)
+            text = await _ingest_audio(filepath, ext)
         elif ext in VIDEO_FORMATS:
-            return await _ingest_video(filepath, ext)
+            text = await _ingest_video(filepath, ext)
         elif ext in AI_VISION_FORMATS:
-            return await _ingest_image_smart(filepath, ext)
+            text = await _ingest_image_smart(filepath, ext)
         else:
             return f"[AI ingest unsupported format: {ext}]"
     except Exception as e:
         logger.error(f"AI ingest failed for {filepath}: {e}", exc_info=True)
         return f"[AI ingest error: {type(e).__name__}: {str(e)[:200]}]"
+
+    # v9.3.4 — strip lone surrogates from Gemini output before returning.
+    # Gemini occasionally emits surrogate halves when transcribing audio/video
+    # that contains rare unicode (emoji combining sequences, malformed input).
+    # Defense-in-depth at boundary so DB writes never crash on encode UTF-8.
+    from .extraction import strip_surrogates
+    return strip_surrogates(text)
 
 
 # ─── Internal: Gemini Files API workflow ─────────────────────────────

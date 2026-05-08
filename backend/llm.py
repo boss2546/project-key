@@ -8,6 +8,7 @@ import httpx
 import json
 import logging
 from .config import OPENROUTER_API_KEY, OPENROUTER_BASE_URL, LLM_MODEL, LLM_MODEL_PRO
+from .extraction import strip_surrogates
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +55,11 @@ async def _call_openrouter(model: str, system_prompt: str, user_prompt: str, tem
                 logger.info(f"LLM [{model}] tokens — prompt: {usage.get('prompt_tokens', '?')}, "
                           f"completion: {usage.get('completion_tokens', '?')}, "
                           f"total: {usage.get('total_tokens', '?')}")
-            return content
+            # v9.3.4 — strip lone surrogates from LLM output before returning.
+            # OpenRouter/Gemini occasionally emit surrogate halves when echoing
+            # text from input documents that had encoding issues. Prevents
+            # downstream UnicodeEncodeError on DB writes / JSON serialization.
+            return strip_surrogates(content)
         else:
             logger.error(f"Unexpected LLM response: {data}")
             raise Exception(f"Unexpected LLM response format")
