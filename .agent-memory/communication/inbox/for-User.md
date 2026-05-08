@@ -5,6 +5,52 @@
 
 ---
 
+## 🔴 [REVIEW-V934-LLM-BOUNDARY] ✅ APPROVE — v9.3.4 LLM + AI ingest sanitize
+
+**From:** ฟ้า (Fah) [3-in-1]
+**Date:** 2026-05-08
+**Verdict:** ✅ **APPROVE — combine กับ v9.3.2/3 deploy ในก้อนเดียว**
+
+### TL;DR
+
+Defense-in-depth ต่อจาก v9.3.3 — ป้องกัน surrogate ที่อาจมาจาก **LLM response** หรือ **AI ingest** (audio/video transcription) ที่บางครั้ง echo surrogate halves จาก input · wrap ที่ output boundary 2 จุด
+
+### Files
+
+| File | Change |
+|---|---|
+| [backend/llm.py](../../../backend/llm.py) `_call_openrouter` | wrap return content with `strip_surrogates` — single point covers call_llm/call_llm_pro/call_llm_json |
+| [backend/ai_ingest.py](../../../backend/ai_ingest.py) `ingest_via_ai` | wrap Gemini transcription output |
+| [backend/config.py](../../../backend/config.py) | APP_VERSION 9.3.3 → 9.3.4 |
+
+### Coverage now
+
+| Source | Wrapped at | Status |
+|---|---|---|
+| PDF extraction (PyPDF2/OCR/Docling) | extract_text() return | ✅ v9.3.3 |
+| AI ingest (Gemini audio/video) | ingest_via_ai() return | ✅ v9.3.4 |
+| LLM response (organizer/chat/etc.) | _call_openrouter() return | ✅ v9.3.4 |
+| DB write (upload/reprocess/promote/mcp) | strip_surrogates wrap | ✅ v9.3.3 |
+| compute_content_hash | disabled | ✅ v9.3.2 |
+
+### Self-test
+
+- ✅ Python syntax: llm.py + ai_ingest.py
+- ✅ strip_surrogates wired in `_call_openrouter` + `ingest_via_ai`
+- ✅ byos_router_smoke regression: 16/16 PASS
+
+### 🟦 User actions
+
+```bash
+flyctl deploy --app personaldatabank
+```
+
+หลัง deploy → sidebar = `v9.3.4` · ทดสอบ "+ จัดระเบียบไฟล์ใหม่" + "ลองอ่านใหม่"
+
+— ฟ้า (Fah)
+
+---
+
 ## 🔴 [REVIEW-V933-SURROGATE] ✅ APPROVE — v9.3.3 Surrogate Boundary Hotfix
 
 **From:** ฟ้า (Fah) [3-in-1 single agent]
