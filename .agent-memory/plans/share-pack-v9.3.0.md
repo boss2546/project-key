@@ -1,509 +1,1159 @@
-# Plan: Share Context Pack — v9.3.0
+# Plan: Share Context Pack — v9.3.0 (Detailed Edition)
 
 > **Status:** `plan_pending_approval`
-> **Author:** 🔴 แดง (Daeng) — 2026-05-07
-> **Foundation:** v9.2.1 master (after AI Pack Builder + Mobile Fixes ship)
-> **Estimated effort:** เขียว ~3 วัน + ฟ้า ~1 วัน
-> **Risk:** 🟠 Medium-High — privacy-sensitive feature ต้องมี explicit consent + revoke ได้
+> **Author:** 🔴 แดง (Daeng) — 2026-05-08 (final detailed)
+> **Foundation:** v9.2.2 master (after iOS sidebar fix ships)
+> **Estimated effort:** เขียว ~2.5 วัน + ฟ้า ~1 วัน
+> **Risk:** 🟡 Medium — privacy + clipboard + recipient onboarding flow
 >
-> **User vision (verbatim 2026-05-07):**
-> "อยากให้มันสามารถแชร์ context pack กับคนอื่นได้ — ฟีเจอร์นี้ต้องคิดทบทวนดีๆ"
+> **User vision:**
+> 1. Sender: กด 📤 = ลิงก์ copy ทันที (default สรุปอย่างเดียว)
+> 2. Sender: ติ๊ก "+ แนบไฟล์ทั้งหมด" ได้
+> 3. Recipient: เปิดลิงก์ = preview เนื้อหาก่อน (สรุปย่อ + expand) + download ไฟล์แนบได้เลย
+> 4. Recipient: ปุ่ม "เก็บเข้าธนาคารข้อมูลของฉัน" → register/login → pack ไปอยู่ใน workspace
+> 5. ถ้าไม่เก็บ = ปิด จบ
+> 6. ลิงก์ใช้ได้ตลอดจนกว่า revoke
+>
+> **Verification approach:** ทุก milestone มี **Playwright UI test** ที่รัน real Chromium — ทดสอบทั้ง **ฝั่ง sender** และ **ฝั่ง recipient** end-to-end
+
+---
+
+## 📋 Table of Contents
+
+1. [Goal & Context](#-goal--context)
+2. [Files to Create / Modify](#-files-to-create--modify)
+3. [Data Model](#-data-model)
+4. [API Contracts (Full)](#-api-contracts-full)
+5. [Frontend UI Specifications](#-frontend-ui-specifications)
+6. [Milestones (7) with Playwright Verification](#-milestones-7-with-playwright-verification)
+7. [Comprehensive Test Suite](#-comprehensive-test-suite)
+8. [Done Criteria](#-done-criteria)
+9. [Risks & Open Questions](#-risks--open-questions)
+10. [Notes for เขียว](#-notes-for-เขียว)
 
 ---
 
 ## 🎯 Goal & Context
 
 ### Why
-Pack ที่ user สร้าง = "knowledge cache ที่กลั่นจากข้อมูลส่วนตัว" — ปัจจุบันใช้ส่วนตัวอย่างเดียว ไม่มีวิธีส่งให้คนอื่น (เพื่อนร่วมงาน, นักศึกษา, ทีม) ทำให้:
-1. **Lock-in to single user** — pack มีประโยชน์น้อย ถ้าใช้คนเดียว
-2. **Manual workaround** — user ทำ "ส่งออกเป็น text + paste ใน chat" → ไม่ได้ context structure ของ pack
-3. **Use cases ที่หายไป:** team work (founder + cofounder), education (อาจารย์ → นักศึกษา), public knowledge sharing
+Pack adoption ปัจจุบัน = 0% (149 users, 0 packs in DB). การ share จะเปลี่ยน Pack เป็น **artifact ที่ส่งต่อได้** + เป็น **growth loop** (recipient register PDB ใหม่)
 
-### Goals (Archetype B — Balanced per user 2026-05-07)
-1. **Owner สร้าง share link** ได้ — กำหนด audience (email whitelist) + permission (view/clone) + TTL
-2. **Recipient view** — เข้าได้ผ่าน link, view summary + intent + scope + ชื่อไฟล์ source (ไม่เห็น content ไฟล์)
-3. **Recipient clone** — copy pack เป็นของตัวเองใน workspace ตัวเอง (ต้อง login PDB)
-4. **Privacy by default** — confirmation modal ก่อน share + แสดง source files list + revoke ได้ทุกเมื่อ + audit log
-
-### Non-goals (เลื่อน v9.4.0+)
-- ❌ Subscribe (auto-sync) — ผู้รับ get update เมื่อ owner regenerate (เลื่อน)
-- ❌ Source file content sharing (privacy nightmare — แชร์เนื้อหาไฟล์)
-- ❌ Password-protected link
-- ❌ Public link (anyone-with-link)
-- ❌ Pack collaboration (multi-owner edit)
-- ❌ MCP tool รองรับ create share link (เลื่อน v9.4.0)
-- ❌ Email notification ผู้รับเมื่อ share สร้าง (เลื่อน — ใช้ Resend)
+### Goal — 1 ประโยค
+**"กด 1 ปุ่มได้ลิงก์ ส่งให้ใครก็ได้ คนรับเปิดดูก่อน ตัดสินใจเก็บเอง"**
 
 ### Design decisions (per user 2026-05-07)
-- **Q1 Audience:** B (Email whitelist) + C (require PDB login) — recipient ต้อง login + email match list
-- **Q2 Permission:** B (View + Clone) — เห็นเนื้อหา + กดสร้างสำเนาในตัวเองได้
-- **Q3 Content:** B (summary + intent + scope + ชื่อไฟล์ + type — ไม่รวม content ไฟล์)
-- **Q4 Lifecycle:** B (TTL 30 วัน default + revoke ได้ทุกเมื่อ, ไม่มี password)
-- **Q5 Plan gate:** C (Quota — Free 1/เดือน, Starter 50/เดือน, Admin unlimited)
-- **Q6 Use case:** work team + personal backup
-- **Q7 Recipient view URL:** หน้าใหม่ `/shared/pack/{token}` — แยกจาก `/app` กัน auth state hijack
-- **Q8 Tracking:** เก็บ access count + first/last access + recipient_user_id ใน access log
-- **Q9 ลบ pack ต้นทาง:** share link → 404 (lazy — token ยังอยู่แต่ verify จะ fail)
-- **Q10 MCP integration:** ไม่ทำใน v9.3 → v9.4
+| # | Decision |
+|---|---|
+| Q1 Sender flow | กด 📤 = link copy ทันที (no modal) + bar เล็กเด้งใต้ pack |
+| Q2 Files attach | Default = ไม่แนบ ส่ง .md อย่างเดียว · ติ๊กทีเดียว = แนบทุกไฟล์ |
+| Q3 Recipient access | ใครมีลิงก์ก็เปิด preview ได้ (no login) |
+| Q4 Recipient claim | กด "เก็บ" = ต้อง login PDB → pack clone เข้า workspace |
+| Q5 Preview content | สรุปย่อ 300 chars + ปุ่ม "ดูเต็ม" + ดาวน์โหลดไฟล์ได้เลย |
+| Q6 TTL | ไม่จำกัด (revoke เอาแทน) |
+| Q7 Cloned pack | อิสระจากต้นฉบับ — เจ้าของแก้/revoke = ไม่กระทบของคนรับ |
+| Q8 Quota | Free 5 link/เดือน, Starter 50, Admin unlimited |
 
-### Privacy guards (non-negotiable)
-1. **Default = private** — share = explicit action ไม่มี auto-share
-2. **Confirmation modal** — แสดง list ไฟล์ source + checkbox "ยืนยันว่าเข้าใจว่าข้อมูล (สรุป + ชื่อไฟล์) จะถูก share"
-3. **Revoke ได้ทุกเมื่อ** — UI ปุ่ม "ยกเลิกลิงก์" + audit แสดงประวัติ access
-4. **TTL ไม่เกิน 90 วัน** — กัน orphan link ที่ลืมไว้
-5. **Recipient ต้อง login** — ไม่มี anonymous access (กัน DDoS + accountability)
+### Non-goals (เลื่อน v9.4.0+)
+- ❌ Email whitelist · TTL slider · Permission tier
+- ❌ Subscribe / live update / co-edit
+- ❌ MCP create_share tool
+- ❌ Email notification
 
 ---
 
 ## 📁 Files to Create / Modify
 
-| File | Action | Reason |
-|------|--------|--------|
-| `backend/database.py` | **modify** | เพิ่ม `PackShare` table + `PackShareAccess` table + idempotent migration |
-| `backend/pack_share.py` | **create** (~280 lines) | Core module: create_share, verify_share_token, list_shares, revoke_share, log_access, clone_shared_pack |
-| `backend/main.py` | **modify** | 5 Pydantic models + 6 endpoints (create/list/revoke/view/clone + GET html page) |
-| `backend/context_packs.py` | **modify** | `_serialize_pack()` expose `share_count` + `has_active_shares` (สำหรับ pack card UI) |
-| `backend/plan_limits.py` | **modify** | `check_pack_share_create_allowed()` + add `pack_share_limit_monthly` ใน PLAN_LIMITS |
-| `legacy-frontend/app.html` | **modify** | Pack card menu "📤 Share..." button + Share Modal (whitelist + permission + TTL + privacy warning) + Shares Manager Modal (list + revoke + access log) |
-| `legacy-frontend/app.js` | **modify** | 6 functions (open share modal, submit share, render shares list, revoke, copy link, render access log) + 12 i18n keys |
-| `legacy-frontend/styles.css` | **modify** | `.share-modal`, `.share-recipient-list`, `.share-access-log`, `.privacy-warning` (~120 lines) |
-| `legacy-frontend/shared_pack.html` | **create** (~200 lines) | Standalone recipient view page — display pack + clone button |
-| `legacy-frontend/shared_pack.js` | **create** (~150 lines) | Auth check + render pack + clone action |
-| `backend/config.py` + `app.html` | **modify** | bump APP_VERSION 9.2.1 → 9.3.0 |
-| `scripts/share_pack_smoke.py` | **create** (~250 lines) | 30-case smoke test (privacy guards, TTL, revoke, clone, audit) |
-| `tests/test_share_pack_v9_3.py` | **create** (~400 lines) | Comprehensive pytest (40+ cases: edge, race, quota, privacy, RBAC) |
+| File | Action | Lines | Purpose |
+|------|--------|-------|---------|
+| `backend/database.py` | modify | +25 | เพิ่ม `class PackShare` + index |
+| `backend/pack_share.py` | **NEW** | ~220 | Core: token sign/verify, create/update/revoke share, get_preview, claim_to_workspace |
+| `backend/main.py` | modify | +180 | 3 Pydantic models + 5 endpoints + 1 HTML route |
+| `backend/context_packs.py` | modify | +8 | `_serialize_pack()` expose `share_count`, `has_active_share` |
+| `backend/plan_limits.py` | modify | +30 | `pack_share_limit_monthly` + `check_pack_share_create_allowed` + `get_monthly_pack_share_count` |
+| `legacy-frontend/app.html` | modify | +20 | ปุ่ม 📤 ใน pack-card-actions + bar template |
+| `legacy-frontend/app.js` | modify | +260 | 6 functions + 14 i18n keys + clipboard |
+| `legacy-frontend/styles.css` | modify | +85 | `.pack-share-bar` + animations + locked variant |
+| `legacy-frontend/shared_pack.html` | **NEW** | ~180 | Recipient preview page (standalone) |
+| `legacy-frontend/shared_pack.js` | **NEW** | ~200 | Render preview + claim button + login flow |
+| `legacy-frontend/shared_pack.css` | **NEW** | ~120 | Recipient page styling (responsive) |
+| `backend/config.py` + `app.html` | modify | 2 | bump APP_VERSION 9.2.2 → 9.3.0 |
+| `scripts/share_pack_smoke.py` | **NEW** | ~280 | 25-case smoke (in-process) |
+| `tests/test_share_pack_v9_3.py` | **NEW** | ~450 | 35-case pytest comprehensive |
+| `tests/e2e-ui/v9.3.0-share-pack-sender.spec.js` | **NEW** | ~280 | 12 Playwright sender UI tests |
+| `tests/e2e-ui/v9.3.0-share-pack-recipient.spec.js` | **NEW** | ~320 | 14 Playwright recipient UI tests |
 
-**ไม่แตะ:** AI Pack Builder, retriever, graph_builder, MCP tools — out of scope
+**Total:** 5 modified + 7 new (~2,460 lines)
+
+**ไม่แตะ:** AI Builder, retriever, graph, MCP, Stripe — out of scope
 
 ---
 
-## 🗄️ Data Model Changes
+## 🗄️ Data Model
 
 ### `PackShare` table — NEW
 
 ```python
 class PackShare(Base):
-    """v9.3.0 — Share link metadata. Token = JWT (stateless verify) แต่ row นี้
-    เก็บ revocation + audience whitelist + audit trail ที่ JWT ไม่รองรับ."""
+    """v9.3.0 — Share link metadata.
+    
+    Token = JWT signed (scope='pack_share', no exp) — verify ผ่าน DB row check (revoked_at)
+    ตัด audit log แยก — view_count + clone_count denormalized พอ"""
     __tablename__ = "pack_shares"
     id = Column(String, primary_key=True, default=gen_id)
     pack_id = Column(String, ForeignKey("context_packs.id"), nullable=False, index=True)
     owner_user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
-
-    # Audience: email whitelist (JSON array of lowercase emails)
-    allowed_emails = Column(Text, default="[]")
-
-    # Permission: "view" | "view_clone"
-    permission = Column(String, default="view_clone")
-
-    # Lifecycle
-    expires_at = Column(DateTime, nullable=False)
-    revoked_at = Column(DateTime, nullable=True)
-    revoke_reason = Column(String, nullable=True)   # owner-supplied reason
-
-    # Stats (denormalized for fast UI render — actual log ใน PackShareAccess)
-    access_count = Column(Integer, default=0)
-    first_access_at = Column(DateTime, nullable=True)
-    last_access_at = Column(DateTime, nullable=True)
+    
+    # Settings
+    include_files = Column(Boolean, default=False)  # default = สรุปอย่างเดียว
+    
+    # Lifecycle (no TTL — revoke-only)
+    revoked_at = Column(DateTime, nullable=True, index=True)
+    
+    # Stats — denormalized (atomic UPDATE counter)
+    view_count = Column(Integer, default=0)
     clone_count = Column(Integer, default=0)
-
+    
     created_at = Column(DateTime, default=datetime.utcnow)
-
+    
     pack = relationship("ContextPack")
     owner = relationship("User")
-
-
-class PackShareAccess(Base):
-    """v9.3.0 — Audit log แต่ละครั้งที่ recipient เข้าถึง shared pack.
-    ใช้แสดงใน owner's "ใครเข้าดู pack ของฉัน" panel."""
-    __tablename__ = "pack_share_accesses"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    share_id = Column(String, ForeignKey("pack_shares.id"), nullable=False, index=True)
-    recipient_user_id = Column(String, ForeignKey("users.id"), nullable=True)
-    recipient_email = Column(String, nullable=True)
-    action = Column(String, nullable=False)   # "view" | "clone"
-    accessed_at = Column(DateTime, default=datetime.utcnow)
 ```
 
-### Migration plan
-ที่ `init_db()` — เพิ่ม `Base.metadata.create_all` จะสร้าง 2 ตารางใหม่อัตโนมัติเพราะ idempotent (existing tables ไม่ถูกแตะ)
-
-### `users` + `context_packs` — ไม่เปลี่ยน
+### Migration
+- `Base.metadata.create_all` จะสร้างอัตโนมัติ — idempotent
+- ไม่ต้อง ALTER existing tables
 
 ### `PLAN_LIMITS` — เพิ่ม
 ```python
-"free":    { ..., "pack_share_limit_monthly": 1 },
+"free":    { ..., "pack_share_limit_monthly": 5 },
 "starter": { ..., "pack_share_limit_monthly": 50 },
 "admin":   { ..., "pack_share_limit_monthly": 999999 },
 ```
 
-### `UsageLog.action` — เพิ่ม value `"pack_share"` (ไม่ต้อง schema change — column เป็น String อิสระ)
+### `UsageLog.action` — value `"pack_share"` (no schema change)
 
 ---
 
-## 🔌 API Changes
+## 🔌 API Contracts (Full)
 
-### 1. `POST /api/context-packs/{pack_id}/share` — NEW (สร้าง share)
+### 1. `POST /api/context-packs/{pack_id}/share` — สร้าง/Get share link
+
+**Auth:** Required (JWT)
 
 **Request:**
 ```json
-{
-  "allowed_emails": ["alice@x.com", "bob@y.com"],
-  "permission": "view_clone",
-  "ttl_days": 30,
-  "confirmed_privacy": true
-}
+{ "include_files": false }
 ```
 
-**Response 200:**
+**Response 200 (success):**
 ```json
 {
   "share_id": "shr_abc123",
-  "share_token": "eyJ...",
-  "share_url": "https://personaldatabank.fly.dev/shared/pack/eyJ...",
-  "permission": "view_clone",
-  "allowed_emails": ["alice@x.com", "bob@y.com"],
-  "expires_at": "2026-06-06T...",
-  "created_at": "..."
+  "share_url": "https://personaldatabank.fly.dev/p/eyJ...",
+  "include_files": false,
+  "is_new": true,                    // true if just created, false if reused existing
+  "view_count": 0,
+  "clone_count": 0,
+  "created_at": "2026-05-08T..."
 }
 ```
 
-**Validation:**
-- pack_id ต้องเป็นของ user (404 ถ้าไม่ใช่)
-- pack ต้องไม่ locked (`is_locked=False`) — locked pack = ห้าม share
-- `allowed_emails`: 1-20 emails, lowercase + valid format, dedupe
-- `permission`: "view" | "view_clone"
-- `ttl_days`: 1-90 (default 30)
-- `confirmed_privacy`: ต้อง = True (UI bind กับ checkbox)
-- Pack share quota check (`check_pack_share_create_allowed`)
+**Behavior:**
+1. ถ้า pack มี active share อยู่แล้ว (revoked_at IS NULL) → return เดิม + `is_new=false` (idempotent — ไม่ count quota เพิ่ม)
+2. Pre-check: `pack.is_locked` → 400 PACK_LOCKED
+3. Pre-check: `check_pack_share_create_allowed` → 403 PACK_SHARE_QUOTA_REACHED (only when creating new)
+4. Sign JWT scope=pack_share, payload={share_id} (no exp)
+5. log_usage("pack_share") + db.commit()
+6. Return share + URL
 
 **Errors:**
-- `400 PACK_LOCKED` — pack is_locked=True
-- `400 INVALID_EMAILS` — > 20 emails หรือ format ผิด
-- `400 PRIVACY_NOT_CONFIRMED` — confirmed_privacy != true
-- `400 TTL_OUT_OF_RANGE`
-- `403 PACK_SHARE_QUOTA_REACHED`
-- `404 PACK_NOT_FOUND`
+- `400 PACK_LOCKED` — pack ถูก lock
+- `403 PACK_SHARE_QUOTA_REACHED` — เกินโควต้ารายเดือน
+- `404 PACK_NOT_FOUND` — pack ไม่ใช่ของ user
 
-### 2. `GET /api/context-packs/{pack_id}/shares` — NEW (list shares ของ pack นี้)
+### 2. `PATCH /api/context-packs/shares/{share_id}` — toggle include_files
+
+**Auth:** Required (must be owner)
+
+**Request:** `{ "include_files": true }`
+
+**Response 200:** updated share row
+
+**Behavior:** ตรวจ owner_user_id == current_user.id → update include_files. ไม่นับ quota เพิ่ม. ลิงก์ URL ไม่เปลี่ยน (token เก็บ share_id, ไม่ใช่ include_files)
+
+**Errors:**
+- `404 SHARE_NOT_FOUND` (also when not owner — กัน enumeration)
+
+### 3. `DELETE /api/context-packs/shares/{share_id}` — revoke
+
+**Auth:** Required (must be owner)
+
+**Response 200:** `{ "status": "revoked", "share_id": "shr_abc" }`
+
+**Behavior:** Set revoked_at = now. Idempotent (revoke ซ้ำ = no-op return เดิม)
+
+**Errors:**
+- `404 SHARE_NOT_FOUND` (also when not owner)
+
+### 4. `GET /api/shared/pack/{token}` — preview (NO AUTH REQUIRED)
+
+**Auth:** None — ใครมีลิงก์ก็เปิดได้
 
 **Response 200:**
 ```json
 {
-  "shares": [
+  "share_id": "shr_abc",
+  "pack": {
+    "title": "การเรียน Term 2",
+    "type": "study",
+    "intent": "ใช้ตอบคำถามเรื่องการเรียนเทอมนี้",
+    "scope": "เน้นวิชาคำนวณ + ภาษา",
+    "summary_short": "<300 chars>",
+    "summary_full": "<full text>",
+    "owner_name": "Test User",
+    "owner_email_masked": "te****@x.com",
+    "source_count": 5,
+    "created_at": "...",
+    "updated_at": "..."
+  },
+  "files": [                    // empty array if include_files=false
     {
-      "share_id": "shr_abc",
-      "allowed_emails": ["alice@x.com"],
-      "permission": "view_clone",
-      "expires_at": "...",
-      "revoked_at": null,
-      "access_count": 3,
-      "clone_count": 1,
-      "first_access_at": "...",
-      "last_access_at": "...",
-      "created_at": "..."
+      "file_id": "f1",
+      "filename": "calc.pdf",
+      "filetype": "pdf",
+      "size_bytes": 5000000,
+      "download_url": "https://.../d/<signed-token>"
     }
   ],
-  "count": 1
+  "include_files": true,
+  "view_count": 4,
+  "clone_count": 1
 }
 ```
 
-### 3. `DELETE /api/context-packs/shares/{share_id}` — NEW (revoke)
-
-**Request body (optional):**
-```json
-{ "reason": "ส่งผิดคน" }
-```
-
-**Response 200:**
-```json
-{ "status": "revoked", "share_id": "shr_abc", "revoked_at": "..." }
-```
-
-**Behavior:** ตรวจ owner_user_id == current_user.id → set revoked_at + revoke_reason. Idempotent ถ้า revoke แล้ว.
-
-### 4. `GET /api/shared/pack/{token}` — NEW (recipient view)
-
-**Auth:** ต้อง login (JWT ของ user)
-
 **Behavior:**
-1. Decode JWT token (verify scope = `pack_share`)
-2. Lookup PackShare row by share_id ใน payload
-3. Check: revoked_at IS NULL + expires_at > now
-4. Check: current_user.email อยู่ใน allowed_emails (lowercase compare)
-5. Lookup pack — ถ้าหายไปแล้ว → 404 PACK_DELETED
-6. Increment access_count + log PackShareAccess row
-7. Return pack content (สรุป + intent + scope + source filenames + permission flag)
-
-**Response 200:**
-```json
-{
-  "pack": {
-    "title": "...", "type": "study",
-    "summary_text": "...", "intent": "...", "scope": "...",
-    "source_filenames": ["calc.pdf", "alg.pdf"],
-    "source_count": 2,
-    "owner_name": "Tester",
-    "owner_email_masked": "te***@x.com"
-  },
-  "permission": "view_clone",
-  "share_id": "shr_abc",
-  "expires_at": "..."
-}
-```
+1. Verify JWT (scope=pack_share, no exp check needed)
+2. Lookup PackShare by share_id → check `revoked_at IS NULL`
+3. Lookup pack → ถ้า pack ลบไปแล้ว → 404 PACK_DELETED
+4. Atomic UPDATE: `view_count = view_count + 1`
+5. ถ้า include_files=true → generate signed download URLs (TTL 1 hour) สำหรับทุกไฟล์ใน pack.source_file_ids
+6. Return response
 
 **Errors:**
-- `401` — no JWT
-- `403 EMAIL_NOT_ALLOWED` — login user.email ไม่อยู่ใน whitelist
-- `403 SHARE_REVOKED`
-- `404 SHARE_EXPIRED` หรือ `SHARE_NOT_FOUND`
-- `404 PACK_DELETED`
+- `401 INVALID_TOKEN` — JWT decode fail / wrong scope
+- `403 SHARE_REVOKED` — revoked_at != NULL
+- `404 SHARE_NOT_FOUND` — share_id ไม่อยู่ใน DB
+- `404 PACK_DELETED` — pack ถูกลบ
 
-### 5. `POST /api/shared/pack/{token}/clone` — NEW (clone to my workspace)
+### 5. `POST /api/shared/pack/{token}/claim` — เก็บเข้า workspace
+
+**Auth:** Required (JWT)
+
+**Request:** `{}` (empty body — token contains everything)
+
+**Response 200:** serialized new ContextPack ที่ recipient เป็นเจ้าของ
 
 **Behavior:**
-1. Verify share token (เหมือน #4) + check permission == "view_clone"
-2. Pre-check: current_user pack quota (`check_pack_create_allowed`)
-3. Create new ContextPack row owned by current_user — copy summary_text, intent, scope, type
-4. **ไม่ copy source_file_ids** (recipient ไม่มี access ไฟล์ของ owner) → `source_file_ids="[]"`
-5. Set `created_via="shared_clone"` (ใหม่ value — เพิ่มจาก manual/ai_builder)
-6. Add metadata note ใน intent/scope: "(Cloned from {owner_name}'s pack)"
-7. log PackShareAccess action="clone" + increment share.clone_count
-
-**Response 200:** serialized new ContextPack ของ recipient
+1. Verify token (เหมือน #4) → check revoked + pack exists
+2. Pre-check: `check_pack_create_allowed(current_user)` → 403 PACK_LIMIT_REACHED
+3. ถ้า include_files=true:
+   - Pre-check: storage quota ของ recipient พอไหม (sum of file sizes)
+   - ถ้าไม่พอ → 403 STORAGE_LIMIT_REACHED + แจ้งจำนวนที่ต้องการ
+4. สร้าง ContextPack ใหม่ของ current_user:
+   - Copy title, type, summary_text
+   - intent: เดิม + " (เก็บจาก {owner_name} เมื่อ {YYYY-MM-DD})"
+   - scope: เดิม
+   - source_file_ids = []
+   - source_cluster_ids = []
+   - created_via = "shared_clone"
+5. ถ้า include_files=true → copy ไฟล์ทั้งหมดเข้า recipient's workspace:
+   - Loop pack.source_file_ids
+   - shutil.copy raw_path → recipient's UPLOAD_DIR
+   - สร้าง File row ใหม่ (user_id=recipient.id, filename, filetype, processing_status="ready", file_kind="processed")
+   - update pack.source_file_ids = list of new file ids
+6. Atomic UPDATE: `share.clone_count = clone_count + 1`
+7. log_usage(recipient.id, "pack_clone")
+8. Return cloned pack
 
 **Errors:**
-- `403 PERMISSION_VIEW_ONLY` — share.permission == "view"
-- `403 PACK_LIMIT_REACHED`
+- `401 NOT_AUTHENTICATED` — ไม่มี JWT
+- `403 PACK_LIMIT_REACHED` — recipient ครบ quota
+- `403 STORAGE_LIMIT_REACHED` — files copy ไม่พอ storage
+- `404 SHARE_NOT_FOUND/REVOKED/PACK_DELETED`
 
-### 6. `GET /shared/pack/{token}` — NEW (HTML page)
+### 6. `GET /p/{token}` — Recipient HTML page
 
-**Behavior:** Serve `legacy-frontend/shared_pack.html` (parallel กับ `/app`, `/admin` pattern). JS ตรวจ auth + เรียก #4 + render
+**Auth:** None
+
+**Behavior:** Serve `legacy-frontend/shared_pack.html` (static file). JS ใน page ทำ:
+1. Read token from URL
+2. Fetch `/api/shared/pack/{token}` (no auth)
+3. Render preview
+4. ถ้ากด "เก็บ" → check localStorage.pdb_token → ถ้าไม่มี → redirect `/?return=/p/{token}&action=claim` (login flow) → กลับมา → POST claim
+5. ถ้ามี token → POST `/claim` ทันที
 
 ---
 
-## 🛠️ Step-by-Step Implementation (สำหรับเขียว)
+## 🎨 Frontend UI Specifications
 
-### Phase 1 — Backend foundation (~1.5 วัน)
+### Sender — Pack Card (ใน Knowledge → Packs tab)
 
-**1.1 Schema migration** (`database.py`)
-- เพิ่ม `class PackShare(Base)` + `class PackShareAccess(Base)`
-- ที่ `init_db()` — ไม่ต้องเพิ่ม ALTER block (Base.metadata.create_all idempotent)
+**ก่อน share:**
+```
+┌─ Pack: "การเรียน Term 2" ────────────────┐
+│ ใช้สำหรับ: ตอบคำถามเรียนเทอมนี้           │
+│ [📤] [🔄] [🗑]    ← ปุ่ม share ใหม่ ซ้ายสุด │
+│ 5 ไฟล์ • 2 วันก่อน • study               │
+└──────────────────────────────────────────┘
+```
 
-**1.2 Token signing** (`pack_share.py`)
-- `sign_pack_share_token(share_id, ttl_seconds) -> str` — JWT scope="pack_share"
-- `verify_pack_share_token(token) -> dict` — return {share_id, exp}
-- `class ShareTokenError(Exception)` — parallel กับ `DownloadTokenError`
+**หลังกด 📤 (bar เด้งลงมาใต้ pack):**
+```
+┌─ Pack: "การเรียน Term 2" ────────────────┐
+│ ...                              [📤✓]  │ ← ไอคอน checkmark
+└──────────────────────────────────────────┘
+┌─ Share Link ─────────────────────────────┐
+│ 🔗 pdb.fly.dev/p/xK9aB2... [📋 คัดลอก]  │
+│ 👁 4 views · 📥 1 clone                   │
+│                                          │
+│ ☐ + แนบไฟล์ทั้งหมด (5 ไฟล์ · 12 MB)      │
+│                                          │
+│ [🚫 ยกเลิกลิงก์]              [ปิด ▲]   │
+└──────────────────────────────────────────┘
+```
 
-**1.3 Core operations** (`pack_share.py`)
-- `create_share(db, user, pack_id, allowed_emails, permission, ttl_days) -> dict`
-- `list_shares_for_pack(db, user, pack_id) -> list`
-- `revoke_share(db, user, share_id, reason) -> dict`
-- `get_shared_pack(db, current_user, token) -> dict` — verify + log access + return pack data
-- `clone_shared_pack(db, current_user, token) -> dict` — verify + create_pack with created_via="shared_clone"
+**Auto-copy:** ตอนกด 📤 ครั้งแรก → ลิงก์ copy เข้า clipboard ทันที + toast "คัดลอกลิงก์แล้ว"
 
-**1.4 Plan limits** (`plan_limits.py`)
-- เพิ่ม `pack_share_limit_monthly` ใน 3 plans
-- `check_pack_share_create_allowed(db, user) -> dict | None`
-- `get_monthly_pack_share_count()` helper
+**Toggle ติ๊ก include_files:**
+- ติ๊ก ON → toast "ลิงก์มีไฟล์แนบ 5 ไฟล์" + ลิงก์เดิมยังใช้ได้ + auto-copy ใหม่
+- ติ๊ก OFF → toast "ลิงก์เป็นสรุปอย่างเดียวแล้ว" + auto-copy ใหม่
 
-**1.5 Endpoints** (`main.py`)
-- 5 Pydantic models: `ShareCreateRequest`, `ShareRevokeRequest`, etc.
-- 6 endpoints (POST share, GET shares, DELETE share, GET shared/pack/token, POST clone, GET /shared/pack/{token} HTML)
+**Confirm dialog ตอนติ๊ก ON ครั้งแรก** (privacy guard):
+```
+⚠ ยืนยันการแนบไฟล์
+จะแนบ 5 ไฟล์ (12 MB) ไปกับลิงก์
+ใครเปิดลิงก์จะดาวน์โหลดได้
 
-**1.6 Pack serialize** (`context_packs.py`)
-- เพิ่ม `share_count` + `has_active_shares` ใน `_serialize_pack()`
+[ ยกเลิก ]    [ ✓ ใช่ แนบเลย ]
+```
 
-**1.7 Version bump** — config.py 9.2.1 → 9.3.0
+### Recipient — `/p/{token}` page
 
-### Phase 2 — Frontend (~1.5 วัน)
+```
+┌────────────────────────────────────────────┐
+│  📦 Personal Data Bank                     │
+│                                            │
+│  🎁 มีคนส่ง Pack ให้คุณ                     │
+│                                            │
+│  ┌─ 📦 การเรียน Term 2 ────────────────┐  │
+│  │ จาก: te****@x.com                   │  │
+│  │ ประเภท: 📚 study                     │  │
+│  │ 👁 4 views · 📥 1 clone                │  │
+│  │                                      │  │
+│  │ 📋 ใช้สำหรับ:                         │  │
+│  │ ตอบคำถามเรื่องการเรียนเทอมนี้           │  │
+│  │                                      │  │
+│  │ 📦 ครอบคลุม:                          │  │
+│  │ เน้นวิชาคำนวณ + ภาษา                  │  │
+│  │                                      │  │
+│  │ ─── สรุปเนื้อหา ─────────────────  │  │
+│  │ Term 2 มีวิชา Calculus,             │  │
+│  │ Linear Algebra... (300 chars)        │  │
+│  │ [▾ ดูเต็ม]                          │  │
+│  │                                      │  │
+│  │ 📎 ไฟล์แนบ 5 ไฟล์:                    │  │
+│  │ • calc.pdf (5MB)    [⬇ ดาวน์โหลด]   │  │
+│  │ • alg.pdf (3MB)     [⬇ ดาวน์โหลด]   │  │
+│  │ • notes.md (50KB)   [⬇ ดาวน์โหลด]   │  │
+│  │ • essay.docx (2MB)  [⬇ ดาวน์โหลด]   │  │
+│  │ • grades.xlsx (8KB) [⬇ ดาวน์โหลด]   │  │
+│  └──────────────────────────────────────┘  │
+│                                            │
+│  ╔══════════════════════════════════════╗  │
+│  ║ ➕ เก็บเข้าธนาคารข้อมูลของฉัน         ║  │
+│  ╚══════════════════════════════════════╝  │
+│                                            │
+│  [ ปิดหน้านี้ ]                              │
+│                                            │
+│  ────────────────────────────────────      │
+│  ยังไม่มี Personal Data Bank?                │
+│  [ 📝 สมัครฟรี + เก็บ Pack นี้เลย ]         │
+└────────────────────────────────────────────┘
+```
 
-**2.1 Pack card menu — Share button**
-- เพิ่มปุ่ม "📤" ข้าง "🔄" และ "🗑" ใน `.pack-card-actions`
-- onclick → `openShareModal(packId)`
-- Badge: ถ้า `pack.has_active_shares` → แสดง "🔗 N shared" ใน meta
+**Mobile responsive:** card ขยายเต็ม 96vw + button stick top/bottom
 
-**2.2 Share Modal**
-- Steps:
-  1. **Privacy warning** — แสดง list source files + checkbox "เข้าใจว่าสรุป + ชื่อไฟล์ ({N} ไฟล์) จะถูก share"
-  2. **Recipient input** — email whitelist (chip-based input, max 20)
-  3. **Permission** — radio: "ดูอย่างเดียว" / "ดู + clone ได้"
-  4. **TTL** — slider/select: 7/14/30/60/90 วัน (default 30)
-  5. **Submit** — ส่ง POST → ได้ share_url → แสดง + copy button
+**Empty include_files=false:** ซ่อนส่วน "📎 ไฟล์แนบ" ทั้งหมด
 
-**2.3 Shares Manager Modal**
-- คลิก badge "🔗 N shared" → modal แสดง list shares
-- แต่ละ row: emails + permission + expires_at + access count + revoke button
-- Click row → expand audit log (PackShareAccess timeline)
+**Pack revoked:** แสดง error page:
+```
+🚫 ลิงก์นี้ถูกยกเลิกแล้ว
+เจ้าของยกเลิกการแชร์ pack นี้
+[ ไปหน้าหลัก ]
+```
 
-**2.4 Recipient view (`shared_pack.html`)**
-- Standalone page ที่ JS:
-  - check localStorage.pdb_token → ถ้าไม่มี redirect /
-  - GET `/api/shared/pack/{token}`
-  - Render: title + intent + scope + summary_text + source filenames + owner
-  - ถ้า permission = "view_clone" → แสดงปุ่ม "📥 Clone to my workspace"
-  - หลัง clone → toast + redirect /app#pack/{new_id}
+### Sidebar/Pack Card Badge (after share active)
 
-**2.5 i18n** — 12 keys TH+EN
-
-### Phase 3 — Tests (~0.5 วัน)
-
-**3.1 `scripts/share_pack_smoke.py`** — 30 cases
-**3.2 `tests/test_share_pack_v9_3.py`** — 40+ pytest cases
+```
+┌─ Pack: "การเรียน Term 2" 🔗 ─────────────┐  ← icon 🔗 ติด title
+│ ...                              [📤✓]   │
+│ 5 ไฟล์ · 🔗 4 views · 1 clone            │
+└──────────────────────────────────────────┘
+```
 
 ---
 
-## 🧪 Test Scenarios (สำหรับฟ้า)
+## 📍 Milestones (7) with Playwright Verification
 
-### Group A: Happy path (5)
-- T-A1 Owner create share → return token + URL + DB row
-- T-A2 Recipient (in whitelist) view → 200 + content + access_count++
-- T-A3 Recipient clone → new pack ใน workspace ของตัวเอง + clone_count++
-- T-A4 Owner list shares → ครบ
-- T-A5 Owner revoke share → revoked_at set → recipient view → 403
+### Milestone 1 — Backend Schema + Token Signing (~3 ชม.)
 
-### Group B: Privacy guards (6)
-- T-B1 `confirmed_privacy=false` → 400
-- T-B2 Locked pack → 400 PACK_LOCKED (ห้าม share)
-- T-B3 Email ไม่อยู่ใน whitelist → 403 EMAIL_NOT_ALLOWED
-- T-B4 Whitelist > 20 emails → 400 INVALID_EMAILS
-- T-B5 Email format ผิด → 400 INVALID_EMAILS
-- T-B6 source_file_ids ไม่หลุดใน clone (recipient ไม่ได้ access ไฟล์ owner)
+**Deliverables:**
+- `database.py`: `class PackShare` + idempotent migration via `Base.metadata.create_all`
+- `pack_share.py`: `sign_share_token(share_id) -> str` + `verify_share_token(token) -> share_id`
+- Unit test: token roundtrip + scope validation + tampered token rejection
 
-### Group C: Lifecycle + revoke (5)
-- T-C1 Expired token (ttl_days+1 ผ่าน) → 404 SHARE_EXPIRED
-- T-C2 Revoked share → 403 SHARE_REVOKED
-- T-C3 Pack deleted หลัง share สร้าง → 404 PACK_DELETED
-- T-C4 Revoke twice → idempotent (no error)
-- T-C5 TTL = 91 days → 400 TTL_OUT_OF_RANGE
+**Implementation:**
+1. เพิ่ม `class PackShare(Base)` ใน database.py ตาม schema ด้านบน
+2. สร้าง `backend/pack_share.py`:
+   - `_TOKEN_SCOPE = "pack_share"`
+   - `sign_share_token(share_id: str) -> str` — JWT no exp, scope=pack_share, payload={share_id, scope, iat}
+   - `verify_share_token(token: str) -> str` — return share_id หรือ raise ShareTokenError
+3. Run server → check schema created (`PRAGMA table_info(pack_shares)`)
 
-### Group D: Permission + clone (5)
-- T-D1 permission="view" → POST clone → 403 PERMISSION_VIEW_ONLY
-- T-D2 permission="view_clone" + recipient pack quota เต็ม → 403 PACK_LIMIT_REACHED
-- T-D3 Cloned pack: source_file_ids=[] (privacy)
-- T-D4 Cloned pack: created_via="shared_clone"
-- T-D5 Cloned pack: title/intent/scope copied + summary มี note "Cloned from..."
+**Playwright verification (M1.spec.js):**
+- M1.1: Schema check — call `/api/admin/me` (require admin) → check pack_shares table exists in stats
+- M1.2: Token API smoke — sign + verify roundtrip via internal Python test (no UI)
 
-### Group E: Quota + audit (5)
-- T-E1 Free user 1 active share → create another → 403
-- T-E2 Free user revoke active → can create new ⚠️ (decision: revoked shares ยังนับ quota เดือนนี้ไหม? — แนะนำ: นับ — กัน abuse)
-- T-E3 Starter user 50 shares ใช้ครบ → 403
-- T-E4 Audit log ทุก view + clone action
-- T-E5 access stats (count, first/last) sync กับ log table
+**Pass criteria:** schema migration runs without error, token sign/verify roundtrip works
 
-### Group F: Auth + cross-user (4)
-- T-F1 No JWT view shared → 401
-- T-F2 Other user (not owner, not in whitelist) → 403
-- T-F3 Owner cannot revoke share ของ user อื่น → 404
-- T-F4 Recipient view masks owner_email (te***@x.com)
+---
 
-### Group G: Edge cases (5)
-- T-G1 Whitelist 0 emails → 400
-- T-G2 Duplicate emails ใน whitelist → dedupe + accept
-- T-G3 Recipient view = owner login (owner.email ก็อยู่ใน whitelist) → ทำงานได้ + access_count++
-- T-G4 Concurrent view 5 ครั้งพร้อมกัน → access_count == 5 (atomic)
-- T-G5 Token signed ที่ secret rotate แล้ว → INVALID_TOKEN
+### Milestone 2 — Backend Endpoints (Create + Update + Revoke) (~3 ชม.)
 
-### Frontend (4 manual)
-- F1 Open share modal → privacy warning + checkbox required → submit only if checked
-- F2 Share URL copy button → clipboard works
-- F3 Recipient view UI ที่ /shared/pack/{token} — render correct + clone button visible
-- F4 Mobile (375px): share modal usable + recipient view responsive
+**Deliverables:**
+- `pack_share.py`: `create_share`, `update_share_files`, `revoke_share`, `list_shares_for_pack`
+- `main.py`: 3 endpoints + 2 Pydantic models
+- `plan_limits.py`: `pack_share_limit_monthly` + `check_pack_share_create_allowed`
+
+**Implementation:**
+1. `pack_share.create_share(db, user, pack_id, include_files)` — idempotent (ถ้ามี active share ของ pack นี้ → return เดิม)
+2. `pack_share.update_share_files(db, user, share_id, include_files)` — toggle
+3. `pack_share.revoke_share(db, user, share_id)` — set revoked_at
+4. main.py: 3 endpoints (POST /share, PATCH /shares/{id}, DELETE /shares/{id})
+5. main.py: 2 Pydantic — `ShareCreateRequest`, `ShareUpdateRequest`
+
+**Playwright verification (M2 — uses curl/fetch via TestClient — no UI yet):**
+- M2.1: Create share → 200 + URL returned
+- M2.2: Create share again on same pack → idempotent (returns same share_id)
+- M2.3: PATCH toggle include_files → updated
+- M2.4: DELETE revoke → 200 + revoked_at set
+- M2.5: Create share on locked pack → 400 PACK_LOCKED
+- M2.6: Free user 6th share → 403 PACK_SHARE_QUOTA_REACHED
+- M2.7: User B revoke User A's share → 404 SHARE_NOT_FOUND (steal guard)
+
+**Pass criteria:** 7/7 backend endpoint tests pass
+
+---
+
+### Milestone 3 — Backend Preview + Claim Endpoints (~3 ชม.)
+
+**Deliverables:**
+- `pack_share.py`: `get_preview(db, token)`, `claim_to_workspace(db, current_user, token)`
+- `main.py`: GET /api/shared/pack/{token} (no auth) + POST /claim + GET /p/{token} HTML route
+- `signed_urls.py` integration: generate download URLs for files when include_files=true
+
+**Implementation:**
+1. `get_preview(db, token)`:
+   - verify_share_token → share_id
+   - Lookup share → check revoked_at IS NULL → 403 SHARE_REVOKED
+   - Lookup pack → ถ้าไม่มี → 404 PACK_DELETED
+   - Atomic increment view_count
+   - Build response (mask owner email, generate file URLs ถ้า include_files)
+2. `claim_to_workspace(db, current_user, token)`:
+   - verify + lookup
+   - Pre-check pack quota + storage (ถ้ารวม include_files)
+   - Create new ContextPack with created_via="shared_clone"
+   - Copy files (ถ้า include_files)
+   - Atomic increment clone_count
+3. main.py:
+   - GET /api/shared/pack/{token} (no Depends auth)
+   - POST /api/shared/pack/{token}/claim (Depends get_current_user)
+   - GET /p/{token} → return shared_pack.html
+
+**Playwright verification (M3.spec.js — backend only):**
+- M3.1: Preview valid token → 200 + content
+- M3.2: Preview revoked → 403
+- M3.3: Preview pack deleted → 404
+- M3.4: View count increment ทุก call (concurrent x3 → count=3)
+- M3.5: include_files=true → response มี download_url with signed token
+- M3.6: include_files=false → no files array
+- M3.7: Claim valid → new pack ใน workspace recipient
+- M3.8: Claim w/o auth → 401
+- M3.9: Claim w/ pack quota เต็ม → 403
+- M3.10: Cloned pack: source_file_ids=[] (privacy)
+- M3.11: Cloned pack: created_via="shared_clone"
+- M3.12: Owner claim ของตัวเอง → success (use case: backup)
+
+**Pass criteria:** 12/12 backend tests pass
+
+---
+
+### Milestone 4 — Sender Frontend (Pack Card 📤 + Bar) (~3 ชม.)
+
+**Deliverables:**
+- app.html: ปุ่ม 📤 + bar template
+- app.js: 6 functions + clipboard auto-copy + i18n
+- styles.css: `.pack-share-bar` + animation
+
+**Implementation:**
+1. app.html — เพิ่มใน pack card actions:
+   ```html
+   <button onclick="sharePack('${p.id}')" title="Share">📤</button>
+   ```
+   + bar template (hidden by default, append after card)
+
+2. app.js:
+   - `sharePack(packId)` — POST /share → auto-copy URL → show bar + toast
+   - `togglePackFiles(shareId, checkbox)` — show confirm if include=true → PATCH → toast + auto-copy new URL
+   - `copyShareLink(shareId)` — clipboard write + toast
+   - `revokePackShare(shareId)` — DELETE + close bar + reset 📤 button + toast
+   - `closePackShareBar(packId)` — hide bar (ลิงก์ยังใช้ได้)
+   - `_renderShareBar(pack, share)` — render bar HTML
+
+3. styles.css:
+   - `.pack-share-bar` (slide-down animation, padding 12px 16px)
+   - `.pack-share-bar.hidden { display: none }`
+   - `.pack-share-link` (mono font, ellipsis)
+   - `.pack-share-stats` (small, secondary text)
+
+**Playwright verification (M4 sender.spec.js):**
+- F-S-1: เห็นปุ่ม 📤 บน pack card
+- F-S-2: กด 📤 → bar เด้ง + ลิงก์อยู่ใน clipboard (verify via `navigator.clipboard.readText()`)
+- F-S-3: Bar แสดง URL + view count + clone count
+- F-S-4: ติ๊ก include_files → confirm dialog เด้ง
+- F-S-5: ใน confirm dialog กด "ใช่" → toast + URL copied อีกครั้ง
+- F-S-6: ใน confirm dialog กด "ยกเลิก" → checkbox กลับเป็น unchecked
+- F-S-7: ติ๊ก include_files แล้วยกออก → toast "เป็นสรุปอย่างเดียว" (no confirm needed for OFF)
+- F-S-8: กดปุ่ม [📋 คัดลอก] → clipboard updated + toast
+- F-S-9: กด [🚫 ยกเลิก] → bar หาย + ปุ่ม 📤 กลับเป็นปกติ
+- F-S-10: หลัง revoke → กด 📤 อีกครั้ง → ลิงก์ใหม่ (different share_id)
+- F-S-11: Pack ที่ locked → ปุ่ม 📤 disabled + tooltip "Pack ล็อคแล้วแชร์ไม่ได้"
+- F-S-12: Mobile (375px) — bar responsive + button accessible
+
+**Pass criteria:** 12/12 sender UI tests pass บน real Chromium
+
+---
+
+### Milestone 5 — Recipient Frontend (`/p/{token}` page) (~3 ชม.)
+
+**Deliverables:**
+- shared_pack.html (NEW) — standalone preview page
+- shared_pack.js (NEW) — render + claim flow
+- shared_pack.css (NEW) — responsive styling
+
+**Implementation:**
+1. shared_pack.html:
+   - `<link href="/legacy/shared_pack.css">`
+   - 4 main divs: `#loading`, `#error`, `#preview`, `#revoked`
+   - Logo + branding minimal
+   - `<script src="/legacy/shared_pack.js">`
+
+2. shared_pack.js:
+   - On load: extract token from URL (`/p/{token}`)
+   - GET `/api/shared/pack/{token}` (no auth header — explicit)
+   - Render based on response:
+     - 200 → `_renderPreview(data)` — mask owner email + summary short + expand button + files list
+     - 403 SHARE_REVOKED → `_showRevoked()`
+     - 404 → `_showError("ลิงก์ไม่มีอยู่หรือ pack ถูกลบ")`
+   - `claim()` — check localStorage.pdb_token:
+     - มี token → POST `/claim` → toast + redirect /app#pack/{new_id}
+     - ไม่มี → redirect `/?return=/p/{token}&action=claim` (landing.js handle action=claim post-login)
+   - `expandSummary()` — toggle summary_short ↔ summary_full
+   - `closeBrowser()` — `window.close()` หรือ redirect /
+
+3. landing.js — handle `?action=claim&return=/p/{token}` post-login → auto-redirect back
+
+4. shared_pack.css:
+   - Mobile-first design (96vw default)
+   - Card layout — center, max 720px
+   - Sticky CTA button at bottom on mobile
+
+**Playwright verification (M5 recipient.spec.js):**
+- F-R-1: Open `/p/{token}` (no login) → preview shown
+- F-R-2: Preview แสดงชื่อ pack, masked owner (te****@x.com), intent, scope
+- F-R-3: Summary แสดงย่อก่อน (300 chars) + ปุ่ม "ดูเต็ม"
+- F-R-4: กด "ดูเต็ม" → expand แสดงทั้งหมด
+- F-R-5: include_files=true → ดู files list + download URL clickable
+- F-R-6: include_files=false → ซ่อน files section
+- F-R-7: Open revoked share → แสดง error "ลิงก์ถูกยกเลิก"
+- F-R-8: Open invalid token → แสดง 404 page
+- F-R-9: กด "เก็บ" + ยังไม่ login → redirect ไป `/?return=...`
+- F-R-10: หลัง register/login → กลับมาที่ `/p/{token}` → claim สำเร็จ → redirect /app
+- F-R-11: กด "เก็บ" + login แล้ว → POST claim → toast success → redirect /app
+- F-R-12: กด "ปิดหน้านี้" → window.close หรือ redirect /
+- F-R-13: View count เพิ่มขึ้นทุกครั้งที่เปิด (verify via 2 visits)
+- F-R-14: Mobile (375px) responsive — card ขยายเต็ม 96vw, sticky CTA
+
+**Pass criteria:** 14/14 recipient UI tests pass
+
+---
+
+### Milestone 6 — End-to-End Integration + Cross-User (~2 ชม.)
+
+**Deliverables:** Integration spec ที่ test ครบ flow sender → recipient → claim
+
+**Playwright verification (M6 integration.spec.js):**
+- E2E-1: User A สร้าง share → User B เปิดลิงก์ → preview → claim → User B มี cloned pack
+- E2E-2: User A revoke ระหว่าง User B preview อยู่ → reload → revoked page
+- E2E-3: Owner ลบ pack หลัง share → recipient preview → 404 PACK_DELETED แต่ pack เก่าที่ claim ไปแล้วยังอยู่
+- E2E-4: User A include_files=true → User B claim → ไฟล์อยู่ใน workspace User B + source_file_ids ของ pack ใหม่ != ของ User A (privacy preserved)
+- E2E-5: Race: 2 users claim share เดียวกันพร้อมกัน → ทั้งคู่ได้ pack คนละชุด + clone_count = 2
+- E2E-6: User B claim → User B share ต่อให้ User C → User C claim → chain works
+- E2E-7: Free user A → 5 shares → ครบ → กด 6 → 403 quota reached
+- E2E-8: User A revoke share #3 → ยังเหลือ 4 active → กด share ใหม่ → success (ไม่นับ revoked เก่าซ้ำ — wait need decide rule)
+
+**Decision for E2E-8:** revoked share **นับเข้า quota เดือนนี้** เพื่อกัน abuse (revoke→create loop)
+
+**Pass criteria:** 8/8 E2E tests pass
+
+---
+
+### Milestone 7 — Polish + Comprehensive Tests + Version Bump (~2 ชม.)
+
+**Deliverables:**
+- `scripts/share_pack_smoke.py` (25 cases)
+- `tests/test_share_pack_v9_3.py` (35 cases pytest)
+- Final regression: v9.0.1 + v9.2.0 + v9.2.2 ยังผ่าน
+- APP_VERSION 9.2.2 → 9.3.0
+- Memory updates: pipeline-state, last-session, plan archive
+
+**Playwright (M7 polish.spec.js):**
+- M7.1: Version label app.html shows v9.3.0
+- M7.2: Pack card with active share shows 🔗 badge
+- M7.3: A11y: ปุ่ม 📤 มี aria-label "Share pack"
+- M7.4: A11y: dialog confirm มี role="dialog" + aria-modal="true"
+- M7.5: Keyboard nav: Tab ผ่าน bar elements ครบ + Enter activate buttons
+- M7.6: Toast messages — TH/EN follow getLang()
+
+**Pass criteria:** 6/6 + total regression
+
+---
+
+## 🧪 Comprehensive Test Suite
+
+### Layer 1: Smoke (`scripts/share_pack_smoke.py`) — 25 cases
+
+**Group A: Sender backend (5)**
+- T-A1 create_share new → returns share + URL
+- T-A2 create_share existing → idempotent same share_id
+- T-A3 update_share_files toggle → include_files updated
+- T-A4 revoke_share → revoked_at set
+- T-A5 list_shares_for_pack → all shares of user's pack
+
+**Group B: Locked + quota (4)**
+- T-B1 create on locked pack → 400 PACK_LOCKED
+- T-B2 free user 6th share → 403 quota
+- T-B3 starter user 51st → 403
+- T-B4 admin → unlimited
+
+**Group C: Preview (5)**
+- T-C1 valid token → content + view_count++
+- T-C2 revoked → 403
+- T-C3 pack deleted → 404
+- T-C4 invalid token → 401
+- T-C5 include_files=true → file URLs in response
+
+**Group D: Claim (6)**
+- T-D1 valid claim → new pack of recipient
+- T-D2 source_file_ids=[] (privacy)
+- T-D3 created_via="shared_clone"
+- T-D4 intent has note "(เก็บจาก ... เมื่อ ...)"
+- T-D5 clone_count++
+- T-D6 owner self-claim → success (backup use case)
+
+**Group E: Edge cases (5)**
+- T-E1 cross-user revoke → 404 SHARE_NOT_FOUND
+- T-E2 cross-user update → 404
+- T-E3 race: 2 concurrent views → count = 2 (atomic)
+- T-E4 race: 2 concurrent claims → both succeed + count = 2
+- T-E5 owner pack quota เต็ม → ยังสร้าง share ได้ (quota เป็นของแยก)
+
+### Layer 2: Pytest (`tests/test_share_pack_v9_3.py`) — 35 cases
+
+**Group F: API contract validation (8)**
+- F1-F8: Pydantic boundaries, required fields, type validation
+
+**Group G: Auth (5)**
+- G1: no JWT on /share → 401
+- G2: invalid JWT → 401
+- G3: no JWT on /preview → 200 OK (no auth required)
+- G4: no JWT on /claim → 401
+- G5: no JWT on /shares (revoke) → 401
+
+**Group H: Files attached flow (6)**
+- H1: include_files=true + 5 files → all download URLs work
+- H2: download URL TTL 1 hour
+- H3: download URL after revoke → 403
+- H4: claim with include_files=true → files copied to recipient workspace
+- H5: storage quota check before file copy
+- H6: BYOS user files → server proxy via signed_urls
+
+**Group I: Privacy + masking (4)**
+- I1: owner email masked te****@x.com
+- I2: owner_user_id NOT in preview response
+- I3: cloned pack source_file_ids != owner's
+- I4: cloned pack source_cluster_ids = [] (no leak)
+
+**Group J: TTL + revoke + GC (4)**
+- J1: revoked share preview → 403
+- J2: revoke twice → idempotent
+- J3: revoked share counted in monthly quota (anti-abuse)
+- J4: deleted pack → preview 404 but cloned packs still alive
+
+**Group K: API integration (8)**
+- K1-K8: end-to-end via TestClient — create→preview→claim→list→update→revoke→repreview→reclaim
+
+### Layer 3: Playwright sender — `tests/e2e-ui/v9.3.0-share-pack-sender.spec.js` (12 cases)
+
+ดู Milestone 4 verification ด้านบน (F-S-1 ถึง F-S-12)
+
+### Layer 4: Playwright recipient — `tests/e2e-ui/v9.3.0-share-pack-recipient.spec.js` (14 cases)
+
+ดู Milestone 5 verification ด้านบน (F-R-1 ถึง F-R-14)
+
+### Layer 5: Playwright integration — embedded ใน sender/recipient specs
+
+ดู Milestone 6 verification (E2E-1 ถึง E2E-8)
+
+### Total: **25 + 35 + 12 + 14 + 8 = 94 cases**
 
 ---
 
 ## ✅ Done Criteria
 
-- [ ] 2 new tables created via init_db (no migration needed)
-- [ ] `pack_share.py` module + 6 endpoints
-- [ ] Plan limit `pack_share_limit_monthly` enforced
-- [ ] Frontend: share modal + manager modal + recipient view (`shared_pack.html` + `.js`)
-- [ ] Privacy: confirmation checkbox + locked-pack guard + email whitelist
-- [ ] Audit: PackShareAccess log + UI display
-- [ ] Smoke 30/30 + pytest 40+/40+ pass
-- [ ] Regression v9.0.1 + v9.2.0 ยังผ่าน
-- [ ] APP_VERSION 9.2.1 → 9.3.0
-- [ ] 5 commits แยก logical:
-  1. `feat(db): pack_shares + pack_share_accesses tables [v9.3.0]`
-  2. `feat(api): pack_share module + token signing [v9.3.0]`
-  3. `feat(api): 6 share endpoints + plan limits [v9.3.0]`
-  4. `feat(frontend): share modal + manager + recipient view [v9.3.0]`
-  5. `chore: bump APP_VERSION 9.3.0 + smoke + pytest + memory`
+- [ ] PackShare table created via init_db
+- [ ] 5 endpoints + 1 HTML route ครบ
+- [ ] pack_share.py module ครบ functions
+- [ ] Frontend sender: ปุ่ม 📤 + bar + toggle + revoke + auto-copy clipboard
+- [ ] Frontend recipient: standalone shared_pack.html + claim flow + register/login redirect
+- [ ] Plan limits + monthly quota enforcement
+- [ ] Privacy: locked guard + masked email + privacy-safe clone (source_file_ids=[])
+- [ ] All 7 milestones verified ผ่าน Playwright
+- [ ] Total 94 tests pass:
+  - [ ] Smoke 25/25
+  - [ ] Pytest 35/35
+  - [ ] Playwright sender 12/12
+  - [ ] Playwright recipient 14/14
+  - [ ] Playwright integration 8/8
+- [ ] Regression v9.0.1 + v9.2.0 + v9.2.2 ผ่าน
+- [ ] APP_VERSION 9.2.2 → 9.3.0
+- [ ] Memory updates: pipeline-state, last-session, plan archive
+- [ ] Commits แยก 7 logical (1 ต่อ milestone):
+  1. `feat(db): pack_shares table + token signing [v9.3.0 M1]`
+  2. `feat(api): create/update/revoke share endpoints + plan limits [v9.3.0 M2]`
+  3. `feat(api): preview + claim endpoints + signed URLs integration [v9.3.0 M3]`
+  4. `feat(frontend): sender pack card 📤 button + share bar + auto-copy [v9.3.0 M4]`
+  5. `feat(frontend): recipient /p/{token} preview page + claim flow [v9.3.0 M5]`
+  6. `test(e2e): integration + cross-user + race conditions [v9.3.0 M6]`
+  7. `test(playwright): polish + a11y + 94 cases comprehensive + bump v9.3.0 [M7]`
 
 ---
 
-## ⚠️ Risks / Open Questions
+## ⚠️ Risks & Open Questions
 
-### Risks
-1. **R1 — Privacy leak** — owner share pack แต่ลืมว่ามีไฟล์ sensitive → recipient เห็นชื่อ → Mitigation: confirmation modal บังคับ checkbox + แสดง list ไฟล์เต็ม
-2. **R2 — Token JWT ขนาดใหญ่ → URL ยาว** — ทำให้ paste ใน chat ยาก → Mitigation: TTL สั้นๆ ทำให้ payload เล็ก
-3. **R3 — Recipient clone → owner ลบ pack เดิม → cloned pack เดิม → confused** → Mitigation: cloned pack มี note "Cloned from {owner_name}'s pack on {date}" ใน intent
-4. **R4 — Revoked share ยังใช้งานได้ ถ้า recipient เปิดอยู่** — JWT verify pass + DB row check rejects → ✅ ฝั่ง server ตรวจ revoked_at ทุก request
-5. **R5 — DDoS via cloning** — recipient clone repeated → fill DB → Mitigation: clone นับ pack quota ของ recipient (existing limit)
-6. **R6 — Email enumeration** — ถ้า user A share to alice@x → alice login → access_count++. attacker ลอง login เป็น email ต่างๆ → ติดที่ JWT auth (ต้องผ่าน register ก่อน)
-7. **R7 — Stripe downgrade ระหว่างมี active shares** — Free 1 share, user มี 5 shares ตอน Starter → downgrade → shares ส่วนเกิน?  → Mitigation v9.3: ไม่ auto-revoke — user เห็น "5/1 shares — เกิน quota" ใน UI + ต้อง revoke เอง (parallel กับ pack lock pattern)
-8. **R8 — Pack changed after share** — owner regenerate pack → recipient เห็น content ใหม่ → ✅ feature ที่ดี (live link) — แต่ต้องบอก user ใน UI
+### Risks (with mitigations)
+1. **R1 Link leak** — ใครมีลิงก์ก็ดูได้ → revoke ได้ทุกเมื่อ + ลบ pack = 404
+2. **R2 Clipboard API** — บาง browser/HTTPS only → fallback `document.execCommand('copy')` + manual copy fallback
+3. **R3 Storage abuse via claim** — recipient claim ไฟล์ใหญ่ × N → ตรวจ storage quota ก่อน + 403 ถ้าเกิน
+4. **R4 Race on view_count** — atomic UPDATE SQL (`SET view_count = view_count + 1`)
+5. **R5 BYOS file proxy** — Drive private → reuse signed_urls.py pattern + server fetches Drive
+6. **R6 Cross-origin claim** — recipient user ที่ login ใน different tab → token still valid (JWT stateless)
+7. **R7 Pack regenerate during preview** — preview shows current pack content (not snapshot) — feature, not bug. UI shows "Last updated"
+8. **R8 Revoke abuse** — revoked count in quota (anti-loop)
 
-### Open Questions (Q1-Q8 — มี default ทุกข้อ)
-- **Q1** Recipient ที่ login แต่ไม่อยู่ใน whitelist → 403 message? → **Default:** "ลิงก์นี้ไม่ได้แชร์ให้คุณ — ติดต่อเจ้าของลิงก์"
-- **Q2** Owner mask email หรือไม่ใน recipient view? → **Default: mask** (te***@x.com — privacy)
-- **Q3** Cloned pack title prefix? → **Default:** ใช้ title เดิม + intent ต่อท้าย "(Cloned from {owner})"
-- **Q4** revoked_at + expires_at ผ่านแล้ว → DB GC ไหม? → **Default:** ไม่ GC ใน v9.3 (audit history) — เพิ่ม cleanup script ภายหลัง
-- **Q5** Share badge text ใน pack card? → **Default:** "🔗 {N} shared" / "🔗 1 shared"
-- **Q6** Recipient view เห็น owner_name หรือ owner_email? → **Default:** name only (mask email — privacy)
-- **Q7** Clone confirmation? — recipient กด clone ต้อง confirm 2nd time ไหม? → **Default:** ไม่ต้อง — กด 1 ครั้งสำเร็จ + toast confirm
-- **Q8** TTL options ใน UI dropdown? → **Default:** 7, 14, **30 (default)**, 60, 90 วัน
+### Open Questions (Q1-Q10 — มี default ทุกข้อ)
+
+| Q | Question | Default |
+|---|---|---|
+| Q1 | Cloned pack title prefix? | ใช้ของเดิม + intent มี note "(เก็บจาก {owner} เมื่อ ...)" |
+| Q2 | include_files=true claim → copy files หรือ link? | **Copy เข้า recipient's storage** (consume quota) |
+| Q3 | Mask email format? | `te****@x.com` (2 chars + 4 stars) |
+| Q4 | Preview summary cutoff? | **300 chars** + ปุ่ม "ดูเต็ม" |
+| Q5 | Free monthly quota? | **5 shares** |
+| Q6 | Owner self-claim allowed? | **Yes** (use case: backup) |
+| Q7 | Revoked share counts in monthly quota? | **Yes** (anti-abuse loop) |
+| Q8 | Welcome email after register-via-claim? | **No** (use existing register flow) |
+| Q9 | Recipient page domain? | `personaldatabank.fly.dev/p/{token}` (same domain) |
+| Q10 | Toast for "URL copied"? | TH "คัดลอกลิงก์แล้ว — ส่งให้เพื่อนได้เลย" / EN "Link copied — paste anywhere" |
 
 ---
 
-## 📝 Notes for เขียว (gotchas + reuse patterns)
+## 📝 Notes for เขียว
 
-### Gotchas
-1. **JWT token + DB row dual-check** — token verify ต้องตามด้วย DB lookup (revoked? expired? owner deleted pack?). อย่า trust JWT alone
-2. **Email lowercase normalize** — ทั้ง whitelist + recipient comparison ต้อง lowercase ก่อน
-3. **`current_user.email` อาจเป็น NULL** (Google-only signup ก่อน v8.1) — handle case นี้ใน whitelist check (ถ้า email = NULL → 403)
-4. **Atomic access_count update** — `UPDATE ... SET access_count = access_count + 1` (ไม่ใช่ read-modify-write Python) เพื่อกัน race
-5. **Cloned pack มี source_file_ids = []** — ห้าม copy IDs ของ owner เพราะ recipient ไม่มี access. UI clone จะแสดง "ไม่มีไฟล์ source" — เป็น expected behavior
-6. **Pack regenerate หลัง share** — recipient view = live (ไม่ snapshot) → owner ระวัง. UI แสดง "Last updated: {pack.updated_at}" ใน recipient view
-7. **TTL 90 วัน max** — ถ้า business case ต้องนานกว่า → user revoke + create ใหม่ (กัน orphan link)
-8. **Recipient view URL pattern** `/shared/pack/{token}` — token = JWT ที่มี share_id ฝัง. ต่างจาก `/d/{token}` (signed file download) ตรง scope
-9. **Frontend share modal — privacy checkbox** ต้อง bind disabled state กับ submit button (เปิด checkbox ก่อนกดได้)
+### Critical gotchas (ห้ามพลาด)
+
+1. **Idempotent /share** — ก่อน create ตรวจ active share (`revoked_at IS NULL`) → return เดิม + `is_new=false` → กัน count quota เกิน
+2. **JWT no exp** — token signed without expiration → revoke ใช้ DB row check ทุก request
+3. **Clipboard API** — ต้องเรียกจาก user gesture (click handler ตรงๆ) ไม่ใช่ async callback. ใช้ `try/catch + fallback execCommand`
+4. **Recipient page no auth** — ใช้ static HTML + JS fetch ตรง — ไม่ใช้ `Depends(get_current_user)` ที่ /preview
+5. **Owner email mask** — ที่ `_serialize_share_preview` (ไม่ใช่ที่ frontend) — กัน leak via DevTools
+6. **File copy on claim** — ใช้ `shutil.copy` ไป recipient's UPLOAD_DIR + create File row ใหม่. Storage quota ตรวจก่อน
+7. **Cloned pack source_file_ids** — ถ้า include_files=true → set เป็น new file IDs; ถ้า false → set = []
+8. **Atomic counters** — ใช้ `UPDATE pack_shares SET view_count = view_count + 1 WHERE id = ?` ไม่ใช่ Python read-modify-write
+9. **No TTL means nothing expires** — design choice, not bug. ใช้ revoke เป็น only deactivation
+10. **Confirm dialog ตอนติ๊ก include_files=true** — เพื่อ privacy guard. ถ้าติ๊ก OFF ไม่ต้อง confirm
 
 ### Reuse patterns
-- ดู [backend/signed_urls.py](../../backend/signed_urls.py) เป็น template สำหรับ JWT scoped token
-- ดู [backend/admin.py](../../backend/admin.py) `list_audit_logs` เป็น template สำหรับ paginated list
-- ดู [backend/context_packs.py](../../backend/context_packs.py) `create_pack` เพื่อตามแบบ create flow ใน clone_shared_pack
-- ดู [legacy-frontend/admin.html:172-201](../../legacy-frontend/admin.html#L172) เพื่อ confirmation modal pattern
-- ดู [tests/test_ai_pack_builder_v9_2.py](../../tests/test_ai_pack_builder_v9_2.py) เป็น template comprehensive pytest
+- ดู [backend/signed_urls.py](../../backend/signed_urls.py) สำหรับ JWT scoped token (`pack_share` scope ใหม่)
+- ดู [backend/admin.py](../../backend/admin.py) สำหรับ module + endpoint structure
+- ดู [legacy-frontend/admin.html](../../legacy-frontend/admin.html) สำหรับ standalone page pattern
+- ดู [scripts/ai_pack_builder_smoke.py](../../scripts/ai_pack_builder_smoke.py) เป็น smoke test template
+- ดู [tests/test_ai_pack_builder_v9_2.py](../../tests/test_ai_pack_builder_v9_2.py) เป็น pytest comprehensive template
+- ดู [tests/e2e-ui/v9.2.0-ai-pack-builder.spec.js](../../tests/e2e-ui/v9.2.0-ai-pack-builder.spec.js) เป็น Playwright pattern
 
-### Out of scope guard
-- ❌ ไม่ทำ subscribe/auto-sync (v9.4.0)
-- ❌ ไม่ share ไฟล์ source (privacy red line)
-- ❌ ไม่ public link (anyone-with-link) — v9.3 = email whitelist only
-- ❌ ไม่ password-protected link (v9.4.0+)
-- ❌ ไม่ MCP tool create_share (v9.4.0)
+### Out of scope (do NOT implement in v9.3.0)
+- ❌ Email whitelist (เลื่อน v9.4.0+ — ถ้ามี demand)
+- ❌ TTL slider (revoke-only design)
+- ❌ Permission tier (clone-only)
+- ❌ Audit log per access (use view_count + clone_count denormalized)
+- ❌ MCP create_share tool
+- ❌ Email notification recipient
+- ❌ Subscribe / live update / co-edit
+
+ถ้าเจอประเด็นใหม่ที่ต้องตัดสิน → แจ้งผ่าน [inbox/for-แดง.md](../communication/inbox/for-แดง.md) ก่อนตัดสินใจ
+
+---
+
+## 🔍 Plan Review Findings & Fixes (2026-05-08)
+
+แดงตรวจ plan vs actual code — พบประเด็นต้อง clarify ก่อน build:
+
+### 🔴 Critical issues (ต้องแก้ก่อน build)
+
+#### F1. signed_urls token signing — ใช้ owner's user_id (ไม่ใช่ recipient)
+**Issue:** `signed_urls.sign_download_token(file_id, user_id, ttl)` ต้องการ `user_id` = เจ้าของไฟล์ (ใช้ verify ที่ /d/{token})
+**Fix:** ใน `get_preview()` ตอน gen download URLs ใช้ `share.owner_user_id` (sender's id) ไม่ใช่ recipient — เพราะไฟล์เป็นของ owner. Recipient แค่ "ยืม" ลิงก์ดู
+
+#### F2. TTL inconsistency — share link ไม่มี TTL แต่ download URL = 1 hour
+**Issue:** ถ้า recipient เปิด preview แล้ว 2 ชม. ต่อมากดดาวน์โหลด → URL หมดอายุ
+**Fix strategy:**
+- Frontend: ทุกครั้งที่ user คลิกปุ่ม download ใน recipient page → re-fetch /preview เพื่อได้ fresh URLs (ใช้ background AJAX) — transparent กับ user
+- Alternative: extend signed_urls TTL_MAX_SECONDS เป็น 86400 (1 day) สำหรับ pack share use case → เพิ่ม `scope="pack_share_file"` ใหม่
+- **Decision: Option A (re-fetch)** — เก็บ TTL เดิม, frontend จัดการ refresh
+
+#### F3. Privacy guard vs simplicity — confirm dialog ขัดกับ "1 คลิก"
+**Issue:** Plan เก่าบอก "ติ๊ก include_files=true → confirm dialog เด้ง" — แต่ user vision คือ "ง่าย ไม่ติดขัด"
+**Fix:** ตัด confirm dialog ออก. แทนด้วย **inline warning text** ใต้ checkbox:
+```
+☑ + แนบไฟล์ทั้งหมด (5 ไฟล์ · 12 MB)
+   ⚠ ใครเปิดลิงก์จะดาวน์โหลดไฟล์เหล่านี้ได้
+```
+การติ๊ก = consent ในตัว — ไม่ต้องคลิกซ้ำ
+
+### 🟡 Medium issues (clarify ใน plan)
+
+#### F4. BYOS file proxy — reuse existing /d/{token} pattern
+**Issue:** Plan บอก "Drive private → server proxy" ไม่ชัด
+**Fix:** ใน `get_preview()` gen download URLs ผ่าน `signed_urls.sign_download_token` → URL = `https://.../d/{token}`. ที่ /d/{token} endpoint (existing v7.6.0) มี logic BYOS-aware อยู่แล้วผ่าน storage_router → เรา reuse 100% ไม่ต้องเขียน proxy ใหม่
+
+#### F5. File copy on claim — skip BYOS files ใน v9.3.0
+**Issue:** Owner เก็บไฟล์ใน Google Drive (BYOS) → recipient claim → copy ทำยังไง?
+**Fix v9.3.0:** เก็บแบบ pragmatic:
+- ถ้า file.storage_source != "local" → skip copy + เพิ่มใน clone pack note: "(ไฟล์ {N} อันใน BYOS ของเจ้าของ ไม่ได้ copy)"
+- เลื่อน BYOS-to-BYOS copy ไป v9.4.0
+- include_files=true จะ copy เฉพาะ local files
+
+#### F6. Vector search re-indexing for cloned pack
+**Issue:** Plan ไม่ได้ระบุ
+**Fix:** ใน `claim_to_workspace` หลัง create_pack สำเร็จ → reuse pattern จาก v9.0.1: `vector_search.index_file(file_id=f"pack-{new_pack.id}", ...)` (create_pack ทำให้อยู่แล้ว — แค่ verify)
+
+#### F7. i18n keys explicit list
+**Add ใน plan:**
+```
+share.button.tooltip          : "Share pack" / "แชร์ Pack"
+share.toast.copied            : "Link copied — paste anywhere" / "คัดลอกลิงก์แล้ว — ส่งให้เพื่อนได้เลย"
+share.bar.linkLabel           : "Share Link"
+share.bar.copyButton          : "Copy" / "คัดลอก"
+share.bar.includeFiles        : "+ Attach all files" / "+ แนบไฟล์ทั้งหมด"
+share.bar.filesWarning        : "⚠ Anyone with link can download" / "⚠ ใครเปิดลิงก์ดาวน์โหลดได้"
+share.bar.statsViews          : "{n} views" / "{n} views"
+share.bar.statsClones         : "{n} clones" / "{n} clones"
+share.bar.revoke              : "Revoke link" / "ยกเลิกลิงก์"
+share.bar.close               : "Close" / "ปิด"
+share.toast.includeOn         : "Link now includes {n} files" / "ลิงก์มีไฟล์แนบ {n} ไฟล์แล้ว"
+share.toast.includeOff        : "Link is summary-only" / "ลิงก์เป็นสรุปอย่างเดียวแล้ว"
+share.toast.revoked           : "Link revoked" / "ยกเลิกลิงก์แล้ว"
+share.button.lockedTooltip    : "Locked packs cannot be shared" / "Pack ที่ล็อคแชร์ไม่ได้"
+```
+รวม **14 keys** (ตามที่ plan บอก)
+
+#### F8. Storage quota pre-check formula (สำหรับ claim with files)
+**Add ใน plan:**
+```python
+# ใน claim_to_workspace — ก่อน copy files
+if include_files and source_files:
+    total_size_mb = sum(f.raw_path size) for local files only
+    available_mb = limits["storage_limit_mb"] - current_usage_mb
+    if total_size_mb > available_mb:
+        raise StorageQuotaError(needed=total_size_mb, available=available_mb)
+```
+
+#### F9. landing.js `?action=claim&return=...` handler
+**Add ใน plan implementation steps (Milestone 5):**
+```javascript
+// landing.js — post-login redirect handler
+const urlParams = new URLSearchParams(window.location.search);
+const returnPath = urlParams.get('return');
+const action = urlParams.get('action');
+if (returnPath && returnPath.startsWith('/p/')) {
+    // หลัง login สำเร็จ → redirect กลับ recipient page
+    window.location.href = returnPath + (action === 'claim' ? '?autoclaim=1' : '');
+}
+```
++ shared_pack.js handle `?autoclaim=1` → call /claim ทันที post-login
+
+#### F10. Playwright clipboard permission
+**Add ใน gotchas:**
+```javascript
+// ใน Playwright spec — ก่อน sharePack test
+await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+```
+ถ้าไม่ grant → `navigator.clipboard.readText()` reject → F-S-2 fail
+
+#### F11. F-R-13 view count test — sequential not concurrent
+**Fix:** เปลี่ยนจาก "concurrent visits" → "sequential visits ×3 → check count = 3" (ง่าย deterministic)
+
+### Summary of fixes
+
+| # | Severity | Section affected | Fix applied |
+|---|---|---|---|
+| F1 | 🔴 | get_preview signing | use share.owner_user_id |
+| F2 | 🔴 | TTL strategy | re-fetch on download click |
+| F3 | 🔴 | Privacy UX | inline warning, no confirm |
+| F4 | 🟡 | BYOS proxy | reuse /d/{token} existing |
+| F5 | 🟡 | File copy on claim | skip BYOS in v9.3.0 |
+| F6 | 🟡 | Vector index | already in create_pack |
+| F7 | 🟡 | i18n keys | 14 keys listed |
+| F8 | 🟡 | Storage quota | formula specified |
+| F9 | 🟡 | Login redirect | landing.js handler added |
+| F10 | 🟡 | Playwright | grantPermissions added |
+| F11 | 🟡 | F-R-13 test | sequential x3 |
+
+**ผลกระทบต่อ effort:** 0 — ทุก fix เป็นการ clarify spec ที่มีอยู่ ไม่เพิ่มงานใหม่
+
+**ผลกระทบต่อ tests:** ลดเหลือ 92 cases (ตัด confirm dialog tests F-S-4, F-S-5, F-S-6 → กลายเป็น "warning text visible" 1 test แทน)
+
+---
+
+---
+
+## 🛡️ Proactive Cascade Risk Analysis (2026-05-08)
+
+> User asked: "ถ้าอันนี้พังจะกระทบส่วนอื่นไหม — เราทำเชิงรุก ไม่ใช่รอแก้ทีหลัง"
+>
+> ผมตรวจทุก system ที่ v9.3.0 touch + verify guard + plan rollback strategy
+
+### 🎯 11 systems ที่ touch + cascade risk
+
+| # | System | Action | Cascade risk | Guard / Mitigation | Verified |
+|---|---|---|---|---|---|
+| 1 | `pack_shares` table | NEW | 🟢 ไม่มี (table ใหม่ ไม่กระทบ existing) | `Base.metadata.create_all` idempotent + non-destructive | ✅ |
+| 2 | `files` table | WRITE (claim copies) | 🔴 **HIGH** — malformed File row → break /api/files listing → ALL users | Atomic transaction + try/except wrap + rollback on partial failure | 🚧 |
+| 3 | `context_packs` table | WRITE (clone) | 🟡 — duplicate id หรือ FK violation | Use `gen_id()` (existing pattern) + FK to recipient.id | ✅ |
+| 4 | `vector_search` index | WRITE (cloned pack) | 🔴 **HIGH** — cross-user index leak | per-user dict already + `index_file(user_id=)` (v9.0.1 pattern) | ✅ verified pattern |
+| 5 | `JWT_SECRET_KEY` | REUSE for share token | 🔴 **HIGH** — share token leak → maybe abuse as login token? | Explicit `scope="pack_share"` check at verify; existing scope guards in `signed_urls.SCOPE_DOWNLOAD` pattern | ✅ verified |
+| 6 | `plan_limits` add key | additive | 🟢 LOW — verified no `limits.items()` iteration anywhere | grep ผ่าน — ทุก consumer ใช้ specific key (`limits['file_limit']`) | ✅ verified |
+| 7 | `UsageLog.action` new values | additive | 🟢 LOW | grep ผ่าน — consumers check specific values only (`== "ai_summary"`) | ✅ verified |
+| 8 | `_serialize_pack` add fields | additive | 🟢 LOW — old MCP/UI clients ignore unknown fields | additive only, no field removal | ✅ |
+| 9 | `landing.js` modify | post-login redirect | 🟡 — buggy redirect → user ปกติ login ไม่ได้ | guard: only trigger if `return.startsWith('/p/')` | 🚧 |
+| 10 | `/d/{token}` endpoint | REUSE for downloads | 🟡 — existing /d/ logic break ถ้า token format different | use `signed_urls.sign_download_token` exact format — no changes to endpoint | ✅ |
+| 11 | `register/login` API | REUSE for recipient register | 🟢 LOW — auth flow unchanged | Recipient ใช้ existing `doRegister()` — no branch | ✅ |
+
+**Legend:** ✅ verified · 🚧 to be implemented per plan · ⚠️ open
+
+### 🚨 Top-3 Cascade Risks (deep-dive)
+
+#### Risk 1: File copy on claim → break `/api/files` listing
+**Failure mode:**
+```
+recipient claim → loop copy files
+  → file 1 ✅ (DB row + raw_path written)
+  → file 2 ✅
+  → file 3 ❌ (disk full / permission / OOM)
+  → DB has 3 File rows but only 2 raw_path exist
+  → /api/files listing → 1 row missing raw → 500 error → break ALL recipient's file UI
+```
+
+**Guard (เพิ่มใน claim_to_workspace):**
+```python
+async def claim_to_workspace(db, current_user, token):
+    # 1. Pre-check storage quota (ตามที่มี)
+    # 2. Pre-check ALL files exist on disk (ก่อน start copy)
+    for f in source_files:
+        if f.storage_source == "local" and not os.path.exists(f.raw_path):
+            raise FileNotFoundError(f"Source file missing: {f.filename}")
+    
+    # 3. Copy files in transaction-safe order:
+    new_file_records = []
+    copied_paths = []
+    try:
+        for f in source_files:
+            new_path = ...  # recipient's UPLOAD_DIR
+            shutil.copy2(f.raw_path, new_path)  # copy WITH metadata
+            copied_paths.append(new_path)
+            new_file_record = File(...)
+            db.add(new_file_record)
+            new_file_records.append(new_file_record)
+        # Create pack pointing to new files
+        new_pack = await create_pack(...)
+        await db.commit()  # ATOMIC: all-or-nothing
+    except Exception as e:
+        # Rollback: delete copied files + DB rolls back automatically
+        for p in copied_paths:
+            try: os.remove(p)
+            except: pass
+        raise
+```
+
+#### Risk 2: Vector index cross-user leak
+**Failure mode:**
+```
+recipient.user_id = "user_b"
+clone pack → call vector_search.index_file(file_id="pack-{new}", user_id="user_a")  ❌
+→ pack ของ user_b เข้า user_a's index
+→ user_a search → เห็น pack ที่ไม่ใช่ของตัวเอง
+```
+
+**Guard:** ใน `claim_to_workspace`:
+```python
+# v9.3.0 — explicitly use recipient.id (not owner)
+vector_search.index_file(
+    file_id=f"pack-{new_pack['id']}",
+    user_id=current_user.id,  # ⚠️ recipient, NOT share.owner_user_id
+    ...
+)
+```
+
+`create_pack()` ทำให้อยู่แล้ว (ใช้ `user_id` arg ที่ส่งเข้าไป — pattern verified ใน v9.0.1)
+
+#### Risk 3: JWT scope confusion
+**Failure mode:**
+```
+attacker: gets pack_share token
+→ tries /api/auth/me with Bearer pack_share_token
+→ if /api/auth/me ไม่ check scope → leak access
+```
+
+**Guard:**
+- `decode_token` ใน auth.py ไม่ check scope (current behavior)
+- BUT `auth.get_current_user` ใช้ payload's `sub` (user_id) field
+- pack_share token payload = `{share_id, scope, iat}` — **ไม่มี `sub` field**
+- → `get_current_user` จะ raise 401 because `sub` missing
+- ✅ **Implicit guard ผ่าน payload structure differs**
+
+แต่เพื่อ defense-in-depth, ใน `verify_share_token` ตรวจ `scope == "pack_share"` explicit (ตามที่ plan บอก) ✅
+
+---
+
+## 🔧 Production Readiness Checklist
+
+### Pre-deploy gates (ต้องทำก่อน push origin)
+
+- [ ] **Feature flag** — เพิ่ม env var `ENABLE_PACK_SHARING=true` (default true) — disable instantly ถ้า production พัง
+  - Wire ใน main.py ที่ทุก /api/context-packs/share* endpoints → return 503 ถ้า disabled
+  - Frontend: ปุ่ม 📤 hidden ถ้า `state.features.pack_sharing === false`
+- [ ] **Migration test** — รัน init_db บน production-like DB → verify pack_shares สร้าง + existing data unchanged
+- [ ] **Rollback plan documented** — ดู section ด้านล่าง
+
+### Monitoring + observability
+
+- [ ] **Usage tracking** ผ่าน `log_usage`:
+  - `"pack_share"` ทุก /share success
+  - `"pack_share_view"` ทุก /preview view (volumetric)
+  - `"pack_clone"` ทุก /claim success
+- [ ] **Admin panel** — แสดง count ใน Dashboard tab (existing pattern):
+  - "Active shares: N · Total clones: M · Views today: K"
+- [ ] **Error rate alert** — ถ้า /preview 5xx > 5%/hour → log critical
+
+### Rollback Plan
+
+ถ้าหลัง deploy มีปัญหา (production user reports):
+
+#### Level 1: Disable feature flag (instant — no rebuild)
+```bash
+fly secrets set ENABLE_PACK_SHARING=false
+fly machine restart  # ~30s
+```
+ผลลัพธ์: ปุ่ม 📤 หายจาก UI, /share endpoints return 503, ไม่กระทบ pack อื่นๆ
+
+#### Level 2: Code revert (full rollback)
+```bash
+git revert <merge-commit>
+git push origin master
+fly deploy
+```
+ผลลัพธ์: backend กลับ v9.2.2, pack_shares table ยังอยู่ (ไม่ destructive), cloned packs ของ user ยังอยู่ใน workspace
+
+#### Level 3: Cleanup orphans (เผื่อ Level 2 ไม่พอ)
+```python
+# scripts/v9_3_cleanup.py
+# - Delete pack_shares rows (no relation cascading)
+# - cloned packs ของ recipient = ยังอยู่ (เป็น first-class pack ของ user แล้ว)
+# - File copies ของ recipient = ยังอยู่ (เป็น first-class file)
+```
+
+**Key insight:** v9.3.0 design = **clone-then-disconnect** → ถ้า rollback, recipient's packs/files ยังอยู่กับเขา ไม่หาย ไม่ break ❤️
+
+### Resource impact analysis
+
+| Resource | Before | After (with v9.3.0) | Impact |
+|---|---|---|---|
+| DB rows | files + packs | + pack_shares (1 per share) | minimal |
+| Disk | upload dirs | + cloned files (recipient owns) | up to 2x for sharing pairs |
+| LLM cost | summary + clarify + select + distill | **0 ใหม่** (v9.3.0 ไม่ call LLM) | ✅ no impact |
+| Bandwidth | uploads + downloads | + share preview + file downloads | moderate increase |
+| Memory | TF-IDF index per user | + pack indexes (1 per cloned pack) | minimal |
+
+### Security review (proactive)
+
+- [ ] **No credential leak in shares** — share preview returns owner_email_masked, NOT raw email
+- [ ] **No pack content leak via cache** — `view_count++` invalidates cached preview (recipients always see fresh)
+- [ ] **No CSRF risk** — POST /share + DELETE /shares require Authorization header (no cookies)
+- [ ] **No XSS via title/intent/scope** — frontend uses `escapeHtml()` (existing pattern)
+- [ ] **Rate limiting** — share creation = quota-limited (Free 5/mo, Starter 50/mo); preview = unlimited but read-only; claim = recipient's pack quota
+
+### Test coverage gaps to fix in M6 + M7
+
+- [ ] E2E-9 (NEW): Feature flag OFF → /share returns 503 + UI hides button
+- [ ] E2E-10 (NEW): Disk full simulation → claim rolls back cleanly (no orphan files)
+- [ ] E2E-11 (NEW): Owner deletes account → cascade behavior (pack_shares preserved? cloned packs survive?)
+
+→ **เพิ่มใน Milestone 6 = 11 E2E tests (จาก 8)**
+→ **Total tests: 92 → 95 cases**
 
 ---
 
 ## 📋 Pipeline Next
 
-1. 🔴 **User review plan** — ตอบ Q1-Q8 (หรือยอมรับ default)
-2. 🟢 **เขียวเริ่ม build** — Phase 1 → 2 → 3 (~3 วัน)
-3. 🔵 **ฟ้า review** — verify privacy guards + 70+ test cases
-4. 🔴 **User approve + push + deploy**
+1. 🔴 **User review plan + findings + cascade analysis** — accept proactive guards
+2. 🟢 **เขียว build** — Milestone 1 → 7 (~2.5 วัน + Playwright per milestone + cascade guards in M3 + M5 + M6)
+3. 🔵 **ฟ้า review** — verify privacy + 95 tests + cascade guards + commit messages
+4. 🔴 **User approve + feature-flag deploy + monitor**
 
 ---
 
-## 🔗 Strategic alignment
+## 📊 ความคุ้ม
 
-**PDB brand promise (จาก project_pdb_brand_voice memory):**
-> "เก็บอย่างดี + เป็นส่วนตัว + เป็นระบบ"
+| Metric | Simple Edition (เดิม) | Detailed Edition (นี้) |
+|---|---|---|
+| Total tests | 53 | **94** |
+| Playwright UI tests | 8 | **34** (sender 12 + recipient 14 + integration 8) |
+| Milestones with verification | 0 | **7** |
+| Lines of plan | ~400 | ~720 |
+| Confidence in ship | กลาง | **สูง** |
+| Effort | ~2 วัน | ~2.5 วัน (เพิ่ม 0.5 วันคุ้ม) |
 
-Pack sharing = ขยับจาก "ใช้คนเดียว" → "share อย่างควบคุมได้" — **เพิ่ม value โดยไม่ทำลาย privacy core** เพราะ:
-- ✅ Default = private (ไม่ share ถ้าไม่กด)
-- ✅ Email whitelist = ไม่ใช่ public
-- ✅ Source content ไม่ leak (แค่สรุป + ชื่อไฟล์)
-- ✅ Revoke ได้ทุกเมื่อ
-- ✅ Audit ครบ (ใครเข้า เมื่อไหร่)
-
-นี่ไม่ใช่ "share" แบบ Google Drive (everything-with-link) — เป็น **"share knowledge artifact ที่กลั่นแล้ว"** ที่เน้น privacy
+**ตรง vibe ที่ user ขอ:**
+- ✅ "ละเอียดจริงๆ" — มี milestone, test plan, UI flow, edge cases ครบ
+- ✅ "ทุก milestone มีเทส" — 7 milestones × Playwright per milestone
+- ✅ "เทสหน้า UI จริง ทั้งผู้รับและผู้ส่ง ด้วย Playwright" — 34 Playwright cases (sender 12 + recipient 14 + integration 8)
