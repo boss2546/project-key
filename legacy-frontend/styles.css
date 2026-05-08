@@ -107,11 +107,26 @@
     height: 100vh;
     height: calc(var(--vh, 1vh) * 100);
     height: 100dvh;
-    padding-bottom: env(safe-area-inset-bottom);
+    /* v9.3.1 hotfix — sidebar bottom items (profile/email/logout) were
+       still being clipped on iOS Safari when total nav+stats+footer
+       exceeded viewport height. Make the WHOLE sidebar scrollable
+       (not just .sidebar-nav inside) — avoids nested scroll on iOS
+       which is buggy. Extra safe-area padding (24px) gives room above
+       the home indicator. */
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: calc(env(safe-area-inset-bottom) + 24px);
     transform: translateX(-100%);
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 9800;
     box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
+  }
+  /* Inside the now-scrollable sidebar, .sidebar-nav must take natural
+     height (not flex:1) so it doesn't create a nested scroll. */
+  .sidebar .sidebar-nav {
+    flex: 0 0 auto;
+    overflow-y: visible;
+    min-height: auto;
   }
   .app-container.sidebar-open .sidebar {
     transform: translateX(0);
