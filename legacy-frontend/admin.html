@@ -8,8 +8,8 @@
  <link rel="preconnect" href="https://fonts.googleapis.com">
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
- <link rel="stylesheet" href="/legacy/shared.css?v=8.2.0">
- <link rel="stylesheet" href="/legacy/styles.css?v=8.2.0">
+ <link rel="stylesheet" href="/legacy/shared.css?v=9.3.0">
+ <link rel="stylesheet" href="/legacy/styles.css?v=9.3.0">
 </head>
 <body class="show-landing">
  <!-- show-landing class = override body { overflow: hidden } จาก shared.css เพื่อให้ admin scroll ได้ -->
@@ -32,7 +32,7 @@
      <rect x="14" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.3"/>
     </svg>
     <span>Personal Data Bank</span>
-    <span class="admin-logo-pill">Admin v8.2.0</span>
+    <span class="admin-logo-pill">Admin · v9.3.0</span>
    </div>
    <div class="admin-user-info">
     <span id="admin-email">—</span>
@@ -53,6 +53,7 @@
    <!-- ─── Tab 1: Dashboard ─── -->
    <section id="admin-tab-dashboard" class="admin-tab-content active">
     <h2>ภาพรวมระบบ</h2>
+    <p class="admin-section-sub">ตัวเลขสำคัญและสุขภาพระบบ — อัปเดตทุก ~60s</p>
     <div class="admin-stats-grid">
      <div class="admin-stat-card">
       <div class="stat-label">ผู้ใช้ทั้งหมด</div>
@@ -97,6 +98,7 @@
    <!-- ─── Tab 2: Users ─── -->
    <section id="admin-tab-users" class="admin-tab-content">
     <h2>จัดการผู้ใช้</h2>
+    <p class="admin-section-sub">ค้นหา, เปลี่ยน plan, รีเซ็ตรหัสผ่าน และคุม access ของผู้ใช้</p>
 
     <div class="admin-users-controls">
      <input type="text" id="admin-users-search" placeholder="ค้นหา email..." class="form-input">
@@ -140,6 +142,7 @@
    <!-- ─── Tab 3: Audit Log ─── -->
    <section id="admin-tab-audit" class="admin-tab-content">
     <h2>กล้องวงจรปิด — ประวัติการกระทำ</h2>
+    <p class="admin-section-sub">ทุก action ที่กระทบ user/plan/auth จะถูกบันทึกที่นี่ (read-only)</p>
 
     <div class="admin-users-controls">
      <select id="admin-audit-filter" class="form-input">
@@ -269,6 +272,6 @@
  <!-- Toast container — reuse #toast-container + .toast classes จาก shared.css -->
  <div id="toast-container"></div>
 
- <script src="/legacy/admin.js?v=8.2.0"></script>
+ <script src="/legacy/admin.js?v=9.3.0"></script>
 </body>
 </html>
