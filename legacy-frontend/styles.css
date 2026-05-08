@@ -177,6 +177,7 @@
 }
 
 .nav-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -186,11 +187,25 @@
   text-decoration: none;
   font-size: 13px;
   font-weight: 500;
-  transition: all 0.15s;
+  transition: background-color var(--duration-fast), color var(--duration-fast);
 }
 
 .nav-item:hover { background: var(--bg-hover); color: var(--text-primary); }
-.nav-item.active { background: var(--accent-glow); color: var(--accent); }
+/* v9.3.0 — active state: soft pill bg + 2px accent rail on the left */
+.nav-item.active {
+  background: var(--accent-glow);
+  color: var(--accent);
+}
+.nav-item.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: var(--accent);
+  border-radius: 0 2px 2px 0;
+}
 
 .nav-icon {
   display: flex;
@@ -1430,12 +1445,12 @@
   animation: spin 0.6s linear infinite;
 }
 
-/* ═══ LOADING OVERLAY — v5.1 Premium ═══ */
+/* ═══ LOADING OVERLAY — v5.1 Premium (v9.3.0: re-tinted to brand indigo) ═══ */
 
 .loading-overlay {
   position: fixed;
   inset: 0;
-  z-index: 10800; /* v7.3.0 — was 10000; sits above modal-overlay (10500) */
+  z-index: var(--z-loading);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1443,22 +1458,22 @@
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   opacity: 0;
-  transition: opacity 0.3s ease;
+  transition: opacity var(--duration-slow) ease;
 }
 .loading-overlay.visible { opacity: 1; }
-.loading-overlay.fade-out { opacity: 0; transition: opacity 0.3s ease; }
+.loading-overlay.fade-out { opacity: 0; transition: opacity var(--duration-slow) ease; }
 
 .loading-overlay-card {
   background: linear-gradient(135deg, rgba(30, 32, 44, 0.95), rgba(20, 22, 34, 0.98));
-  border: 1px solid rgba(139, 92, 246, 0.3);
-  border-radius: 20px;
+  border: 1px solid rgba(99, 102, 241, 0.30);
+  border-radius: var(--radius-xl);
   padding: 40px 48px;
   text-align: center;
   min-width: 320px;
   max-width: 420px;
-  box-shadow: 
-    0 0 60px rgba(139, 92, 246, 0.15),
-    0 20px 60px rgba(0, 0, 0, 0.4);
+  box-shadow:
+    0 0 60px rgba(99, 102, 241, 0.15),
+    var(--elev-4);
 }
 
 /* Upload icon — static, progress bar conveys motion */
@@ -1466,11 +1481,11 @@
   width: 48px;
   height: 48px;
   margin: 0 auto 16px;
-  color: var(--accent, #a78bfa);
+  color: var(--accent);
   opacity: 0.9;
 }
 
-/* AI working icon — calm rotating ring (no flicker/pulse) */
+/* AI working icon — calm rotating ring */
 .loading-icon.ai-brain {
   width: 56px;
   height: 56px;
@@ -1485,25 +1500,25 @@
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  border: 2px solid rgba(139, 92, 246, 0.18);
-  border-top-color: var(--accent, #a78bfa);
+  border: 2px solid rgba(99, 102, 241, 0.18);
+  border-top-color: var(--accent);
   animation: spin 1.4s linear infinite;
 }
 .loading-icon.ai-brain svg {
   width: 60%;
   height: 60%;
-  color: var(--accent, #a78bfa);
+  color: var(--accent);
 }
 
 /* Stage hint that cycles under the main message */
 .loading-stage-hint {
-  font-size: 12px;
-  color: rgba(167, 139, 250, 0.85);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
   margin-top: -10px;
   margin-bottom: 16px;
   min-height: 16px;
   font-variant-numeric: tabular-nums;
-  transition: opacity 0.3s ease;
+  transition: opacity var(--duration-slow) ease;
 }
 
 /* Default spinner */
@@ -1511,14 +1526,14 @@
   width: 40px;
   height: 40px;
   margin: 0 auto 16px;
-  border: 3px solid rgba(139, 92, 246, 0.2);
-  border-top-color: var(--accent, #a78bfa);
+  border: 3px solid rgba(99, 102, 241, 0.2);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
 
 .loading-message {
-  font-size: 16px;
+  font-size: var(--fs-lg);
   font-weight: 500;
   color: #e2e8f0;
   line-height: 1.6;
@@ -1528,7 +1543,7 @@
 .loading-progress-bar {
   width: 100%;
   height: 4px;
-  background: rgba(139, 92, 246, 0.15);
+  background: rgba(99, 102, 241, 0.15);
   border-radius: 2px;
   overflow: hidden;
   margin-bottom: 12px;
@@ -1537,14 +1552,14 @@
 .loading-progress-fill {
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, var(--accent, #a78bfa), #c084fc);
+  background: linear-gradient(90deg, var(--accent), var(--accent-hover));
   border-radius: 2px;
-  transition: width 0.2s ease-out;
+  transition: width var(--duration-base) ease-out;
 }
 
 .loading-progress-bar.indeterminate .loading-progress-fill {
   width: 40%;
-  background: linear-gradient(90deg, transparent, var(--accent, #a78bfa), #c084fc, transparent);
+  background: linear-gradient(90deg, transparent, var(--accent), var(--accent-hover), transparent);
   animation: progressIndeterminate 1.4s ease-in-out infinite;
 }
 
@@ -4796,4 +4811,84 @@
 @media (max-width: 600px) {
   .pack-share-row { flex-direction: column; align-items: stretch; }
   .pack-share-link { font-size: 11px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   v9.3.0 — PHASE B CASCADE RULES
+   Apply canonical-atom visuals to legacy classes without HTML changes.
+   See: .agent-memory/plans/app-ui-foundation-v9.3.0.md §9 (Phase B)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* B1 — Card-pattern hover lift cascade.
+   Targets all "card-shaped" legacy classes so they pick up the bank-grade
+   hover behavior. List-row cards (.file-item) get a softer treatment. */
+.cluster-card,
+.mcp-step-card,
+.mcp-tool-card,
+.token-card,
+.pack-card {
+  transition:
+    border-color var(--duration-base),
+    box-shadow var(--duration-base),
+    transform var(--duration-base),
+    background-color var(--duration-base);
+}
+.cluster-card:hover,
+.mcp-step-card:hover,
+.mcp-tool-card:hover,
+.token-card:hover,
+.pack-card:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--elev-2);
+  transform: translateY(-1px);
+}
+/* List-row cards: keep flat (no transform; would jiggle in long lists) */
+.file-item {
+  transition:
+    border-color var(--duration-base),
+    background-color var(--duration-base);
+}
+
+/* B4 — Tabular numbers for trust + scan-readability.
+   Applies to all numeric contexts so digits align column-wise. */
+.stat-value,
+.stat-row .stat-value,
+.file-meta,
+.badge-count,
+.token-meta-value,
+.log-time,
+.log-latency,
+.fd-meta-row,
+.graph-info-overlay,
+td {
+  font-variant-numeric: tabular-nums;
+}
+
+/* B6 — Anti-AI-slop: remove uppercase metric labels.
+   Bank-grade UIs use sentence case for labels; uppercase + letter-spacing
+   reads as "stock admin template" cliché. */
+.detail-section h4,
+.fd-section h3,
+.token-meta-label,
+.log-table th,
+.nav-section-label,
+.detail-meta-grid .meta-key {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* B8 — Sticky page header opt-in (use .page-header.is-sticky on long pages).
+   Glass-morphism on scroll, keeps title visible during long file lists. */
+.page-header.is-sticky {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-page-header-sticky);
+  background: linear-gradient(180deg,
+    var(--bg-primary),
+    var(--bg-primary) 70%,
+    transparent);
+  margin: 0 calc(var(--space-8) * -1) var(--space-6);
+  padding: var(--space-4) var(--space-8);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
