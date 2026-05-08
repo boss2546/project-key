@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+ <title>Personal Data Bank — Shared Pack</title>
+ <meta name="description" content="ดูและรับ Context Pack ที่มีคนแชร์ให้คุณ">
+ <link rel="preconnect" href="https://fonts.googleapis.com">
+ <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+ <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+ <link rel="stylesheet" href="/legacy/shared.css?v=9.3.0">
+ <link rel="stylesheet" href="/legacy/shared_pack.css?v=9.3.0">
+</head>
+<body class="show-landing">
+
+ <!-- Loading state -->
+ <div id="state-loading" class="shared-state">
+  <div class="shared-loading-spinner"></div>
+  <p class="shared-loading-text">กำลังโหลด...</p>
+ </div>
+
+ <!-- Error state (404 / invalid token) -->
+ <div id="state-error" class="shared-state hidden">
+  <div class="shared-error-card">
+   <div class="shared-error-icon">⚠️</div>
+   <h2 id="error-title">ลิงก์ไม่ถูกต้อง</h2>
+   <p id="error-message">ลิงก์นี้ไม่มีอยู่ หรือ Pack ถูกลบไปแล้ว</p>
+   <button class="btn btn-primary" onclick="window.location.href='/'">ไปหน้าหลัก</button>
+  </div>
+ </div>
+
+ <!-- Revoked state -->
+ <div id="state-revoked" class="shared-state hidden">
+  <div class="shared-error-card">
+   <div class="shared-error-icon">🚫</div>
+   <h2>ลิงก์นี้ถูกยกเลิกแล้ว</h2>
+   <p>เจ้าของยกเลิกการแชร์ pack นี้</p>
+   <button class="btn btn-primary" onclick="window.location.href='/'">ไปหน้าหลัก</button>
+  </div>
+ </div>
+
+ <!-- Preview state — main content -->
+ <div id="state-preview" class="shared-state hidden">
+  <div class="shared-container">
+
+   <!-- Header logo -->
+   <header class="shared-header">
+    <a href="/" class="shared-logo">
+     <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <rect x="3" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.9"/>
+      <rect x="14" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/>
+      <rect x="3" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/>
+      <rect x="14" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.3"/>
+     </svg>
+     <span>Personal Data Bank</span>
+    </a>
+   </header>
+
+   <!-- Gift banner -->
+   <div class="shared-gift-banner">🎁 มีคนส่ง Pack ให้คุณ</div>
+
+   <!-- Pack card -->
+   <div class="shared-pack-card">
+    <h1 id="pack-title">—</h1>
+    <div class="shared-pack-meta">
+     <span class="shared-pack-from">จาก: <strong id="pack-owner">—</strong></span>
+     <span class="shared-pack-type" id="pack-type">—</span>
+    </div>
+    <div class="shared-pack-stats">
+     👁 <span id="pack-views">0</span> views · 📥 <span id="pack-clones">0</span> clones
+    </div>
+
+    <div class="shared-section">
+     <div class="shared-label">📋 ใช้สำหรับ:</div>
+     <div class="shared-content" id="pack-intent">—</div>
+    </div>
+
+    <div class="shared-section">
+     <div class="shared-label">📦 ครอบคลุม:</div>
+     <div class="shared-content" id="pack-scope">—</div>
+    </div>
+
+    <div class="shared-section">
+     <div class="shared-label">─── สรุปเนื้อหา ───</div>
+     <div class="shared-content shared-summary" id="pack-summary">—</div>
+     <button class="shared-expand-btn hidden" id="btn-expand-summary" onclick="toggleSummaryExpand()">
+      ▾ ดูเต็ม
+     </button>
+    </div>
+
+    <div class="shared-section hidden" id="files-section">
+     <div class="shared-label">📎 ไฟล์แนบ <span id="files-count">0</span> ไฟล์:</div>
+     <div class="shared-files-list" id="files-list"></div>
+    </div>
+   </div>
+
+   <!-- Action buttons -->
+   <div class="shared-actions">
+    <button class="btn btn-primary btn-block btn-lg" id="btn-claim" onclick="claimPack()">
+     ➕ เก็บเข้าธนาคารข้อมูลของฉัน
+    </button>
+    <button class="btn btn-ghost btn-block" onclick="closePage()">
+     ปิดหน้านี้
+    </button>
+   </div>
+
+   <div class="shared-divider"><span>หรือ</span></div>
+
+   <div class="shared-register-cta hidden" id="register-cta">
+    <p>ยังไม่มี Personal Data Bank?</p>
+    <button class="btn btn-outline btn-block" onclick="registerAndClaim()">
+     📝 สมัครฟรี + เก็บ Pack นี้เลย
+    </button>
+   </div>
+
+  </div>
+ </div>
+
+ <!-- Toast container -->
+ <div id="toast-container"></div>
+
+ <script src="/legacy/shared_pack.js?v=9.3.0"></script>
+</body>
+</html>

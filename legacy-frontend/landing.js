@@ -59,7 +59,20 @@ function showApp() {
 
 // v8.2.0 — Admin-aware redirect: probe /api/admin/me แบบ async
 // ถ้า 200 → /admin, ถ้า 403/error → /app
+// v9.3.0 — Honor ?return=/p/{token}&action=claim — กลับไป recipient page หลัง login
 function _redirectToAppOrAdmin() {
+ // v9.3.0 — ถ้ามี ?return=/p/... → กลับไป recipient page (ไม่ผ่าน /app)
+ const params = new URLSearchParams(window.location.search);
+ const returnPath = params.get('return');
+ const action = params.get('action');
+ if (returnPath && returnPath.startsWith('/p/')) {
+  // ขั้นต่ำ: validate return path ป้องกัน open redirect
+  const safeReturnPath = returnPath.replace(/[^a-zA-Z0-9/_.\-]/g, '');
+  const target = safeReturnPath + (action === 'claim' ? '?autoclaim=1' : '');
+  window.location.href = target;
+  return;
+ }
+
  const token = state.authToken || localStorage.getItem('pdb_token');
  if (!token) {
   window.location.href = '/app';
@@ -418,6 +431,25 @@ function initAuth() {
  // เพราะ Google callback ส่งกลับมาที่ /app#token=... โดย user ยังไม่มี token ใน localStorage
  if (_handleGoogleLoginFragment()) return;
  _handleGoogleLoginError();
+
+ // v9.3.0 — ถ้า user logged in อยู่แล้ว + มี ?return=/p/... → redirect ไป recipient page ทันที
+ // (ไม่ต้องโชว์ landing page หรือ /app)
+ const _params = new URLSearchParams(window.location.search);
+ const _returnPath = _params.get('return');
+ if (_returnPath && _returnPath.startsWith('/p/') && state.authToken) {
+  const _action = _params.get('action');
+  const _safe = _returnPath.replace(/[^a-zA-Z0-9/_.\-]/g, '');
+  window.location.href = _safe + (_action === 'claim' ? '?autoclaim=1' : '');
+  return;
+ }
+ // ถ้ายังไม่ login + มี ?return=/p/... + ?signup=1 → เปิด register modal อัตโนมัติ
+ if (_returnPath && _returnPath.startsWith('/p/') && !state.authToken) {
+  if (_params.get('signup') === '1') {
+   setTimeout(() => showAuthModal('register'), 200);
+  } else {
+   setTimeout(() => showAuthModal('login'), 200);
+  }
+ }
 
  // Landing page buttons
  document.getElementById('btn-show-login')?.addEventListener('click', () => showAuthModal('login'));
