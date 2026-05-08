@@ -51,10 +51,11 @@
   --color-files: #ffd54f;
   --color-graph: #ff8a65;
 
-  /* Accent */
+  /* Accent — v9.3.0: glow lowered 0.15→0.12 for calmer "bank" vibe */
   --accent: #6366f1;
   --accent-hover: #818cf8;
-  --accent-glow: rgba(99, 102, 241, 0.15);
+  --accent-glow: rgba(99, 102, 241, 0.12);
+  --accent-soft: rgba(99, 102, 241, 0.06);
 
   /* Status */
   --success: #22c55e;
@@ -65,6 +66,68 @@
   --sidebar-width: 220px;
   --detail-panel-width: 320px;
   --sources-panel-width: 300px;
+
+  /* ═══ v9.3.0 Foundation tokens — see plans/app-ui-foundation-v9.3.0.md
+       Use these instead of literal values in new code. ═══ */
+
+  /* Spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+
+  /* Radius scale */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+  --radius-pill: 999px;
+
+  /* Elevation (bank-grade soft shadows) */
+  --elev-0: none;
+  --elev-1: 0 1px 2px rgba(0, 0, 0, 0.20);
+  --elev-2: 0 4px 12px rgba(0, 0, 0, 0.25);
+  --elev-3: 0 8px 24px -8px rgba(0, 0, 0, 0.40);
+  --elev-4: 0 16px 48px -12px rgba(0, 0, 0, 0.50);
+  --elev-popover: 0 8px 32px rgba(0, 0, 0, 0.45);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast: 0.15s;
+  --duration-base: 0.2s;
+  --duration-slow: 0.3s;
+
+  /* Focus rings (a11y, "ปลอดภัย" signal) */
+  --ring-focus: 0 0 0 3px rgba(99, 102, 241, 0.35);
+  --ring-error: 0 0 0 3px rgba(239, 68, 68, 0.30);
+
+  /* Typography scale */
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-base: 13px;
+  --fs-md: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 18px;
+  --fs-2xl: 22px;
+  --tracking-tight: -0.02em;
+
+  /* z-index registry — declare all z-index here, never literal */
+  --z-sticky: 50;
+  --z-page-header-sticky: 80;
+  --z-sidebar-mobile: 9800;
+  --z-modal: 10500;
+  --z-loading: 10800;
+  --z-toast: 11000;
+
+  /* Aliases for previously-undefined tokens (fix 15 silent uses in styles.css) */
+  --accent-primary: var(--accent);
+  --bg-tertiary: var(--surface-1);
 }
 
 /* ─── BODY ─── */
@@ -74,7 +137,10 @@ body {
   color: var(--text-primary);
   line-height: 1.6;
   overflow: hidden;
+  /* v9.2.2 — iOS viewport height fix cascade */
   height: 100vh;
+  height: calc(var(--vh, 1vh) * 100);
+  height: 100dvh;
 }
 
 /* When landing page is visible, allow scrolling */
@@ -486,6 +552,149 @@ select.is-invalid {
 
 /* ─── UTILITIES ─── */
 .hidden { display: none !important; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   v9.3.0 — CANONICAL ATOMS (foundation)
+   Use these when adding new UI. DO NOT create new card/chip/pill/etc
+   variants. See: .agent-memory/plans/app-ui-foundation-v9.3.0.md §10
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ─── Focus rings (universal a11y) ─── */
+.btn:focus-visible,
+.btn-primary:focus-visible,
+.btn-outline:focus-visible,
+.btn-danger:focus-visible,
+.btn-ghost:focus-visible,
+.btn-sm:focus-visible,
+.btn-close:focus-visible,
+.btn-glass:focus-visible,
+.kebab-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-focus);
+}
+.form-input:focus-visible,
+.form-input:focus,
+.form-group textarea:focus-visible,
+.form-group textarea:focus {
+  box-shadow: var(--ring-focus);
+}
+
+/* ─── Card (canonical — replaces 7 existing variants) ─── */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  transition: border-color var(--duration-base),
+              box-shadow var(--duration-base),
+              transform var(--duration-base);
+}
+.card:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--elev-2);
+  transform: translateY(-1px);
+}
+.card-tight { padding: var(--space-3); }
+.card-flat,
+.card-flat:hover { box-shadow: none; transform: none; }
+
+/* ─── Status pill (canonical — replaces 10+ existing badge/pill variants) ─── */
+.status-pill {
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-xs); font-weight: 600;
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.status-pill.is-active   { background: rgba(34, 197, 94, 0.12);  color: var(--success); }
+.status-pill.is-warning  { background: rgba(245, 158, 11, 0.12); color: var(--warning); }
+.status-pill.is-error    { background: rgba(239, 68, 68, 0.12);  color: var(--error); }
+.status-pill.is-accent   { background: var(--accent-glow);       color: var(--accent-hover); }
+
+/* ─── Chip (canonical — replaces 8 existing variants) ─── */
+.chip {
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-xs);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--duration-fast),
+              border-color var(--duration-fast),
+              color var(--duration-fast);
+  font-family: inherit;
+}
+.chip:hover { background: var(--surface-2); border-color: var(--border-hover); color: var(--text-primary); }
+.chip.is-active {
+  background: var(--accent-glow);
+  border-color: var(--accent);
+  color: var(--accent-hover);
+}
+.chip-square { border-radius: var(--radius-xs); }
+
+/* ─── Meter (NEW — for storage / progress / quota — Trust signal) ─── */
+.meter {
+  position: relative;
+  height: 6px;
+  background: var(--surface-2);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+.meter-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+  border-radius: inherit;
+  transition: width var(--duration-slow) var(--ease-out);
+  width: 0%;
+}
+.meter.is-warning .meter-fill { background: var(--warning); }
+.meter.is-error   .meter-fill { background: var(--error); }
+
+/* ─── Skeleton (NEW — replaces "loading..." text) ─── */
+.skeleton {
+  background: linear-gradient(90deg,
+    var(--surface-1) 25%,
+    var(--surface-2) 50%,
+    var(--surface-1) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+.skeleton-line   { height: 12px; margin: 6px 0; }
+.skeleton-card   { height: 64px; margin-bottom: var(--space-2); }
+.skeleton-circle { border-radius: 50%; }
+
+@keyframes skeleton-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; opacity: 0.55; }
+}
+
+/* ─── Slide panel (canonical — replaces .file-detail-panel/.relation-sidebar/.detail-panel patterns) ─── */
+.slide-panel {
+  position: fixed; top: 0; right: 0;
+  height: 100vh;
+  height: calc(var(--vh, 1vh) * 100);
+  height: 100dvh;
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border);
+  z-index: 200;
+  transform: translateX(100%);
+  transition: transform var(--duration-slow) var(--ease-in-out);
+  display: flex; flex-direction: column;
+  box-shadow: var(--elev-3);
+}
+.slide-panel.is-open { transform: translateX(0); }
+.slide-panel-sm { width: var(--detail-panel-width); }
+.slide-panel-md { width: min(520px, 90vw); }
 
 /* ─── SCROLLBAR ─── */
 ::-webkit-scrollbar { width: 6px; }
