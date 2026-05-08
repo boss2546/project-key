@@ -353,6 +353,13 @@ class AIBuilderConfirmRequest(BaseModel):
     draft_id: str
     edits: AIBuilderConfirmEdits | None = None
 
+# v9.3.0 — Pack Share request models
+class PackShareCreateRequest(BaseModel):
+    include_files: bool = False
+
+class PackShareUpdateRequest(BaseModel):
+    include_files: bool
+
 class MetadataUpdateRequest(BaseModel):
     tags: list[str] | None = None
     aliases: list[str] | None = None
@@ -2193,6 +2200,164 @@ async def api_ai_build_discard(
     from .ai_pack_builder import discard_draft
     discarded = discard_draft(current_user.id, draft_id)
     return {"status": "discarded" if discarded else "not_found"}
+
+
+# ═══════════════════════════════════════════
+# v9.3.0 — PACK SHARE (Share Context Pack with others)
+# ═══════════════════════════════════════════
+
+@app.post("/api/context-packs/{pack_id}/share")
+async def api_pack_share_create(
+    pack_id: str,
+    req: PackShareCreateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """v9.3.0 — สร้างลิงก์ share สำหรับ pack (idempotent — กดซ้ำได้ลิงก์เดิม)"""
+    from .pack_share import create_share
+    from .plan_limits import check_pack_share_create_allowed, log_usage
+
+    try:
+        # Check existing active share first — idempotent (ไม่ count quota เพิ่ม)
+        from sqlalchemy import select as _sel
+        from .database import PackShare as _PackShare
+        existing_res = await db.execute(
+            _sel(_PackShare).where(
+                _PackShare.pack_id == pack_id,
+                _PackShare.owner_user_id == current_user.id,
+                _PackShare.revoked_at.is_(None),
+            )
+        )
+        is_existing = existing_res.scalar_one_or_none() is not None
+
+        if not is_existing:
+            # Pre-check quota only when creating new
+            err = await check_pack_share_create_allowed(db, current_user)
+            if err:
+                raise HTTPException(status_code=403, detail=err["error"])
+
+        result = await create_share(db, current_user, pack_id, req.include_files)
+
+        # Log usage only for new shares
+        if not is_existing:
+            await log_usage(db, current_user.id, "pack_share")
+            await db.commit()
+
+        return result
+    except ValueError as e:
+        msg = str(e)
+        if "PACK_NOT_FOUND" in msg:
+            raise HTTPException(status_code=404, detail="Pack ไม่พบ")
+        if "PACK_LOCKED" in msg:
+            raise HTTPException(status_code=400, detail="Pack ถูกล็อค — แชร์ไม่ได้")
+        raise HTTPException(status_code=400, detail=msg)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Pack share create failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.patch("/api/context-packs/shares/{share_id}")
+async def api_pack_share_update(
+    share_id: str,
+    req: PackShareUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """v9.3.0 — Toggle include_files (URL ไม่เปลี่ยน)"""
+    from .pack_share import update_share_files
+    try:
+        return await update_share_files(db, current_user, share_id, req.include_files)
+    except ValueError as e:
+        if "SHARE_NOT_FOUND" in str(e):
+            raise HTTPException(status_code=404, detail="Share ไม่พบ")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.delete("/api/context-packs/shares/{share_id}")
+async def api_pack_share_revoke(
+    share_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """v9.3.0 — Revoke share (idempotent)"""
+    from .pack_share import revoke_share
+    try:
+        return await revoke_share(db, current_user, share_id)
+    except ValueError as e:
+        if "SHARE_NOT_FOUND" in str(e):
+            raise HTTPException(status_code=404, detail="Share ไม่พบ")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/context-packs/{pack_id}/shares")
+async def api_pack_shares_list(
+    pack_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """v9.3.0 — List shares ของ pack (เฉพาะของ user)"""
+    from .pack_share import list_shares_for_pack
+    shares = await list_shares_for_pack(db, current_user, pack_id)
+    return {"shares": shares, "count": len(shares)}
+
+
+@app.get("/api/shared/pack/{token}")
+async def api_pack_share_preview(
+    token: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """v9.3.0 — Recipient preview (NO AUTH REQUIRED). Increment view_count."""
+    from .pack_share import get_preview, ShareTokenError
+    try:
+        return await get_preview(db, token)
+    except ShareTokenError as e:
+        raise HTTPException(status_code=401, detail=e.message)
+    except ValueError as e:
+        msg = str(e)
+        if "SHARE_REVOKED" in msg:
+            raise HTTPException(status_code=403, detail="ลิงก์ถูกยกเลิกแล้ว")
+        if "SHARE_NOT_FOUND" in msg:
+            raise HTTPException(status_code=404, detail="ลิงก์ไม่มีอยู่")
+        if "PACK_DELETED" in msg:
+            raise HTTPException(status_code=404, detail="Pack ถูกลบแล้ว")
+        raise HTTPException(status_code=400, detail=msg)
+
+
+@app.post("/api/shared/pack/{token}/claim")
+async def api_pack_share_claim(
+    token: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """v9.3.0 — Recipient claim → clone pack เข้า workspace"""
+    from .pack_share import claim_to_workspace, ShareTokenError
+    try:
+        return await claim_to_workspace(db, current_user, token)
+    except ShareTokenError as e:
+        raise HTTPException(status_code=401, detail=e.message)
+    except ValueError as e:
+        msg = str(e)
+        if "SHARE_REVOKED" in msg:
+            raise HTTPException(status_code=403, detail="ลิงก์ถูกยกเลิกแล้ว")
+        if "SHARE_NOT_FOUND" in msg or "PACK_DELETED" in msg:
+            raise HTTPException(status_code=404, detail=msg)
+        raise HTTPException(status_code=400, detail=msg)
+    except PermissionError as e:
+        msg = str(e)
+        if "PACK_LIMIT_REACHED" in msg or "STORAGE_LIMIT_REACHED" in msg:
+            raise HTTPException(status_code=403, detail=msg)
+        raise HTTPException(status_code=403, detail=msg)
+    except Exception as e:
+        logger.exception(f"Pack claim failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/p/{token}")
+async def serve_shared_pack_page(token: str):
+    """v9.3.0 — Serve recipient preview HTML page (no auth)"""
+    return _serve_html("shared_pack.html")
 
 
 # ═══════════════════════════════════════════
