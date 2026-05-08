@@ -304,7 +304,8 @@
   min-height: 100vh;
   min-height: calc(var(--vh, 1vh) * 100);
   min-height: 100dvh;
-  animation: fadeIn 0.2s ease;
+  /* v9.3.0 — smoother entry: ease-out + 250ms feels considered, not snappy */
+  animation: fadeIn var(--duration-slow) var(--ease-out);
 }
 
 .page.active { display: block; }
@@ -413,25 +414,36 @@
   font-weight: 600;
 }
 
-/* ─── UPLOAD ZONE ─── */
+/* ─── UPLOAD ZONE (v9.3.0 — refined: separate hover from drag-over) ─── */
 .upload-zone {
   border: 2px dashed var(--border);
-  border-radius: 12px;
-  padding: 32px;
+  border-radius: var(--radius-xl);
+  padding: var(--space-8);
   text-align: center;
   cursor: pointer;
-  transition: all 0.2s;
-  margin-bottom: 16px;
+  transition:
+    border-color var(--duration-base),
+    background-color var(--duration-base),
+    transform var(--duration-base);
+  margin-bottom: var(--space-4);
 }
 
-.upload-zone:hover, .upload-zone.drag-over {
+.upload-zone:hover {
+  border-color: var(--border-hover);
+  background: var(--accent-soft);
+}
+
+.upload-zone.drag-over {
   border-color: var(--accent);
   background: var(--accent-glow);
+  transform: scale(1.005); /* tiny "alive" feedback during drag */
 }
 
-.upload-icon { color: var(--text-muted); margin-bottom: 12px; }
-.upload-text { font-size: 14px; color: var(--text-secondary); }
-.upload-hint { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+.upload-icon { color: var(--text-muted); margin-bottom: 12px; transition: color var(--duration-base); }
+.upload-zone:hover .upload-icon,
+.upload-zone.drag-over .upload-icon { color: var(--accent); }
+.upload-text { font-size: var(--fs-md); color: var(--text-secondary); }
+.upload-hint { font-size: var(--fs-sm); color: var(--text-muted); margin-top: 4px; }
 
 /* ─── FILE LIST ─── */
 .file-list {
@@ -621,15 +633,44 @@
   50% { opacity: 0.65; }
 }
 
-/* ─── EMPTY STATE ─── */
+/* ─── EMPTY STATE (v9.3.0 — flex-column for icon + title + hint + optional CTA) ─── */
 .empty-state {
   text-align: center;
-  padding: 48px 24px;
+  padding: var(--space-12) var(--space-6);
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.empty-state-icon {
+  width: 48px;
+  height: 48px;
+  opacity: 0.5;
+  margin-bottom: var(--space-2);
   color: var(--text-muted);
 }
 
-.empty-state p { font-size: 14px; }
-.empty-state .hint { font-size: 12px; margin-top: 4px; }
+/* Existing markup uses bare <p>; new markup can use .empty-state-title */
+.empty-state p,
+.empty-state-title {
+  font-size: var(--fs-md);
+  color: var(--text-secondary);
+  font-weight: 500;
+  margin: 0;
+}
+
+.empty-state .hint,
+.empty-state-hint {
+  font-size: var(--fs-sm);
+  max-width: 32ch;
+  line-height: 1.6;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.empty-state-cta { margin-top: var(--space-2); }
 
 /* ─── KNOWLEDGE VIEW ─── */
 .knowledge-tabs {
