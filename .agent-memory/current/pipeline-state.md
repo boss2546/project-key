@@ -5,11 +5,25 @@
 
 ---
 
-## 🎯 Current State: `built_pending_review` 🟡 (v9.3.0 SHARE PACK BUILT — 2026-05-08)
+## 🎯 Current State: `plan_pending_approval` 🔴 (v9.3.0 STABILITY PATCH — 2026-05-08)
 
-**Master HEAD:** `9fa78f8` (Ahead of origin, contains v9.2.2 + v9.3.0)
+**Master HEAD:** `dbf08cf` v9.3.0 Phase A foundation (committed, ahead of origin)
 **APP_VERSION:** 9.3.0
-**Production:** 🟡 pending deployment (v9.2.1 is currently live; v9.2.2 + v9.3.0 awaiting push)
+**Production:** 🟡 pending deployment (master ahead of origin · contains Share Pack + Phase A foundation)
+**Active plan:** [plans/v9.3.0-stability-patch.md](../plans/v9.3.0-stability-patch.md) — รอ user approve + answer Q1-Q6
+**Mode:** 3-in-1 (แดง+เขียว+ฟ้า ในคนเดียว) — รอ user authorize
+
+### What this patch does
+- P1 cache-bust HTML ทั้งหมด → `?v=9.3.0` (แก้ downgrade ใน working tree)
+- P2 iOS sidebar Phase 1+2 ให้จบ (CSS fallback chain + JS `_setVh` IIFE)
+- P3 JWT_SECRET_KEY warn-log (production-like deploy)
+- P4 Drive `invalid_grant` graceful handling + UI re-connect button
+- P5 Memory drift cleanup + archive shipped Share Pack plan + resolve stale inbox
+
+### Audit corrections (verified 2026-05-08)
+- ❌ Audit "target = ?v=9.2.2" → actual target = `?v=9.3.0` (APP_VERSION ใน config.py)
+- ❌ Audit "JWT random per restart" → actual: persist ใน `.jwt_secret` file (volume) · ปัญหาเฉพาะ multi-machine/migrate
+- ❌ Audit "iOS sidebar ทำแล้ว" → actual: Phase 3+landing.css ทำแล้ว · Phase 1+2 ยังไม่ทำ
 
 ---
 

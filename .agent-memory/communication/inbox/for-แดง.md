@@ -1,4 +1,23 @@
-# Phase 0 Report — External Setup Complete
+# 📬 Inbox: แดง (Daeng) — นักวางแผน
+
+> ข้อความที่ส่งถึงแดง — แดงอ่านก่อนเริ่มงานทุกครั้ง
+
+## 🔴 New (ยังไม่อ่าน)
+
+_ไม่มี_
+
+## 👁️ Read (อ่านแล้ว, รอตอบ/แก้)
+
+_ไม่มี_
+
+## ✓ Resolved (ปิดแล้ว — รอ archive สิ้นเดือน)
+
+### MSG-LINE-PHASE-0 ✅ Resolved — LINE Bot External Setup Complete
+**From:** Browser Worker (Antigravity)
+**Date:** 2026-05-04 12:19 (ICT)
+**Status:** ✅ Resolved 2026-05-08 (LINE bot ship แล้วใน v8.0.0 — code in [backend/line_bot.py](../../../backend/line_bot.py) + 7 endpoints in main.py)
+
+Original report (LINE Developer setup, Resend, Fly.io secrets ครบ 9 ตัว):
 
 **Date:** 2026-05-04 12:19 (ICT)
 **Status:** ✅ COMPLETE

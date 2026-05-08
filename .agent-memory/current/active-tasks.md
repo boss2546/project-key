@@ -1,31 +1,44 @@
 # 🎯 Active Tasks
 
 > Source of truth คือ [pipeline-state.md](pipeline-state.md) — ไฟล์นี้เป็น overview สั้นๆ
-> Pipeline ตอนนี้ = `idle` ✅
+> Pipeline ตอนนี้ = `plan_pending_approval` 🔴 (v9.3.0 Stability Patch)
 
 ---
 
 ## 🔄 Current Pipeline
 
-**State:** `idle` — พร้อมรับ feature ใหม่
-**Master HEAD:** `7a1625d` v9.2.1 (= origin/master, deployed)
-**APP_VERSION:** 9.2.1
-**Production:** ✅ live https://personaldatabank.fly.dev/
+**State:** `plan_pending_approval` 🔴 (v9.3.0 Stability Patch — 2026-05-08)
+**Master HEAD:** `dbf08cf` v9.3.0 Phase A foundation (ahead of origin)
+**APP_VERSION:** 9.3.0
+**Production:** 🟡 v9.2.1 live · master ahead of origin (Share Pack + Phase A foundation รอ deploy)
+**Active plan:** [plans/v9.3.0-stability-patch.md](../plans/v9.3.0-stability-patch.md)
 
 ---
 
 ## 🔴 Pending Plan (รอ user approve)
 
-- **v9.3.0 Share Context Pack** — [plans/share-pack-v9.3.0.md](../plans/share-pack-v9.3.0.md)
-  - Email whitelist + view/clone permission + audit + revocable + TTL
-  - Effort: เขียว ~3 วัน + ฟ้า ~1 วัน
-  - Privacy-sensitive — ต้อง user approve ก่อน build
+- **v9.3.0 Stability Patch** — [plans/v9.3.0-stability-patch.md](../plans/v9.3.0-stability-patch.md)
+  - 5 fixes: cache-bust + iOS Phase 1+2 + JWT warn-log + Drive invalid_grant + memory cleanup
+  - Effort: เขียว ~2 ชม + ฟ้า ~1 ชม = half-day
+  - Mode: 3-in-1 single-agent
+
+## 📋 In-flight (uncommitted, will be picked up by patch)
+
+- 5 HTML cache-bust changes (need correction `?v=9.2.2` → `?v=9.3.0`)
+- landing.css iOS Phase 3 fallback (committed below master HEAD = correct)
+- iOS plan + spec file untracked → จะ rename + finalize ใน patch
+
+## 🟢 Plans archived (post-Share Pack ship)
+
+- ~~v9.3.0 Share Context Pack~~ → `plans/archive/2026-05-08-share-pack-v9.3.0.md` (shipped 5 commits in master, included in `dbf08cf` chain)
 
 ---
 
 ## ✅ Recent Releases (เรียงจากใหม่ไปเก่า — ดูรายละเอียดใน pipeline-state.md)
 
-- **v9.2.1** (2026-05-07) — Parallel uploads + UX progress + mobile audit
+- **v9.3.0 Phase A** (2026-05-08, master) — UI foundation tokens + canonical atoms (committed `dbf08cf`)
+- **v9.3.0 Share Pack** (2026-05-08, master) — Pack share/clone (committed `9fa78f8` chain)
+- **v9.2.1** (2026-05-07, deployed) — Parallel uploads + UX progress + mobile audit
 - **v9.2.0** (2026-05-07) — AI Pack Builder
 - **v9.1.0** (2026-05-07) — Raw File Vault
 - **v9.0.1** (2026-05-07) — Context Pack correctness

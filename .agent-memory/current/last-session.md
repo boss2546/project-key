@@ -1,9 +1,42 @@
 # 📅 Last Session Summary
 
-**Date:** 2026-05-07 (extended session)
-**Agent:** แดง→เขียว (single-agent 3-in-1 mode, multiple features)
-**Pipeline state:** `built_pending_review` 🟡 — v9.2.0 AI Pack Builder BUILT (latest)
-**Authorization:** User approved 3-in-1 mode + "ตัดสินใจแทนผม ตัวเลือกที่ดีที่สุด"
+**Date:** 2026-05-08 (current session)
+**Agent:** แดง→เขียว→ฟ้า (3-in-1 single-agent mode)
+**Pipeline state:** `plan_pending_approval` → `built_pending_review` (in progress)
+**Authorization:** User authorize 3-in-1 + "ดำเนินการได้เลย" + "ตัดสินใจแทน + ทบทวนดีๆ"
+
+## 🎯 v9.3.0 Stability Patch (2026-05-08, in progress)
+
+**Goal:** แก้ 4 ปัญหา critical หลังย้าย Fly.io app `project-key` → `personaldatabank` + finish iOS sidebar partial work
+
+**Plan:** [plans/v9.3.0-stability-patch.md](../plans/v9.3.0-stability-patch.md) (10 sections)
+
+**Audit corrections (verified ก่อน build):**
+- ❌ Audit "target = ?v=9.2.2" → actual = `?v=9.3.0` (APP_VERSION ใน config.py)
+- ❌ Audit "JWT random per restart" → actual: persist `.jwt_secret` ใน volume (multi-machine/migrate problem only)
+- ❌ Audit "iOS sidebar ทำแล้ว" → actual: Phase 3 + landing.css ✅ · Phase 1+2 ❌
+- ❌ Audit คิดว่ามี Phase B mid-flight ใน working tree → actual: working tree clean (Phase B = ยังไม่เริ่ม)
+
+**5 fixes (P1-P5):**
+- P1 cache-bust ทุก HTML → `?v=9.3.0` (5 files)
+- P2 iOS sidebar Phase 1 (.sidebar/.app-container/body fallback chain) + Phase 2 (app.js IIFE `_setVh`)
+- P3 JWT_SECRET_KEY warn-log on production-like deploy (config.py)
+- P4 Drive `invalid_grant` graceful handling + UI re-connect button (drive_sync + storage_router + storage_mode.js)
+- P5 Memory cleanup + archive shipped Share Pack plan + resolve stale inbox MSGs
+
+---
+
+## 📜 Previous Session: 2026-05-07 (v9.3.0 Phase A + Share Pack shipped)
+
+**Pipeline state at end:** `built_pending_review` (committed in master, รอ deploy)
+**Master HEAD landed:** `dbf08cf` v9.3.0 Phase A foundation
+**Share Pack:** 5 commits `7805359..9fa78f8` (DB+API+Frontend+Tests) — built in 3-in-1 mode
+
+---
+
+## 🎯 v9.2.0 AI Pack Builder Built (2026-05-07)
+
+**Result:** ระบบให้ AI ช่วยสร้าง Context Pack จาก natural-language prompt — flow 4 view states (input → clarify → loading → preview) + form-based edit + vault filter. **47/47 PASS** (26 builder + 21 v9.0.1 regression)
 
 ## 🎯 v9.2.0 AI Pack Builder Built (2026-05-07)
 
