@@ -15,6 +15,34 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+# v9.3.3 — Strip lone surrogate code points before passing text to DB / hash / LLM.
+#
+# Why: PDF extraction (PyPDF2 / OCR / pdfplumber) sometimes emits text containing
+# unpaired UTF-16 surrogates (U+D800–U+DFFF) from font encoding edge cases —
+# e.g., embedded fonts using Private Use Area glyphs that map to surrogate
+# halves. Python `str` accepts these (internal UCS-4) but they fail UTF-8 encode:
+#   - aiosqlite cursor.execute → UnicodeEncodeError when SQLite stores text
+#   - hashlib.sha256 .encode() → UnicodeEncodeError
+#   - JSON serialize for OpenRouter / Drive push → UnicodeEncodeError
+#
+# Fix at this boundary covers all downstream writers in one place. Lossy: the
+# offending positions are replaced with U+FFFD (replacement character). For
+# text where this happens, the loss is rare characters that PDF couldn't map
+# correctly anyway — better than hard-failing the entire upload.
+#
+# Encountered in production 2026-05-08: position 12562 + position 263 across
+# different PDFs. Filed under DUP-005 (boundary sanitization).
+def strip_surrogates(text: str) -> str:
+    """Replace lone surrogates with U+FFFD so the result encodes safely as UTF-8.
+
+    No-op for empty / clean text (encode-decode round-trip is fast in CPython
+    when no replacement is needed).
+    """
+    if not text:
+        return text
+    return text.encode("utf-8", errors="replace").decode("utf-8", errors="replace")
+
 # ─── Feature detection ───
 _HAS_DOCLING = False
 try:
@@ -46,7 +74,7 @@ except ImportError:
 
 
 def extract_text(filepath: str, filetype: str) -> str:
-    """Extract text from a file.
+    """Extract text from a file (public API — sanitizes lone surrogates).
 
     Supported (v7.5.0):
       - pdf, docx (Docling structured + PyPDF2/python-docx fallbacks)
@@ -57,7 +85,15 @@ def extract_text(filepath: str, filetype: str) -> str:
     Returns extracted text. Error markers are wrapped in `[brackets]` so
     downstream `compute_content_hash()` skips hashing them (avoids
     false-positive matches between failed extractions).
+
+    v9.3.3: result is filtered through strip_surrogates() so PDF extractions
+    that emit lone UTF-16 halves never reach DB / hash / LLM downstream.
     """
+    return strip_surrogates(_extract_text_raw(filepath, filetype))
+
+
+def _extract_text_raw(filepath: str, filetype: str) -> str:
+    """Internal extraction without surrogate sanitization. See extract_text()."""
     try:
         if filetype in ("pdf", "docx") and _HAS_DOCLING:
             text = _extract_with_docling(filepath)

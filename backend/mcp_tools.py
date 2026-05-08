@@ -1429,10 +1429,11 @@ async def _tool_reprocess_file(db: AsyncSession, user_id: str, file_id: str) -> 
     raw_text = extract_text(file.raw_path, file.filetype)
     
     # LLM cleanup — fix Thai spacing, Private Use chars
-    from .extraction import cleanup_extracted_text
+    from .extraction import cleanup_extracted_text, strip_surrogates
     new_text = await cleanup_extracted_text(raw_text, file.filename)
-    
-    file.extracted_text = new_text
+
+    # v9.3.3 — defense-in-depth: sanitize lone surrogates before DB write
+    file.extracted_text = strip_surrogates(new_text)
     file.processing_status = "reprocessed"
     await db.commit()
 

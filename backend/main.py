@@ -589,7 +589,10 @@ async def upload_files(
             file_kind = "processed"
 
         # Finalize the placeholder row
-        placeholder.extracted_text = extracted
+        # v9.3.3 — defense-in-depth: extract_text() already sanitizes, but the
+        # ai_ingest path is independent — wrap here so all DB writes are clean.
+        from .extraction import strip_surrogates
+        placeholder.extracted_text = strip_surrogates(extracted)
         placeholder.processing_status = proc_status
         placeholder.content_hash = content_hash
         placeholder.extraction_status = ext_status
@@ -1631,11 +1634,15 @@ async def reprocess_file(
         new_text = raw_text
         method = "reextract"
 
-    file.extracted_text = new_text
+    # v9.3.3 — defense-in-depth: sanitize lone surrogates before DB write
+    # (extract_text already sanitizes, but reprocess paths may use mode=reextract
+    # or AI mode where text comes from different sources)
+    from .extraction import strip_surrogates
+    file.extracted_text = strip_surrogates(new_text)
     file.processing_status = "reprocessed"
-    file.extraction_status = classify_extraction_status(new_text)  # v7.5.0
+    file.extraction_status = classify_extraction_status(file.extracted_text)  # v7.5.0
     # v7.1 — recompute hash since text changed
-    file.content_hash = compute_content_hash(new_text)
+    file.content_hash = compute_content_hash(file.extracted_text)
     await db.commit()
 
     return {
@@ -1763,6 +1770,9 @@ async def promote_vault_file(
             logger.error(f"Promote AI ingest failed for {file_id}: {e}")
             extracted = f"[AI ingest error: {type(e).__name__}: {str(e)[:200]}]"
 
+    # v9.3.3 — defense-in-depth: sanitize before DB write (promote vault path)
+    from .extraction import strip_surrogates
+    extracted = strip_surrogates(extracted)
     file.extracted_text = extracted
     file.content_hash = compute_content_hash(extracted)
     file.extraction_status = classify_extraction_status(extracted)
