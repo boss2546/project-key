@@ -51,11 +51,21 @@
   --color-files: #ffd54f;
   --color-graph: #ff8a65;
 
-  /* Accent — v9.3.0: glow lowered 0.15→0.12 for calmer "bank" vibe */
-  --accent: #6366f1;
-  --accent-hover: #818cf8;
-  --accent-glow: rgba(99, 102, 241, 0.12);
-  --accent-soft: rgba(99, 102, 241, 0.06);
+  /* Accent — v9.3.0 Phase E1: PDB brand indigo (deeper than Tailwind default
+     for "bank-trust" feel). Hover is one shade lighter (Tailwind indigo-500). */
+  --accent: #4F46E5;          /* PDB indigo (was #6366f1 — Tailwind default) */
+  --accent-hover: #6366f1;    /* Lighter shade for hover (was #818cf8) */
+  --accent-glow: rgba(79, 70, 229, 0.12);
+  --accent-soft: rgba(79, 70, 229, 0.06);
+
+  /* v9.3.0 Phase E1 — Brand surfaces */
+  --brand-navy: #0F172A;      /* deeper than bg-secondary, for premium header bands */
+
+  /* v9.3.0 Phase E2 — Brand gradient signature
+     Use --gradient-brand on hero CTAs, sidebar header bands, premium loading.
+     Use --gradient-brand-soft as subtle ambient overlay. */
+  --gradient-brand: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  --gradient-brand-soft: linear-gradient(135deg, rgba(79, 70, 229, 0.18), rgba(99, 102, 241, 0.08));
 
   /* Status */
   --success: #22c55e;
@@ -103,8 +113,8 @@
   --duration-base: 0.2s;
   --duration-slow: 0.3s;
 
-  /* Focus rings (a11y, "ปลอดภัย" signal) */
-  --ring-focus: 0 0 0 3px rgba(99, 102, 241, 0.35);
+  /* Focus rings (a11y, "ปลอดภัย" signal) — v9.3.0 Phase E1 retinted to PDB indigo */
+  --ring-focus: 0 0 0 3px rgba(79, 70, 229, 0.35);
   --ring-error: 0 0 0 3px rgba(239, 68, 68, 0.30);
 
   /* Typography scale */

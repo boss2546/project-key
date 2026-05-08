@@ -7,7 +7,7 @@ const { test, expect } = require("@playwright/test");
 const BASE = process.env.PDB_TEST_URL || "http://localhost:8000";
 
 test.describe("@v9.3.0 Phase B — Atom refinement", () => {
-  test("M2.1 — .nav-item.active has 2px accent rail (::before)", async ({ page }) => {
+  test("M2.1 — .nav-item.active has 3px accent rail (::before, Phase D bumped from 2px)", async ({ page }) => {
     await page.goto(BASE);
     await page.waitForLoadState("networkidle");
 
@@ -23,6 +23,7 @@ test.describe("@v9.3.0 Phase B — Atom refinement", () => {
         position: styles.position,
         width: styles.width,
         bg: styles.backgroundColor,
+        boxShadow: styles.boxShadow,
         content: styles.content,
       };
       nav.remove();
@@ -30,8 +31,11 @@ test.describe("@v9.3.0 Phase B — Atom refinement", () => {
     });
 
     expect(railOk.position).toBe("absolute");
-    expect(railOk.width).toBe("2px");
-    expect(railOk.bg.toLowerCase().replace(/\s/g, "")).toContain("rgb(99,102,241)");
+    expect(railOk.width).toBe("3px");
+    // Phase E1: accent color changed to #4F46E5 = rgb(79,70,229)
+    expect(railOk.bg.toLowerCase().replace(/\s/g, "")).toContain("rgb(79,70,229)");
+    // Phase D: glow box-shadow added for visibility on dark sidebar
+    expect(railOk.boxShadow).toContain("79, 70, 229");
     expect(railOk.content).not.toBe("none");
   });
 

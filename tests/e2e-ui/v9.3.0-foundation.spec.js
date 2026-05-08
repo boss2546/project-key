@@ -48,18 +48,18 @@ test.describe("@v9.3.0 Phase A — Foundation", () => {
     expect(tokens.elev2).toContain("rgba");
     expect(tokens.easeOut).toContain("cubic-bezier");
     expect(tokens.durationBase).toBe("0.2s");
-    expect(tokens.ringFocus).toContain("rgba(99, 102, 241");
+    expect(tokens.ringFocus).toContain("rgba(79, 70, 229");
     expect(tokens.fs2xl).toBe("22px");
     expect(tokens.zModal).toBe("10500");
     expect(tokens.accentSoft).toContain("0.06");
 
     // Aliases — should resolve to existing tokens (used to be undefined).
-    // getPropertyValue returns the raw string (here "#6366f1" / surface-1's rgba).
-    expect(tokens.accentPrimary.toLowerCase().replace(/\s/g, "")).toMatch(/^#6366f1$|^rgb\(99,102,241\)$|^var\(--accent\)$/);
+    // getPropertyValue returns the raw string. Phase E1 changed --accent to #4F46E5.
+    expect(tokens.accentPrimary.toLowerCase().replace(/\s/g, "")).toMatch(/^#4f46e5$|^rgb\(79,70,229\)$|^var\(--accent\)$/);
     expect(tokens.bgTertiary).toContain("0.03"); // = surface-1 rgba
 
-    // Accent unchanged
-    expect(tokens.accent.toLowerCase().replace(/\s/g, "")).toBe("#6366f1");
+    // Accent — v9.3.0 Phase E1: deeper PDB indigo (was Tailwind #6366f1)
+    expect(tokens.accent.toLowerCase().replace(/\s/g, "")).toBe("#4f46e5");
     // Glow lowered 0.15 → 0.12
     expect(tokens.accentGlow).toContain("0.12");
 

@@ -48,7 +48,11 @@
 /* ─── SIDEBAR ─── */
 .sidebar {
   width: var(--sidebar-width);
-  background: var(--bg-secondary);
+  /* v9.3.0 Phase E3 — subtle premium gradient (light band at top).
+     Keeps brand depth without changing primary surface color. */
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 30%),
+    var(--bg-secondary);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -191,10 +195,11 @@
 }
 
 .nav-item:hover { background: var(--bg-hover); color: var(--text-primary); }
-/* v9.3.0 — active state: soft pill bg + 2px accent rail on the left */
+/* v9.3.0 Phase D — active state: soft pill bg + 3px accent rail (was 2px)
+   + glow shadow for visibility against dark sidebar */
 .nav-item.active {
   background: var(--accent-glow);
-  color: var(--accent);
+  color: var(--accent-hover);
 }
 .nav-item.active::before {
   content: "";
@@ -202,9 +207,10 @@
   left: 0;
   top: 6px;
   bottom: 6px;
-  width: 2px;
+  width: 3px;
   background: var(--accent);
   border-radius: 0 2px 2px 0;
+  box-shadow: 0 0 8px rgba(79, 70, 229, 0.55);
 }
 
 .nav-icon {
@@ -291,10 +297,15 @@
 .profile-status-dot.active { background: var(--success); }
 
 /* ─── MAIN CONTENT ─── */
+/* v9.3.0 Phase D — subtle radial depth (two ambient indigo glows at corners).
+   Gives a "premium" feel without being noisy. */
 .main-content {
   flex: 1;
   overflow-y: auto;
   position: relative;
+  background:
+    radial-gradient(900px 500px at 100% -150px, var(--accent-soft), transparent 60%),
+    radial-gradient(700px 400px at -10% 110%, var(--accent-soft), transparent 50%);
 }
 
 .page {
@@ -316,19 +327,36 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 24px;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
 }
 
+/* v9.3.0 Phase D — page title prominence: bigger, lighter weight,
+   gradient accent underline (Stripe Dashboard style).
+   inline-block + ::after lets the underline sit under the text only. */
 .page-title {
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  display: inline-block;
+  position: relative;
+  padding-bottom: 8px;
+}
+.page-title::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 32px;
+  height: 2px;
+  background: var(--gradient-brand);
+  border-radius: 2px;
 }
 
 .page-subtitle {
-  font-size: 13px;
+  font-size: var(--fs-md);
   color: var(--text-secondary);
-  margin-top: 2px;
+  margin-top: var(--space-1);
 }
 
 .header-actions {
@@ -4860,14 +4888,16 @@
    See: .agent-memory/plans/app-ui-foundation-v9.3.0.md §9 (Phase B)
    ═══════════════════════════════════════════════════════════════════════ */
 
-/* B1 — Card-pattern hover lift cascade.
-   Targets all "card-shaped" legacy classes so they pick up the bank-grade
-   hover behavior. List-row cards (.file-item) get a softer treatment. */
+/* B1 + D2 — Card-pattern idle shadow + hover lift cascade.
+   v9.3.0 Phase D: idle elev-1 makes cards feel "alive" without hover —
+   user no longer sees flat rectangles. List-row cards (.file-item)
+   stay flat (would feel cluttered with shadows on every row). */
 .cluster-card,
 .mcp-step-card,
 .mcp-tool-card,
 .token-card,
 .pack-card {
+  box-shadow: var(--elev-1);
   transition:
     border-color var(--duration-base),
     box-shadow var(--duration-base),
