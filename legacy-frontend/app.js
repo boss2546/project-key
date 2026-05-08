@@ -22,6 +22,20 @@
 // ║ TARGET FOR PHASE 2: most of this moves to shared.css/shared.js or lives in BOTH bundles
 // ╚══════════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════
+// v9.2.2 — iOS VIEWPORT HEIGHT FIX (--vh)
+// Fixes "100vh" bug in legacy Safari (< 15.4) where footer is hidden.
+// ═══════════════════════════════════════════
+(() => {
+  const _setVh = () => {
+    let vh = window.innerHeight * 0.01;
+    document.documentElement.style.setProperty('--vh', `${vh}px`);
+  };
+  _setVh();
+  window.addEventListener('resize', _setVh);
+  window.addEventListener('orientationchange', _setVh);
+})();
+
+// ═══════════════════════════════════════════
 // LOCALSTORAGE MIGRATION (v7.1 rebrand)
 // ย้าย key เก่า (projectkey_*) → key ใหม่ (pdb_*)
 // เพื่อไม่ให้ผู้ใช้เดิมถูก logout หลัง rebrand
@@ -2387,11 +2401,17 @@ async function loadKnowledge() {
  ? (getLang() === 'th' ? 'Pack ล็อคอยู่ — regenerate ไม่ได้' : 'Pack locked — cannot regenerate')
  : 'Regenerate';
  const regenAttr = isLocked ? 'disabled' : '';
+ // v9.3.0 — Share button (📤). Disabled if pack locked.
+ const shareTitle = isLocked
+ ? (getLang() === 'th' ? 'Pack ล็อค — แชร์ไม่ได้' : 'Pack locked — cannot share')
+ : (getLang() === 'th' ? 'แชร์ Pack' : 'Share Pack');
+ const shareAttr = isLocked ? 'disabled' : '';
  return `
  <div class="pack-card ${lockedClass}" data-pack-id="${p.id}">
  <div class="pack-card-header">
  <div class="pack-card-title">${lockedBadge} ${escapeHtml(p.title)}</div>
  <div class="pack-card-actions">
+ <button onclick="sharePack('${p.id}')" title="${shareTitle}" ${shareAttr} aria-label="${shareTitle}">📤</button>
  <button onclick="regeneratePack('${p.id}')" title="${regenTitle}" ${regenAttr}>🔄</button>
  <button class="btn-danger" onclick="deletePack('${p.id}')" title="Delete">🗑</button>
  </div>
@@ -2401,6 +2421,7 @@ async function loadKnowledge() {
  <span class="badge">${p.type}</span>
  ${p.created_at ? `<span>${formatDate(p.created_at)}</span>` : ''}
  </div>
+ <div class="pack-share-bar hidden" id="share-bar-${p.id}"></div>
  </div>`;
  }).join('');
  }
@@ -2587,6 +2608,160 @@ async function deletePack(packId) {
  loadKnowledge();
  loadStats();
  } catch (e) { showToast(t('toast.error'), 'error'); }
+}
+
+// ═══════════════════════════════════════════
+// v9.3.0 — Pack Share (sender side)
+// ═══════════════════════════════════════════
+
+/**
+ * sharePack(packId) — สร้าง/Get share link + auto-copy + render bar.
+ * Idempotent: กดซ้ำได้ลิงก์เดิม ไม่ count quota เพิ่ม.
+ */
+async function sharePack(packId) {
+ try {
+  const res = await authFetch(`/api/context-packs/${packId}/share`, {
+   method: 'POST',
+   headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({ include_files: false }),
+  });
+  if (res.status === 403) {
+   const err = await res.json();
+   showUpgradeModal(err.detail || 'Quota reached');
+   return;
+  }
+  if (res.status === 400) {
+   const err = await res.json();
+   showToast(`${err.detail || 'Cannot share'}`, 'error');
+   return;
+  }
+  if (!res.ok) {
+   const err = await res.json();
+   showToast(`Error: ${err.detail || 'unknown'}`, 'error');
+   return;
+  }
+  const share = await res.json();
+  // Auto-copy to clipboard (must be in user-gesture handler)
+  await _copyShareLinkToClipboard(share.share_url);
+  // Render bar + show
+  _renderShareBar(packId, share);
+ } catch (e) {
+  showToast(t('toast.error'), 'error');
+ }
+}
+
+async function _copyShareLinkToClipboard(url) {
+ try {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+   await navigator.clipboard.writeText(url);
+  } else {
+   // Fallback: textarea + execCommand
+   const ta = document.createElement('textarea');
+   ta.value = url;
+   ta.style.position = 'fixed';
+   ta.style.opacity = '0';
+   document.body.appendChild(ta);
+   ta.select();
+   document.execCommand('copy');
+   document.body.removeChild(ta);
+  }
+  showToast(
+   getLang() === 'th' ? 'คัดลอกลิงก์แล้ว — ส่งให้เพื่อนได้เลย' : 'Link copied — paste anywhere',
+   'success'
+  );
+ } catch (e) {
+  // Clipboard ปิด — แสดงลิงก์ให้ copy เอง
+  showToast(
+   getLang() === 'th' ? 'คัดลอกอัตโนมัติไม่ได้ — copy ลิงก์เองที่ bar' : 'Auto-copy failed — copy from bar',
+   'warning'
+  );
+ }
+}
+
+function _renderShareBar(packId, share) {
+ const barId = `share-bar-${packId}`;
+ const bar = document.getElementById(barId);
+ if (!bar) return;
+
+ const isTH = getLang() === 'th';
+ const checked = share.include_files ? 'checked' : '';
+ const filesNote = share.include_files
+  ? `<div class="pack-share-warning">⚠ ${isTH ? 'ใครเปิดลิงก์จะดาวน์โหลดไฟล์เหล่านี้ได้' : 'Anyone with link can download these files'}</div>`
+  : '';
+
+ bar.innerHTML = `
+  <div class="pack-share-row">
+   <input type="text" class="pack-share-link form-input" value="${escapeHtml(share.share_url)}" readonly id="share-link-${share.share_id}">
+   <button class="btn btn-sm btn-outline" onclick="copyShareLink('${share.share_id}')">${isTH ? '📋 คัดลอก' : '📋 Copy'}</button>
+  </div>
+  <div class="pack-share-stats">
+   👁 ${share.view_count || 0} ${isTH ? 'views' : 'views'} · 📥 ${share.clone_count || 0} ${isTH ? 'clones' : 'clones'}
+  </div>
+  <label class="pack-share-toggle">
+   <input type="checkbox" ${checked} onchange="togglePackFiles('${packId}', '${share.share_id}', this.checked)">
+   <span>${isTH ? '+ แนบไฟล์ทั้งหมดด้วย' : '+ Attach all files too'}</span>
+  </label>
+  ${filesNote}
+  <div class="pack-share-actions">
+   <button class="btn btn-sm btn-danger" onclick="revokePackShare('${packId}', '${share.share_id}')">${isTH ? '🚫 ยกเลิกลิงก์' : '🚫 Revoke link'}</button>
+   <button class="btn btn-sm btn-ghost" onclick="closePackShareBar('${packId}')">${isTH ? 'ปิด ▲' : 'Close ▲'}</button>
+  </div>
+ `;
+ bar.classList.remove('hidden');
+}
+
+function copyShareLink(shareId) {
+ const input = document.getElementById(`share-link-${shareId}`);
+ if (input) _copyShareLinkToClipboard(input.value);
+}
+
+async function togglePackFiles(packId, shareId, includeFiles) {
+ try {
+  const res = await authFetch(`/api/context-packs/shares/${shareId}`, {
+   method: 'PATCH',
+   headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({ include_files: includeFiles }),
+  });
+  if (!res.ok) {
+   showToast(t('toast.error'), 'error');
+   return;
+  }
+  const share = await res.json();
+  _renderShareBar(packId, share);
+  // Auto-copy fresh URL (same URL but different state — UX confirm)
+  await _copyShareLinkToClipboard(share.share_url);
+  const isTH = getLang() === 'th';
+  showToast(
+   includeFiles
+    ? (isTH ? 'ลิงก์มีไฟล์แนบแล้ว' : 'Link now includes files')
+    : (isTH ? 'ลิงก์เป็นสรุปอย่างเดียว' : 'Link is summary-only'),
+   'info'
+  );
+ } catch (e) {
+  showToast(t('toast.error'), 'error');
+ }
+}
+
+async function revokePackShare(packId, shareId) {
+ try {
+  const res = await authFetch(`/api/context-packs/shares/${shareId}`, { method: 'DELETE' });
+  if (!res.ok) {
+   showToast(t('toast.error'), 'error');
+   return;
+  }
+  closePackShareBar(packId);
+  showToast(getLang() === 'th' ? 'ยกเลิกลิงก์แล้ว' : 'Link revoked', 'success');
+ } catch (e) {
+  showToast(t('toast.error'), 'error');
+ }
+}
+
+function closePackShareBar(packId) {
+ const bar = document.getElementById(`share-bar-${packId}`);
+ if (bar) {
+  bar.classList.add('hidden');
+  bar.innerHTML = '';
+ }
 }
 
 async function regeneratePack(packId) {
