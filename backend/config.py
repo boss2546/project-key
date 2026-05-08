@@ -46,7 +46,17 @@ os.makedirs(SUMMARIES_DIR, exist_ok=True)
 
 # ─── JWT Authentication (v5.0) ───
 def _generate_jwt_secret() -> str:
-    """Generate and persist a JWT secret key."""
+    """Generate and persist a JWT secret key.
+
+    File-based fallback: persist `.jwt_secret` ใน DATA_DIR (mounted volume on Fly.io)
+    เพื่อให้ secret survive restart ของ machine เดียวกัน. แต่ pattern นี้ **ไม่ปลอดภัย**
+    ใน scenario:
+    - Multi-machine scale (แต่ละ machine generate file ของตัวเอง = JWT mismatch
+      between machines = ทุก request โดน 401 สลับสับปนกัน)
+    - Volume migrate / fork / rebuild app (ของจริงที่เพิ่งย้าย project-key →
+      personaldatabank: file หาย = invalidate session ของ user เก่าทุกคน)
+    Production แนะนำ set `JWT_SECRET_KEY` env var ผ่าน `flyctl secrets set` แทน.
+    """
     jwt_file = os.path.join(DATA_DIR, ".jwt_secret")
     if os.path.exists(jwt_file):
         with open(jwt_file, "r") as f:
@@ -56,7 +66,23 @@ def _generate_jwt_secret() -> str:
         f.write(secret)
     return secret
 
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", _generate_jwt_secret())
+
+# v9.3.0 stability patch — warn (ไม่ fail closed กัน break dev/CI) ถ้า production-like
+# deploy ไม่ได้ set JWT_SECRET_KEY env var. detect ด้วย DATA_DIR mount path ของ Fly.io
+# (`/app/data`) ซึ่ง dev เครื่องไม่มี → no false-positive warn ใน local.
+_jwt_env = os.getenv("JWT_SECRET_KEY")
+if not _jwt_env and os.path.isdir("/app/data"):
+    import sys
+    print(
+        "WARN: JWT_SECRET_KEY env var not set in production-like environment. "
+        "Falling back to .jwt_secret file in DATA_DIR — works for single-machine + "
+        "persistent volume, but breaks multi-machine scale + volume migrate/fork. "
+        "Set with: flyctl secrets set JWT_SECRET_KEY=$(openssl rand -base64 64) "
+        "(one-time; do not rotate after — invalidates all existing sessions).",
+        file=sys.stderr,
+    )
+
+JWT_SECRET_KEY = _jwt_env or _generate_jwt_secret()
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))  # 24 hours default
 
