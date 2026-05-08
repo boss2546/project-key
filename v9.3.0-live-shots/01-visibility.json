@@ -1,0 +1,9 @@
+{
+  "app": "not-found",
+  "auth-modal": {
+    "displayed": false,
+    "classes": "modal-overlay hidden"
+  },
+  "page-my-data": "not-found",
+  "page-knowledge": "not-found"
+}
