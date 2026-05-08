@@ -5,6 +5,66 @@
 
 ---
 
+## 🔴 [REVIEW-V933-SURROGATE] ✅ APPROVE — v9.3.3 Surrogate Boundary Hotfix
+
+**From:** ฟ้า (Fah) [3-in-1 single agent]
+**Date:** 2026-05-08
+**Verdict:** ✅ **APPROVE — push + deploy ASAP** (production bug active)
+
+### TL;DR
+
+Bug v9.3.2 dedup-disable ไม่จัด เพราะ surrogate ตกที่ **DB write boundary** (`aiosqlite cursor.execute encode UTF-8`) ไม่ใช่ที่ `compute_content_hash` แล้ว · v9.3.3 fix ที่ extraction boundary + 4 defense-in-depth DB write sites
+
+### Bug จริง (Fly log 12:19:42)
+
+```
+File "/app/backend/main.py", line 611, in upload_files
+    await db.commit()
+...
+File "/usr/local/lib/python3.11/site-packages/aiosqlite/cursor.py"
+UnicodeEncodeError: 'utf-8' codec can't encode character '\udde8'
+in position 263: surrogates not allowed
+```
+
+### Fix strategy
+
+| Layer | Where | What |
+|---|---|---|
+| **Boundary (primary)** | [extraction.py](../../../backend/extraction.py) `extract_text()` | wraps `_extract_text_raw()` + `strip_surrogates()` — single place all extractors flow through |
+| **Helper** | [extraction.py](../../../backend/extraction.py) `strip_surrogates()` | `text.encode("utf-8", errors="replace").decode("utf-8")` → lone surrogate → U+FFFD |
+| **Defense 1** | [main.py:592](../../../backend/main.py#L592) upload_files | wrap `placeholder.extracted_text` (covers ai_ingest path) |
+| **Defense 2** | [main.py:1634](../../../backend/main.py#L1634) reprocess_file | wrap `file.extracted_text` |
+| **Defense 3** | [main.py:1773](../../../backend/main.py#L1773) promote_vault | wrap `file.extracted_text` |
+| **Defense 4** | [mcp_tools.py:1435](../../../backend/mcp_tools.py#L1435) update_file_extracted_text | wrap MCP path |
+
+### APP_VERSION
+
+Bumped 9.3.1 → **9.3.3** (skipped 9.3.2 since dedup-disable patch didn't bump)
+
+### Self-test results
+
+- ✅ Python syntax: extraction.py + main.py + mcp_tools.py
+- ✅ `strip_surrogates("normal\udde8 text \ud800 here")` → encode UTF-8 OK
+- ✅ Long text with surrogate at pos 260 → encodes 361 bytes
+- ✅ `extract_text()` wraps `strip_surrogates`
+- ✅ byos_router_smoke 16/16 PASS (regression)
+
+### 🟦 User actions ASAP
+
+```bash
+git push origin master      # 5 commits (v9.3.2 + v9.3.3)
+flyctl deploy --app personaldatabank
+```
+
+หลัง deploy → ทดสอบ:
+- Upload "AI Keynote.pdf" (หรือไฟล์เดิมที่เคย 500) → ต้อง 200 OK
+- Reprocess → ต้อง 200 OK
+- ตรวจ Fly log → ไม่มี `UnicodeEncodeError` อีก
+
+— ฟ้า (Fah)
+
+---
+
 ## 🔴 [REVIEW-V932-DEDUP] ✅ APPROVE — v9.3.2 Disable Duplicate Detection (HTTP 500 fix)
 
 **From:** ฟ้า (Fah) [3-in-1 single agent: แดง+เขียว+ฟ้า]

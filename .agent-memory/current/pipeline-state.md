@@ -5,14 +5,20 @@
 
 ---
 
-## 🎯 Current State: `review_passed` ✅ (v9.3.2 DISABLE DEDUP — 2026-05-08)
+## 🎯 Current State: `review_passed` ✅ (v9.3.3 SURROGATE HOTFIX — 2026-05-08)
 
-**Master HEAD:** `f5d24c2` v9.3.2 disable duplicate detection (3 commits ahead of origin)
-**APP_VERSION:** 9.3.1 (existing — ผม no-bump เพราะเป็น patch ทักษะ feature flag เท่านั้น ไม่มี behavior change ที่ user เห็น)
-**Origin/master:** `cdef06b` v9.3.1 finalize (deployed — has Phase D+E + iOS sidebar mobile-scroll + bump 9.3.1)
-**Production:** 🟡 deploy v9.3.1 อยู่ · รอ user push v9.3.2 patch (3 commits)
-**Active plan:** [plans/v9.3.2-disable-duplicate-detection.md](../plans/v9.3.2-disable-duplicate-detection.md)
+**Master HEAD:** `6139eed` v9.3.3 surrogate boundary fix (5 commits ahead of origin)
+**APP_VERSION:** **9.3.3** (bumped from 9.3.1 — skipped 9.3.2 since previous patch didn't bump)
+**Origin/master:** `cdef06b` v9.3.1 deployed (has Phase D+E + iOS sidebar mobile)
+**Production:** 🔴 active bug — UnicodeEncodeError on `db.commit()` from lone surrogates in PDF extracted_text · รอ user push + deploy ทันที
+**Active patch:** v9.3.3 surrogate boundary fix (this commit) on top of v9.3.2 dedup-disable
 **Mode:** 3-in-1 (แดง+เขียว+ฟ้า ในคนเดียว) — pipeline complete, รอ user push
+
+### v9.3.3 Hotfix summary
+- Bug: PDF extraction emits text with lone UTF-16 surrogates (U+D800-U+DFFF) → SQLite UTF-8 encode crash on `db.commit()` (Fly log 12:19:42)
+- Fix: `strip_surrogates()` helper at extraction boundary in [extraction.py](../../backend/extraction.py) + 4 defense-in-depth DB write sites (upload/reprocess/promote/mcp)
+- Verified: lone surrogate input strips → encodes UTF-8 OK · byos_router_smoke 16/16 PASS regression
+- v9.3.2 dedup-disable did NOT fix this — different code path (DB write vs hash compute)
 
 ### Patch v9.3.2 summary
 - 🚧 Disabled `compute_content_hash` + `find_duplicate_for_file` + `detect_duplicates_for_batch` (3 public functions in duplicate_detector.py)
