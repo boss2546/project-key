@@ -1645,10 +1645,11 @@ async function uploadFiles(fileList) {
  if (networkErr && aggUploaded.length === 0) throw new Error('NETWORK');
  const data = { uploaded: aggUploaded, skipped: aggSkipped, count: aggUploaded.length };
 
- // v9.4.0 — toast + Upload Tray (instead of inline "processing" overlay phase)
- // Files are now status='queued' → tray polls /api/upload-status + updates UI
+ // v9.4.0.2 — Tray IS the feedback channel (no redundant toast at bottom-right)
+ // เดิม v9.4.0: showToast + tray → ทั้งสองที่ bottom-right ชนกัน
+ // แก้: tray เปิดมาคือ ack แล้ว · toast ที่เหลือ (vault/error/network) ยังโชว์ปกติ
+ // เพราะ event เด่นกว่า tray notification + toast z-index 11050 > tray 11000
  if (data.count > 0) {
-   showToast(t('upload.queuedToast', { n: data.count }), 'info');
    if (window.UploadTray && typeof UploadTray.notifyEnqueued === 'function') {
      UploadTray.notifyEnqueued(data.uploaded);
    }

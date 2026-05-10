@@ -5054,26 +5054,27 @@ td {
    Token-only · atom reuse (.meter, .status-pill, .btn variants)
    ดู plans/upload-queue-v9.4.0.md §13 Step 7a + UI Foundation Contract §6
 
-   Position strategy (post-audit fix · v9.4.0.1):
-   - Desktop (>768px): bottom-LEFT — separates from #toast-container at bottom-right
-     (Google Drive pattern · prevents collision with toast snackbar)
+   Position strategy (post-audit fix · v9.4.0.2):
+   - Desktop (>768px): bottom-RIGHT (user request) — original position
+     · v9.4.0.1 ย้าย LEFT แต่ตี sidebar → revert
+     · Toast collision แก้โดย: suppress queue toast + toast z-index > tray (11050 > 11000)
    - Mobile (≤768px): top-right under header — avoids .page-fab at bottom-right
      and #toast-container at bottom-right · doesn't compete with thumb zone
-   - z-index = --z-toast (11000) — above modal/drawer but parallel with toast
-     (toasts always appear above tray via DOM order on toast spawn)
+   - BG: --bg-secondary (#111827 solid) — เลิกใช้ --surface-2 (6% opacity = ใสเห็นทะลุ)
 */
 
 .upload-tray {
   position: fixed;
   bottom: var(--space-4);
-  left: var(--space-4);  /* v9.4.0.1: was right — moved to LEFT to avoid toast-container */
+  right: var(--space-4);  /* v9.4.0.2: revert to original right position per user */
   width: 360px;
   max-width: calc(100vw - var(--space-8));
   max-height: 65vh;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+  /* v9.4.0.2: solid BG + double border for opacity (เดิม --surface-2 ใส 94%) */
+  background: var(--bg-secondary);
+  border: 1px solid var(--accent-soft, rgba(99,102,241,0.30));
   border-radius: var(--radius-lg);
-  box-shadow: var(--elev-3);
+  box-shadow: 0 12px 40px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(0, 0, 0, 0.40);
   z-index: var(--z-toast);
   display: flex;
   flex-direction: column;
@@ -5168,7 +5169,8 @@ td {
 
 .upload-tray-item {
   padding: var(--space-3);
-  background: var(--surface-1);
+  /* v9.4.0.2: เพิ่ม opacity จาก rgba 3% → solid bg-card 80% — ดูเป็นการ์ดชัดขึ้น */
+  background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   display: flex;

@@ -513,12 +513,14 @@ select.is-invalid {
 
 /* ─── TOAST (universal) ─── */
 /* v7.3.0 — bumped to 11000 so toasts (especially errors during a save in
-   a modal) stay above modal-overlay (10500) and loading-overlay (10800). */
+   a modal) stay above modal-overlay (10500) and loading-overlay (10800).
+   v9.4.0.2 — bumped to 11050 so toasts stay above .upload-tray (11000)
+   when both at bottom-right corner — toast บัง tray ชั่วคราว 4s แล้วหายไป */
 #toast-container {
   position: fixed;
   bottom: 20px;
   right: 20px;
-  z-index: 11000;
+  z-index: 11050;
   display: flex;
   flex-direction: column;
   gap: 8px;
