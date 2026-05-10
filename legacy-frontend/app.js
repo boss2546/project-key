@@ -604,6 +604,33 @@ const I18N = {
  'drive.errorBanner.dismiss': 'ภายหลัง',
  'drive.testingNotice': 'ขณะนี้ระบบเชื่อมต่อ Drive แบบ Beta — การเชื่อมต่อจะหมดอายุทุก 7 วัน · กรุณาเชื่อมต่อใหม่เมื่อแอพแจ้งเตือน',
 
+ // v9.4.0 — Upload Tray (Truthful Visibility)
+ 'upload.queuedToast':           'เพิ่ม {n} ไฟล์เข้าคิวแล้ว — ดูคิวด้านล่าง',
+ 'upload.tray.title':            'คิว Upload',
+ 'upload.tray.title_n':          'คิว Upload ({n})',
+ 'upload.tray.minimize':         'ย่อ',
+ 'upload.tray.queued':           'รอคิว',
+ 'upload.tray.working':          'กำลังทำ',
+ 'upload.tray.failed':           'ล้มเหลว',
+ 'upload.tray.done':             'เสร็จแล้ว',
+ 'upload.tray.retry':            'ลองใหม่',
+ 'upload.tray.dismiss':          'ลบออก',
+ 'upload.tray.position':         'อันดับ {n}',
+ 'upload.tray.position_of':      'อันดับ {n} จาก {total}',
+ 'upload.tray.elapsed':          'ใช้เวลา {sec} วินาที',
+ 'upload.tray.elapsed_min':      'ใช้เวลา {min} นาที',
+ 'upload.tray.summary_queued':   '{n} รอคิว',
+ 'upload.tray.summary_extracting': '{n} กำลังทำ',
+ 'upload.tray.summary_failed':   '{n} ล้มเหลว',
+ 'upload.tray.system_degraded':  'ระบบประมวลผลล่าช้ากว่าปกติ — เรากำลังตรวจสอบ',
+ 'upload.tray.system_stopped':   'ระบบประมวลผลหยุด — กรุณาติดต่อแอดมิน',
+ 'upload.tray.empty_done':       'ทุกไฟล์เสร็จเรียบร้อย',
+ 'upload.tray.see_details':      'รายละเอียด',
+ 'upload.tray.stage_queued':     'เข้าคิว',
+ 'upload.tray.stage_started':    'เริ่มประมวลผล',
+ 'upload.tray.stage_completed':  'เสร็จ/ผิดพลาด',
+ 'upload.tray.attempt':          'ครั้งที่ลอง',
+
  // v8.1.0 — Google Sign-In
  'auth.signInWithGoogle': 'เข้าสู่ระบบด้วย Google',
  'auth.signUpWithGoogle': 'สมัครสมาชิกด้วย Google',
@@ -875,6 +902,33 @@ const I18N = {
  'drive.errorBanner.dismiss': 'Later',
  'drive.testingNotice': 'Drive connection is in Beta mode — expires every 7 days · please reconnect when prompted',
 
+ // v9.4.0 — Upload Tray (Truthful Visibility)
+ 'upload.queuedToast':           '{n} files queued — see tray below',
+ 'upload.tray.title':            'Upload Queue',
+ 'upload.tray.title_n':          'Upload Queue ({n})',
+ 'upload.tray.minimize':         'Minimize',
+ 'upload.tray.queued':           'Queued',
+ 'upload.tray.working':          'Working',
+ 'upload.tray.failed':           'Failed',
+ 'upload.tray.done':             'Done',
+ 'upload.tray.retry':            'Retry',
+ 'upload.tray.dismiss':          'Dismiss',
+ 'upload.tray.position':         'Position {n}',
+ 'upload.tray.position_of':      'Position {n} of {total}',
+ 'upload.tray.elapsed':          'Elapsed {sec}s',
+ 'upload.tray.elapsed_min':      'Elapsed {min} min',
+ 'upload.tray.summary_queued':   '{n} queued',
+ 'upload.tray.summary_extracting': '{n} working',
+ 'upload.tray.summary_failed':   '{n} failed',
+ 'upload.tray.system_degraded':  'Processing slower than usual — investigating',
+ 'upload.tray.system_stopped':   'Processing system stopped — please contact admin',
+ 'upload.tray.empty_done':       'All files done',
+ 'upload.tray.see_details':      'Details',
+ 'upload.tray.stage_queued':     'Queued',
+ 'upload.tray.stage_started':    'Started',
+ 'upload.tray.stage_completed':  'Completed',
+ 'upload.tray.attempt':          'Attempt',
+
  // v8.1.0 — Google Sign-In
  'auth.signInWithGoogle': 'Sign in with Google',
  'auth.signUpWithGoogle': 'Sign up with Google',
@@ -1117,9 +1171,14 @@ function getLang() {
 }
 
 // Get translation string
-function t(key) {
+// v9.4.0: optional `vars` object for {placeholder} substitution
+//   e.g., t('upload.tray.position', { n: 5 }) → "อันดับ 5"
+// Backward compat: t(key) without vars works as before
+function t(key, vars) {
  const lang = getLang();
- return I18N[lang]?.[key] || I18N['en']?.[key] || key;
+ const tr = I18N[lang]?.[key] || I18N['en']?.[key] || key;
+ if (!vars) return tr;
+ return tr.replace(/\{(\w+)\}/g, (_, k) => vars[k] != null ? vars[k] : `{${k}}`);
 }
 
 // Apply translations to all [data-i18n] elements
