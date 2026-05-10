@@ -1159,6 +1159,12 @@ function applyLanguage(lang) {
  const altEl = document.getElementById('lang-alt');
  if (labelEl) labelEl.textContent = lang === 'th' ? 'TH' : 'EN';
  if (altEl) altEl.textContent = lang === 'th' ? 'EN' : 'TH';
+
+ // v9.3.5.2 — Re-render dynamic content ที่ใช้ ternary (not data-i18n)
+ // Why: applyLanguage updates แค่ [data-i18n] elements · Storage Mode section + banner
+ // ใช้ getLang() ternary ใน innerHTML ตอน render → ต้อง re-render ตอน toggle lang
+ try { if (typeof renderStorageModeUI === 'function') renderStorageModeUI(); } catch (_e) {}
+ try { if (typeof renderDriveErrorBanner === 'function') renderDriveErrorBanner(); } catch (_e) {}
 }
 
 // ═══════════════════════════════════════════
