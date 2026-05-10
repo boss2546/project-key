@@ -226,6 +226,10 @@ async def push_graph_to_drive_if_byos(
         logger.info("BYOS: pushed graph.json to Drive for user %s", user_id)
         return True
     except Exception as e:
+        # v9.3.5 — extend invalid_grant graceful pattern จาก v9.3.0 (เดิมมีแค่ profile push)
+        # Why: user upload → push_graph fail เงียบ → UI ไม่รู้ → user งง
+        if _is_refresh_failure(e):
+            await _mark_drive_connection_errored(db, conn, e)
         logger.warning("BYOS: graph.json push failed for user %s (%s)", user_id, e)
         return False
 
@@ -249,6 +253,9 @@ async def push_clusters_to_drive_if_byos(
         logger.info("BYOS: pushed clusters.json to Drive for user %s", user_id)
         return True
     except Exception as e:
+        # v9.3.5 — extend invalid_grant graceful pattern (เดิม v9.3.0 มีแค่ profile push)
+        if _is_refresh_failure(e):
+            await _mark_drive_connection_errored(db, conn, e)
         logger.warning("BYOS: clusters.json push failed for user %s (%s)", user_id, e)
         return False
 
@@ -268,6 +275,9 @@ async def push_relations_to_drive_if_byos(
         client.upsert_json_file(data_id, filename, relations)
         return True
     except Exception as e:
+        # v9.3.5 — extend invalid_grant graceful pattern
+        if _is_refresh_failure(e):
+            await _mark_drive_connection_errored(db, conn, e)
         logger.warning("BYOS: relations.json push failed for user %s (%s)", user_id, e)
         return False
 
@@ -287,6 +297,9 @@ async def push_contexts_to_drive_if_byos(
         client.upsert_json_file(personal_id, filename, contexts)
         return True
     except Exception as e:
+        # v9.3.5 — extend invalid_grant graceful pattern
+        if _is_refresh_failure(e):
+            await _mark_drive_connection_errored(db, conn, e)
         logger.warning("BYOS: contexts.json push failed for user %s (%s)", user_id, e)
         return False
 
@@ -322,6 +335,9 @@ async def push_summary_to_drive_if_byos(
         logger.info("BYOS: pushed summary %s.md to Drive for user %s", file_id, user_id)
         return True
     except Exception as e:
+        # v9.3.5 — extend invalid_grant graceful pattern
+        if _is_refresh_failure(e):
+            await _mark_drive_connection_errored(db, conn, e)
         logger.warning("BYOS: summary push failed for user %s file %s (%s)", user_id, file_id, e)
         return False
 
@@ -352,6 +368,9 @@ async def push_extracted_text_to_drive_if_byos(
             client.upload_file(extracted_id, filename, text, MIME_TEXT)
         return True
     except Exception as e:
+        # v9.3.5 — extend invalid_grant graceful pattern (เป็น path ที่ upload flow ใช้)
+        if _is_refresh_failure(e):
+            await _mark_drive_connection_errored(db, conn, e)
         logger.warning(
             "BYOS: extracted text push failed for user %s file %s (%s)",
             user_id, file_id, e,
@@ -403,6 +422,11 @@ async def push_raw_file_to_drive_if_byos(
         logger.info("BYOS: pushed raw file %s to Drive for user %s", file_id, user_id)
         return drive_file_id
     except Exception as e:
+        # v9.3.5 — extend invalid_grant graceful (path หลักของ upload flow!)
+        # Why: นี่คือ root cause ของ bug ที่ user เจอจริง — upload เข้า DB สำเร็จ
+        # แต่ background task ตรงนี้ตก except เงียบ → user ไม่รู้ว่าต้อง re-auth
+        if _is_refresh_failure(e):
+            await _mark_drive_connection_errored(db, conn, e)
         logger.warning(
             "BYOS: raw file push failed for user %s file %s (%s)",
             user_id, file_id, e,
@@ -481,6 +505,9 @@ async def delete_drive_file_if_byos(
         )
         return True
     except Exception as e:
+        # v9.3.5 — extend invalid_grant graceful pattern
+        if _is_refresh_failure(e):
+            await _mark_drive_connection_errored(db, conn, e)
         logger.warning(
             "BYOS: delete_drive_file failed for user %s file %s (%s)",
             user_id, drive_file_id, e,
