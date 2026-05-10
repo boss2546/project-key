@@ -5053,12 +5053,20 @@ td {
 /* ════════ UPLOAD TRAY — v9.4.0 ════════
    Token-only · atom reuse (.meter, .status-pill, .btn variants)
    ดู plans/upload-queue-v9.4.0.md §13 Step 7a + UI Foundation Contract §6
+
+   Position strategy (post-audit fix · v9.4.0.1):
+   - Desktop (>768px): bottom-LEFT — separates from #toast-container at bottom-right
+     (Google Drive pattern · prevents collision with toast snackbar)
+   - Mobile (≤768px): top-right under header — avoids .page-fab at bottom-right
+     and #toast-container at bottom-right · doesn't compete with thumb zone
+   - z-index = --z-toast (11000) — above modal/drawer but parallel with toast
+     (toasts always appear above tray via DOM order on toast spawn)
 */
 
 .upload-tray {
   position: fixed;
   bottom: var(--space-4);
-  right: var(--space-4);
+  left: var(--space-4);  /* v9.4.0.1: was right — moved to LEFT to avoid toast-container */
   width: 360px;
   max-width: calc(100vw - var(--space-8));
   max-height: 65vh;
@@ -5277,14 +5285,26 @@ td {
   animation: progressIndeterminate 1.4s ease-in-out infinite;
 }
 
-/* Mobile responsive */
-@media (max-width: 600px) {
+/* Mobile responsive — v9.4.0.1: ย้ายไป TOP-right แทน full-width bottom
+   เหตุผล: บน mobile (≤768px) มี .page-fab ที่ bottom-right (z 9700)
+   ถ้า tray = full-width bottom → ตี FAB + ตี toast
+   Solution: ย้ายไป top-right ใต้ header sticky (ห่างจาก thumb zone) */
+@media (max-width: 768px) {
   .upload-tray {
-    bottom: var(--space-3);
+    /* รีเซ็ต desktop position ทั้งหมด */
+    bottom: auto;
+    left: auto;
+    /* TOP-right under sticky header */
+    top: calc(var(--space-12) + var(--space-3));  /* ~60px under typical header */
     right: var(--space-3);
-    left: var(--space-3);
-    width: auto;
+    width: 320px;
+    max-width: calc(100vw - var(--space-6));
     max-height: 50vh;
+    /* Animation: slide จาก top แทน bottom */
+    transform: translateY(calc(-100% - var(--space-4)));
+  }
+  .upload-tray.is-open {
+    transform: translateY(0);
   }
 }
 

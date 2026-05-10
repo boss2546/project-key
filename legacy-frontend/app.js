@@ -605,7 +605,7 @@ const I18N = {
  'drive.testingNotice': 'ขณะนี้ระบบเชื่อมต่อ Drive แบบ Beta — การเชื่อมต่อจะหมดอายุทุก 7 วัน · กรุณาเชื่อมต่อใหม่เมื่อแอพแจ้งเตือน',
 
  // v9.4.0 — Upload Tray (Truthful Visibility)
- 'upload.queuedToast':           'เพิ่ม {n} ไฟล์เข้าคิวแล้ว — ดูคิวด้านล่าง',
+ 'upload.queuedToast':           'เพิ่ม {n} ไฟล์เข้าคิว ✓',
  'upload.tray.title':            'คิว Upload',
  'upload.tray.title_n':          'คิว Upload ({n})',
  'upload.tray.minimize':         'ย่อ',
@@ -903,7 +903,7 @@ const I18N = {
  'drive.testingNotice': 'Drive connection is in Beta mode — expires every 7 days · please reconnect when prompted',
 
  // v9.4.0 — Upload Tray (Truthful Visibility)
- 'upload.queuedToast':           '{n} files queued — see tray below',
+ 'upload.queuedToast':           '{n} files queued ✓',
  'upload.tray.title':            'Upload Queue',
  'upload.tray.title_n':          'Upload Queue ({n})',
  'upload.tray.minimize':         'Minimize',
