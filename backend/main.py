@@ -561,7 +561,22 @@ async def upload_files(
         file_id = gen_id()
         user_upload_dir = os.path.join(UPLOAD_DIR, current_user.id)
         os.makedirs(user_upload_dir, exist_ok=True)
-        safe_filename = f"{file_id}_{original_name}"
+        # v9.4.7 — truncate filename to fit Linux ext4 255-byte limit (UTF-8).
+        # Thai = 3 bytes/char → 120 Thai chars = 360 bytes → OSError [Errno 36].
+        # Reserve 20 bytes for {file_id}_ prefix + ext + safety; keep extension intact.
+        prefix = f"{file_id}_"
+        budget = 255 - len(prefix.encode("utf-8"))
+        ext_part = ""
+        stem_part = original_name
+        if "." in original_name:
+            stem_part, ext_part = original_name.rsplit(".", 1)
+            ext_part = "." + ext_part
+        ext_bytes = len(ext_part.encode("utf-8"))
+        stem_budget = budget - ext_bytes
+        stem_bytes = stem_part.encode("utf-8")
+        if len(stem_bytes) > stem_budget:
+            stem_part = stem_bytes[:stem_budget].decode("utf-8", errors="ignore")
+        safe_filename = f"{prefix}{stem_part}{ext_part}"
         raw_path = os.path.join(user_upload_dir, safe_filename)
 
         async with quota_lock:
