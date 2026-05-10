@@ -72,7 +72,17 @@ def is_available() -> bool:
     return _HAS_GEMINI
 
 
-async def ingest_via_ai(filepath: str, filetype: str) -> str:
+async def _safe_async_progress(progress_callback, step: str, pct=None) -> None:
+    """v9.4.0 helper — เรียก async progress_callback แบบปลอดภัย."""
+    if progress_callback is None:
+        return
+    try:
+        await progress_callback(step, pct)
+    except Exception as e:
+        logger.debug(f"async progress_callback raised (non-fatal): {e}")
+
+
+async def ingest_via_ai(filepath: str, filetype: str, progress_callback=None) -> str:
     """หลักของ AI ingest — route ไป Gemini Files API ตาม format.
 
     Returns extracted text (transcript / description / analysis).
@@ -82,6 +92,10 @@ async def ingest_via_ai(filepath: str, filetype: str) -> str:
     Args:
         filepath: absolute path บน disk
         filetype: extension (lowercase, no dot) — e.g. "mp3", "mp4"
+        progress_callback: optional async function(step, pct) — TC-1: pct=None ถ้าไม่รู้
+                           Gemini transcribe ไม่ stream % ได้ → ใช้ขั้นตอน 3 ขั้น
+                           (upload → transcribe → done) แทนการ fake %.
+                           Default=None → backward compat (main.py:580 + 1768).
     """
     ext = filetype.lower()
 
@@ -90,11 +104,11 @@ async def ingest_via_ai(filepath: str, filetype: str) -> str:
 
     try:
         if ext in AUDIO_FORMATS:
-            text = await _ingest_audio(filepath, ext)
+            text = await _ingest_audio(filepath, ext, progress_callback)
         elif ext in VIDEO_FORMATS:
-            text = await _ingest_video(filepath, ext)
+            text = await _ingest_video(filepath, ext, progress_callback)
         elif ext in AI_VISION_FORMATS:
-            text = await _ingest_image_smart(filepath, ext)
+            text = await _ingest_image_smart(filepath, ext, progress_callback)
         else:
             return f"[AI ingest unsupported format: {ext}]"
     except Exception as e:
@@ -126,13 +140,18 @@ async def _upload_to_gemini(filepath: str) -> object:
     )
 
 
-async def _ingest_audio(filepath: str, ext: str) -> str:
+async def _ingest_audio(filepath: str, ext: str, progress_callback=None) -> str:
     """Transcribe audio file via Gemini Audio understanding.
 
     Gemini Flash supports audio up to 60 minutes in single call.
     For longer audio: caller should split first (not implemented yet).
+
+    v9.4.0 progress reports (TC-1: pct=None ระหว่าง Gemini transcribe):
+      "อัปโหลดไป Gemini" 30 → "Gemini ถอดเสียง" None → "รับผลลัพธ์" 90
     """
     logger.info(f"AI audio ingest: {os.path.basename(filepath)} ({ext})")
+
+    await _safe_async_progress(progress_callback, "อัปโหลดไป Gemini Files API", 30)
     file_obj = await _upload_to_gemini(filepath)
 
     prompt = (
@@ -142,6 +161,9 @@ async def _ingest_audio(filepath: str, ext: str) -> str:
         "Include timestamps every ~30 seconds in [HH:MM:SS] format. "
         "If music or sound effects are present without speech, briefly describe them."
     )
+
+    # TC-1: pct=None — Gemini ไม่ stream progress, ห้ามมั่ว %
+    await _safe_async_progress(progress_callback, f"Gemini ถอดเสียง ({ext})", None)
 
     import asyncio
     loop = asyncio.get_event_loop()
@@ -154,18 +176,23 @@ async def _ingest_audio(filepath: str, ext: str) -> str:
     )
     text = response.text or "[AI audio: no transcription generated]"
     logger.info(f"AI audio done: {len(text)} chars from {os.path.basename(filepath)}")
+    await _safe_async_progress(progress_callback, "รับผลลัพธ์จาก Gemini", 90)
     return text
 
 
-async def _ingest_video(filepath: str, ext: str) -> str:
+async def _ingest_video(filepath: str, ext: str, progress_callback=None) -> str:
     """Analyze video — frames + audio transcription combined.
 
     Gemini Flash supports video up to ~1 hour. Returns:
     - Visual description per scene (every ~30s)
     - Spoken content transcribed
     - On-screen text extracted (slides, captions)
+
+    v9.4.0 progress reports (same 3-stage pattern as audio).
     """
     logger.info(f"AI video ingest: {os.path.basename(filepath)} ({ext})")
+
+    await _safe_async_progress(progress_callback, "อัปโหลดวิดีโอไป Gemini", 25)
     file_obj = await _upload_to_gemini(filepath)
 
     prompt = (
@@ -176,6 +203,9 @@ async def _ingest_video(filepath: str, ext: str) -> str:
         "4. Note speaker changes if multiple people\n"
         "Format as structured markdown with sections."
     )
+
+    # TC-1: pct=None — video analysis ใช้เวลานานกว่า audio
+    await _safe_async_progress(progress_callback, f"Gemini วิเคราะห์วิดีโอ ({ext})", None)
 
     import asyncio
     loop = asyncio.get_event_loop()
@@ -188,12 +218,15 @@ async def _ingest_video(filepath: str, ext: str) -> str:
     )
     text = response.text or "[AI video: no analysis generated]"
     logger.info(f"AI video done: {len(text)} chars from {os.path.basename(filepath)}")
+    await _safe_async_progress(progress_callback, "รับผลลัพธ์จาก Gemini", 90)
     return text
 
 
-async def _ingest_image_smart(filepath: str, ext: str) -> str:
+async def _ingest_image_smart(filepath: str, ext: str, progress_callback=None) -> str:
     """Smart image description via Gemini Vision — better than OCR for charts/diagrams.
 
     Reserved for Phase B v3 — currently HEIC/etc. use Tesseract OCR.
+    progress_callback signature kept consistent with sibling functions for future impl.
     """
+    del filepath, ext, progress_callback  # mark intentionally unused (Phase B v3 stub)
     return "[AI vision not yet implemented in Phase B v2]"

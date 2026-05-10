@@ -73,7 +73,7 @@ except ImportError:
     logger.warning("HEIC/HEIF not available — install pillow-heif for iPhone photo support")
 
 
-def extract_text(filepath: str, filetype: str) -> str:
+def extract_text(filepath: str, filetype: str, progress_callback=None) -> str:
     """Extract text from a file (public API — sanitizes lone surrogates).
 
     Supported (v7.5.0):
@@ -88,11 +88,15 @@ def extract_text(filepath: str, filetype: str) -> str:
 
     v9.3.3: result is filtered through strip_surrogates() so PDF extractions
     that emit lone UTF-16 halves never reach DB / hash / LLM downstream.
+
+    v9.4.0: optional `progress_callback(step: str, pct: int|None)` — sync function
+    เรียกระหว่าง extract เพื่อ report ขั้นตอนสด (TC-1 truthful: pct=None ถ้าไม่รู้)
+    Default=None → backward compat ทุก existing caller (main.py, line_bot, mcp_tools, etc.)
     """
-    return strip_surrogates(_extract_text_raw(filepath, filetype))
+    return strip_surrogates(_extract_text_raw(filepath, filetype, progress_callback))
 
 
-def _extract_text_raw(filepath: str, filetype: str) -> str:
+def _extract_text_raw(filepath: str, filetype: str, progress_callback=None) -> str:
     """Internal extraction without surrogate sanitization. See extract_text()."""
     try:
         if filetype in ("pdf", "docx") and _HAS_DOCLING:
@@ -101,10 +105,10 @@ def _extract_text_raw(filepath: str, filetype: str) -> str:
                 return _postprocess_thai(text) if filetype == "pdf" else text
             # Docling returned nothing, try fallback
             if filetype == "pdf":
-                return _extract_pdf_with_fallbacks(filepath)
+                return _extract_pdf_with_fallbacks(filepath, progress_callback)
             return text
         elif filetype == "pdf":
-            return _extract_pdf_with_fallbacks(filepath)
+            return _extract_pdf_with_fallbacks(filepath, progress_callback)
         elif filetype == "docx":
             return _extract_docx_basic(filepath)
         elif filetype in ("txt", "md", "csv",
@@ -125,7 +129,7 @@ def _extract_text_raw(filepath: str, filetype: str) -> str:
                           # v9.0.0 — extra image formats via PIL native + Tesseract OCR
                           "heic", "heif",   # iPhone photos (needs pillow-heif)
                           "gif", "bmp", "tiff", "tif"):  # PIL native support
-            return _extract_image_ocr(filepath)
+            return _extract_image_ocr(filepath, progress_callback)
         elif filetype == "xlsx":
             return _extract_xlsx(filepath)
         elif filetype == "pptx":
@@ -148,22 +152,38 @@ def _extract_text_raw(filepath: str, filetype: str) -> str:
         # Try fallback
         try:
             if filetype == "pdf":
-                return _extract_pdf_with_fallbacks(filepath)
+                return _extract_pdf_with_fallbacks(filepath, progress_callback)
             elif filetype == "docx":
                 return _extract_docx_basic(filepath)
             elif filetype in ("png", "jpg", "jpeg", "webp",
                               "heic", "heif", "gif", "bmp", "tiff", "tif"):
-                return _extract_image_ocr(filepath)
+                return _extract_image_ocr(filepath, progress_callback)
         except Exception:
             pass
         return f"[Extraction error: {str(e)}]"
 
 
-def _extract_image_ocr(filepath: str) -> str:
+def _safe_progress(progress_callback, step: str, pct=None) -> None:
+    """v9.4.0 helper — เรียก progress_callback แบบปลอดภัย (catch all errors).
+
+    progress_callback อาจเป็น None (callers เก่า) หรือ raise exception ระหว่าง update DB.
+    Wrap ที่นี่เพื่อ extract path ไม่พังเพราะ progress reporting fail.
+    """
+    if progress_callback is None:
+        return
+    try:
+        progress_callback(step, pct)
+    except Exception as e:
+        logger.debug(f"progress_callback raised (non-fatal): {e}")
+
+
+def _extract_image_ocr(filepath: str, progress_callback=None) -> str:
     """OCR text from png/jpg/jpeg/webp via pytesseract (Thai + English).
 
     v7.5.0: รองรับ image upload จริง (ก่อนหน้านี้ png/jpg ถูกตั้งใน allowed_types
     แต่ extraction.py reject กลับเป็น "[Unsupported file type]" → orphan ใน DB)
+
+    v9.4.0: optional progress_callback — report "OCR รูปภาพ" before tesseract call
 
     Returns:
       - Extracted text (post-processed for Thai) ถ้าเจอ
@@ -174,14 +194,17 @@ def _extract_image_ocr(filepath: str) -> str:
     if not _HAS_OCR:
         return "[Image: OCR not available]"
     try:
+        _safe_progress(progress_callback, "เปิดรูปภาพ", 30)
         from PIL import Image
         img = Image.open(filepath)
         # Convert mode if needed (RGBA / palette → RGB for tesseract)
         if img.mode not in ("RGB", "L"):
             img = img.convert("RGB")
+        _safe_progress(progress_callback, "OCR รูปภาพ", 60)
         text = pytesseract.image_to_string(img, lang="tha+eng")
         if text and text.strip():
             logger.info(f"Image OCR: extracted {len(text)} chars from {os.path.basename(filepath)}")
+            _safe_progress(progress_callback, "ประมวลผลข้อความ Thai", 85)
             return _postprocess_thai(text.strip())
         return "[Image: no text detected]"
     except Exception as e:
@@ -189,12 +212,14 @@ def _extract_image_ocr(filepath: str) -> str:
         return f"[OCR error: {str(e)}]"
 
 
-def _extract_pdf_with_fallbacks(filepath: str) -> str:
+def _extract_pdf_with_fallbacks(filepath: str, progress_callback=None) -> str:
     """PDF extraction with full fallback chain: encrypted check → PyPDF2 → OCR.
 
     v7.5.0: detects encrypted PDF early so caller can flag extraction_status.
+    v9.4.0: optional progress_callback — report each phase + page-level for OCR
     """
     # v7.5.0 — short-circuit for encrypted PDFs (specific marker for downstream)
+    _safe_progress(progress_callback, "ตรวจไฟล์ PDF", 25)
     try:
         from PyPDF2 import PdfReader
         reader = PdfReader(filepath)
@@ -206,7 +231,8 @@ def _extract_pdf_with_fallbacks(filepath: str) -> str:
         pass
 
     # Step 1: Try PyPDF2 text extraction
-    text = _extract_pdf_basic(filepath)
+    _safe_progress(progress_callback, "อ่าน PDF (text layer)", 35)
+    text = _extract_pdf_basic(filepath, progress_callback)
 
     if text and not text.startswith("[No text"):
         return _postprocess_thai(text)
@@ -214,7 +240,8 @@ def _extract_pdf_with_fallbacks(filepath: str) -> str:
     # Step 2: Try OCR if text extraction failed
     if _HAS_OCR:
         logger.info(f"PyPDF2 found no text — trying OCR for {os.path.basename(filepath)}")
-        ocr_text = _extract_pdf_ocr(filepath)
+        _safe_progress(progress_callback, "PDF เป็นรูปสแกน — เริ่ม OCR", 50)
+        ocr_text = _extract_pdf_ocr(filepath, progress_callback)
         if ocr_text and not ocr_text.startswith("["):
             return _postprocess_thai(ocr_text)
 
@@ -267,33 +294,52 @@ def _extract_with_docling(filepath: str) -> str:
 
 # ─── FALLBACK EXTRACTORS ───
 
-def _extract_pdf_basic(filepath: str) -> str:
-    """Fallback PDF extraction using PyPDF2."""
+def _extract_pdf_basic(filepath: str, progress_callback=None) -> str:
+    """Fallback PDF extraction using PyPDF2.
+
+    v9.4.0: optional progress_callback report per-page progress.
+    PDF text layer extraction = fast (sub-second per page) so report ทุก 5 pages
+    """
     from PyPDF2 import PdfReader
     reader = PdfReader(filepath)
     pages = []
+    total = len(reader.pages)
     for i, page in enumerate(reader.pages):
+        if progress_callback and (i % 5 == 0 or i == total - 1):
+            # Report 30-60% range during PyPDF2 phase (after PDF check at 25%, before OCR at 50%)
+            pct = 30 + int(((i + 1) / total) * 30) if total > 0 else 35
+            _safe_progress(progress_callback, f"อ่าน PDF หน้า {i+1}/{total}", pct)
         text = page.extract_text()
         if text and text.strip():
             pages.append(f"--- Page {i+1} ---\n{text.strip()}")
     return "\n\n".join(pages) if pages else "[No text content found in PDF]"
 
 
-def _extract_pdf_ocr(filepath: str) -> str:
-    """OCR extraction using pytesseract for image-only PDFs."""
+def _extract_pdf_ocr(filepath: str, progress_callback=None) -> str:
+    """OCR extraction using pytesseract for image-only PDFs.
+
+    v9.4.0: optional progress_callback report per-page OCR progress
+    OCR = slow (1-3s per page) so report ทุก page
+    """
     try:
+        _safe_progress(progress_callback, "แปลง PDF → รูปภาพ", 55)
         images = convert_from_path(filepath, dpi=200, first_page=1, last_page=20)
         pages = []
+        total = len(images)
         for i, img in enumerate(images):
+            if progress_callback:
+                # OCR phase = 60-90% range (after image conversion at 55%, before save at 95%)
+                pct = 60 + int(((i + 1) / total) * 30) if total > 0 else 75
+                _safe_progress(progress_callback, f"OCR หน้า {i+1}/{total}", pct)
             # Use Thai + English language for OCR
             text = pytesseract.image_to_string(img, lang='tha+eng')
             if text and text.strip():
                 pages.append(f"--- Page {i+1} (OCR) ---\n{text.strip()}")
-        
+
         if pages:
             logger.info(f"OCR: extracted {sum(len(p) for p in pages)} chars from {os.path.basename(filepath)}")
             return "\n\n".join(pages)
-        
+
         return "[OCR found no text in PDF images]"
     except Exception as e:
         logger.error(f"OCR failed for {filepath}: {e}")
