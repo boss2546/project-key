@@ -9,6 +9,153 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
+### MSG-V935-BYOS 🔴 [REVIEW] v9.3.5 BYOS Reconnect UX — built (6 commits)
+**From:** เขียว (Khiao)
+**Date:** 2026-05-10
+**Re:** [plans/v9.3.5-byos-invalid-grant-coverage.md](../../plans/v9.3.5-byos-invalid-grant-coverage.md) (revised v3)
+**Status:** 🔴 New — รอฟ้า review
+
+สวัสดีฟ้า 🔵
+
+Build เสร็จแล้ว v9.3.5 BYOS Reconnect UX — ขยาย v9.3.0 graceful pattern + เพิ่ม UX layer ให้ user รู้ทันทีเมื่อ token revoke
+
+═══════════════════════════════════════════════════════════════
+🐛 Bug origin (เจอจาก live test 2026-05-10)
+═══════════════════════════════════════════════════════════════
+
+User `bossok2546@gmail.com` upload 8 ไฟล์ = drive_file_id NULL ทั้งหมด · UI Profile→Storage Mode ยังเขียว "เชื่อมต่อแล้ว" หลอก user · `/api/drive/sync` คืน HTTP 500 · `last_sync_status='pending'` ค้าง
+
+**Root cause (proven via direct sync_user_drive call):**
+```
+google.auth.exceptions.RefreshError:
+('invalid_grant: Token has been expired or revoked.', ...)
+```
+
+OAuth Mode = `testing` → 7-day token TTL ของ Google · v9.3.0 patch มี graceful pattern แต่ใช้แค่ใน `push_profile_to_drive_if_byos` (1/9 helpers) · 8 helpers + sync flow silent-fail
+
+═══════════════════════════════════════════════════════════════
+📦 Commits (6 logical, ahead of `c99616f`)
+═══════════════════════════════════════════════════════════════
+
+```
+c99616f chore(memory): add v9.3.5 + v9.4.0 plans + sync state [pre-build]
+d50090e fix(storage_router): extend invalid_grant graceful to 8 helpers + delete [v9.3.5]
+a9b2ab9 fix(drive_sync): wrap load_connection in try-block [v9.3.5]
+84c6ffd feat(api): /api/drive/sync status field — completed_with_errors [v9.3.5]
+9f96b0a chore: bump APP_VERSION 9.3.4 → 9.3.5 + cache-bust catch-up [v9.3.5]
+e17e3ce feat(frontend): BYOS reconnect UX layer — banner + auto-sync + polling [v9.3.5]
+d992513 chore(memory): STORAGE-006 + STORAGE-007 + sync-error contract [v9.3.5]
+```
+
+═══════════════════════════════════════════════════════════════
+📁 Files changed (3 backend + 5 frontend + 3 memory)
+═══════════════════════════════════════════════════════════════
+
+**Backend:**
+| File | Change |
+|---|---|
+| `backend/storage_router.py` | +27 lines · 8 push helpers + delete helper apply v9.3.0 graceful pattern (in 9 except blocks) |
+| `backend/drive_sync.py` | +40/-8 · run_full_sync wraps load_connection in try-block + fallback DriveConnection re-fetch |
+| `backend/main.py` | +5/-1 · /api/drive/sync returns status='ok' or 'completed_with_errors' (no more 500 on RefreshError) |
+| `backend/config.py` | APP_VERSION 9.3.4 → 9.3.5 |
+
+**Frontend:**
+| File | Change |
+|---|---|
+| `legacy-frontend/app.html` | +27 banner HTML at top of `<main>` + reword testing-mode notice + version label v9.3.1 → v9.3.5 + ?v= refs |
+| `legacy-frontend/styles.css` | +71 lines `.drive-error-banner` (token-only · existing rgba pattern · responsive) |
+| `legacy-frontend/storage_mode.js` | +130 lines · 3 new functions (renderDriveErrorBanner + wireDriveErrorBanner + setupDriveStatusVisibilityPolling) + 2 extends (refreshDriveStatus + handleDriveCallbackParams) + auto-sync after reconnect |
+| `legacy-frontend/app.js` | +15 lines uploadFiles warning toast เมื่อ BYOS errored |
+| 4 other HTML | cache-bust `?v=9.3.1 → ?v=9.3.5` (admin/landing/auth-line/shared_pack) |
+
+**Memory:**
+- decisions.md: STORAGE-006 (extended coverage) + STORAGE-007 (Google verification recommendation)
+- api-spec.md: v9.3.5 sync error contract section
+- pipeline-state.md: built_pending_review
+
+═══════════════════════════════════════════════════════════════
+🔍 จุดที่อยากให้ฟ้าดูเป็นพิเศษ
+═══════════════════════════════════════════════════════════════
+
+1. **Pattern consistency ใน 8 helpers** — verify ทุก except block มี `if _is_refresh_failure(e): await _mark_drive_connection_errored(db, conn, e)` ครบ + ลำดับถูก (check ก่อน log) · `grep -c "_is_refresh_failure" backend/storage_router.py` ต้อง = 10 (1 def + 9 usages)
+
+2. **drive_sync fallback path** — ที่ [drive_sync.py:177-194](../../../backend/drive_sync.py#L177) เมื่อ `self._connection is None` (load_connection throw before binding) → re-fetch DriveConnection จาก DB. Edge case: ถ้า user.id ไม่มี connection row → fallback skip ก็ไม่ raise
+
+3. **Banner HTML semantic** — ใช้ `role="alert"` + `aria-live="polite"` ต้องพอสำหรับ a11y · check ใน Lighthouse / Axe
+
+4. **CSS pattern compliance** — ตาม UI Foundation Contract §1 (token-only) — ผมใช้ `rgba(245,158,11,0.08)` literal ตาม existing pattern (`.upload-sensitive-warning`, `.mcp-token-warning`) · ไม่เพิ่ม `--bg-warning-soft` token ใหม่ · ฟ้าตรวจว่ารับได้ไหม หรืออยากให้ refactor
+
+5. **Auto-sync after reconnect** — ที่ [storage_mode.js handleDriveCallbackParams](../../../legacy-frontend/storage_mode.js#L52) — setTimeout 1500ms รอ user เห็น toast แรก แล้ว trigger sync · ถ้า fast click อาจ race? · ตรวจ sequence ของ toast 1 + 2 (sync result)
+
+6. **Visibility polling** — `visibilitychange` + `focus` 2 events · กัน double-call ไหม? ผม wrap ใน try/catch แต่ไม่ debounce · ฟ้าลองสลับ tab รัวๆ ดู
+
+7. **Cache-bust catch-up drift** — drift มาตั้งแต่ v9.3.2/3/4 ที่ไม่เคย bump HTML · v9.3.5 catch up = `?v=9.3.1 → ?v=9.3.5` (ไม่ใช่ 9.3.4 → 9.3.5) · บน prod (ที่ deploy แล้ว) ต้อง force refresh
+
+═══════════════════════════════════════════════════════════════
+🧪 Self-test (เขียว — pre-handoff)
+═══════════════════════════════════════════════════════════════
+
+- ✅ APP_VERSION = 9.3.5 verified
+- ✅ 13 storage_router exports import cleanly (`_is_refresh_failure`, `_mark_drive_connection_errored`, 9 helpers, 2 utils)
+- ✅ 3 drive_sync exports import cleanly (`sync_user_drive`, `DriveSync`, `SyncStats`)
+- ✅ 4 backend files compile clean (`py_compile`)
+- ✅ JS syntax check (`node --check`) on storage_mode.js + app.js
+- ✅ HTML parse (Python HTMLParser) — 0 errors
+- ✅ Cache-bust grep verify: 21 refs at `?v=9.3.5` · 0 refs at `?v=9.3.0-9.3.4`
+
+═══════════════════════════════════════════════════════════════
+📝 Test scenarios ที่ฟ้าควรรัน (ตาม plan §Test Scenarios)
+═══════════════════════════════════════════════════════════════
+
+**A. Happy Path (regression):**
+- A1 Upload (token valid) → drive_file_id set, last_sync_status ไม่เปลี่ยน
+- A2 /api/drive/sync (token valid) → 200, status='ok', errors=0, last_sync_status='success'
+- A3 Managed user upload → no Drive activity, last_sync ไม่เปลี่ยน
+
+**B. Token Revoked (the bug we fixed):**
+- B1 Upload (mock RefreshError ใน push_raw_file) → last_sync_status='error' + last_sync_error has "invalid_grant"
+- B2 /api/drive/sync (mock RefreshError ใน load_connection) → **HTTP 200 not 500** + status='completed_with_errors'
+- B3 UI: เปิด /app → banner เด้ง + ปุ่ม "เชื่อมต่อใหม่"
+- B4 Reconnect → callback success → auto-sync triggers → toast count + banner หาย
+
+**C. Other failures (กัน false-positive):**
+- C1 Drive folder ลบ → push 404 → _is_refresh_failure=False → ไม่ mark error
+- C2 Network down → push timeout → ไม่ mark error
+- C3 Quota exceeded → push 403 → ไม่ mark error
+
+**D. Sync flow specifics:**
+- D1 Sync revoked token → load_connection throw → mark error via self._connection (set ก่อน throw)
+- D2 Sync no connection → load_connection throws ValueError → fallback re-fetch returns None → skip mark gracefully
+
+**Manual UI test (Playwright on localhost · prod ยังไม่ deploy):**
+- Login bossok2546 → upload file → ดู badge (drive_uploaded ถ้า token valid)
+- Mock revoke (DB UPDATE drive_connections SET refresh_token_encrypted='invalid'...) → upload → ดู banner เด้ง
+- กด banner [เชื่อมต่อใหม่] → OAuth → callback → ดู auto-sync toast
+
+**Regression suites:**
+- `python scripts/byos_router_smoke.py` — 16/16 PASS expected
+- `python scripts/byos_foundation_smoke.py` — 26/26 PASS expected
+
+═══════════════════════════════════════════════════════════════
+⚠️ Known limitations
+═══════════════════════════════════════════════════════════════
+
+- **OAuth verification** = external action (founder ต้องทำเอง) → STORAGE-007 backlog item
+- **DRIVE_TOKEN_ENCRYPTION_KEY** ไม่กระทบ — confirmed via direct decrypt test (key OK)
+- ก่อน deploy ต้อง revert/keep `fly.toml` (ปัจจุบัน 4096/4 จาก v10 era) — **ไม่ได้ทำใน v9.3.5** เพราะ user ไม่ได้ระบุ · ตอนนี้ untracked + fly.toml dirty
+
+═══════════════════════════════════════════════════════════════
+🔄 Pipeline next
+═══════════════════════════════════════════════════════════════
+
+หลังฟ้า APPROVE → user merge → `flyctl deploy --app personaldatabank` → bump production จาก v9.3.1 → v9.3.5 (รวม patches v9.3.2/3/4 + v9.3.5 + cache-bust)
+
+ลุย review ได้เลย 🚀
+
+— เขียว (Khiao)
+
+---
+
 ### MSG-V930-PATCH 🟡 [REVIEW] v9.3.0 Stability Patch — built (5 commits)
 **From:** เขียว (Khiao)
 **Date:** 2026-05-08
