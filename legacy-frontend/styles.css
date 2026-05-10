@@ -5049,3 +5049,251 @@ td {
     flex-wrap: wrap;
   }
 }
+
+/* ════════ UPLOAD TRAY — v9.4.0 ════════
+   Token-only · atom reuse (.meter, .status-pill, .btn variants)
+   ดู plans/upload-queue-v9.4.0.md §13 Step 7a + UI Foundation Contract §6
+*/
+
+.upload-tray {
+  position: fixed;
+  bottom: var(--space-4);
+  right: var(--space-4);
+  width: 360px;
+  max-width: calc(100vw - var(--space-8));
+  max-height: 65vh;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elev-3);
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  transform: translateY(calc(100% + var(--space-4)));
+  opacity: 0;
+  pointer-events: none;
+  transition: transform var(--duration-base) var(--ease-out),
+              opacity var(--duration-base) var(--ease-out);
+}
+.upload-tray.is-open {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.upload-tray-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.upload-tray-title {
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-variant-numeric: tabular-nums;
+}
+.upload-tray-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.upload-tray-close {
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 32px;
+}
+.upload-tray-close:hover {
+  color: var(--text-primary);
+  background: var(--surface-3);
+}
+.upload-tray-close:focus-visible {
+  box-shadow: var(--ring-focus);
+  outline: 0;
+}
+
+.upload-tray-banner {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.upload-tray-banner.is-warning {
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--warning);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.30);
+}
+.upload-tray-banner.is-error {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--error);
+  border-bottom: 1px solid rgba(239, 68, 68, 0.30);
+}
+.upload-tray-banner.is-success {
+  background: rgba(34, 197, 94, 0.12);
+  color: var(--success);
+  border-bottom: 1px solid rgba(34, 197, 94, 0.30);
+}
+
+.upload-tray-list {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-2);
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.upload-tray-item {
+  padding: var(--space-3);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.upload-tray-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.upload-tray-filename {
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.upload-tray-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.upload-tray-ext {
+  background: var(--surface-3);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-xs);
+  letter-spacing: 0;  /* TC: no uppercase metric labels (UI Foundation §5) */
+}
+.upload-tray-elapsed {
+  margin-left: auto;
+}
+.upload-tray-toggle {
+  background: transparent;
+  border: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: var(--fs-xs);
+  padding: 0;
+  text-decoration: underline;
+}
+.upload-tray-toggle:focus-visible {
+  box-shadow: var(--ring-focus);
+  outline: 0;
+  border-radius: var(--radius-xs);
+}
+
+.upload-tray-step {
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.upload-tray-whyslow {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.upload-tray-error {
+  font-size: var(--fs-xs);
+  color: var(--error);
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.upload-tray-stages {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+  padding: var(--space-2);
+  background: var(--surface-3);
+  border-radius: var(--radius-sm);
+}
+.upload-tray-stages dt { color: var(--text-muted); }
+.upload-tray-stages dd { color: var(--text-secondary); margin: 0; }
+
+.upload-tray-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.upload-tray-footer {
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+/* New atom modifier: indeterminate meter (TC-1 no-fake progress)
+   ใช้กับ Gemini transcribe ที่ไม่ stream % ได้ — ห้ามมั่ว % */
+.meter.is-indeterminate {
+  position: relative;
+  overflow: hidden;
+}
+.meter.is-indeterminate .meter-fill {
+  width: 40%;
+  background: linear-gradient(90deg, transparent, var(--accent), var(--accent-hover), transparent);
+  animation: progressIndeterminate 1.4s ease-in-out infinite;
+}
+
+/* Mobile responsive */
+@media (max-width: 600px) {
+  .upload-tray {
+    bottom: var(--space-3);
+    right: var(--space-3);
+    left: var(--space-3);
+    width: auto;
+    max-height: 50vh;
+  }
+}
+
+/* Reduced motion (UI Foundation Contract §4) */
+@media (prefers-reduced-motion: reduce) {
+  .upload-tray {
+    transition: opacity var(--duration-fast);
+    transform: none;
+  }
+  .upload-tray.is-open { opacity: 1; }
+  .meter.is-indeterminate .meter-fill { animation: none; }
+}

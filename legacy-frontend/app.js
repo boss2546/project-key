@@ -1404,6 +1404,12 @@ document.addEventListener('DOMContentLoaded', () => {
   try { initKebabMenus(); } catch (e) { console.warn('[init] initKebabMenus:', e); }
   try { initNavigation(); } catch (e) { console.warn('[init] initNavigation:', e); }
   try { initUpload(); } catch (e) { console.warn('[init] initUpload:', e); }
+  // v9.4.0 — auto-open Upload Tray ถ้ามีไฟล์ค้างอยู่จาก session ก่อน (recover after reload)
+  try {
+    if (window.UploadTray && typeof UploadTray.openIfHasItems === 'function') {
+      UploadTray.openIfHasItems();
+    }
+  } catch (e) { console.warn('[init] UploadTray.openIfHasItems:', e); }
   try { initFileFilterChips(); } catch (e) { console.warn('[init] initFileFilterChips:', e); }
   try { initProfile(); } catch (e) { console.warn('[init] initProfile:', e); }
   try { initChat(); } catch (e) { console.warn('[init] initChat:', e); }
@@ -1543,12 +1549,11 @@ async function uploadFiles(fileList) {
  }
 
  const isTH = getLang() === 'th';
+ // v9.4.0 — overlay only ระหว่าง byte upload (extract ย้ายไป background worker)
+ // เปลี่ยน "Server processing..." indeterminate phase → ให้ Upload Tray ทำหน้าที่นั้น
  const baseMsg = (pct, done) => isTH
-   ? `กำลังอัปโหลด... ${done}/${count} ไฟล์ • ${pct}%`
-   : `Uploading... ${done}/${count} files • ${pct}%`;
- const processingMsg = (done) => isTH
-   ? `เซิร์ฟเวอร์ประมวลผล ${done}/${count} ไฟล์...`
-   : `Server processing ${done}/${count} files...`;
+   ? `กำลังส่งไฟล์ขึ้น server... ${done}/${count} ไฟล์ • ${pct}%`
+   : `Sending files to server... ${done}/${count} files • ${pct}%`;
 
  _uploadInFlight = true;
  showLoadingOverlay(baseMsg(0, 0), 'upload');
@@ -1558,14 +1563,12 @@ async function uploadFiles(fileList) {
  if (fillEl0) fillEl0.style.width = '0%';
 
  // v9.2.0+ — parallel uploads (concurrency 3, one file/request).
- // Backend serializes ONLY quota check via per-user asyncio.Lock; extraction
- // + AI ingest run in parallel. Aggregate uploaded[]/skipped[] across responses.
+ // v9.4.0: backend = save+queue (return ≤200ms) → no more "processing" phase
  const UPLOAD_CONCURRENCY = 3;
  const fileArr = Array.from(fileList);
  const totalBytes = fileArr.reduce((s, f) => s + (f.size || 0), 0) || 1;
  const loadedBytes = new Array(fileArr.length).fill(0);
  const fileDone = new Array(fileArr.length).fill(false);
- let bytesPhaseSwitched = false;
 
  const updateProgressUI = () => {
    const sumLoaded = loadedBytes.reduce((a, b) => a + b, 0);
@@ -1573,19 +1576,8 @@ async function uploadFiles(fileList) {
    const pct = Math.min(100, Math.round((sumLoaded / totalBytes) * 100));
    const msgEl = document.querySelector('.loading-overlay-card .loading-message');
    const fill = document.querySelector('.loading-overlay-card .loading-progress-fill');
-   if (!bytesPhaseSwitched) {
-     if (msgEl) msgEl.textContent = baseMsg(pct, doneCount);
-     if (fill) fill.style.width = pct + '%';
-     if (sumLoaded >= totalBytes) {
-       bytesPhaseSwitched = true;
-       const bar = document.querySelector('.loading-overlay-card .loading-progress-bar');
-       if (msgEl) msgEl.textContent = processingMsg(doneCount);
-       if (fill) fill.style.width = '';
-       if (bar) bar.classList.add('indeterminate');
-     }
-   } else {
-     if (msgEl) msgEl.textContent = processingMsg(doneCount);
-   }
+   if (msgEl) msgEl.textContent = baseMsg(pct, doneCount);
+   if (fill) fill.style.width = pct + '%';
  };
 
  const uploadOne = (file, idx) => new Promise((resolve) => {
@@ -1653,11 +1645,15 @@ async function uploadFiles(fileList) {
  if (networkErr && aggUploaded.length === 0) throw new Error('NETWORK');
  const data = { uploaded: aggUploaded, skipped: aggSkipped, count: aggUploaded.length };
 
- // v7.5.0 — show toast briefly + open per-file result modal if anything skipped
- if (data.count > 0 && (!data.skipped || data.skipped.length === 0)) {
-   showToast(`${t('toast.uploaded')} ${data.count} ${t('stat.files').toLowerCase()}`, 'success');
+ // v9.4.0 — toast + Upload Tray (instead of inline "processing" overlay phase)
+ // Files are now status='queued' → tray polls /api/upload-status + updates UI
+ if (data.count > 0) {
+   showToast(t('upload.queuedToast', { n: data.count }), 'info');
+   if (window.UploadTray && typeof UploadTray.notifyEnqueued === 'function') {
+     UploadTray.notifyEnqueued(data.uploaded);
+   }
  }
- // v9.1.0 — Vault toast: ถ้ามี vault file ใน batch → แจ้ง user
+ // v9.1.0 — Vault toast (vault files skip queue, ready immediately)
  const vaultCount = (data.uploaded || []).filter(u => u.file_kind === 'vault_only').length;
  if (vaultCount > 0) {
    setTimeout(() => showToast(`📦 ${vaultCount} ${t('vault.toastUpload')}`, 'info'), 1200);
@@ -1668,13 +1664,15 @@ async function uploadFiles(fileList) {
    if (quotaSkip) {
      setTimeout(() => showUpgradeModal(quotaSkip.message || quotaSkip.reason), 300);
    } else {
-     // v7.5.0 — per-file actionable modal with code + suggestion
+     // v7.5.0 — per-file actionable modal with code + suggestion (รวม QUEUE_FULL v9.4.0)
      setTimeout(() => showUploadResultModal(data.uploaded || [], data.skipped), 300);
    }
  }
- // v7.1: duplicate detection ย้ายไป /api/organize-new — ดูใน runOrganizeNew()
- // (ตอน upload vector_search ยังไม่ index ไฟล์ใหม่ → semantic detect ไม่ทำงาน)
- loadFiles();
+ // v9.4.0 — main file list refresh ย้ายไป UploadTray (เรียกตอน queue empties)
+ // ตรงนี้ refresh เฉพาะ vault files + stats ที่เปลี่ยนทันที (vault ไม่เข้าคิว)
+ if (vaultCount > 0) {
+   loadFiles();
+ }
  loadStats();
  loadUnprocessedCount();
  loadUsageInfo();
@@ -1710,6 +1708,376 @@ async function uploadFiles(fileList) {
   hideLoadingOverlay();
  }
 }
+
+// ════════════════════════════════════════════════════════
+// UPLOAD TRAY — v9.4.0 (Honest Visibility for Background Queue)
+// ════════════════════════════════════════════════════════
+// Persistent UI tray ที่บอกความจริงเรื่องคิว upload ทุกขั้น
+// ตาม Truthfulness Contract:
+//   TC-1: ห้ามโชว์ pct ปลอม → progress_pct_known=false ใช้ indeterminate meter
+//   TC-2: แสดง stage timestamps จริง (queued/started/completed) ในรายละเอียด
+//   TC-3: why_slow text จาก backend (computed truthful)
+//   TC-4: estimated_wait จาก rolling avg ของ worker จริง
+//   TC-5: error message ระบุสาเหตุจริง (encrypted/quota/etc.)
+//   TC-6: system status banner (degraded/stopped)
+//
+// Polling 2s · backoff to 5s after 30 ticks (1 min)
+// Stops polling เมื่อ tray ปิด / queue ว่าง
+const UploadTray = (() => {
+ let _pollHandle = null;
+ let _pollAttempts = 0;
+ let _isOpen = false;
+ let _lastSnapshot = { active: [], failed: [], summary: { total_active: 0, failed_count: 0 } };
+ const _expandedIds = new Set();  // file_id ที่ user click "รายละเอียด"
+
+ const POLL_INTERVAL_MS = 2000;
+ const POLL_BACKOFF_AFTER = 30;  // ticks before slow poll
+ const POLL_BACKOFF_MS = 5000;
+
+ const $ = (sel, root = document) => root.querySelector(sel);
+ const isTH = () => getLang() === 'th';
+
+ // Local HTML escape (ไม่ใช้ globally — UploadTray-only utility)
+ function _esc(s) {
+   if (s == null) return '';
+   return String(s)
+     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+ }
+
+ function _formatElapsed(sec) {
+   if (sec < 60) return t('upload.tray.elapsed', { sec });
+   return t('upload.tray.elapsed_min', { min: Math.floor(sec / 60) });
+ }
+
+ function _formatTime(iso) {
+   try {
+     const d = new Date(iso);
+     return d.toLocaleString(isTH() ? 'th-TH' : 'en-US', {
+       hour: '2-digit', minute: '2-digit', second: '2-digit',
+     });
+   } catch (e) { return iso; }
+ }
+
+ function _ensureDom() {
+   if ($('.upload-tray')) return;
+   const titleText = t('upload.tray.title');
+   const html = `
+     <aside class="upload-tray" role="region" aria-label="${_esc(titleText)}">
+       <header class="upload-tray-header">
+         <h3 class="upload-tray-title">
+           <svg class="upload-tray-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+             <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"></path>
+             <polyline points="17 8 12 3 7 8"></polyline>
+             <line x1="12" y1="3" x2="12" y2="15"></line>
+           </svg>
+           <span class="upload-tray-title-text">${_esc(titleText)}</span>
+         </h3>
+         <button class="upload-tray-close" type="button" aria-label="${_esc(t('upload.tray.minimize'))}">
+           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+             <line x1="6" y1="6" x2="18" y2="18"></line>
+             <line x1="6" y1="18" x2="18" y2="6"></line>
+           </svg>
+         </button>
+       </header>
+       <div class="upload-tray-banner" hidden></div>
+       <ul class="upload-tray-list" role="list"></ul>
+       <footer class="upload-tray-footer">
+         <span class="upload-tray-summary"></span>
+       </footer>
+     </aside>
+   `;
+   document.body.insertAdjacentHTML('beforeend', html);
+   $('.upload-tray-close').addEventListener('click', close);
+ }
+
+ async function _fetchStatus() {
+   try {
+     const res = await authFetch('/api/upload-status');
+     if (!res.ok) return _lastSnapshot;
+     const data = await res.json();
+     _lastSnapshot = data;
+     return data;
+   } catch (e) {
+     console.warn('UploadTray fetchStatus error:', e);
+     return _lastSnapshot;
+   }
+ }
+
+ async function openIfHasItems() {
+   try {
+     const data = await _fetchStatus();
+     if ((data.summary && data.summary.total_active > 0)
+         || (data.summary && data.summary.failed_count > 0)) {
+       open();
+     }
+   } catch (_) { /* defensive — tray ไม่ open ถ้า /api fail */ }
+ }
+
+ function open() {
+   if (_isOpen) return;
+   _ensureDom();
+   $('.upload-tray').classList.add('is-open');
+   _isOpen = true;
+   _startPolling();
+ }
+
+ function close() {
+   if (!_isOpen) return;
+   const tray = $('.upload-tray');
+   if (tray) tray.classList.remove('is-open');
+   _isOpen = false;
+   _stopPolling();
+ }
+
+ function notifyEnqueued(uploadedList) {
+   if (!uploadedList || uploadedList.length === 0) return;
+   open();
+   // Optimistic render — ใส่ไฟล์ที่เพิ่ง enqueue ทันที (ไม่ต้องรอ poll tick แรก)
+   const optimistic = uploadedList
+     .filter(u => u.processing_status === 'queued')
+     .map(u => ({
+       id: u.id, filename: u.filename, filetype: u.filetype,
+       processing_status: 'queued',
+       extraction_status: 'pending',
+       queue_position: u.queue_position || 1,
+       progress_step: t('upload.tray.position', { n: u.queue_position || 1 }),
+       progress_pct: null,
+       progress_pct_known: false,
+       stages: { queued_at: u.uploaded_at, extract_started_at: null, extract_completed_at: null },
+       elapsed_sec: 0,
+       attempt_count: 0,
+       is_retryable: false,
+       why_slow: null,
+     }));
+   if (optimistic.length === 0) return;
+   _lastSnapshot = {
+     active: [...optimistic, ...(_lastSnapshot.active || [])],
+     failed: _lastSnapshot.failed || [],
+     summary: {
+       ...(_lastSnapshot.summary || {}),
+       total_active: ((_lastSnapshot.summary && _lastSnapshot.summary.total_active) || 0) + optimistic.length,
+       queued_count: ((_lastSnapshot.summary && _lastSnapshot.summary.queued_count) || 0) + optimistic.length,
+       extracting_count: (_lastSnapshot.summary && _lastSnapshot.summary.extracting_count) || 0,
+       failed_count: (_lastSnapshot.summary && _lastSnapshot.summary.failed_count) || 0,
+       system_status: (_lastSnapshot.summary && _lastSnapshot.summary.system_status) || 'ok',
+     },
+   };
+   _render(_lastSnapshot);
+ }
+
+ function _startPolling() {
+   if (_pollHandle) return;
+   _pollAttempts = 0;
+   const tick = async () => {
+     const data = await _fetchStatus();
+     _render(data);
+     _pollAttempts++;
+
+     const noActive = !data.summary || data.summary.total_active === 0;
+     const noFailed = !data.summary || data.summary.failed_count === 0;
+
+     if (noActive && noFailed) {
+       _stopPolling();
+       // ทุกอย่างเสร็จ → refresh main list + auto-close
+       try {
+         if (typeof loadFiles === 'function') loadFiles();
+         if (typeof loadStats === 'function') loadStats();
+         if (typeof loadUnprocessedCount === 'function') loadUnprocessedCount();
+       } catch (e) { console.warn('UploadTray refresh error:', e); }
+       const banner = $('.upload-tray-banner');
+       if (banner) {
+         banner.hidden = false;
+         banner.textContent = t('upload.tray.empty_done');
+         banner.className = 'upload-tray-banner is-success';
+       }
+       setTimeout(() => close(), 2000);
+       return;
+     }
+
+     const interval = _pollAttempts > POLL_BACKOFF_AFTER ? POLL_BACKOFF_MS : POLL_INTERVAL_MS;
+     _pollHandle = setTimeout(tick, interval);
+   };
+   tick();
+ }
+
+ function _stopPolling() {
+   if (_pollHandle) {
+     clearTimeout(_pollHandle);
+     _pollHandle = null;
+   }
+ }
+
+ function _render(data) {
+   const list = $('.upload-tray-list');
+   const titleEl = $('.upload-tray-title-text');
+   const summaryEl = $('.upload-tray-summary');
+   const banner = $('.upload-tray-banner');
+   if (!list) return;
+
+   const summary = data.summary || {};
+   const activeCount = summary.total_active || 0;
+   const failedCount = summary.failed_count || 0;
+   const totalShow = activeCount + failedCount;
+
+   if (titleEl) {
+     titleEl.textContent = totalShow > 0
+       ? t('upload.tray.title_n', { n: totalShow })
+       : t('upload.tray.title');
+   }
+
+   if (summaryEl) {
+     const parts = [];
+     if (summary.queued_count) parts.push(t('upload.tray.summary_queued', { n: summary.queued_count }));
+     if (summary.extracting_count) parts.push(t('upload.tray.summary_extracting', { n: summary.extracting_count }));
+     if (failedCount) parts.push(t('upload.tray.summary_failed', { n: failedCount }));
+     summaryEl.textContent = parts.join(' • ');
+   }
+
+   // System status banner (TC-6)
+   if (banner) {
+     const status = summary.system_status || 'ok';
+     if (status === 'degraded') {
+       banner.hidden = false;
+       banner.textContent = t('upload.tray.system_degraded');
+       banner.className = 'upload-tray-banner is-warning';
+     } else if (status === 'stopped') {
+       banner.hidden = false;
+       banner.textContent = t('upload.tray.system_stopped');
+       banner.className = 'upload-tray-banner is-error';
+     } else {
+       banner.hidden = true;
+     }
+   }
+
+   const items = [...(data.active || []), ...(data.failed || [])];
+   list.innerHTML = items.map(_renderItem).join('');
+
+   // Wire actions
+   list.querySelectorAll('[data-retry-id]').forEach(btn => {
+     btn.addEventListener('click', () => _onRetry(btn.dataset.retryId));
+   });
+   list.querySelectorAll('[data-dismiss-id]').forEach(btn => {
+     btn.addEventListener('click', () => _onDismiss(btn.dataset.dismissId));
+   });
+   list.querySelectorAll('[data-toggle-id]').forEach(btn => {
+     btn.addEventListener('click', () => {
+       const id = btn.dataset.toggleId;
+       if (_expandedIds.has(id)) _expandedIds.delete(id);
+       else _expandedIds.add(id);
+       _render(_lastSnapshot);
+     });
+   });
+ }
+
+ function _renderItem(item) {
+   const isFailed = item.processing_status === 'error';
+   const isExtracting = item.processing_status === 'extracting';
+   const isExpanded = _expandedIds.has(item.id);
+
+   const pillClass = isFailed ? 'is-error' : isExtracting ? 'is-active' : 'is-warning';
+   const pillText = isFailed ? t('upload.tray.failed')
+                  : isExtracting ? t('upload.tray.working')
+                  : t('upload.tray.queued');
+
+   const ext = _esc((item.filetype || '—').toUpperCase());
+   const filename = _esc(item.filename);
+
+   let body = '';
+   if (isFailed) {
+     body = `
+       <div class="upload-tray-error" role="alert">
+         ${_esc(item.extract_error || (isTH() ? 'ไม่ทราบสาเหตุ' : 'Unknown error'))}
+       </div>`;
+   } else if (isExtracting) {
+     // TC-1 — pct ที่รู้ใช้ determinate, ไม่รู้ใช้ indeterminate
+     const meterCls = item.progress_pct_known ? 'meter' : 'meter is-indeterminate';
+     const pct = item.progress_pct_known ? Math.max(0, Math.min(100, item.progress_pct || 0)) : 0;
+     const fillStyle = item.progress_pct_known ? `width:${pct}%` : '';
+     const ariaNow = item.progress_pct_known ? `aria-valuenow="${pct}"` : '';
+     body = `
+       <div class="upload-tray-step">${_esc(item.progress_step || '...')}</div>
+       <div class="${meterCls}" role="progressbar" ${ariaNow} aria-valuemin="0" aria-valuemax="100">
+         <div class="meter-fill" style="${fillStyle}"></div>
+       </div>
+       ${item.why_slow ? `<div class="upload-tray-whyslow">${_esc(item.why_slow)}</div>` : ''}`;
+   } else {
+     body = `
+       <div class="upload-tray-step">${_esc(item.progress_step || t('upload.tray.position', { n: item.queue_position }))}</div>
+       ${item.why_slow ? `<div class="upload-tray-whyslow">${_esc(item.why_slow)}</div>` : ''}`;
+   }
+
+   // Stages (TC-2 truthful timestamps) — collapsed by default, click "รายละเอียด"
+   const stages = item.stages || {};
+   const stagesHtml = isExpanded ? `
+     <dl class="upload-tray-stages">
+       <dt>${_esc(t('upload.tray.stage_queued'))}</dt>
+       <dd>${stages.queued_at ? _formatTime(stages.queued_at) : '—'}</dd>
+       <dt>${_esc(t('upload.tray.stage_started'))}</dt>
+       <dd>${stages.extract_started_at ? _formatTime(stages.extract_started_at) : '—'}</dd>
+       <dt>${_esc(t('upload.tray.stage_completed'))}</dt>
+       <dd>${stages.extract_completed_at ? _formatTime(stages.extract_completed_at) : '—'}</dd>
+       <dt>${_esc(t('upload.tray.attempt'))}</dt>
+       <dd>${(item.attempt_count || 0) + 1}</dd>
+     </dl>
+   ` : '';
+
+   const elapsedHtml = (item.elapsed_sec != null && item.elapsed_sec > 0)
+     ? `<span class="upload-tray-elapsed">${_formatElapsed(item.elapsed_sec)}</span>`
+     : '';
+
+   const actions = isFailed ? `
+     <div class="upload-tray-actions">
+       ${item.is_retryable ? `<button class="btn btn-sm btn-outline" type="button" data-retry-id="${_esc(item.id)}">${_esc(t('upload.tray.retry'))}</button>` : ''}
+       <button class="btn btn-sm btn-ghost" type="button" data-dismiss-id="${_esc(item.id)}">${_esc(t('upload.tray.dismiss'))}</button>
+     </div>` : '';
+
+   return `
+     <li class="upload-tray-item" data-file-id="${_esc(item.id)}">
+       <div class="upload-tray-item-head">
+         <span class="upload-tray-filename" title="${filename}">${filename}</span>
+         <span class="status-pill ${pillClass}">${_esc(pillText)}</span>
+       </div>
+       <div class="upload-tray-meta">
+         <span class="upload-tray-ext">${ext}</span>
+         ${elapsedHtml}
+         <button class="upload-tray-toggle" type="button" data-toggle-id="${_esc(item.id)}" aria-expanded="${isExpanded}">${_esc(t('upload.tray.see_details'))}</button>
+       </div>
+       ${body}
+       ${stagesHtml}
+       ${actions}
+     </li>`;
+ }
+
+ async function _onRetry(fileId) {
+   try {
+     const res = await authFetch(`/api/upload/${fileId}/retry`, { method: 'POST' });
+     if (!res.ok) {
+       const err = await res.json().catch(() => ({}));
+       const msg = (err.error && err.error.message) || (isTH() ? 'ลองใหม่ไม่ได้' : 'Retry failed');
+       showToast(msg, 'error');
+       return;
+     }
+     await _fetchStatus().then(_render);
+   } catch (e) {
+     showToast(isTH() ? 'เครือข่ายขัดข้อง' : 'Network error', 'error');
+   }
+ }
+
+ async function _onDismiss(fileId) {
+   try {
+     await authFetch(`/api/upload/${fileId}/dismiss-error`, { method: 'POST' });
+     _expandedIds.delete(fileId);
+     await _fetchStatus().then(_render);
+   } catch (e) { /* defensive — dismiss fail = next poll cleans */ }
+ }
+
+ return { open, close, openIfHasItems, notifyEnqueued };
+})();
+
+// Expose globally for uploadFiles + showApp hooks
+window.UploadTray = UploadTray;
+
 
 // ═══════════════════════════════════════════
 // DUPLICATE DETECTION MODAL (v7.1.5 — research-backed UX)
