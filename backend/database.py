@@ -110,6 +110,29 @@ class File(Base):
     # Indexed เพราะ list filter ใช้บ่อย (?kind=vault|processed)
     file_kind = Column(String, default="processed", index=True)
 
+    # ─── v9.4.0 — Upload Queue + Visible Progress ───
+    # ทำไมเพิ่ม 7 columns:
+    # v9.3.4 ทำ extract แบบ inline ใน /api/upload → request ค้าง 30-120s
+    # v9.4.0 แยกเป็น save+queue + worker async + UI tray ที่ user เห็นทุกขั้น
+    # ดู truthfulness contract ใน plans/upload-queue-v9.4.0.md
+    #
+    # processing_status enum extended: queued, extracting (เพิ่ม) + uploaded/error/etc (เดิม)
+
+    # TC-1: ห้ามโชว์ progress ปลอม — pct=NULL ถ้าไม่รู้จริง (เช่น Gemini)
+    progress_step = Column(Text, nullable=True)
+    progress_pct = Column(Integer, nullable=True)
+
+    # TC-2: stage timestamps จริง (3 จุดของ lifecycle queued → extracting → done)
+    queued_at = Column(DateTime, nullable=True)
+    extract_started_at = Column(DateTime, nullable=True)
+    extract_completed_at = Column(DateTime, nullable=True)
+
+    # TC-5: error message TH ที่ระบุสาเหตุจริง (3-200 chars)
+    extract_error = Column(Text, nullable=True)
+
+    # INV-4: retry counter — ห้ามเกิน MAX_RETRY_ATTEMPTS (default 3)
+    attempt_count = Column(Integer, default=0)
+
     owner = relationship("User", back_populates="files")
     insight = relationship("FileInsight", uselist=False, back_populates="file", cascade="all, delete-orphan")
     summary = relationship("FileSummary", uselist=False, back_populates="file", cascade="all, delete-orphan")
@@ -610,9 +633,26 @@ async def init_db():
 
     try:
         async with aiosqlite.connect(db_path) as db:
+            # v9.4.0 — Enable WAL mode (concurrent-safe writer/reader)
+            # WHY: upload_worker เขียน progress columns ทุก 1.5s ขณะ /api/upload
+            # เขียน placeholder row พร้อมกัน → SQLite default `journal_mode=DELETE`
+            # จะ lock file ทั้งก้อน → เกิด `OperationalError: database is locked`
+            # WAL mode = readers ไม่ block writer + writer ไม่ block readers
+            # Idempotent: PRAGMA journal_mode set ครั้งเดียว persistent ใน DB file
+            try:
+                cursor = await db.execute("PRAGMA journal_mode=WAL")
+                row = await cursor.fetchone()
+                journal_mode = (row[0] if row else "").lower()
+                if journal_mode == "wal":
+                    print(f"  → SQLite journal_mode = WAL (concurrent-safe)")
+                else:
+                    print(f"  ⚠️ SQLite journal_mode = {journal_mode} (expected WAL — concurrent risk)")
+            except Exception as e:
+                print(f"  ⚠️ PRAGMA journal_mode set warning: {e}")
+
             cursor = await db.execute("PRAGMA table_info(users)")
             columns = [row[1] for row in await cursor.fetchall()]
-            
+
             migrated = False
 
             # v5.0 Migration — Auth columns
@@ -822,6 +862,55 @@ async def init_db():
                 )
                 migrated = True
                 print("  → Added: context_packs.created_via (v9.2.0) + backfilled existing")
+
+            # v9.4.0 Migration — Upload Queue + Visible Progress
+            # ⚠️ ADD-only, no drop/rename — Fly volume DB-safe
+            # 7 columns + 2 indexes + backfill stuck 'processing' → 'queued'
+            cursor = await db.execute("PRAGMA table_info(files)")
+            file_cols_v940 = {row[1] for row in await cursor.fetchall()}
+
+            _v940_adds = [
+                ("progress_step",        "TEXT"),
+                ("progress_pct",         "INTEGER"),
+                ("queued_at",            "DATETIME"),
+                ("extract_started_at",   "DATETIME"),
+                ("extract_completed_at", "DATETIME"),
+                ("extract_error",        "TEXT"),
+                ("attempt_count",        "INTEGER DEFAULT 0"),
+            ]
+            for col_name, col_type in _v940_adds:
+                if col_name not in file_cols_v940:
+                    await db.execute(f"ALTER TABLE files ADD COLUMN {col_name} {col_type}")
+                    migrated = True
+                    print(f"  → Added: files.{col_name} (v9.4.0 — Upload Queue)")
+
+            # Indexes สำหรับ worker poll + /api/upload-status
+            try:
+                await db.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_files_queue_poll "
+                    "ON files(processing_status, queued_at)"
+                )
+                await db.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_files_user_status "
+                    "ON files(user_id, processing_status)"
+                )
+            except Exception as e:
+                print(f"  ⚠️ v9.4.0 index warning: {e}")
+
+            # Backfill: legacy 'processing' rows ที่ค้างก่อน v9.4.0 → 'queued'
+            # (กรณี upgrade ขณะมีไฟล์ค้าง — worker จะ pickup ทำต่อ)
+            try:
+                backfill = await db.execute(
+                    "UPDATE files SET "
+                    "  processing_status='queued', "
+                    "  queued_at=COALESCE(queued_at, uploaded_at) "
+                    "WHERE processing_status='processing' AND extracted_text=''"
+                )
+                if backfill.rowcount:
+                    print(f"  → Backfilled {backfill.rowcount} stuck rows: processing → queued (v9.4.0)")
+                    migrated = True
+            except Exception as e:
+                print(f"  ⚠️ v9.4.0 backfill warning: {e}")
 
             # v8.0.0 Migration — LINE Bot Integration (line_users table)
             # Table ถูกสร้างโดย Base.metadata.create_all ก่อนหน้าแล้ว (idempotent)
