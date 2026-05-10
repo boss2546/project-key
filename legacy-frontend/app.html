@@ -9,9 +9,9 @@
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
  <script src="https://d3js.org/d3.v7.min.js"></script>
- <link rel="stylesheet" href="/legacy/shared.css?v=9.3.1">
- <link rel="stylesheet" href="/legacy/styles.css?v=9.3.1">
- <link rel="stylesheet" href="/legacy/landing.css?v=9.3.1">
+ <link rel="stylesheet" href="/legacy/shared.css?v=9.3.5">
+ <link rel="stylesheet" href="/legacy/styles.css?v=9.3.5">
+ <link rel="stylesheet" href="/legacy/landing.css?v=9.3.5">
 </head>
 <body>
  <!-- ┌────────────────────────────────────────────────────────────┐
@@ -154,7 +154,7 @@
  </div>
  <div class="logo-text-area">
  <span class="logo-text">Personal Data Bank</span>
- <span class="logo-version">v9.3.1</span>
+ <span class="logo-version">v9.3.5</span>
  </div>
  </div>
  </div>
@@ -298,6 +298,34 @@
  <!-- MAIN CONTENT -->
  <!-- ═══════════════════════════════════════════ -->
  <main class="main-content" id="main-content">
+
+ <!-- ───────────────────────────────────────────
+      v9.3.5 — BYOS Drive disconnect alert banner
+      Hidden by default · shown when last_sync_status='error'
+      Logic: storage_mode.js renderDriveErrorBanner()
+      User goal: รู้ทันทีว่า Drive หมดอายุ + กดปุ่มเดียวเชื่อมต่อใหม่
+      ─────────────────────────────────────────── -->
+ <div id="drive-error-banner" class="drive-error-banner hidden" role="alert" aria-live="polite">
+ <span class="drive-error-banner-icon" aria-hidden="true">
+ <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+ <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+ <line x1="12" y1="9" x2="12" y2="13"/>
+ <line x1="12" y1="17" x2="12.01" y2="17"/>
+ </svg>
+ </span>
+ <div class="drive-error-banner-text">
+ <strong id="drive-error-banner-title" data-i18n="drive.errorBanner.title">Google Drive ของคุณหมดอายุการเชื่อมต่อ</strong>
+ <span id="drive-error-banner-detail" data-i18n="drive.errorBanner.detail">ไฟล์ใหม่ยังไม่ได้ขึ้น Drive — กดเพื่อเชื่อมต่อใหม่</span>
+ </div>
+ <div class="drive-error-banner-actions">
+ <button class="btn btn-primary btn-sm" id="drive-error-banner-reconnect" data-i18n="drive.errorBanner.reconnect">
+ เชื่อมต่อใหม่
+ </button>
+ <button class="btn btn-ghost btn-sm" id="drive-error-banner-dismiss" data-i18n="drive.errorBanner.dismiss" aria-label="ภายหลัง">
+ ภายหลัง
+ </button>
+ </div>
+ </div>
 
  <!-- ─── PAGE: MY DATA ─── -->
  <section class="page active" id="page-my-data">
@@ -1139,7 +1167,7 @@
   <div class="storage-mode-actions" id="storage-mode-actions"></div>
   <div class="storage-mode-notice hidden" id="storage-mode-notice">
    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-   <span>Testing mode — only approved test users can connect</span>
+   <span data-i18n="drive.testingNotice">ขณะนี้ระบบเชื่อมต่อ Drive แบบ Beta — การเชื่อมต่อจะหมดอายุทุก 7 วัน · กรุณาเชื่อมต่อใหม่เมื่อแอพแจ้งเตือน</span>
   </div>
  </div>
  </div>
@@ -1492,9 +1520,9 @@
  </div>
  </div>
 
- <script src="/legacy/storage_mode.js?v=9.3.1"></script>
- <script src="/legacy/line_ui.js?v=9.3.1"></script>
- <script src="/legacy/app.js?v=9.3.1"></script>
- <script src="/legacy/landing.js?v=9.3.1"></script>
+ <script src="/legacy/storage_mode.js?v=9.3.5"></script>
+ <script src="/legacy/line_ui.js?v=9.3.5"></script>
+ <script src="/legacy/app.js?v=9.3.5"></script>
+ <script src="/legacy/landing.js?v=9.3.5"></script>
 </body>
 </html>
