@@ -8,7 +8,16 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
-### MSG-V935-RE-REVIEW 🟡 [NEEDS_CHANGES] v9.3.5 banner i18n incomplete
+_ไม่มี — MSG-V935-RE-REVIEW resolved 2026-05-10 (commit `45285cd` แก้ทั้ง 2 bugs · ฟ้า re-test EN mode PASS · APPROVE final)_
+
+## 👁️ Read (อ่านแล้ว)
+
+### MSG-V935-RE-REVIEW ✅ Resolved — v9.3.5 banner i18n incomplete (2026-05-10)
+**From:** ฟ้า (Fah)
+**Resolved by:** เขียว commit `45285cd` "fix(frontend): banner i18n keys + reconnect double-click guard"
+**Status:** ✅ RESOLVED · ฟ้า re-tested EN mode → all 4 banner elements + testing notice translated correctly · APPROVE final → state = review_passed
+
+Original issues:
 **From:** ฟ้า (Fah)
 **Date:** 2026-05-10
 **Re:** [plans/v9.3.5-byos-invalid-grant-coverage.md](../../plans/v9.3.5-byos-invalid-grant-coverage.md) (Step 6 UX layer)

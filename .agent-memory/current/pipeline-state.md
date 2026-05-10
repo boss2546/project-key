@@ -5,36 +5,35 @@
 
 ---
 
-## 🎯 Current State: `review_needs_changes` 🟡 v9.3.5 (re-review found 2 i18n bugs · 2026-05-10)
+## 🎯 Current State: `review_passed` ✅ v9.3.5 BYOS Reconnect UX FINAL (2026-05-10)
 
-**Master HEAD:** v9.3.5 build (8 commits c99616f → f216b73)
+**Master HEAD:** v9.3.5 final (10 commits c99616f → 45285cd · all bugs fixed)
 **APP_VERSION:** 9.3.5
-**Production:** 🔴 still v9.3.1 — รอ deploy (block until เขียว fixes 2 i18n issues)
-**Mode:** Sequential (แดง→เขียว→ฟ้า) — looped back to เขียว
+**Production:** 🔴 still v9.3.1 — รอ user `flyctl deploy` (combined v9.3.2/3/4/5 deploy)
+**Mode:** Sequential (แดง→เขียว→ฟ้า) — pipeline complete after re-review loop
 
-### v9.3.5 re-review verdict (ฟ้า · per user re-verification request)
+### v9.3.5 verdict timeline
+1. **Initial review** (rushed TH-only): APPROVE
+2. **User-requested re-review** ("เข้าไปตรวจสอบสิว่าทุกอย่างถูกต้องไหม"): NEEDS_CHANGES
+   - 🟡 BUG-V935-01: i18n keys missing (EN users saw Thai)
+   - 🟢 BUG-V935-02: reconnect button no double-click guard
+3. **เขียว fix loop** (3-in-1 mode per user authorization): commit `45285cd`
+   - Added 10 i18n entries (5 keys × TH+EN)
+   - Added `if (btn.disabled) return; btn.disabled = true;` guard
+4. **ฟ้า final re-test:** ✅ **APPROVE FINAL**
+   - EN mode verified live via Playwright: title + detail + reconnect + dismiss + notice → all EN ✅
+   - TH ↔ EN ↔ TH toggle works ✅
+   - Regression: 42/42 PASS ✅
 
-**First-pass (initial):** APPROVE (rushed · only tested TH mode)
-**Second-pass (per user "เข้าไปตรวจสอบสิว่าทุกอย่างถูกต้องไหม"):** 🟡 **NEEDS_CHANGES**
+### Final verdict: ✅ APPROVE
+- 0 critical / 0 high / 0 medium / 0 low issues
+- All bugs from re-review fixed + verified
+- Visual proof: `v9_3_5_en_banner_final.png` (EN mode banner correct)
 
-- 🟡 **BUG-V935-01 MEDIUM** — i18n keys missing for 5 banner+notice data-i18n attrs
-  - EN users see Thai text in banner title + 2 buttons + testing-mode notice (3/4 elements)
-  - Verified live via Playwright `applyLanguage('en')` toggle test
-  - Fix: add 10 entries (5 keys × 2 langs) to I18N object in app.js
-- 🟢 **BUG-V935-02 LOW** — reconnect button no double-click guard (race wastes 1 state cache slot)
-  - Fix: add `if (btn.disabled) return; btn.disabled = true;` before connectDrive()
-
-### What still passes (ไม่ต้องแก้)
-- 9 helper patches storage_router · drive_sync wrap · endpoint status · cache-bust · banner CSS · auto-sync · polling · upload toast
-- 42/42 regression PASS · 4/4 invalid_grant unit PASS · UI banner visual PASS
-
-### Review reports
-- Initial APPROVE (now superseded): [inbox/for-User.md REVIEW-V935-BYOS](../communication/inbox/for-User.md)
-- Re-review NEEDS_CHANGES: [inbox/for-เขียว.md MSG-V935-RE-REVIEW](../communication/inbox/for-เขียว.md)
-
-### Pending action
-- 🟢 **เขียว**: แก้ 2 bugs (~20 นาที) + ส่ง MSG กลับ ฟ้า inbox + update state = built_pending_review
-- 🔵 **ฟ้า**: รอเขียว → re-test EN toggle + double-click → APPROVE final
+### Pending user action
+1. 🔴 **Decide fly.toml** — revert ลง 2048/2 (recommend) หรือ keep 4096/4
+2. 🚀 **Deploy:** `git push origin master` + `flyctl deploy --app personaldatabank`
+3. 🟡 **STORAGE-007 long-term:** Submit Google OAuth verification (founder external work)
 
 ### v9.3.5 build summary
 - Backend: 9 helpers patched (storage_router) + drive_sync wrap + endpoint status field

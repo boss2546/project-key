@@ -5,13 +5,57 @@
 
 ---
 
-## 🔴 [REVIEW-V935-BYOS] ✅ APPROVE — v9.3.5 BYOS Reconnect UX
+## 🟢 [REVIEW-V935-FINAL] ✅ APPROVE FINAL — v9.3.5 BYOS Reconnect UX (after re-review fix loop)
+
+**From:** ฟ้า (Fah)
+**Date:** 2026-05-10
+**Plan:** [plans/v9.3.5-byos-invalid-grant-coverage.md](../../plans/v9.3.5-byos-invalid-grant-coverage.md) (revised v3)
+**Code by:** เขียว · 10 commits `c99616f` → `45285cd`
+**Verdict:** ✅ **APPROVE FINAL — พร้อม merge + deploy พร้อม v9.3.2/3/4 ในก้อนเดียว**
+
+### Re-review history
+1. **Initial APPROVE** (rushed · TH-only test) — superseded ↓
+2. **User requested re-verification** ("เข้าไปตรวจสอบสิว่าทุกอย่างถูกต้องไหม")
+3. **NEEDS_CHANGES verdict** found 2 bugs:
+   - 🟡 BUG-V935-01: 5 i18n keys missing (EN users saw Thai in 3/4 banner elements + notice)
+   - 🟢 BUG-V935-02: reconnect button no double-click guard
+4. **เขียว fix in-place** (3-in-1 mode) — commit `45285cd`:
+   - Added 10 i18n entries (5 keys × TH+EN) to I18N object
+   - Added `if (btn.disabled) return; btn.disabled = true;` guard before connectDrive()
+5. **ฟ้า final re-test PASS** — verdict APPROVE FINAL ✅
+
+### Final verification (Playwright on localhost · 2026-05-10)
+**TH mode (default):**
+- Banner title: "Google Drive ของคุณหมดอายุการเชื่อมต่อ" ✅
+- Detail: "การเชื่อมต่อหมดอายุ — ไฟล์ใหม่ยังไม่ได้ขึ้น Drive · กดเพื่อเชื่อมต่อใหม่" ✅
+- Buttons: "เชื่อมต่อใหม่" / "ภายหลัง" ✅
+
+**EN mode (toggled via applyLanguage('en')):**
+- Banner title: "Google Drive connection expired" ✅
+- Detail: "Connection expired — new files haven't been uploaded to Drive · click to reconnect" ✅
+- Buttons: "Reconnect" / "Later" ✅
+- Testing notice: "Drive connection is in Beta mode — expires every 7 days · please reconnect when prompted" ✅
+
+**TH ↔ EN ↔ TH toggle:** Works correctly · no stuck text ✅
+
+**Regression after fix:** 42/42 PASS (byos_router 16 + byos_foundation 26) ✅
+
+**Visual proof:**
+- `v9_3_5_banner_visible.png` — TH mode banner
+- `v9_3_5_en_banner_final.png` — EN mode banner (post-fix)
+
+### Issues Found (final)
+🔴 Critical: 0 · 🟠 High: 0 · 🟡 Medium: 0 · 🟢 Low: 0
+
+---
+
+## 🔴 [REVIEW-V935-BYOS] (SUPERSEDED — initial APPROVE before re-review)
 
 **From:** ฟ้า (Fah)
 **Date:** 2026-05-10
 **Plan:** [plans/v9.3.5-byos-invalid-grant-coverage.md](../../plans/v9.3.5-byos-invalid-grant-coverage.md) (revised v3)
 **Code by:** เขียว · 7 commits `c99616f` → `0d93181`
-**Verdict:** ✅ **APPROVE — พร้อม merge + deploy พร้อม v9.3.2/3/4 ในก้อนเดียว**
+**Verdict:** ⚠️ APPROVE (initial · then revoked → NEEDS_CHANGES → APPROVE FINAL ที่ REVIEW-V935-FINAL ด้านบน)
 
 ### TL;DR
 v9.3.5 ปิด gap ของ v9.3.0 ที่ครอบ invalid_grant graceful pattern แค่ 1 ใน 9 push helpers + เพิ่ม UX layer ที่ user รู้ทันทีเมื่อ token revoked + 1-click reconnect → auto-sync ไฟล์ค้าง.
