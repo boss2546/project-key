@@ -1755,6 +1755,64 @@ async function uploadFiles(fileList) {
 //
 // Polling 2s · backoff to 5s after 30 ticks (1 min)
 // Stops polling เมื่อ tray ปิด / queue ว่าง
+// v9.4.3 — i18n boundary: backend คืน error CODE (ENCRYPTED/TIMEOUT/...) → frontend แปล.
+// Mirror ของ backend.upload_worker.ERROR_CODES — ทุก code ต้องมีคู่ TH/EN.
+// Legacy rows ที่ยังเก็บ Thai ดิบจะ fall-through display raw (no break).
+const ERROR_CODE_LABELS = {
+ ENCRYPTED:          { th: 'ไฟล์เข้ารหัส — ปลดล็อกก่อนอัปโหลดใหม่',                    en: 'Encrypted file — unlock before re-uploading' },
+ FILE_MISSING:       { th: 'ไฟล์ดิบหายไประหว่างประมวลผล — ต้องอัปโหลดใหม่',             en: 'Raw file lost mid-process — re-upload required' },
+ TIMEOUT:            { th: 'ประมวลผลใช้เวลานานเกินกำหนด — ลองแบ่งไฟล์เล็กลงหรือกดลองใหม่', en: 'Processing timed out — split file or retry' },
+ OUT_OF_MEMORY:      { th: 'ไฟล์ใหญ่เกินที่ระบบรับไหว — ลองแบ่งไฟล์เล็กลง',              en: 'File too large for system memory — split smaller' },
+ ENCODING:           { th: 'ไฟล์มี encoding ผิดปกติ — ลอง re-save เป็น UTF-8 แล้วอัปใหม่', en: 'File encoding invalid — re-save as UTF-8 and retry' },
+ QUOTA_EXCEEDED:     { th: 'Gemini API ใช้เกินโควต้า — รอเดือนหน้าหรือเปลี่ยนแพลน',     en: 'Gemini quota exceeded — wait next month or upgrade plan' },
+ GEMINI_UNAVAILABLE: { th: 'Gemini ตอบช้ากว่าปกติ — กดลองใหม่อีกครั้ง',                  en: 'Gemini service degraded — please retry' },
+ GEMINI_AUTH:        { th: 'Gemini API key ไม่ถูกต้อง — ติดต่อแอดมิน',                   en: 'Gemini API key invalid — contact admin' },
+ MODEL_DEPRECATED:   { th: 'AI model ปลด/เปลี่ยนชื่อแล้ว — ติดต่อแอดมินอัปเดต GEMINI_FILE_MODEL', en: 'AI model deprecated — admin must update GEMINI_FILE_MODEL' },
+ FILE_NOT_ACTIVE:    { th: 'Gemini เตรียมไฟล์ไม่ทัน — กดลองใหม่อีกครั้ง',                en: 'Gemini file not ready — please retry' },
+ PERMISSION_DENIED:  { th: 'Gemini API ไม่อนุญาต — ตรวจสอบ key permissions',             en: 'Gemini API denied — check key permissions' },
+ CLIENT_ERROR:       { th: 'Gemini ปฏิเสธคำขอ — กดลองใหม่หรือติดต่อแอดมินถ้ายังไม่หาย',  en: 'Gemini rejected request — retry or contact admin' },
+ OCR_FAIL:           { th: 'OCR engine ขัดข้อง — ลองอัปใหม่หรือใช้ไฟล์ text แทนรูป',     en: 'OCR engine failed — retry or use a text file' },
+ NETWORK:            { th: 'ปัญหาเครือข่าย — กดลองใหม่อีกครั้ง',                          en: 'Network issue — please retry' },
+ UNKNOWN:            { th: 'ประมวลผลล้มเหลว — กดลองใหม่หรือติดต่อแอดมิน',                en: 'Processing failed — retry or contact admin' },
+};
+
+function localizeError(s) {
+ if (!s) return s;
+ const lang = getLang();
+ const label = ERROR_CODE_LABELS[s];
+ if (label) return label[lang] || label.th || s;
+ return s;  // legacy raw Thai → display as-is (backwards compat)
+}
+
+// progress_step regex translations TH→EN. Worker เขียน Thai ดิบใน DB; ที่ frontend
+// match pattern ก่อน render. Pattern miss = fall through display raw (no break).
+const STEP_TRANSLATIONS_EN = [
+ [/^อันดับที่ (\d+) — กำลังรอคิว$/,                    (m) => `Queue position ${m[1]}`],
+ [/^กำลังประมวลผล$/,                                   () => 'Processing'],
+ [/^เตรียมประมวลผล$/,                                  () => 'Preparing'],
+ [/^อัปโหลด(วิดีโอ|รูป)?ไป Gemini( Files API)?$/,      () => 'Uploading to Gemini'],
+ [/^Gemini เตรียมไฟล์ \(([A-Z_]+), (\d+)s\)$/,         (m) => `Gemini preparing (${m[1]}, ${m[2]}s)`],
+ [/^Gemini ถอดเสียง( \(.+\))?$/,                       () => 'Gemini transcribing'],
+ [/^Gemini วิเคราะห์(วิดีโอ|รูป)( \(.+\))?$/,           () => 'Gemini analyzing'],
+ [/^รับผลลัพธ์จาก Gemini$/,                           () => 'Receiving from Gemini'],
+ [/^บันทึกผลลัพธ์$/,                                   () => 'Saving result'],
+ [/^เปิดรูปภาพ$/,                                      () => 'Opening image'],
+ [/^OCR รูปภาพ$/,                                      () => 'OCR image'],
+ [/^ประมวลผลข้อความ Thai$/,                           () => 'Post-processing Thai text'],
+ [/^ตรวจไฟล์ PDF$/,                                   () => 'Inspecting PDF'],
+ [/^กำลังอ่านข้อความในไฟล์$/,                          () => 'Reading file content'],
+];
+
+function localizeBackendStep(s) {
+ if (!s) return s;
+ if (getLang() !== 'en') return s;  // TH passes through unchanged
+ for (const [re, fn] of STEP_TRANSLATIONS_EN) {
+  const m = s.match(re);
+  if (m) return fn(m);
+ }
+ return s;  // unknown pattern → display raw
+}
+
 const UploadTray = (() => {
  let _pollHandle = null;
  let _pollAttempts = 0;
@@ -2019,7 +2077,7 @@ const UploadTray = (() => {
    if (isFailed) {
      body = `
        <div class="upload-tray-error" role="alert">
-         ${_esc(item.extract_error || (isTH() ? 'ไม่ทราบสาเหตุ' : 'Unknown error'))}
+         ${_esc(localizeError(item.extract_error) || (isTH() ? 'ไม่ทราบสาเหตุ' : 'Unknown error'))}
        </div>`;
    } else if (isExtracting) {
      // TC-1 — pct ที่รู้ใช้ determinate, ไม่รู้ใช้ indeterminate
@@ -2028,14 +2086,14 @@ const UploadTray = (() => {
      const fillStyle = item.progress_pct_known ? `width:${pct}%` : '';
      const ariaNow = item.progress_pct_known ? `aria-valuenow="${pct}"` : '';
      body = `
-       <div class="upload-tray-step">${_esc(item.progress_step || '...')}</div>
+       <div class="upload-tray-step">${_esc(localizeBackendStep(item.progress_step) || '...')}</div>
        <div class="${meterCls}" role="progressbar" ${ariaNow} aria-valuemin="0" aria-valuemax="100">
          <div class="meter-fill" style="${fillStyle}"></div>
        </div>
        ${item.why_slow ? `<div class="upload-tray-whyslow">${_esc(item.why_slow)}</div>` : ''}`;
    } else {
      body = `
-       <div class="upload-tray-step">${_esc(item.progress_step || t('upload.tray.position', { n: item.queue_position }))}</div>
+       <div class="upload-tray-step">${_esc(localizeBackendStep(item.progress_step) || t('upload.tray.position', { n: item.queue_position }))}</div>
        ${item.why_slow ? `<div class="upload-tray-whyslow">${_esc(item.why_slow)}</div>` : ''}`;
    }
 

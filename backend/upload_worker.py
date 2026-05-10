@@ -450,16 +450,15 @@ async def _write_progress(file_id: str, step: str, pct: Optional[int]) -> None:
 
 
 async def _mark_job_failed(file_id: str, exc: Exception) -> None:
-    """Set status='error' + TC-5 truthful TH message."""
-    msg = format_user_error(exc)
+    """Set status='error' + write error CODE (frontend translates)."""
+    msg = format_user_error(exc)  # v9.4.3 — now returns CODE, e.g. "ENCRYPTED"
     try:
         async with AsyncSessionLocal() as db:
-            # คาดเดา extraction_status ที่เหมาะสม
-            ext_status = "ocr_failed"  # default
-            if "encrypted" in msg.lower() or "เข้ารหัส" in msg:
+            # Map CODE → extraction_status (for badge filter + retry button gating)
+            ext_status = "ocr_failed"  # default — most codes are retryable
+            if msg == "ENCRYPTED":
                 ext_status = "encrypted"
-            elif "ไม่รองรับ" in msg:
-                ext_status = "unsupported"
+            # No current code maps to "unsupported" — extraction_status set elsewhere
 
             await db.execute(
                 update(File).where(File.id == file_id).values(
@@ -479,63 +478,69 @@ async def _mark_job_failed(file_id: str, exc: Exception) -> None:
         )
 
 
-def format_user_error(exc: Exception) -> str:
-    """แปลง exception → TH message ที่ user-friendly (TC-5).
+# v9.4.3 — error CODE → (TH, EN) i18n boundary.
+# Why: เดิม format_user_error คืน Thai string ดิบ → EN locale user เห็นไทยใน upload tray.
+# Fix: คืน machine code, frontend แปล. ไฟล์เก่าใน DB ที่ยังเก็บ Thai message ดิบ →
+# frontend fall back display raw (no break).
+ERROR_CODES = {
+    "ENCRYPTED":         ("ไฟล์เข้ารหัส — ปลดล็อกก่อนอัปโหลดใหม่",                     "Encrypted file — unlock before re-uploading"),
+    "FILE_MISSING":      ("ไฟล์ดิบหายไประหว่างประมวลผล — ต้องอัปโหลดใหม่",             "Raw file lost mid-process — re-upload required"),
+    "TIMEOUT":           ("ประมวลผลใช้เวลานานเกินกำหนด — ลองแบ่งไฟล์เล็กลงหรือกดลองใหม่", "Processing timed out — split file or retry"),
+    "OUT_OF_MEMORY":     ("ไฟล์ใหญ่เกินที่ระบบรับไหว — ลองแบ่งไฟล์เล็กลง",              "File too large for system memory — split smaller"),
+    "ENCODING":          ("ไฟล์มี encoding ผิดปกติ — ลอง re-save เป็น UTF-8 แล้วอัปใหม่", "File encoding invalid — re-save as UTF-8 and retry"),
+    "QUOTA_EXCEEDED":    ("Gemini API ใช้เกินโควต้า — รอเดือนหน้าหรือเปลี่ยนแพลน",      "Gemini quota exceeded — wait next month or upgrade plan"),
+    "GEMINI_UNAVAILABLE":("Gemini ตอบช้ากว่าปกติ — กดลองใหม่อีกครั้ง",                  "Gemini service degraded — please retry"),
+    "GEMINI_AUTH":       ("Gemini API key ไม่ถูกต้อง — ติดต่อแอดมิน",                   "Gemini API key invalid — contact admin"),
+    "MODEL_DEPRECATED":  ("AI model ปลด/เปลี่ยนชื่อแล้ว — ติดต่อแอดมินอัปเดต GEMINI_FILE_MODEL", "AI model deprecated — admin must update GEMINI_FILE_MODEL"),
+    "FILE_NOT_ACTIVE":   ("Gemini เตรียมไฟล์ไม่ทัน — กดลองใหม่อีกครั้ง",                 "Gemini file not ready — please retry"),
+    "PERMISSION_DENIED": ("Gemini API ไม่อนุญาต — ตรวจสอบ key permissions",             "Gemini API denied — check key permissions"),
+    "CLIENT_ERROR":      ("Gemini ปฏิเสธคำขอ — กดลองใหม่หรือติดต่อแอดมินถ้ายังไม่หาย",   "Gemini rejected request — retry or contact admin"),
+    "OCR_FAIL":          ("OCR engine ขัดข้อง — ลองอัปใหม่หรือใช้ไฟล์ text แทนรูป",     "OCR engine failed — retry or use a text file"),
+    "NETWORK":           ("ปัญหาเครือข่าย — กดลองใหม่อีกครั้ง",                          "Network issue — please retry"),
+    "UNKNOWN":           ("ประมวลผลล้มเหลว — กดลองใหม่หรือติดต่อแอดมิน",                "Processing failed — retry or contact admin"),
+}
 
-    Mapping ตาม Appendix A ของ plan upload-queue-v9.4.0.md.
-    Default: generic message พร้อมระบุ exception class.
+
+def format_user_error(exc: Exception) -> str:
+    """Return error CODE (frontend translates via ERROR_CODE_LABELS).
+
+    Codes are stable identifiers stored in File.extract_error column.
+    Frontend localizes via ERROR_CODE_LABELS map. Legacy rows with raw Thai
+    strings still display correctly via fallback.
     """
     name = type(exc).__name__
     s = str(exc)[:200]
     s_lower = s.lower()
 
-    # PDF encrypted
     if "encrypted" in s_lower or "password" in s_lower:
-        return "ไฟล์เข้ารหัส — ปลดล็อกก่อนอัปโหลดใหม่"
-
-    # File missing
+        return "ENCRYPTED"
     if "no such file" in s_lower or name == "FileNotFoundError":
-        return "ไฟล์ดิบหายไประหว่างประมวลผล — ต้องอัปโหลดใหม่"
-
-    # Timeout
+        return "FILE_MISSING"
     if "timeout" in s_lower or "timed out" in s_lower or name == "TimeoutError":
-        return "ประมวลผลใช้เวลานานเกินกำหนด — ลองแบ่งไฟล์เล็กลงหรือกดลองใหม่"
-
-    # Memory
-    if "memory" in s_lower or name == "MemoryError":
-        return "ไฟล์ใหญ่เกินที่ระบบรับไหว — ลองแบ่งไฟล์เล็กลง"
-
-    # Encoding
+        return "TIMEOUT"
+    if name == "MemoryError" or "memory" in s_lower:
+        return "OUT_OF_MEMORY"
     if name in ("UnicodeDecodeError", "UnicodeEncodeError"):
-        return "ไฟล์มี encoding ผิดปกติ — ลอง re-save เป็น UTF-8 แล้วอัปใหม่"
-
-    # Gemini API
+        return "ENCODING"
     if "quota" in s_lower or "rate limit" in s_lower or "429" in s:
-        return "Gemini API ใช้เกินโควต้า — รอเดือนหน้าหรือเปลี่ยนแพลน"
+        return "QUOTA_EXCEEDED"
     if "google" in s_lower and ("503" in s or "unavailable" in s_lower):
-        return "Gemini ตอบช้ากว่าปกติ — กดลองใหม่อีกครั้ง"
+        return "GEMINI_UNAVAILABLE"
     if "google" in s_lower and "auth" in s_lower:
-        return "Gemini API key ไม่ถูกต้อง — ติดต่อแอดมิน"
-    # v9.4.2 — model deprecate/unavailable + Files API state errors
+        return "GEMINI_AUTH"
     if "404" in s and ("not_found" in s_lower or "no longer available" in s_lower):
-        return "AI model ปลด/เปลี่ยนชื่อแล้ว — ติดต่อแอดมินอัปเดต GEMINI_FILE_MODEL"
+        return "MODEL_DEPRECATED"
     if "failed_precondition" in s_lower or "not in an active state" in s_lower:
-        return "Gemini เตรียมไฟล์ไม่ทัน — กดลองใหม่อีกครั้ง"
+        return "FILE_NOT_ACTIVE"
     if "permission_denied" in s_lower or "permission denied" in s_lower:
-        return "Gemini API ไม่อนุญาต — ตรวจสอบ key permissions"
+        return "PERMISSION_DENIED"
     if "invalid_argument" in s_lower or name == "ClientError":
-        return f"Gemini ปฏิเสธคำขอ ({name}) — กดลองใหม่หรือติดต่อแอดมินถ้ายังไม่หาย"
-
-    # Tesseract
+        return "CLIENT_ERROR"
     if "tesseract" in s_lower:
-        return "OCR engine ขัดข้อง — ลองอัปใหม่หรือใช้ไฟล์ text แทนรูป"
-
-    # Network
+        return "OCR_FAIL"
     if "connection" in s_lower or "network" in s_lower:
-        return "ปัญหาเครือข่าย — กดลองใหม่อีกครั้ง"
-
-    # Default
-    return f"ประมวลผลล้มเหลว ({name}) — กดลองใหม่หรือติดต่อแอดมิน"
+        return "NETWORK"
+    return "UNKNOWN"
 
 
 async def _recover_stale_jobs() -> None:

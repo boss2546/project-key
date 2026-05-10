@@ -2059,6 +2059,14 @@ async def reprocess_file(
             f"reprocess_file: mode=cleanup deferred to v9.5.0 — using reextract for {file_id}"
         )
 
+    # v9.4.3 — respect MAX_RETRY (parity with /api/upload/{id}/retry)
+    from .upload_worker import MAX_RETRY_ATTEMPTS
+    if (file.attempt_count or 0) >= MAX_RETRY_ATTEMPTS:
+        raise HTTPException(409, detail={"error": {
+            "code": "NOT_RETRYABLE",
+            "message": f"เกิน retry limit ({MAX_RETRY_ATTEMPTS} ครั้ง)",
+        }})
+
     file.processing_status = "queued"
     file.extract_started_at = None
     file.extract_completed_at = None
@@ -2066,6 +2074,10 @@ async def reprocess_file(
     file.progress_step = None
     file.progress_pct = None
     file.queued_at = datetime.utcnow()
+    # v9.4.3 — clear stale text/status (เดิมไม่ล้าง → search/summary ใช้ text เก่า)
+    file.extracted_text = ""
+    file.extraction_status = ""
+    file.attempt_count = (file.attempt_count or 0) + 1
     await db.commit()
 
     qp_res = await db.execute(
