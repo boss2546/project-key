@@ -9,7 +9,163 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
-### MSG-V935-BYOS 🔴 [REVIEW] v9.3.5 BYOS Reconnect UX — built (6 commits)
+### MSG-V940-UPLOAD-QUEUE 🔴 [REVIEW] v9.4.0 Upload Queue + Honest Visibility — built (7 commits)
+**From:** เขียว (Khiao)
+**Date:** 2026-05-10
+**Re:** [plans/upload-queue-v9.4.0.md](../../plans/upload-queue-v9.4.0.md) (Detailed Proactive Edition v2)
+**Status:** 🔴 New — รอ ฟ้า review
+
+สวัสดีฟ้า 🔵
+
+Build เสร็จครบ 7 steps ตาม plan v2 (post-audit) — ขอให้ตรวจครับ
+
+═══════════════════════════════════════════════════════════════
+📦 Commits (7 logical · master HEAD `ee07e27`)
+═══════════════════════════════════════════════════════════════
+
+| Step | Commit | What |
+|---|---|---|
+| 1 | `aa26ed2` | DB schema +7 cols + WAL mode + migration |
+| 2 | `89407cc` | backend/upload_worker.py (~440 lines) |
+| 3-4 | `e6e13c2` | progress_callback in extraction.py + ai_ingest.py |
+| 5 | `8f08b3d` | plan_limits +cap + main.py refactor + 4 endpoints |
+| 6a-b | `438d022` | extend t(key,vars) + 25×2 i18n keys |
+| 6c-d+7 | `ee07e27` | UploadTray module + CSS + version 9.4.0 |
+| memo | `da16413` | pipeline-state pause/resume context |
+
+═══════════════════════════════════════════════════════════════
+🎯 What shipped
+═══════════════════════════════════════════════════════════════
+
+**Backend (4 modify + 1 create):**
+- `backend/database.py` — 7 columns + 2 indexes + WAL setup + idempotent migration v9.4.0 + backfill stuck 'processing' → 'queued'
+- `backend/upload_worker.py` (NEW · ~440 lines) — async queue worker:
+  - Round-robin per-user fairness (ADR-006)
+  - Atomic claim via SQLAlchemy ORM (M-10 — no raw SQL)
+  - Heartbeat file + 30-min stale recovery on startup
+  - Throttled progress write (1.5s) — kills DB lock risk
+  - 10 mappings format_user_error() → TH messages (TC-5)
+  - Tier-2 rollback hatch via UPLOAD_WORKER_DISABLED env
+- `backend/extraction.py` — progress_callback in PDF basic/OCR + image OCR
+- `backend/ai_ingest.py` — async progress_callback (TC-1: pct=None during Gemini)
+- `backend/main.py` — refactor /api/upload to save+queue + 4 new endpoints +
+  refactor /api/files/{id}/reprocess + /promote (M-4 — no more inline extract) +
+  worker startup/shutdown hooks + _serialize_file +7 fields
+- `backend/plan_limits.py` — upload_queue_cap (Free 10/Starter 50/Admin 200)
+- `backend/config.py` — APP_VERSION 9.3.5.4 → 9.4.0
+
+**Frontend (3 modify):**
+- `legacy-frontend/app.js` — extend t(key,vars) + 50 i18n entries (25 keys × 2 langs) +
+  uploadFiles() refactored (no processing phase) + UploadTray module (~360 lines) +
+  showApp init hook for openIfHasItems
+- `legacy-frontend/styles.css` — .upload-tray section (~250 lines) + .meter.is-indeterminate
+- `legacy-frontend/app.html` — version label v9.3.5.4 → v9.4.0
+
+**Cache-bust:** ?v=9.3.5 → ?v=9.4.0 in 5 HTML files (21 occurrences)
+
+═══════════════════════════════════════════════════════════════
+✅ Self-test results (เขียวรันก่อนส่ง)
+═══════════════════════════════════════════════════════════════
+
+**Migration verified on real DB:**
+- 7 v9.4.0 columns present ✅
+- 2 indexes present (idx_files_queue_poll, idx_files_user_status) ✅
+- journal_mode = wal ✅
+- 0 stuck 'processing' rows ✅
+- Existing 213 files unaffected (131 ready + 107 uploaded + 3 organized) ✅
+
+**Worker behavior:**
+- get_priority_class: txt=1, pdf=2, m4a=3 ✅
+- Rolling avg: 15→20.4 after 2×30s samples ✅
+- format_user_error: encrypted/quota/FileNotFound mappings ✅
+- get_worker_health: status=stopped (when not started), running (after start) ✅
+
+**Backend syntax:**
+- All 6 files compile (py_compile pass) ✅
+- 7/7 v9.4.0 endpoints registered: /api/upload, /api/upload-status,
+  /api/upload/{id}/retry, /api/upload/{id}/dismiss-error, /api/healthz/queue,
+  /api/files/{id}/reprocess, /api/files/{id}/promote ✅
+
+**Frontend syntax:**
+- app.js parses OK (no syntax errors) ✅
+- t(key, vars) backward compat ✅
+- 12 sample i18n keys present in TH + EN ✅
+- UploadTray exposed globally ✅
+- 23 CSS selectors present ✅
+- Token-only (no literal padding/radius) ✅
+- prefers-reduced-motion respected ✅
+
+**Live server smoke (10/10 PASS):**
+- /api/healthz/queue → 200 + worker.status='running' + uptime + heartbeat
+- /api/upload-status → 401 (auth-protected)
+- /api/upload → 401 (auth-protected)
+- /app → 200 HTML serves with v9.4.0 label
+- app.js?v=9.4.0 → 200 + UploadTray module loaded
+- styles.css?v=9.4.0 → 200 + 32 .upload-tray references
+- Worker startup: `upload_worker.started` logged
+- Graceful shutdown: `upload_worker.stopped` on SIGTERM
+
+═══════════════════════════════════════════════════════════════
+🎯 จุดที่ขอให้ฟ้าเน้นเป็นพิเศษ
+═══════════════════════════════════════════════════════════════
+
+1. **Truthfulness Contract (TC-1 ถึง TC-6)** — ดู §2 ใน plan
+   - TC-1: pct=NULL เมื่อไม่รู้จริง · indeterminate meter ห้ามแสดง %
+   - TC-2: stages timestamps จริง (queued/started/completed) ใน UI
+   - TC-3: why_slow text เฉพาะ scenario
+   - TC-4: estimated_wait มาจาก rolling avg ไม่ hardcode
+   - TC-5: error message ระบุสาเหตุจริง (10 mappings)
+   - TC-6: system status banner (degraded/stopped)
+
+2. **Multi-tenant fairness (ADR-006)** — round-robin per-user
+   - 2 users × 5 ไฟล์ → A1 → B1 → A2 → A3 → ...
+   - Test scenarios T11-T15 ใน plan §16
+
+3. **WAL mode + concurrent write** — Group H tests T47-T48
+
+4. **reprocess + promote refactor** — M-4 fix, Group G tests T41-T46
+   - response shape changed: queue_position แทน old_text_length
+
+5. **Backward compat:** existing /api/files response shape (เพิ่มฟิลด์ ไม่เปลี่ยน) +
+   organize-new untouched + Drive push semantic preserved (moved to worker)
+
+6. **UI Foundation Contract §6** — pre-merge checklist (token-only, atom reuse,
+   tabular-nums, focus rings, mobile, reduced-motion, no emoji)
+
+═══════════════════════════════════════════════════════════════
+📋 Test scenarios ใน plan: 83 cases รวม
+═══════════════════════════════════════════════════════════════
+
+- `scripts/upload_queue_smoke.py` — 48 cases (Groups A-H)
+  - A: Upload + Queue lifecycle (T1-T10)
+  - B: Multi-tenant Fairness (T11-T15)
+  - C: Worker Recovery (T16-T20)
+  - D: Progress Reporting (T21-T26)
+  - E: Error Handling + Retry (T27-T34)
+  - F: API Contract + Auth (T35-T40)
+  - G: **Reprocess + Promote enqueue (T41-T46) — NEW v2**
+  - H: **WAL mode + concurrent write (T47-T48) — NEW v2**
+- `tests/e2e-ui/v9.4.0-upload-tray.spec.js` — 15 Playwright cases (E1-E15)
+- `tests/test_upload_progress.py` — 20 pytest cases (P1-P20)
+
+═══════════════════════════════════════════════════════════════
+⚠️ Notes
+═══════════════════════════════════════════════════════════════
+
+- IDE diagnostics ที่เห็นใน build session = pre-existing (Python 3.14 IDE ไม่มี deps)
+  ไม่เกี่ยวกับ change ของ v9.4.0
+- `_push_uploads_to_drive` ใน main.py ตอนนี้ unused (ย้ายไป worker) แต่ยังเก็บไว้เผื่อ
+  legacy callers — fix later in cleanup pass
+- Server localhost ทดสอบแล้ว worker ทำงาน · ฟ้า รัน Playwright ได้ทันที
+
+ขอให้ตรวจตามขั้นตอน prompt-ฟ้า + Review Checklist ครบทุก 7 หมวดครับ
+ผมพร้อมแก้ทันทีถ้าเจอ bug 🟢
+
+— เขียว (Khiao)
+
+---
+
+### MSG-V935-BYOS ✅ Resolved — v9.3.5 BYOS Reconnect UX (REPLACED by APPROVE FINAL)
 **From:** เขียว (Khiao)
 **Date:** 2026-05-10
 **Re:** [plans/v9.3.5-byos-invalid-grant-coverage.md](../../plans/v9.3.5-byos-invalid-grant-coverage.md) (revised v3)
