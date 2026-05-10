@@ -44,6 +44,10 @@ class SyncStats(TypedDict):
     pulled_deleted: int      # ไฟล์ที่ Drive ลบไปแล้ว → cache mark deleted
     pushed_new: int          # ไฟล์ใน cache (uploaded fresh) ส่งขึ้น Drive
     pushed_updated: int      # cache แก้ + ส่งทับ Drive
+    relinked: int            # v9.3.5.5 — F3 Case A2 stale-link UPDATE existing row's drive_file_id
+    orphans_cleaned: int     # v9.3.5.5 — F2/F4 Case A1 orphan trashed in sync
+    orphans_skipped_budget: int  # v9.3.5.5 — F7 retry budget exhausted (per-session)
+    duplicate_push_prevented: int  # v9.3.5.5 — F24 push guard: pre-fetch detected existing Drive file
     conflicts_resolved: int  # drift detected + Drive won
     errors: int              # Drive API errors (non-fatal — counted, not raised)
     duration_ms: int         # เวลาที่ใช้รอบนี้
@@ -98,6 +102,10 @@ class DriveSync:
         self._client: Optional[DriveClient] = None
         self._connection: Optional[DriveConnection] = None
         self._folder_layout: dict[str, str] = {}
+        # v9.3.5.5 — F7 in-memory retry budget for orphan cleanup (per-session, resets on restart)
+        # Why: ถ้า Drive delete fail ซ้ำๆ → spam Drive API ทุก sync · cap ที่ 3 attempts ต่อไฟล์
+        self._orphan_retry_count: dict[str, int] = {}
+        self._orphan_retry_max: int = 3
 
     # ───────────────────────────────────────────────────────────
     # Test helper — inject pre-built client (skip OAuth load)
@@ -107,7 +115,7 @@ class DriveSync:
         cls, user_id: str, db: AsyncSession, client: DriveClient,
         connection: DriveConnection, folder_layout: dict[str, str],
     ) -> "DriveSync":
-        instance = cls(user_id, db)
+        instance = cls(user_id, db)  # __init__ initializes _orphan_retry_count etc.
         instance._client = client
         instance._connection = connection
         instance._folder_layout = folder_layout
@@ -163,6 +171,8 @@ class DriveSync:
         stats: SyncStats = {
             "pulled_new": 0, "pulled_updated": 0, "pulled_deleted": 0,
             "pushed_new": 0, "pushed_updated": 0,
+            "relinked": 0, "orphans_cleaned": 0,
+            "orphans_skipped_budget": 0, "duplicate_push_prevented": 0,
             "conflicts_resolved": 0, "errors": 0, "duration_ms": 0,
         }
 
@@ -228,8 +238,26 @@ class DriveSync:
           - storage_source = drive_uploaded (ตั้งใจไป Drive) หรือ
           - storage_source = local (ไฟล์เก่าก่อนเปิด BYOS — ต้อง push ขึ้นด้วย)
           - มี raw_path ที่อ่านได้ (กัน crash ถ้าไฟล์ถูกลบจาก disk แล้ว)
+
+        v9.3.5.5 — F24 push guard ก่อน upload:
+        Pre-fetch Drive raw/ listing → ถ้า Drive มีไฟล์ชื่อ "{file_id}_{filename}" อยู่แล้ว
+        (เช่น user disconnect with keep_files=False · cache rows drive_file_id=NULL · ไฟล์ยังอยู่ Drive)
+        → re-link drive_file_id แทน re-upload · กัน Drive duplication.
         """
         assert self._client is not None
+        raw_folder_id = self._folder_layout["raw"]
+
+        # v9.3.5.5 — pre-fetch Drive listing for F24 duplicate detection
+        # ถ้า fetch fail → fall-back ไม่มี guard (worst case = same as pre-v9.3.5.5)
+        try:
+            existing_drive_files = self._client.list_folder(raw_folder_id, only_files=True)
+            drive_filename_to_file: dict[str, dict[str, Any]] = {
+                f["name"]: f for f in existing_drive_files
+            }
+        except Exception as e:
+            logger.warning("BYOS push: failed to pre-fetch Drive listing (no F24 guard): %s", e)
+            drive_filename_to_file = {}
+
         result = await self.db.execute(
             select(File).where(
                 File.user_id == self.user_id,
@@ -244,8 +272,22 @@ class DriveSync:
         if not pending:
             return
 
-        raw_folder_id = self._folder_layout["raw"]
         for f in pending:
+            # v9.3.5.5 — F24 guard: skip re-upload ถ้า Drive มีไฟล์ pattern ตรงอยู่แล้ว
+            expected_drive_name = f"{f.id}_{f.filename}"
+            existing_match = drive_filename_to_file.get(expected_drive_name)
+            if existing_match:
+                f.drive_file_id = existing_match["id"]
+                f.drive_modified_time = _parse_drive_time(existing_match["modifiedTime"])
+                if f.storage_source == "local":
+                    f.storage_source = STORAGE_SOURCE_DRIVE_UPLOADED
+                stats["duplicate_push_prevented"] += 1
+                logger.info(
+                    "BYOS push: prevented duplicate · re-linked %s to existing Drive %s",
+                    f.id, existing_match["id"],
+                )
+                continue
+
             try:
                 # Guard: ข้าม files ที่ไม่มี raw_path + ไม่มี extracted_text
                 import os
@@ -350,35 +392,66 @@ class DriveSync:
             drive_id = drive_f["id"]
             cached = cache_files.get(drive_id)
             if not cached:
-                # v9.3.5.4 — Case A guard: skip re-import for orphan app-uploaded files
+                # v9.3.5.5 — Case A 3-way split (was 2-way in v9.3.5.4)
                 # Pattern: name = "{12-char-hex-id}_<filename>"
                 name_in_drive = drive_f.get("name", "")
                 local_id, _ = self._split_drive_name(name_in_drive)
-                # Check 2 conditions:
-                #   1. Name matches app-upload pattern (file_id prefix + underscore)
-                #   2. file_id is NOT in any local row (truly orphan, not just lost drive_file_id link)
                 is_app_upload_pattern = (
                     len(name_in_drive) > 13
                     and name_in_drive[12] == "_"
                     and all(c in "0123456789abcdef" for c in local_id)
                 )
-                if is_app_upload_pattern and local_id not in all_local_file_ids:
-                    # Orphan file — user deleted from PDB · cleanup Drive (best-effort)
-                    try:
-                        self._client.delete_file(drive_id)
-                        logger.info(
-                            "BYOS sync: cleaned up orphan Drive file %s (id=%s · was app-uploaded but deleted in PDB)",
-                            drive_id, local_id,
-                        )
-                    except Exception as e:
-                        logger.warning(
-                            "BYOS sync: orphan cleanup failed for %s (id=%s): %s · file remains on Drive",
-                            drive_id, local_id, e,
-                        )
-                    continue  # Skip import either way (don't bring orphan back to cache)
 
-                # CASE A genuine — new in Drive (e.g., user picked existing file via Picker)
-                # OR rare: cache lost drive_file_id link (post-disconnect keep_files=False) — re-import
+                if is_app_upload_pattern:
+                    if local_id not in all_local_file_ids:
+                        # CASE A1 — ORPHAN (user deleted from PDB · Drive copy survived)
+                        # F7 — retry budget · skip after _orphan_retry_max attempts
+                        attempts = self._orphan_retry_count.get(drive_id, 0)
+                        if attempts >= self._orphan_retry_max:
+                            stats["orphans_skipped_budget"] += 1
+                            logger.warning(
+                                "BYOS sync: orphan retry budget exhausted for %s (attempts=%d)",
+                                drive_id, attempts,
+                            )
+                            continue
+                        try:
+                            self._client.delete_file(drive_id)
+                            stats["orphans_cleaned"] += 1
+                            self._orphan_retry_count.pop(drive_id, None)
+                            logger.info(
+                                "BYOS sync: cleaned up orphan Drive file %s (id=%s)",
+                                drive_id, local_id,
+                            )
+                        except Exception as e:
+                            self._orphan_retry_count[drive_id] = attempts + 1
+                            logger.warning(
+                                "BYOS sync: orphan cleanup failed for %s (attempt %d/%d): %s",
+                                drive_id, attempts + 1, self._orphan_retry_max, e,
+                            )
+                        continue
+
+                    # CASE A2 — STALE-LINK (F3): file_id อยู่ใน cache แต่ row ไม่ join Drive
+                    # เกิดเช่น keep_files=False disconnect → drive_file_id=NULL · cache รอ relink
+                    # Push guard (F24) ปกติจัดการก่อน · ถ้ายังหลุดมาถึงนี้ → relink ตรงๆ
+                    stale_q = await self.db.execute(
+                        select(File).where(
+                            File.id == local_id,
+                            File.user_id == self.user_id,
+                        )
+                    )
+                    stale_row = stale_q.scalar_one_or_none()
+                    if stale_row:
+                        stale_row.drive_file_id = drive_id
+                        stale_row.drive_modified_time = _parse_drive_time(drive_f["modifiedTime"])
+                        stale_row.storage_source = STORAGE_SOURCE_DRIVE_UPLOADED
+                        stats["relinked"] += 1
+                        logger.info(
+                            "BYOS sync: re-linked id=%s to drive_id=%s",
+                            local_id, drive_id,
+                        )
+                    continue
+
+                # CASE A3 — GENUINE NEW (drive_picked or external app file)
                 self._import_drive_file(drive_f, stats)
             else:
                 # CASE B — drift?

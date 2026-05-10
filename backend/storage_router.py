@@ -127,6 +127,16 @@ def _is_refresh_failure(exc: Exception) -> bool:
     return "invalid_grant" in msg or "token has been expired or revoked" in msg
 
 
+# v9.3.5.5 — Drive trash guard for storage_source.
+# Why: drive_picked = user's external file ที่ import เข้ามาผ่าน Picker → ห้าม trash
+# (มันคือไฟล์ส่วนตัวของ user ที่อยู่ใน Drive ของเขาอยู่แล้ว · trash = ทำลาย user data!).
+# drive_uploaded = ไฟล์ที่เราสร้างใน Drive ของเขา (ผ่าน BYOS upload) → trash ปลอดภัย.
+# local / NULL = ไม่มี Drive copy → caller ไม่ควรเรียก delete_drive_file_if_byos อยู่แล้ว.
+def _should_trash_drive_file(storage_source: str | None) -> bool:
+    """Return True ถ้าควร trash file ใน Drive · ปกป้อง drive_picked (user's external)."""
+    return storage_source == STORAGE_SOURCE_DRIVE_UPLOADED
+
+
 async def _mark_drive_connection_errored(
     db: AsyncSession,
     connection: DriveConnection,
@@ -511,6 +521,79 @@ async def delete_drive_file_if_byos(
         logger.warning(
             "BYOS: delete_drive_file failed for user %s file %s (%s)",
             user_id, drive_file_id, e,
+        )
+        return False
+
+
+# ═══════════════════════════════════════════════════════════════
+# Per-file Drive sub-folder cleanup (v9.3.5.5)
+# Why: ลบเฉพาะ raw/ ไม่พอ — extracted/{file_id}.txt + summaries/{file_id}.md
+# ก็ต้องลบด้วย ไม่งั้น storage บวมหลังลบไฟล์
+# ═══════════════════════════════════════════════════════════════
+async def delete_extracted_text_from_drive_if_byos(
+    user_id: str,
+    db: AsyncSession,
+    file_id: str,
+) -> bool:
+    """Best-effort: trash extracted/{file_id}.txt · graceful invalid_grant.
+
+    No-op สำหรับ managed users / not configured / not connected.
+    Returns: True ถ้า trashed สำเร็จ · False ถ้า skipped/failed/already gone
+    """
+    pair = await _get_byos_user_with_connection(user_id, db)
+    if not pair:
+        return False
+    _user, conn = pair
+
+    try:
+        client = await _build_drive_client(conn)
+        extracted_id = client.ensure_folder("extracted", parent_id=conn.drive_root_folder_id)
+        filename = extracted_path_for(file_id).split("/")[-1]
+        existing = client.find_file_by_name(filename, parent_id=extracted_id)
+        if existing:
+            client.delete_file(existing["id"])
+            logger.info("BYOS: trashed extracted/%s for user %s", filename, user_id)
+            return True
+        return False  # already gone · graceful
+    except Exception as e:
+        if _is_refresh_failure(e):
+            await _mark_drive_connection_errored(db, conn, e)
+        logger.warning(
+            "BYOS: delete extracted/%s failed for user %s (%s)", file_id, user_id, e,
+        )
+        return False
+
+
+async def delete_summary_from_drive_if_byos(
+    user_id: str,
+    db: AsyncSession,
+    file_id: str,
+) -> bool:
+    """Best-effort: trash summaries/{file_id}.md · graceful invalid_grant.
+
+    No-op สำหรับ managed users / not configured / not connected.
+    Returns: True ถ้า trashed สำเร็จ · False ถ้า skipped/failed/already gone
+    """
+    pair = await _get_byos_user_with_connection(user_id, db)
+    if not pair:
+        return False
+    _user, conn = pair
+
+    try:
+        client = await _build_drive_client(conn)
+        summaries_id = await _get_summaries_folder_id(client, conn.drive_root_folder_id)
+        filename = summary_path_for(file_id).split("/")[-1]
+        existing = client.find_file_by_name(filename, parent_id=summaries_id)
+        if existing:
+            client.delete_file(existing["id"])
+            logger.info("BYOS: trashed summaries/%s for user %s", filename, user_id)
+            return True
+        return False
+    except Exception as e:
+        if _is_refresh_failure(e):
+            await _mark_drive_connection_errored(db, conn, e)
+        logger.warning(
+            "BYOS: delete summaries/%s failed for user %s (%s)", file_id, user_id, e,
         )
         return False
 

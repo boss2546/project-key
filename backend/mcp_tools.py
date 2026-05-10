@@ -1144,7 +1144,12 @@ def _tool_admin_login(admin_key: str) -> dict:
 
 
 async def _tool_delete_file(db: AsyncSession, user_id: str, file_id: str) -> dict:
-    """Delete a file and all related data."""
+    """Delete a file with comprehensive cleanup (v9.3.5.5).
+
+    MCP synchronous · ไม่มี BackgroundTasks ให้ใช้ → Drive cleanup รันใน-line
+    (ยอมรับ response ช้ากว่า HTTP DELETE · 1-180s · MCP client tolerant กว่า browser).
+    Apply same 6-step + storage_source guard เหมือน HTTP DELETE.
+    """
     if not file_id:
         raise ValueError("file_id is required")
 
@@ -1157,15 +1162,56 @@ async def _tool_delete_file(db: AsyncSession, user_id: str, file_id: str) -> dic
         return {"error": "File not found"}
 
     filename = file.filename
+    storage_source = file.storage_source
+    drive_file_id = file.drive_file_id
+    drive_cleanup = "skipped:no_drive_id"
 
-    # Delete raw file
+    # 1. Disk: best-effort
     if file.raw_path and os.path.exists(file.raw_path):
-        os.remove(file.raw_path)
+        try:
+            os.remove(file.raw_path)
+        except OSError as e:
+            logger.warning(f"mcp delete_file: remove raw_path failed: {e}")
 
+    # 2. Drive cleanup (sync ใน MCP) · with storage_source guard
+    if drive_file_id:
+        from .storage_router import (
+            _should_trash_drive_file,
+            delete_drive_file_if_byos,
+            delete_extracted_text_from_drive_if_byos,
+            delete_summary_from_drive_if_byos,
+        )
+        if _should_trash_drive_file(storage_source):
+            try:
+                await delete_drive_file_if_byos(user_id, db, drive_file_id)
+                await delete_extracted_text_from_drive_if_byos(user_id, db, file_id)
+                await delete_summary_from_drive_if_byos(user_id, db, file_id)
+                drive_cleanup = "completed"
+            except Exception as e:
+                logger.warning(f"mcp delete_file: drive cleanup failed: {e}")
+                drive_cleanup = "failed"
+        elif storage_source == "drive_picked":
+            drive_cleanup = "skipped:drive_picked"
+        else:
+            drive_cleanup = "skipped:managed"
+
+    # 3. Vector index
+    try:
+        from . import vector_search as _vs
+        _vs.remove_file(file.id, user_id=user_id)
+    except Exception as e:
+        logger.warning(f"mcp delete_file: vector remove failed: {e}")
+
+    # 4. DB cascade
     await db.delete(file)
     await db.commit()
 
-    return {"status": "deleted", "filename": filename, "file_id": file_id}
+    return {
+        "status": "deleted",
+        "filename": filename,
+        "file_id": file_id,
+        "drive_cleanup": drive_cleanup,
+    }
 
 
 async def _tool_delete_pack(db: AsyncSession, user_id: str, pack_id: str) -> dict:

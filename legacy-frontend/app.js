@@ -781,6 +781,8 @@ const I18N = {
  // Toasts / dynamic
  'toast.uploaded': 'อัปโหลดเรียบร้อย',
  'toast.deleted': 'ลบเรียบร้อย',
+ 'toast.deletedCleaningDrive': 'ลบเรียบร้อย · กำลังเคลียร์ Google Drive',
+ 'toast.deletedDrivePicked': 'ลบจากระบบแล้ว · ไฟล์ต้นฉบับใน Drive ของคุณยังอยู่',
  'toast.profileSaved': 'บันทึกโปรไฟล์เรียบร้อย',
  'toast.organized': 'จัดระเบียบเรียบร้อย',
  'toast.organizedNew': 'จัดระเบียบไฟล์ใหม่เรียบร้อย',
@@ -1079,6 +1081,8 @@ const I18N = {
  // Toasts / dynamic
  'toast.uploaded': 'Upload complete',
  'toast.deleted': 'Deleted successfully',
+ 'toast.deletedCleaningDrive': 'Deleted · cleaning Google Drive',
+ 'toast.deletedDrivePicked': 'Removed from system · original Drive file preserved',
  'toast.profileSaved': 'Profile saved',
  'toast.organized': 'Organization complete',
  'toast.organizedNew': 'New files organized',
@@ -2531,8 +2535,15 @@ window.retryExtraction = retryExtraction;
 async function deleteFile(id) {
  if (!await showConfirm(getLang() === 'th' ? 'ต้องการลบไฟล์นี้?' : 'Delete this file?')) return;
  try {
- await authFetch(`/api/files/${id}`, { method: 'DELETE' });
- showToast(t('toast.deleted'), 'success');
+ const res = await authFetch(`/api/files/${id}`, { method: 'DELETE' });
+ // v9.3.5.5 (F23) — แสดงผล Drive cleanup ให้ user เข้าใจสถานะ async cleanup
+ let toastKey = 'toast.deleted';
+ try {
+ const data = await res.json();
+ if (data && data.drive_cleanup === 'scheduled') toastKey = 'toast.deletedCleaningDrive';
+ else if (data && data.drive_cleanup === 'skipped:drive_picked') toastKey = 'toast.deletedDrivePicked';
+ } catch (_) { /* response อาจไม่ใช่ JSON · fallback default */ }
+ showToast(t(toastKey), 'success');
  closeFileDetail();
  loadFiles();
  loadStats();

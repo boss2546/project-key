@@ -736,6 +736,50 @@ async def _push_uploads_to_drive(
                 )
 
 
+# v9.3.5.5 — async Drive cleanup for deleted files
+# Why: Drive trash can timeout 60s/call · 3 calls × 60s = 180s · เกิน HTTP timeout
+# (Cloudflare/Fly ~100s) → 504 ยิง user · response เร็วขึ้น ~200ms · cleanup รัน background
+# storage_source guard: drive_picked = user's external file → ห้าม trash (F5 protection)
+async def _cleanup_drive_for_deleted_file(
+    user_id: str,
+    file_id: str,
+    drive_file_id: str,
+    storage_source: str,
+) -> None:
+    """Background task: trash Drive raw/ + extracted/ + summaries/ for a deleted File row."""
+    from .database import AsyncSessionLocal
+    from .storage_router import (
+        _should_trash_drive_file,
+        delete_drive_file_if_byos,
+        delete_extracted_text_from_drive_if_byos,
+        delete_summary_from_drive_if_byos,
+    )
+
+    if not _should_trash_drive_file(storage_source):
+        logger.info(
+            "delete_file cleanup: skipped %s · storage_source=%s",
+            file_id, storage_source,
+        )
+        return
+
+    async with AsyncSessionLocal() as bg_db:
+        # Drive raw/
+        try:
+            await delete_drive_file_if_byos(user_id, bg_db, drive_file_id)
+        except Exception as e:
+            logger.warning("_cleanup_drive raw failed for %s: %s", file_id, e)
+        # Drive extracted/
+        try:
+            await delete_extracted_text_from_drive_if_byos(user_id, bg_db, file_id)
+        except Exception as e:
+            logger.warning("_cleanup_drive extracted failed for %s: %s", file_id, e)
+        # Drive summaries/
+        try:
+            await delete_summary_from_drive_if_byos(user_id, bg_db, file_id)
+        except Exception as e:
+            logger.warning("_cleanup_drive summary failed for %s: %s", file_id, e)
+
+
 # ═══════════════════════════════════════════════════════════════
 # v9.4.0 — Upload Queue endpoints
 # ═══════════════════════════════════════════════════════════════
@@ -1157,6 +1201,7 @@ async def organize_new(current_user: User = Depends(get_current_user), db: Async
 @app.get("/api/files")
 async def list_files(
     kind: str = Query("all", regex="^(all|processed|vault)$"),
+    include_deleted_in_drive: bool = Query(False),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1166,8 +1211,14 @@ async def list_files(
         - "all" (default) — return both processed + vault
         - "processed" — only file_kind="processed" (AI pipeline files)
         - "vault" — only file_kind="vault_only" (raw storage, ext not supported)
+
+    v9.3.5.5 (F16): default ซ่อน processing_status='deleted_in_drive' (ghost rows)
+        - ไฟล์ที่ user ลบใน Drive UI โดยตรง · sync mark cache row เป็น ghost
+        - Frontend ปกติไม่ควรเห็น · admin/debug ใช้ ?include_deleted_in_drive=true
     """
     query = select(File).where(File.user_id == current_user.id)
+    if not include_deleted_in_drive:
+        query = query.where(File.processing_status != "deleted_in_drive")
     if kind == "processed":
         query = query.where(File.file_kind == "processed")
     elif kind == "vault":
@@ -2044,21 +2095,22 @@ async def update_summary(file_id: str, req: SummaryUpdateRequest, current_user: 
 
 
 @app.delete("/api/files/{file_id}")
-async def delete_file(file_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    """Delete a file and its related data — full cleanup across all storage layers.
+async def delete_file(
+    file_id: str,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete file — fast sync DB/disk + async Drive cleanup (v9.3.5.5).
 
-    v9.3.5.3 — เพิ่ม Drive + vector_search cleanup ให้ครบทุก layer (เดิมขาด 2 steps)
+    Why background_tasks (F6): Drive trash 60s × 3 sub-folders = 180s · เกิน Cloudflare/Fly
+    timeout (~100s) → 504 ยิง user. Now: API ตอบ ~200ms · cleanup รัน background.
 
-    Why: User report bug "ลบในระบบไม่ลบใน Google Drive · sync ดึงกลับ"
-    - เดิม DELETE ลบแค่ disk + DB row
-    - Drive ยังเก็บไฟล์ → sync pull (Case A: not in cache) → IMPORT BACK → "งอก"
-    - vector_search index ยัง hold file → semantic search return ghost results
-
-    Cleanup ครบทุก layer (mirror skip-duplicates pattern):
-      1. Disk: ลบ raw_path file
-      2. Drive: trash ไฟล์ (best-effort · BYOS-aware · no-op for managed users)
-      3. Vector index: remove file embeddings
-      4. DB: cascade delete File row + FileInsight + FileSummary + FileClusterMap (FK)
+    drive_cleanup field บอก client ผลของ Drive cleanup:
+      - "scheduled"            — BYOS + drive_uploaded · running in background
+      - "skipped:drive_picked" — ไฟล์ user import จาก Picker · ห้าม trash (F5)
+      - "skipped:managed"      — managed mode · ไม่มี Drive copy
+      - "skipped:no_drive_id"  — file ไม่เคยขึ้น Drive (drive_file_id NULL)
     """
     result = await db.execute(
         select(File).where(File.id == file_id, File.user_id == current_user.id)
@@ -2067,6 +2119,11 @@ async def delete_file(file_id: str, current_user: User = Depends(get_current_use
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
 
+    # Capture for background task ก่อน db.delete (ORM ออบเจกต์ detach หลัง commit)
+    file_storage_source = file.storage_source
+    file_drive_file_id = file.drive_file_id
+    file_id_for_bg = file.id
+
     # 1. Disk: best-effort ลบ raw file
     if file.raw_path and os.path.exists(file.raw_path):
         try:
@@ -2074,20 +2131,7 @@ async def delete_file(file_id: str, current_user: User = Depends(get_current_use
         except OSError as e:
             logger.warning(f"delete_file: failed to remove raw_path {file.raw_path}: {e}")
 
-    # 2. Drive: best-effort trash (BYOS-aware · no-op for managed users / not connected)
-    # v9.3.5.3 — สำคัญ! เดิมไม่มี → sync re-import file ที่ลบไปแล้ว
-    if file.drive_file_id:
-        try:
-            from .storage_router import delete_drive_file_if_byos
-            await delete_drive_file_if_byos(
-                current_user.id, db, file.drive_file_id,
-            )
-        except Exception as e:
-            logger.warning(
-                f"delete_file: BYOS Drive delete failed for {file_id}: {e}"
-            )
-
-    # 3. Vector index: best-effort remove (no-op ถ้าไฟล์ยังไม่ organize)
+    # 2. Vector index: best-effort remove (sync · เร็ว · in-process)
     try:
         from . import vector_search as _vs
         _vs.remove_file(file.id, user_id=current_user.id)
@@ -2096,10 +2140,33 @@ async def delete_file(file_id: str, current_user: User = Depends(get_current_use
             f"delete_file: vector_search remove failed for {file_id}: {e}"
         )
 
-    # 4. DB: cascade delete (FK ลบ FileInsight + FileSummary + FileClusterMap อัตโนมัติ)
+    # 3. DB cascade (FK ลบ FileInsight + FileSummary + FileClusterMap อัตโนมัติ)
     await db.delete(file)
     await db.commit()
-    return {"status": "ok"}
+
+    # 4. Drive cleanup (async background · ไม่ block response)
+    from .storage_router import _should_trash_drive_file
+    drive_cleanup = "skipped:no_drive_id"
+    if file_drive_file_id:
+        if _should_trash_drive_file(file_storage_source):
+            background_tasks.add_task(
+                _cleanup_drive_for_deleted_file,
+                current_user.id,
+                file_id_for_bg,
+                file_drive_file_id,
+                file_storage_source,
+            )
+            drive_cleanup = "scheduled"
+        elif file_storage_source == "drive_picked":
+            drive_cleanup = "skipped:drive_picked"
+            logger.info(
+                "delete_file: drive_picked file %s unlinked · external preserved",
+                file_id,
+            )
+        else:
+            drive_cleanup = "skipped:managed"
+
+    return {"status": "ok", "drive_cleanup": drive_cleanup}
 
 
 @app.post("/api/files/{file_id}/promote")
@@ -3092,8 +3159,30 @@ async def api_get_plan_limits(current_user: User = Depends(get_current_user)):
 
 @app.delete("/api/reset")
 async def reset_all(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    """Delete all data for the user (for testing)."""
+    """Comprehensive reset — synchronous cleanup with progress stats (v9.3.5.5).
+
+    Why synchronous (vs background_tasks): user คาดหวังว่า "Reset เสร็จ = ทุกอย่างเคลียร์
+    + stats accurate". Slowness acceptable for explicit destructive action.
+
+    storage_source guard ปกป้อง drive_picked (user's external) — ไม่ trash.
+    """
     from sqlalchemy import delete as sql_delete
+    from .storage_router import (
+        _should_trash_drive_file,
+        delete_drive_file_if_byos,
+        delete_extracted_text_from_drive_if_byos,
+        delete_summary_from_drive_if_byos,
+    )
+
+    stats = {
+        "files_deleted": 0,
+        "drive_files_trashed": 0,
+        "drive_extracted_trashed": 0,
+        "drive_summaries_trashed": 0,
+        "drive_cleanup_skipped_picked": 0,  # F5 guard hits
+        "vector_index_cleaned": 0,
+        "errors": 0,
+    }
 
     # Clear graph data first (FK dependencies)
     await db.execute(sql_delete(SuggestedRelation).where(SuggestedRelation.user_id == current_user.id))
@@ -3104,9 +3193,50 @@ async def reset_all(current_user: User = Depends(get_current_user), db: AsyncSes
 
     files_result = await db.execute(select(File).where(File.user_id == current_user.id))
     for f in files_result.scalars().all():
+        # 1. Disk
         if f.raw_path and os.path.exists(f.raw_path):
-            os.remove(f.raw_path)
+            try:
+                os.remove(f.raw_path)
+            except OSError as e:
+                logger.warning(f"reset_all: remove raw_path {f.raw_path} failed: {e}")
+
+        # 2. Drive cleanup (raw + extracted + summary) · with storage_source guard
+        if f.drive_file_id and _should_trash_drive_file(f.storage_source):
+            try:
+                ok = await delete_drive_file_if_byos(current_user.id, db, f.drive_file_id)
+                if ok:
+                    stats["drive_files_trashed"] += 1
+            except Exception as e:
+                logger.warning(f"reset_all: drive raw delete failed for {f.id}: {e}")
+                stats["errors"] += 1
+            try:
+                ok = await delete_extracted_text_from_drive_if_byos(current_user.id, db, f.id)
+                if ok:
+                    stats["drive_extracted_trashed"] += 1
+            except Exception as e:
+                logger.warning(f"reset_all: drive extracted delete failed for {f.id}: {e}")
+                stats["errors"] += 1
+            try:
+                ok = await delete_summary_from_drive_if_byos(current_user.id, db, f.id)
+                if ok:
+                    stats["drive_summaries_trashed"] += 1
+            except Exception as e:
+                logger.warning(f"reset_all: drive summary delete failed for {f.id}: {e}")
+                stats["errors"] += 1
+        elif f.storage_source == "drive_picked":
+            stats["drive_cleanup_skipped_picked"] += 1
+
+        # 3. Vector index
+        try:
+            from . import vector_search as _vs
+            _vs.remove_file(f.id, user_id=current_user.id)
+            stats["vector_index_cleaned"] += 1
+        except Exception as e:
+            logger.warning(f"reset_all: vector remove failed for {f.id}: {e}")
+
+        # 4. DB cascade
         await db.delete(f)
+        stats["files_deleted"] += 1
 
     clusters_result = await db.execute(select(Cluster).where(Cluster.user_id == current_user.id))
     for c in clusters_result.scalars().all():
@@ -3115,11 +3245,22 @@ async def reset_all(current_user: User = Depends(get_current_user), db: AsyncSes
     packs_result = await db.execute(select(ContextPack).where(ContextPack.user_id == current_user.id))
     for p in packs_result.scalars().all():
         if p.md_path and os.path.exists(p.md_path):
-            os.remove(p.md_path)
+            try:
+                os.remove(p.md_path)
+            except OSError as e:
+                logger.warning(f"reset_all: remove pack md failed: {e}")
         await db.delete(p)
 
     await db.commit()
-    return {"status": "ok", "message": "All data cleared"}
+
+    logger.info(
+        "reset_all: user=%s files=%d drive_raw=%d drive_extracted=%d drive_summaries=%d picked_skip=%d errors=%d",
+        (current_user.id[:8] + ".."), stats["files_deleted"], stats["drive_files_trashed"],
+        stats["drive_extracted_trashed"], stats["drive_summaries_trashed"],
+        stats["drive_cleanup_skipped_picked"], stats["errors"],
+    )
+
+    return {"status": "ok", "message": "All data cleared", "stats": stats}
 
 
 # ═══════════════════════════════════════════

@@ -191,6 +191,34 @@
 
 **Status:** OPEN — pending founder action
 
+## STORAGE-008: Comprehensive Delete + Sync cleanup contract (v9.4.1, 2026-05-10)
+**Why:** หลัง v9.3.5.4 ship ยังเจอ 10 edge cases ใน delete + sync flow (3 audit rounds):
+- DELETE ลบ raw/ แต่ sub-folders (extracted/ + summaries/) ไม่ลบ → Drive storage บวม
+- MCP `_tool_delete_file` + `/api/reset` ขาด Drive cleanup → ไฟล์ "งอก" หลัง sync
+- DELETE blocking 60s × 3 calls = 180s → 504 ยิง user
+- `keep_files=False` reconnect → push re-upload → Drive duplication (silent data dup)
+- `drive_picked` files (user's external) อาจโดน trash โดยมิได้ตั้งใจ
+- Sync orphan-cleanup ไม่มี retry budget → spam Drive API
+- Frontend ไม่รู้ว่า Drive cleanup สำเร็จหรือไม่
+
+**Decision:** บังคับ contract ใหม่:
+1. **storage_source guard** — `_should_trash_drive_file(s) = (s == 'drive_uploaded')` ทุก code path ที่ trash Drive file
+2. **3 sub-folders cleanup** — raw + extracted + summaries (helpers ใน storage_router.py)
+3. **DELETE async pattern** — DB/disk/vector sync · Drive trash ใน BackgroundTasks · response < 500ms
+4. **Reset sync pattern** — synchronous loop + stats response (ใช้ slowness สำหรับ accuracy)
+5. **F24 push guard** — pre-fetch Drive listing before push · re-link ถ้าเจอ existing file pattern
+6. **Retry budget** — orphan cleanup max 3 attempts per session (in-memory dict)
+7. **deleted_in_drive filter** — `/api/files` default-hidden ghost rows
+8. **drive_cleanup field** — DELETE response บอก client `scheduled` / `skipped:drive_picked` / `skipped:managed` / `skipped:no_drive_id`
+
+**Implication:**
+- ทุก code path ที่ลบ File row ต้องเรียก `_should_trash_drive_file` guard ก่อน trash Drive
+- Sync stats เพิ่ม 4 fields: `relinked`, `orphans_cleaned`, `orphans_skipped_budget`, `duplicate_push_prevented`
+- MCP tool response เพิ่ม `drive_cleanup` field
+- HTTP DELETE response เพิ่ม `drive_cleanup` field
+
+**See also:** [plan v9.3.5.5/v9.4.1](../plans/v9.3.5.5-comprehensive-delete-cleanup.md) (10 findings · 8 steps)
+
 ## DUP-004: Duplicate detection DISABLED temporarily (v9.3.2, 2026-05-08)
 **Why:** `compute_content_hash()` crashes กับ `UnicodeEncodeError: surrogates not allowed` สำหรับ PDF text ที่มี lone surrogate code points (PDF font encoding edge case). Manifests เป็น HTTP 500 บน `POST /api/files/{id}/reprocess` ตามที่เห็นใน Fly.io log 2026-05-08 11:31:36 position 12562-12563.
 
