@@ -310,8 +310,16 @@ class DriveSync:
 
         Cases:
             A. Drive มี file ที่ cache ไม่มี → IMPORT (insert File row)
+               EXCEPT: app-uploaded format `{file_id}_*` not in cache → user deleted (skip + cleanup)
             B. Drive มี + cache มี + drive_modifiedTime > cache → UPDATE (drift, Drive wins)
             C. Cache มี drive_file_id แต่ Drive ลบ trashed → SOFT-DELETE cache
+
+        v9.3.5.4 — Case A guard: skip re-import when user explicitly deleted file
+        Why: User reported bug — DELETE /api/files/{id} → Drive delete timed out (60s)
+        → file ยังอยู่ Drive → sync Case A IMPORT BACK → file "งอก"
+        Fix: ถ้า Drive file ชื่อตรง pattern `{file_id}_*` แต่ file_id ไม่อยู่ใน cache
+             → user deleted from PDB · Drive delete may have failed · don't re-import
+        Trade-off: keep_files=False disconnect → reconnect won't auto-restore (rare admin flow)
         """
         assert self._client is not None
         raw_folder_id = self._folder_layout["raw"]
@@ -330,12 +338,47 @@ class DriveSync:
             if f.drive_file_id  # type narrow
         }
 
+        # v9.3.5.4 — also build index of all File.id (regardless of drive_file_id)
+        # to detect orphan Drive files (app-uploaded but cache row deleted)
+        result_all = await self.db.execute(
+            select(File.id).where(File.user_id == self.user_id)
+        )
+        all_local_file_ids = {row[0] for row in result_all}
+
         # Cases A + B
         for drive_f in drive_files:
             drive_id = drive_f["id"]
             cached = cache_files.get(drive_id)
             if not cached:
-                # CASE A — new in Drive (e.g., user picked existing file via Picker)
+                # v9.3.5.4 — Case A guard: skip re-import for orphan app-uploaded files
+                # Pattern: name = "{12-char-hex-id}_<filename>"
+                name_in_drive = drive_f.get("name", "")
+                local_id, _ = self._split_drive_name(name_in_drive)
+                # Check 2 conditions:
+                #   1. Name matches app-upload pattern (file_id prefix + underscore)
+                #   2. file_id is NOT in any local row (truly orphan, not just lost drive_file_id link)
+                is_app_upload_pattern = (
+                    len(name_in_drive) > 13
+                    and name_in_drive[12] == "_"
+                    and all(c in "0123456789abcdef" for c in local_id)
+                )
+                if is_app_upload_pattern and local_id not in all_local_file_ids:
+                    # Orphan file — user deleted from PDB · cleanup Drive (best-effort)
+                    try:
+                        self._client.delete_file(drive_id)
+                        logger.info(
+                            "BYOS sync: cleaned up orphan Drive file %s (id=%s · was app-uploaded but deleted in PDB)",
+                            drive_id, local_id,
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            "BYOS sync: orphan cleanup failed for %s (id=%s): %s · file remains on Drive",
+                            drive_id, local_id, e,
+                        )
+                    continue  # Skip import either way (don't bring orphan back to cache)
+
+                # CASE A genuine — new in Drive (e.g., user picked existing file via Picker)
+                # OR rare: cache lost drive_file_id link (post-disconnect keep_files=False) — re-import
                 self._import_drive_file(drive_f, stats)
             else:
                 # CASE B — drift?
