@@ -3472,7 +3472,11 @@ async def api_drive_sync(
 
     from .drive_sync import sync_user_drive
     stats = await sync_user_drive(user.id, db)
-    return {"status": "ok", "stats": stats}
+    # v9.3.5 — แยก status ระหว่าง clean sync vs partial failure
+    # frontend ใช้ stats.errors > 0 เพื่อแสดง toast warning อยู่แล้ว
+    # status field ตอนนี้ consistent: "ok" = errors=0, "completed_with_errors" = errors>0
+    sync_status = "completed_with_errors" if stats.get("errors", 0) > 0 else "ok"
+    return {"status": sync_status, "stats": stats}
 
 
 # Billing redirects → land on /app where the success/cancelled toast is shown.
