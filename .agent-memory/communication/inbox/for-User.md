@@ -5,6 +5,110 @@
 
 ---
 
+## 🔴 [REVIEW-V935-BYOS] ✅ APPROVE — v9.3.5 BYOS Reconnect UX
+
+**From:** ฟ้า (Fah)
+**Date:** 2026-05-10
+**Plan:** [plans/v9.3.5-byos-invalid-grant-coverage.md](../../plans/v9.3.5-byos-invalid-grant-coverage.md) (revised v3)
+**Code by:** เขียว · 7 commits `c99616f` → `0d93181`
+**Verdict:** ✅ **APPROVE — พร้อม merge + deploy พร้อม v9.3.2/3/4 ในก้อนเดียว**
+
+### TL;DR
+v9.3.5 ปิด gap ของ v9.3.0 ที่ครอบ invalid_grant graceful pattern แค่ 1 ใน 9 push helpers + เพิ่ม UX layer ที่ user รู้ทันทีเมื่อ token revoked + 1-click reconnect → auto-sync ไฟล์ค้าง.
+
+**Test results: 42/42 regression PASS + 4/4 invalid_grant unit tests + UI banner verified visually.**
+
+### F1/F2 — Code coverage + structure (PASS)
+- `_is_refresh_failure` usage count = **10** (1 def + 9 helpers + ที่ทำใน v9.3.0 มี 1) ✅ ครบ
+- `_mark_drive_connection_errored` usage count = **10** ✅ ครบ
+- `drive_sync.run_full_sync` — load_connection อยู่ใน try-block + fallback re-fetch ครอบ self._connection=None edge case ✅
+- Pattern consistency ทั้ง 9 helpers: `if _is_refresh_failure(e): await _mark_drive_connection_errored(db, conn, e)` ก่อน log ก่อน return ✅
+
+### F3 — Regression smoke (42/42 PASS)
+```
+scripts/byos_router_smoke.py        16/16 ✅
+scripts/byos_foundation_smoke.py    26/26 ✅
+```
+
+### F4 — Direct invalid_grant unit test (4/4 PASS)
+- `_is_refresh_failure(RefreshError)` = True ✅
+- `_is_refresh_failure(msg "invalid_grant")` = True ✅
+- `_is_refresh_failure(quota error)` = False (no false-positive) ✅
+- `_is_refresh_failure(timeout)` = False ✅
+- Mock RefreshError ใน push_raw_file → `last_sync_status='error'` + `last_sync_error="invalid_grant: ..."` ✅
+
+### F5 — UI banner manual test (Playwright on localhost · PASS)
+**Setup:** force `last_sync_status='error'` ใน DB · navigate /app
+
+**Verified visually** (screenshot: `v9_3_5_banner_visible.png`):
+- ✅ Banner เด้ง warning yellow ที่ top of `<main>`
+- ✅ Title: "Google Drive ของคุณหมดอายุการเชื่อมต่อ"
+- ✅ Detail text translated user-friendly: "การเชื่อมต่อหมดอายุ — ไฟล์ใหม่ยังไม่ได้ขึ้น Drive · กดเพื่อเชื่อมต่อใหม่"
+- ✅ Buttons: [เชื่อมต่อใหม่] [ภายหลัง]
+- ✅ Sidebar version label "v9.3.5" (catch-up จาก ?v=9.3.1 drift)
+- ✅ Sticky position · ไม่ block file list ใต้
+
+**Dismiss flow tested:**
+- ✅ คลิก [ภายหลัง] → banner หาย
+- ✅ refreshDriveStatus() → banner ยังหาย (session-only dismiss ทำงานถูก · ไม่กลับมาหลอกเอง)
+
+### F6 — Code review checklist (PASS · 7 หมวด)
+1. **Plan compliance:** 7 commits ตรง 6 steps ของ plan ✅
+2. **No debug residue:** `grep print|console.log` ใน diff = empty ✅
+3. **No hardcoded secrets:** `grep secret/password/api_key` = empty ✅
+4. **Type hints:** ไม่มี new function signature (แค่ extend except blocks + add JS) — N/A
+5. **CSS token-only:** ใช้ `var(--space-*)`, `var(--warning)`, `var(--z-sticky)` · `rgba(245,158,11,0.08)` literal เป็น existing pattern ใน styles.css (`.upload-sensitive-warning`, `.mcp-token-warning`) — consistent · ไม่ violate UI Foundation §1 spirit ✅
+6. **HTML a11y:** `role="alert"` + `aria-live="polite"` + `aria-hidden="true"` ที่ icon + `aria-label` ที่ icon-only button ✅
+7. **Error handling:** ทุก helper return False/None on fail · ไม่ raise · log warning ก่อน return ✅
+
+### Commit summary (7 commits, 595 insertions / 43 deletions)
+```
+c99616f chore(memory): add v9.3.5 + v9.4.0 plans + sync state [pre-build]
+d50090e fix(storage_router): extend invalid_grant graceful to 8 helpers + delete
+a9b2ab9 fix(drive_sync): wrap load_connection in try-block
+84c6ffd feat(api): /api/drive/sync status field — completed_with_errors
+9f96b0a chore: bump APP_VERSION 9.3.4 → 9.3.5 + cache-bust catch-up
+e17e3ce feat(frontend): BYOS reconnect UX layer — banner + auto-sync + polling
+d992513 chore(memory): STORAGE-006 + STORAGE-007 + sync-error contract
+0d93181 chore(inbox): handoff MSG-V935-BYOS to ฟ้า
+```
+
+### Issues Found
+🔴 Critical: **0**
+🟠 High: **0**
+🟡 Medium: **0**
+🟢 Low: **0**
+
+ไม่เจอ issue ใดๆ — code clean, pattern consistent, tests PASS, UI works as designed.
+
+### 🔧 Pre-deploy actions (user)
+
+1. **ตัดสินใจ `fly.toml`** (working tree ยัง dirty 4096/4 cpus จาก v10 era):
+   - **Option A** revert ลง 2048/2 (v9.3.4 baseline · ประหยัด ~$10/เดือน)
+   - **Option B** keep 4096/4 (เผื่อ load · มี headroom สำหรับ future)
+   - **คำแนะนำ ฟ้า:** Option A — v9.3.5 ไม่ต้องการ memory เพิ่ม
+2. **Commit fly.toml decision** เป็น 1 commit แยก (ก่อน push)
+3. **`git push origin master`** + **`flyctl deploy --app personaldatabank`**
+4. **Production verify:**
+   - `flyctl releases -a personaldatabank | head -1` → version หลัง deploy
+   - เปิด https://personaldatabank.fly.dev/legacy/styles.css → ดู `?v=9.3.5` ใน Network tab
+   - Login → Profile → Storage Mode → ตรวจ "เชื่อมต่อแล้ว" (token ตอนนี้ยังสด)
+5. **STORAGE-007 long-term action:** Submit Google OAuth verification (founder ทำเอง · ~30 นาที setup + 2-4 weeks Google review · เสร็จแล้ว flip `GOOGLE_OAUTH_MODE=production` → token ไม่หมด 7 วันอีก)
+
+### Combined deploy contents (จาก v9.3.1 prod → v9.3.5)
+- v9.3.2: dedup disable (DUP-004)
+- v9.3.3: surrogate strip (extract boundary)
+- v9.3.4: surrogate strip (LLM + AI ingest output)
+- **v9.3.5: BYOS reconnect UX** (this review)
+
+### Pipeline state
+- **Before:** built_pending_review
+- **After:** review_passed ✅ (updated)
+
+— ฟ้า (Fah)
+
+---
+
 ## 🔴 [REVIEW-V934-LLM-BOUNDARY] ✅ APPROVE — v9.3.4 LLM + AI ingest sanitize
 
 **From:** ฟ้า (Fah) [3-in-1]

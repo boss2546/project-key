@@ -5,20 +5,37 @@
 
 ---
 
-## 🎯 Current State: `built_pending_review` ✅ v9.3.5 BYOS Reconnect UX (2026-05-10)
+## 🎯 Current State: `review_passed` ✅ v9.3.5 BYOS Reconnect UX (2026-05-10)
 
-**Master HEAD:** v9.3.5 build commits (เขียว done, รอฟ้า review)
+**Master HEAD:** v9.3.5 build (7 commits c99616f → 0d93181) + ฟ้า review APPROVE
 **APP_VERSION:** 9.3.5
-**Mode:** Sequential (แดง→เขียว→ฟ้า) — เขียวเสร็จ · ส่งต่อ ฟ้า
+**Production:** 🔴 still v9.3.1 — รอ user `flyctl deploy` (combined v9.3.2/3/4/5 deploy)
+**Mode:** Sequential (แดง→เขียว→ฟ้า) — pipeline complete
+
+### v9.3.5 review verdict (ฟ้า)
+- ✅ **APPROVE** — 0 critical / 0 high / 0 medium / 0 low issues
+- Test results: **42/42 regression PASS** (byos_router 16 + byos_foundation 26)
+- **4/4 invalid_grant unit tests PASS** (heuristic + mark error verified)
+- **UI banner visually verified** via Playwright on localhost (screenshot proof)
+- Code checklist: plan compliance + no debug + no secrets + a11y + token-only — all PASS
+- Review report: [inbox/for-User.md REVIEW-V935-BYOS](../communication/inbox/for-User.md)
 
 ### v9.3.5 build summary
 - Backend: 9 helpers patched (storage_router) + drive_sync wrap + endpoint status field
 - Frontend: banner + auto-sync after reconnect + visibility polling + reword testing notice + upload-warning toast
 - Cache-bust catch-up: `?v=9.3.1 → ?v=9.3.5` (drift จาก v9.3.2/3/4 ที่ไม่เคย bump)
-- Self-test: APP_VERSION + 13 imports + py_compile + JS syntax + HTML parse — all PASS
 - Plan ref: [plans/v9.3.5-byos-invalid-grant-coverage.md](../plans/v9.3.5-byos-invalid-grant-coverage.md) (v3 — adjusted to actual code)
 
+### Pending user action
+1. 🔴 **Decide fly.toml** — revert ลง 2048/2 (recommend) หรือ keep 4096/4
+2. 🚀 **Deploy:** `git push origin master` + `flyctl deploy --app personaldatabank`
+3. 🟡 **STORAGE-007 long-term:** Submit Google OAuth verification (founder external work)
+
 **v9.4.0 status:** `plan_pending_approval` — DEFER (user สั่งทำแค่ v9.3.5 ก่อน)
+**v9.4.0 plan revised 2026-05-10:** [plans/upload-queue-v9.4.0.md](../plans/upload-queue-v9.4.0.md) ⭐ NEW (detailed proactive edition · supersedes upload-queue-progress-v9.4.0.md)
+- เพิ่ม: Truthfulness Contract (TC-1..6) + Multi-tenant fairness (round-robin) + Per-plan tier queue caps + Observability (/healthz/queue) + ADRs (7 decisions) + State Machine + FMEA (25 modes) + Performance Budget + Rollback Plan (4-tier) + 75 test cases
+- Effort revised: เขียว ~22-24 ชม. + ฟ้า ~7-8 ชม. = ~30 ชม.
+- Open Questions revised: Q1-Q7 (ดูใน plan file)
 
 ### Plan A — v9.3.5 BYOS invalid_grant graceful coverage 🩹 [BUILDING]
 - **Plan file:** [plans/v9.3.5-byos-invalid-grant-coverage.md](../plans/v9.3.5-byos-invalid-grant-coverage.md)
