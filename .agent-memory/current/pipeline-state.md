@@ -46,7 +46,30 @@
 2. 🚀 **Deploy:** `git push origin master` + `flyctl deploy --app personaldatabank`
 3. 🟡 **STORAGE-007 long-term:** Submit Google OAuth verification (founder external work)
 
-**v9.4.0 status:** `plan_pending_approval` — DEFER (user สั่งทำแค่ v9.3.5 ก่อน)
+**v9.4.0 status:** `building` 🟡 — เขียว 6/10 steps done · paused 2026-05-10 (user break)
+
+### v9.4.0 progress (เขียว 3-in-1 mode)
+
+**✅ DONE (6 steps · 5 commits):**
+1. Step 1 — DB schema +7 cols + WAL + migration · `aa26ed2`
+2. Step 2 — backend/upload_worker.py (~440 lines) · `89407cc`
+3. Step 3-4 — progress_callback in extraction.py + ai_ingest.py · `e6e13c2`
+4. Step 5a — plan_limits.py +upload_queue_cap (Free 10/Starter 50/Admin 200) · in 8f08b3d
+5. Step 5b-e — main.py: /api/upload save+queue + 4 endpoints + reprocess/promote refactor + _serialize_file +7 fields · `8f08b3d`
+6. Step 6a-b — extend t(key,vars) + 25×2 i18n keys · `438d022`
+
+**🟡 IN PROGRESS (resume here):**
+- Step 6c — refactor `uploadFiles()` to use `UploadTray.notifyEnqueued()`
+- Step 6d — add `UploadTray` namespace (~300 lines) ใน app.js
+- Step 7a — CSS `.upload-tray` + `.meter.is-indeterminate` ใน styles.css
+- Step 7b — HTML `?v=9.4.0` cache-bust + version label + APP_VERSION 9.3.5→9.4.0
+- Final — server start + manual UI test + handoff to ฟ้า
+
+**Resume context:**
+- Plan: [plans/upload-queue-v9.4.0.md](../plans/upload-queue-v9.4.0.md) §13.7 (Step 7 UploadTray full code)
+- Current branch: master · 5 commits ahead of origin
+- Next file to edit: `legacy-frontend/app.js` line ~1521 (uploadFiles function)
+- All backend tested + working (init_db verified, 7/7 endpoints registered)
 **v9.4.0 plan revised 2026-05-10 (v2 post-audit):** [plans/upload-queue-v9.4.0.md](../plans/upload-queue-v9.4.0.md) ⭐ Detailed Proactive Edition + เขียว field-audit fixes
 - v1 → v2: เขียวอ่านโค้ดจริงเทียบ plan แล้วเจอ 11 mismatches (3 BLOCKER + 3 MEDIUM + 5 LOW) → แดง 3-in-1 mode revise
 - Fixed: M-1 i18n pattern (I18N.th/.en single global · ไม่ใช่ separate vars) · M-3 WAL mode (added explicit code) · M-4 reprocess+promote refactor (เข้า scope · "ไม่ค้าง" 100%) · M-2 func import · M-9 t(key,vars) extension · M-10 safer SQL via SQLAlchemy ORM
