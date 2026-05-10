@@ -1,8 +1,69 @@
 # 📅 Last Session Summary
 
-**Date:** 2026-05-08 (current session)
+**Date:** 2026-05-10
+**Agent:** แดง (Daeng) — นักวางแผน (Sequential mode)
+**Pipeline state:** `plan_pending_approval` 🔴
+**Plan:** [plans/upload-queue-progress-v9.4.0.md](../plans/upload-queue-progress-v9.4.0.md)
+
+## 🎯 v9.4.0 Plan Drafted (2026-05-10)
+
+**Trigger:** User สนทนาเรื่อง root cause ของ upload pipeline ปัจจุบัน + ขอให้วางแผนระบบคิว + progress visibility
+
+**สิ่งที่ผมทำ:**
+1. อ่าน 00-START-HERE + inbox/for-แดง + pipeline-state + last-session
+2. อ่าน contracts (conventions / ui-foundation / data-models) ทั้งครบ
+3. อ่านโค้ด upload pipeline ปัจจุบัน:
+   - backend/main.py /api/upload (line 480-629)
+   - backend/extraction.py (extract_text + classify_extraction_status)
+   - backend/ai_ingest.py (ingest_via_ai for audio/video)
+   - backend/database.py (File model + migration patterns v7.5.0/v9.1.0)
+   - legacy-frontend/app.js uploadFiles (line 1439-1613)
+   - legacy-frontend/styles.css loading-overlay section
+4. เขียน plan ละเอียด ที่ [plans/upload-queue-progress-v9.4.0.md](../plans/upload-queue-progress-v9.4.0.md):
+   - Goal + Context (root cause + difference from v10.x)
+   - 11 files to create/modify (5 backend modify + 1 create + 3 frontend + 3 test)
+   - 4 API endpoints (full request/response/errors)
+   - 6 DB columns + 2 indexes (idempotent migration)
+   - 8 implementation steps (DB → worker → extract callback → ai_ingest callback → main.py → frontend → CSS → version)
+   - 57 test cases (30 smoke + 12 Playwright + 15 pytest)
+   - 6 risks + 4 open questions
+   - 10 gotchas + pattern reuse for เขียว
+5. Update pipeline-state + active-tasks + this file
+
+**Key plan decisions (defaults — รอ user confirm):**
+- Worker concurrency: 1 (sequential, ปลอดภัย)
+- Tray location: bottom-right (guide-fab hidden แล้ว — confirmed safe)
+- Auto-retry: 0 (manual retry เท่านั้น — transparency over auto-magic)
+- Rollout: ทันที (no feature flag — migration backward compat สูง)
+
+**ต่างจาก v10.x ตรงไหน:**
+- ✅ เก็บ extraction stack v9.3.4 เดิมทั้งหมด (PyPDF2 + Tesseract + ai_ingest) — ไม่แตะ
+- ✅ ใช้ DB เป็น queue (ไม่ใช้ Redis/Celery)
+- ✅ In-process worker 1 ตัว (ไม่ใช่ worker pool)
+- ✅ Scope แค่ upload (organize queue ไว้รอบหน้า)
+
+**Self-test:** N/A (แดง = read-only)
+
+## 📦 Output
+
+- [plans/upload-queue-progress-v9.4.0.md](../plans/upload-queue-progress-v9.4.0.md) (~700 บรรทัด, structure ตาม plans/README.md template)
+- pipeline-state.md → state `plan_pending_approval` (v9.4.0)
+- active-tasks.md → updated current pipeline
+- last-session.md → this entry
+
+## 🔄 Pipeline Next
+
+- 🔴 **User**: review plan + answer Q1-Q4 (หรือยอมรับ default ทั้งหมด) + approve
+- 🟢 **เขียว**: รอ approve → Step 1 (DB schema migration)
+- 🔵 **ฟ้า**: รอเขียวเสร็จ → run 57 cases + UI Foundation Contract §6 check
+
+---
+
+## 📜 Previous Session: 2026-05-08 (v9.3.4 surrogate boundary review_passed)
+
+**Date:** 2026-05-08
 **Agent:** แดง→เขียว→ฟ้า (3-in-1 single-agent mode)
-**Pipeline state:** `plan_pending_approval` → `built_pending_review` (in progress)
+**Pipeline state:** `review_passed` (v9.3.4 — รอ user deploy)
 **Authorization:** User authorize 3-in-1 + "ดำเนินการได้เลย" + "ตัดสินใจแทน + ทบทวนดีๆ"
 
 ## 🎯 v9.3.0 Stability Patch (2026-05-08, in progress)

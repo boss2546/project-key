@@ -5,7 +5,69 @@
 
 ---
 
-## 🎯 Current State: `review_passed` ✅ (v9.3.4 LLM/AI BOUNDARY — 2026-05-08)
+## 🎯 Current State: `plan_approved` ✅ v9.3.5 building (2026-05-10)
+
+**Master HEAD:** `c0ffdc0` v9.3.4 (review_passed, รอ deploy)
+**Active build:** v9.3.5 BYOS Reconnect UX — เขียว started
+**Mode:** Sequential (แดง→เขียว→ฟ้า) · user approved + authorized plan revise per actual code
+**Target APP_VERSION:** 9.3.5
+
+**v9.4.0 status:** `plan_pending_approval` — DEFER (user สั่งทำแค่ v9.3.5 ก่อน)
+
+### Plan A — v9.3.5 BYOS invalid_grant graceful coverage 🩹 [BUILDING]
+- **Plan file:** [plans/v9.3.5-byos-invalid-grant-coverage.md](../plans/v9.3.5-byos-invalid-grant-coverage.md)
+- **Effort:** ~2-3 ชม. (เขียว) + ~1.5 ชม. (ฟ้า) = ~4 ชม. รวม
+- **Risk:** 🟢 LOW (code-only · ไม่มี migration · pattern reuse จาก v9.3.0)
+- **Why urgent:** Live test 2026-05-10 พบว่า bossok2546 user เจอ BYOS uploads silent-fail · UI หลอก "เชื่อมต่อแล้ว" · 8 files ติด local
+- **Scope:** Patch 8 helpers ใน storage_router.py (extend v9.3.0 pattern) + wrap drive_sync.load_connection
+
+### Plan B — v9.4.0 Upload Queue + Visible Progress 🚀 [FEATURE]
+- **Plan file:** [plans/upload-queue-progress-v9.4.0.md](../plans/upload-queue-progress-v9.4.0.md)
+- **Effort:** ~18.5 ชม. (เขียว) + ~6 ชม. (ฟ้า) = ~24.5 ชม. รวม (~3 วัน)
+- **Risk:** 🟡 MEDIUM (schema migration + worker module + frontend tray)
+- **Scope:** แยก upload เป็น save+queue + UI progress tray + worker recovery
+
+**คำแนะนำ:** Plan A ship ก่อน (urgent bug + low risk + ~4 ชม.) → Plan B ตามมา (feature + larger scope)
+**ทั้งสอง plans ไม่ conflict กัน** — Plan A patch except blocks ของ push helpers, Plan B restructure upload flow. Apply ได้แยกกันหรือต่อกัน.
+
+### v9.4.0 Goal (1 paragraph)
+แยก upload (เร็ว ≤ 200ms) ออกจาก extract (ช้า — OCR/Gemini) เป็น **DB-backed queue + in-process async worker** + **persistent UI tray** ที่ user เห็นทุกขั้นสด ไม่ค้าง + recoverable หลัง server restart + เก็บ extraction stack v9.3.4 เดิมทั้งหมด
+
+### v9.4.0 Scope (ขอบเขต)
+- ✅ Upload phase only — organize/AI queue เก็บไว้รอบหน้า
+- ✅ DB schema +6 columns (idempotent ADD-only migration)
+- ✅ 4 API endpoints: /api/upload (changed shape) + /api/upload-status (new) + /api/upload/{id}/retry (new) + /api/upload/{id}/dismiss-error (new)
+- ✅ 1 backend module ใหม่: `backend/upload_worker.py`
+- ✅ Frontend Upload Tray (vanilla, ใช้ atom เดิม + token foundation)
+- ✅ Backward compat: existing files / organize-new / Drive push ไม่กระทบ
+- ❌ ไม่แตะ extraction.py extract logic (เพิ่มแค่ progress_callback parameter)
+- ❌ ไม่ใช้ Redis/Celery/WebSocket
+- ❌ ไม่สร้าง atom variant ใหม่
+
+### Files
+- 5 backend modify + 1 backend create
+- 3 frontend modify
+- 3 test create (smoke 30 + Playwright 12 + pytest 15 = 57 cases)
+- 5 memory updates
+
+### Effort
+- เขียว: ~18.5 hrs (~2.5 วัน)
+- ฟ้า: ~6 hrs
+
+### Open Questions ที่รอ user ตัดสินใจ
+1. Worker concurrency: 1 (default, sequential) หรือ 2?
+2. Tray location: bottom-right (default) — confirmed safe (guide-fab hidden แล้ว)
+3. Auto-retry attempts ก่อนต้อง manual: 0 (default) / 1 / 3?
+4. Rollout: ทันที (default) หรือ feature flag?
+
+### Pending action
+- 🔴 **User**: review plan + answer Q1-Q4 หรือยอมรับ default
+- 🟢 **เขียว**: รอ user approve → start Step 1 (DB schema)
+- 🔵 **ฟ้า**: รอเขียวเสร็จ → run 57 cases + UI Foundation Contract §6 check
+
+---
+
+## 🟢 Recently Done — v9.3.4 LLM/AI BOUNDARY (2026-05-08)
 
 **Master HEAD:** `043cdc3` v9.3.4 LLM + AI ingest surrogate boundary
 **APP_VERSION:** **9.3.4**

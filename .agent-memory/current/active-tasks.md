@@ -1,26 +1,29 @@
 # 🎯 Active Tasks
 
 > Source of truth คือ [pipeline-state.md](pipeline-state.md) — ไฟล์นี้เป็น overview สั้นๆ
-> Pipeline ตอนนี้ = `plan_pending_approval` 🔴 (v9.3.0 Stability Patch)
+> Pipeline ตอนนี้ = `plan_pending_approval` 🔴 (v9.4.0 Upload Queue + Progress)
 
 ---
 
 ## 🔄 Current Pipeline
 
-**State:** `plan_pending_approval` 🔴 (v9.3.0 Stability Patch — 2026-05-08)
-**Master HEAD:** `dbf08cf` v9.3.0 Phase A foundation (ahead of origin)
-**APP_VERSION:** 9.3.0
-**Production:** 🟡 v9.2.1 live · master ahead of origin (Share Pack + Phase A foundation รอ deploy)
-**Active plan:** [plans/v9.3.0-stability-patch.md](../plans/v9.3.0-stability-patch.md)
+**State:** `plan_pending_approval` 🔴 (v9.4.0 Upload Queue — 2026-05-10)
+**Master HEAD:** `c0ffdc0` v9.3.4 (review_passed, รอ deploy)
+**APP_VERSION (target):** 9.4.0
+**Production:** 🔴 v9.3.1 live · master ahead (v9.3.2/3/4 stacked + รอ deploy)
+**Active plan:** [plans/upload-queue-progress-v9.4.0.md](../plans/upload-queue-progress-v9.4.0.md)
+**Mode:** Sequential (แดง→เขียว→ฟ้า)
 
 ---
 
 ## 🔴 Pending Plan (รอ user approve)
 
-- **v9.3.0 Stability Patch** — [plans/v9.3.0-stability-patch.md](../plans/v9.3.0-stability-patch.md)
-  - 5 fixes: cache-bust + iOS Phase 1+2 + JWT warn-log + Drive invalid_grant + memory cleanup
-  - Effort: เขียว ~2 ชม + ฟ้า ~1 ชม = half-day
-  - Mode: 3-in-1 single-agent
+- **v9.4.0 Upload Queue + Progress** — [plans/upload-queue-progress-v9.4.0.md](../plans/upload-queue-progress-v9.4.0.md)
+  - แยก upload (เร็ว) ออกจาก extract (ช้า) → DB-backed queue + in-process worker + persistent UI tray
+  - 6 DB columns + 4 endpoints + 1 backend module + frontend tray
+  - 4 Open Questions รอ user ตอบ (worker concurrency / tray location / auto-retry / rollout)
+  - Effort: เขียว ~2.5 วัน + ฟ้า ~1 วัน
+  - Mode: Sequential
 
 ## 📋 In-flight (uncommitted, will be picked up by patch)
 
