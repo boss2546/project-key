@@ -56,6 +56,10 @@ function _renderLineStatus(data) {
   // Hide notice when feature available
   if (notice) notice.classList.add('hidden');
 
+  // v9.4.2 (L2) — Capture bot URL for "Open in LINE" + "Connect LINE" buttons
+  // Why: openLineChat() + connectLine() อ่านค่านี้ · ก่อนรอบนี้ไม่มีใครเซ็ต → button เงียบ
+  window._lineBotUrl = data.bot_url || null;
+
   if (data.linked) {
     if (badge) {
       badge.textContent = (getLang() === 'th') ? 'เชื่อมแล้ว' : 'Connected';
@@ -87,24 +91,29 @@ function _renderLineStatus(data) {
 }
 
 async function connectLine() {
-  // Phase 1: Redirect to LINE Login OAuth (server returns redirect URL)
-  // Phase 2 alt: Show QR code to scan bot in LINE app first
-  try {
-    const res = await authFetch('/api/line/connect', { method: 'POST' });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      const msg = data?.detail?.error?.message || data?.detail || 'เชื่อมต่อ LINE ไม่สำเร็จ';
-      showToast(msg, 'error');
-      return;
-    }
-    const data = await res.json();
-    if (data.redirect_url) {
-      // Open LINE Login OAuth in same tab
-      window.location.href = data.redirect_url;
-    }
-  } catch (e) {
-    showToast(getLang() === 'th' ? 'เชื่อมต่อ LINE ไม่สำเร็จ' : 'LINE connect failed', 'error');
+  // v9.4.2 (L1) — Direct bot URL open · เลิกใช้ /api/line/connect ที่ส่งกลับ /auth/line
+  // โดยไม่มี linkToken (ทำให้ user เจอ error page).
+  //
+  // Reason: LINE Messaging API linkToken ออกได้เฉพาะหลัง user follow bot
+  // (POST /v2/bot/user/{userId}/linkToken). ทำ server-initiated link ไม่ได้.
+  // Working flow: user เปิด LINE → เพิ่ม bot → bot ส่ง Flex card with link → ยืนยัน.
+  const botUrl = window._lineBotUrl;
+  if (!botUrl) {
+    showToast(
+      getLang() === 'th'
+        ? 'LINE bot ยังไม่พร้อมใช้งาน — กรุณารีเฟรชหน้า'
+        : 'LINE bot not ready — please refresh the page',
+      'error'
+    );
+    return;
   }
+  window.open(botUrl, '_blank');
+  showToast(
+    getLang() === 'th'
+      ? 'เปิด LINE และเพิ่ม bot เป็นเพื่อน · bot จะส่งลิงก์ยืนยันมาให้'
+      : 'Open LINE and add the bot · the bot will send a link prompt',
+    'info'
+  );
 }
 
 async function disconnectLine() {

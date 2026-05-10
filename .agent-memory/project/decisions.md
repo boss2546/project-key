@@ -219,6 +219,24 @@
 
 **See also:** [plan v9.3.5.5/v9.4.1](../plans/v9.3.5.5-comprehensive-delete-cleanup.md) (10 findings · 8 steps)
 
+## LINE-001: LINE Connect button uses bot URL directly (v9.4.2, 2026-05-10)
+**Why:** UX audit (2026-05-10) พบว่า "Connect LINE" button ใน Profile modal ส่ง user ไปยัง
+`/auth/line` ที่ขาด `linkToken` query param → user เจอ error page "ไม่พบ linkToken".
+Root cause: LINE Messaging API design — `linkToken` ออกได้เฉพาะหลัง user follow bot ผ่าน
+`POST /v2/bot/user/{userId}/linkToken`. Server-initiated link (web → LINE) ทำไม่ได้ตาม spec.
+
+**Decision:** Frontend-only fix · ไม่แตะ backend `/api/line/connect` (กลายเป็น dead code).
+- `connectLine()` ใน `line_ui.js` เปิด `window._lineBotUrl` (= `https://line.me/R/ti/p/%40<basic_id>`) ตรงๆ
+- `_renderLineStatus()` set `window._lineBotUrl = data.bot_url || null` (data จาก /api/line/status)
+- Toast แจ้ง user ว่า: "เปิด LINE และเพิ่ม bot · bot จะส่งลิงก์ยืนยันมาให้"
+
+**Implication:**
+- Working flow ตอนนี้คือ: web profile → click Connect → เปิด LINE bot URL → user follow bot → bot ส่ง Flex card with `/auth/line?linkToken=xxx` → confirm → success
+- `/api/line/connect` HTTP endpoint ยังอยู่ · backwards-compat กับ cached clients · ลบใน v9.5.0
+- Pending linkToken ใน sessionStorage (`pdb_pending_line_link`) จะถูก resume หลัง login (helper `_redirectToPendingLineLink` ใน landing.js)
+
+**See also:** [plan v9.4.2](../plans/v9.4.2-line-ux-fixes.md) (5 bugs · L1-L5)
+
 ## DUP-004: Duplicate detection DISABLED temporarily (v9.3.2, 2026-05-08)
 **Why:** `compute_content_hash()` crashes กับ `UnicodeEncodeError: surrogates not allowed` สำหรับ PDF text ที่มี lone surrogate code points (PDF font encoding edge case). Manifests เป็น HTTP 500 บน `POST /api/files/{id}/reprocess` ตามที่เห็นใน Fly.io log 2026-05-08 11:31:36 position 12562-12563.
 

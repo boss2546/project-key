@@ -784,6 +784,18 @@ const I18N = {
  'toast.deletedCleaningDrive': 'ลบเรียบร้อย · กำลังเคลียร์ Google Drive',
  'toast.deletedDrivePicked': 'ลบจากระบบแล้ว · ไฟล์ต้นฉบับใน Drive ของคุณยังอยู่',
  'toast.profileSaved': 'บันทึกโปรไฟล์เรียบร้อย',
+
+ // v9.4.2 — LINE Bot section (Profile modal)
+ 'line.title': 'LINE Bot',
+ 'line.desc': 'เข้าถึง PDB ผ่าน LINE — อัปโหลดไฟล์ ถาม AI ค้นข้อมูลจากมือถือ',
+ 'line.connect': 'เชื่อม LINE',
+ 'line.disconnect': 'เลิกเชื่อม',
+ 'line.openChat': 'เปิดใน LINE',
+ 'line.notConfigured': 'ระบบ LINE bot ยังไม่ถูกตั้งค่าบนเซิร์ฟเวอร์',
+ 'line.notLinked': 'ยังไม่เชื่อม',
+ 'line.displayName': 'ชื่อ LINE:',
+ 'line.linkedAt': 'เชื่อมเมื่อ:',
+ 'line.lastSeen': 'ใช้งานล่าสุด:',
  'toast.organized': 'จัดระเบียบเรียบร้อย',
  'toast.organizedNew': 'จัดระเบียบไฟล์ใหม่เรียบร้อย',
  'toast.noNewFiles': 'ไม่มีไฟล์ใหม่ที่ต้องจัดระเบียบ',
@@ -1084,6 +1096,18 @@ const I18N = {
  'toast.deletedCleaningDrive': 'Deleted · cleaning Google Drive',
  'toast.deletedDrivePicked': 'Removed from system · original Drive file preserved',
  'toast.profileSaved': 'Profile saved',
+
+ // v9.4.2 — LINE Bot section (Profile modal)
+ 'line.title': 'LINE Bot',
+ 'line.desc': 'Access PDB through LINE — upload files, ask AI, search knowledge from your phone',
+ 'line.connect': 'Connect LINE',
+ 'line.disconnect': 'Disconnect',
+ 'line.openChat': 'Open in LINE',
+ 'line.notConfigured': 'LINE bot is not configured on this server yet.',
+ 'line.notLinked': 'Not linked',
+ 'line.displayName': 'LINE name:',
+ 'line.linkedAt': 'Linked:',
+ 'line.lastSeen': 'Last seen:',
  'toast.organized': 'Organization complete',
  'toast.organizedNew': 'New files organized',
  'toast.noNewFiles': 'No new files to organize',
@@ -1228,6 +1252,9 @@ function applyLanguage(lang) {
  // ใช้ getLang() ternary ใน innerHTML ตอน render → ต้อง re-render ตอน toggle lang
  try { if (typeof renderStorageModeUI === 'function') renderStorageModeUI(); } catch (_e) {}
  try { if (typeof renderDriveErrorBanner === 'function') renderDriveErrorBanner(); } catch (_e) {}
+ // v9.4.2 (L5) — LINE bot badge "Connected"/"เชื่อมแล้ว" + notice text ใช้ getLang() ternary
+ // ใน line_ui.js · ไม่ใช่ data-i18n → applyLanguage ปรับให้ไม่ได้ · ต้อง re-render ผ่าน loadLineStatus()
+ try { if (typeof loadLineStatus === 'function') loadLineStatus(); } catch (_e) {}
 }
 
 // ═══════════════════════════════════════════

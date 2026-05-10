@@ -1943,8 +1943,22 @@ async def line_confirm_link(
             detail={"error": {"code": "MISSING_LINK_TOKEN", "message": "link_token is required"}},
         )
 
-    # Generate nonce — 32 bytes URL-safe base64 (256 bits, well above LINE's 128-bit min)
-    nonce = _secrets.token_urlsafe(32)
+    # v9.4.3 (C1) — Log linkToken arrival for observability ใน flyio logs
+    # Note: ไม่ log token เต็มเพราะ sensitive · log ความยาว + first 6 chars พอ
+    link_token_len = len(body.link_token)
+    link_token_prefix = body.link_token[:6]
+    logger.info(
+        "line_confirm_link: user=%s linkToken_len=%d prefix=%s",
+        current_user.id[:8] + "..", link_token_len, link_token_prefix,
+    )
+
+    # v9.4.2 (L11) — Generate nonce as 64 hex chars (256-bit entropy · alphanumeric-only)
+    # Why: LINE Account Link spec กำหนด nonce ต้อง 10-255 ALPHANUMERIC chars เท่านั้น
+    # (https://developers.line.biz/en/docs/messaging-api/linking-accounts/).
+    # เดิมใช้ token_urlsafe() ที่ produce base64url → มี '-' กับ '_' → LINE reject
+    # ที่ access.line.me ด้วยข้อความ "ไม่สามารถเชื่อมต่อกับ LINE ได้" ก่อนถึง webhook.
+    # token_hex(32) → 64 chars จาก [0-9a-f] · alphanumeric ตาม spec · entropy พอเหลือเฟือ.
+    nonce = _secrets.token_hex(32)
     nonce_expires = _dt.utcnow() + _td(minutes=10)
 
     # Find existing LineUser row for this PDB user (could be from previous link attempt)
@@ -1954,6 +1968,16 @@ async def line_confirm_link(
     existing = result.scalar_one_or_none()
 
     if existing:
+        # v9.4.3 (B1) — log if previous nonce was already expired (defensive observability)
+        # Why: ถ้า user มี row ค้างจาก attempt ก่อนหน้า · บอกใน log ว่า "stale recovery"
+        # ช่วย debug case "เพื่อนต่อไม่ได้" — ดูว่า user หลุด stuck กี่รอบก่อนสำเร็จ
+        if (existing.link_nonce_expires_at
+                and existing.link_nonce_expires_at < _dt.utcnow()):
+            logger.info(
+                "line_confirm_link: stale nonce recovered for user=%s (was expired %s ago)",
+                current_user.id[:8] + "..",
+                _dt.utcnow() - existing.link_nonce_expires_at,
+            )
         # Reuse row — update nonce + expiry, clear unlinked_at if was unlinked before
         existing.link_nonce = nonce
         existing.link_nonce_expires_at = nonce_expires
@@ -1971,13 +1995,16 @@ async def line_confirm_link(
 
     await db.commit()
 
+    # v9.4.2 (L11) — URL-encode both params (defense in depth · linkToken from LINE
+    # อาจมี chars ที่ต้อง encode ใน URL · nonce hex ไม่ต้อง encode แต่ encode ไว้ปลอดภัยกว่า)
     # Phase E: return real LINE accountLink dialog URL
     # link_token = LINE linkToken จาก bot follow event → /auth/line?linkToken=X
-    # nonce = random 32-byte that LINE will echo back in accountLink webhook event
-    # URL: https://access.line.me/dialog/bot/accountLink?linkToken=<linkToken>&nonce=<nonce>
+    # nonce = random hex string ที่ LINE echo back ใน accountLink webhook event
+    from urllib.parse import quote as _urlquote
     redirect_url = (
         f"https://access.line.me/dialog/bot/accountLink"
-        f"?linkToken={body.link_token}&nonce={nonce}"
+        f"?linkToken={_urlquote(body.link_token, safe='')}"
+        f"&nonce={_urlquote(nonce, safe='')}"
     )
 
     return {

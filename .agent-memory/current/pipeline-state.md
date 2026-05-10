@@ -5,7 +5,120 @@
 
 ---
 
-## 🎯 Current State: `review_passed` ✅ v9.3.5 BYOS Reconnect UX FINAL (2026-05-10)
+## 🎯 Current State: `build_complete` 🟢 v9.4.3 LINE UX Hardening (2026-05-10)
+
+**Master HEAD:** uncommitted (เขียว build complete · awaiting commit + ฟ้า review + deploy)
+**APP_VERSION:** 9.4.3
+**Plan:** `.agent-memory/plans/v9.4.2-line-ux-fixes.md` (extended scope · L1-L5 + L11 + A1/B1/C1)
+**Mode:** เขียว build complete — 9 todos · self-test after each step PASS
+
+### v9.4.3 build summary (3 hardening additions on top of v9.4.2)
+- **A1** — auth-line.html countdown timer (LINE linkToken TTL = 10 min) · UX
+- **B1** — log "stale nonce recovered" in confirm-link · debug visibility
+- **C1** — `_handle_account_link` result=failed upgraded INFO → WARNING · production diagnosis
+
+### Why v9.4.3 (extended from v9.4.2)
+User report: "เพื่อนต่อ LINE ไม่ได้" (founder ต่อได้ · เพื่อน fail ที่ access.line.me).
+Root cause analysis (5 hypotheses ranked): **H1 timing/linkToken expired (~70%)** most likely.
+- v9.4.2 L4 (resume linkToken after login) แก้ root cause หลัก
+- v9.4.3 A1 countdown timer + B1/C1 logging = defense in depth + observability
+- v9.4.2 L11 (token_hex + URL encode) = LINE spec compliance (defensive)
+
+### Test results
+- byos_router_smoke: **16/16 PASS**
+- byos_foundation_smoke: **26/26 PASS**
+- byos_storage_smoke: **20/20 PASS**
+- v9_4_2_smoke: **32/32 PASS** (regression intact)
+- v9_4_3_smoke (new): **30/30 PASS** (countdown + logging + URL-encoding + regression)
+
+### Files modified in v9.4.3 (3 modify · 1 new)
+- `backend/main.py` — confirm-link logs (B1 + C1)
+- `backend/line_bot.py` — _handle_account_link WARNING (C1)
+- `legacy-frontend/auth-line.html` — countdown UI + CSS (A1)
+- `legacy-frontend/auth-line.js` — startCountdown/stopCountdown (A1)
+- `backend/config.py` — APP_VERSION 9.4.2 → 9.4.3
+- `legacy-frontend/{admin,app,auth-line,landing,shared_pack}.html` — cache-bust
+- `scripts/v9_4_3_smoke.mjs` — new smoke (30 cases)
+
+### Pending next steps
+1. 🔴 User decision — commit + push + flyctl deploy (v9.4.1 + v9.4.2 + v9.4.3 bundled)
+2. 🟡 Test กับเพื่อนหลัง deploy (verify H1 fix works)
+3. 🟢 ถ้ายัง fail → check Fly.io log สำหรับ "LINE rejected" + "stale nonce recovered" entries
+
+---
+
+## (Archived) v9.4.2 LINE UX Fixes (2026-05-10)
+
+**Master HEAD:** uncommitted (เขียว build complete · awaiting commit + ฟ้า review)
+**APP_VERSION:** 9.4.2
+**Plan:** `.agent-memory/plans/v9.4.2-line-ux-fixes.md`
+**Mode:** เขียว build phase complete — 6 steps · self-test after each step PASS
+
+### v9.4.2 build summary (5 LINE bugs closed · all frontend-only)
+- L1 — "Connect LINE" button opens bot URL directly (no more `/auth/line` dead-end)
+- L2 — "Open in LINE" button — `_lineBotUrl` exposed from `_renderLineStatus`
+- L3 — 10 LINE i18n keys × TH+EN (20 entries · pattern reuse from v9.3.5 Drive fix)
+- L4 — Pending linkToken sessionStorage resume after login (4 login paths)
+- L5 — `applyLanguage()` re-renders LINE status (lang toggle now updates badge/notice)
+
+### Files modified (3 frontend + 5 HTML cache-bust)
+- `legacy-frontend/line_ui.js` — connectLine refactor + _lineBotUrl expose
+- `legacy-frontend/app.js` — 20 i18n entries + applyLanguage loadLineStatus call
+- `legacy-frontend/landing.js` — `_redirectToPendingLineLink` helper + 4 login callers
+- `legacy-frontend/{admin,app,auth-line,landing,shared_pack}.html` — cache-bust v9.4.1 → v9.4.2
+- `backend/config.py` — APP_VERSION 9.4.1 → 9.4.2 (linter pre-bumped)
+
+### Backend NOT modified
+`/api/line/connect` endpoint becomes dead code (frontend stops calling it). Keep for backwards-compat with old cached clients · revisit cleanup in v9.5.0.
+
+### Pending next steps
+1. 🔴 User decision — ship v9.4.2 standalone or bundle with v9.4.1 in same flyctl deploy
+2. 🟡 ฟ้า review (~20 นาที) — manual UI test scenarios A-H from plan (Connect/Open/i18n/PendingLink/LangToggle)
+3. 🟢 After ฟ้า APPROVE → user push + flyctl deploy
+
+---
+
+## (Archived) v9.4.1 Comprehensive Delete + Sync Cleanup (2026-05-10)
+
+**Master HEAD:** uncommitted (เขียว build complete · awaiting commit + ฟ้า review)
+**APP_VERSION:** 9.4.1
+**Plan:** `.agent-memory/plans/v9.3.5.5-comprehensive-delete-cleanup.md` (originally v9.3.5.5 · bumped to 9.4.1 since current was 9.4.0.2)
+**Mode:** เขียว build phase complete — 8 steps done · self-test after each step PASS
+
+### v9.4.1 build summary (10 findings closed)
+- F1 — MCP `_tool_delete_file` 6-step cleanup + storage_source guard
+- F2 — `/api/reset` per-file 4-step + stats response
+- F3 — sync Case A2 stale-link UPDATE existing row
+- F4 — Drive sub-folder cleanup (extracted/ + summaries/) helpers added
+- F5 — `_should_trash_drive_file` guard ปกป้อง drive_picked
+- F6 — DELETE BackgroundTasks pattern (response ~200ms · ไม่ block ที่ 504)
+- F7 — sync orphan retry budget (max 3 attempts per session)
+- F16 — `/api/files` filter `deleted_in_drive` (default-hidden)
+- F23 — DELETE returns `drive_cleanup` field + frontend toast feedback
+- F24 — keep_files=False reconnect duplicate-push guard (CRITICAL data integrity)
+
+### Files modified (5 backend + 1 frontend + 5 HTML cache-bust)
+- `backend/storage_router.py` — 2 new helpers + 1 guard utility
+- `backend/main.py` — DELETE refactor + `/api/reset` overhaul + `/api/files` filter + `_cleanup_drive_for_deleted_file` background helper
+- `backend/mcp_tools.py` — `_tool_delete_file` 6-step
+- `backend/drive_sync.py` — SyncStats +4 fields, retry budget, 3-way Case A, F24 push guard
+- `backend/config.py` — APP_VERSION 9.4.0.2 → 9.4.1
+- `legacy-frontend/app.js` — deleteFile reads `drive_cleanup` + 4 i18n keys
+- `legacy-frontend/{admin,app,auth-line,landing,shared_pack}.html` — cache-bust
+
+### Regression results (post-build)
+- byos_router_smoke: **16/16 PASS**
+- byos_foundation_smoke: **26/26 PASS**
+- byos_sync_smoke: **20 PASS / 4 FAIL** (same as baseline · 0 regression — pre-existing FakeDriveClient issues unrelated to v9.4.1 changes)
+
+### Pending next steps
+1. 🔴 User decision — commit + deploy v9.4.1 ตอนนี้ หรือรอ ฟ้า review ก่อน
+2. 🟡 ฟ้า review (~45 นาที) — code review + manual prod test scenarios A-K from plan
+3. 🟢 After ฟ้า APPROVE → user push + flyctl deploy
+
+---
+
+## (Archived) v9.3.5 BYOS Reconnect UX FINAL (2026-05-10)
 
 **Master HEAD:** v9.3.5 final (10 commits c99616f → 45285cd · all bugs fixed)
 **APP_VERSION:** 9.3.5

@@ -20,6 +20,10 @@
   const btnConfirm = document.getElementById('btn-confirm-link');
   const btnLogin = document.getElementById('btn-login-first');
   const linkCancel = document.getElementById('link-cancel');
+  // v9.4.3 — Countdown timer elements (LINE linkToken TTL = 10 นาที)
+  const countdownEl = document.getElementById('auth-line-countdown');
+  const countdownValueEl = document.getElementById('auth-line-countdown-value');
+  let countdownInterval = null;
 
   function setState(text, kind) {
     if (stateTextEl) stateTextEl.textContent = text;
@@ -36,6 +40,50 @@
 
   function showActions() {
     if (actionsEl) actionsEl.style.display = '';
+  }
+
+  // v9.4.3 — Countdown timer for LINE linkToken (10-min TTL per LINE spec)
+  // Why: user ใหม่ที่ต้อง register ก่อนอาจไม่ทันเวลา · countdown แจ้งเตือนชัดเจน
+  // ทำให้รู้ว่าต้องเร่ง · ถ้าหมดเวลา → ส่ง user กลับไปขอลิงก์ใหม่จาก LINE bot
+  function startCountdown(durationSec) {
+    if (!countdownEl || !countdownValueEl) return;
+    countdownEl.style.display = '';
+    let remaining = durationSec;
+    const tick = () => {
+      const min = Math.floor(remaining / 60);
+      const sec = remaining % 60;
+      countdownValueEl.textContent = `${min}:${String(sec).padStart(2, '0')}`;
+      // < 2 นาที → warning state (pulse + red)
+      if (remaining < 120 && remaining > 0) {
+        countdownEl.classList.add('warning');
+      }
+      // หมดเวลา → expired state + disable confirm button
+      if (remaining <= 0) {
+        countdownEl.classList.remove('warning');
+        countdownEl.classList.add('expired');
+        countdownValueEl.textContent = '0:00';
+        if (btnConfirm) {
+          btnConfirm.disabled = true;
+          btnConfirm.textContent = 'ลิงก์หมดอายุ — กลับไปขอใหม่จาก LINE bot';
+        }
+        if (countdownInterval) {
+          clearInterval(countdownInterval);
+          countdownInterval = null;
+        }
+        return;
+      }
+      remaining -= 1;
+    };
+    tick();  // immediate first tick
+    countdownInterval = setInterval(tick, 1000);
+  }
+
+  function stopCountdown() {
+    if (countdownInterval) {
+      clearInterval(countdownInterval);
+      countdownInterval = null;
+    }
+    if (countdownEl) countdownEl.style.display = 'none';
   }
 
   function getQueryParam(name) {
@@ -83,6 +131,10 @@
 
     setState(`พร้อมเชื่อมบัญชี: ${userEmail}`, 'success');
     showActions();
+    // v9.4.3 — Start countdown · LINE linkToken TTL = 10 นาที
+    // Note: เราไม่รู้ว่า linkToken issue ไปนานแค่ไหนแล้ว · assume worst case 10 min full
+    // (จริงๆ อาจน้อยกว่าถ้า user รอนานหลังกด link จาก LINE) · เป็นการแจ้งเตือนเชิง defensive
+    startCountdown(10 * 60);
     btnConfirm.addEventListener('click', () => doConfirmLink(linkToken, pdbToken));
   }
 
@@ -108,6 +160,7 @@
       }
 
       setState('เชื่อมบัญชีสำเร็จ! กำลังกลับไป LINE...', 'success');
+      stopCountdown();  // v9.4.3 — stop ticking once we hand off to LINE
       // Redirect ไป LINE deep link หรือ window.close ถ้าเปิดมาจาก in-app browser
       if (data.redirect_url) {
         setTimeout(() => { window.location.href = data.redirect_url; }, 1200);

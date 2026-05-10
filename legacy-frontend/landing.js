@@ -18,6 +18,22 @@
 // ║ §B LANDING + AUTH MODULE
 // ╚══════════════════════════════════════════════════════════════
 
+// v9.4.2 (L4) — Resume LINE Account Link flow after login
+// Why: auth-line.js เซ็ต sessionStorage 'pdb_pending_line_link' = linkToken เมื่อ user
+//      ยังไม่ login + คลิกลิงก์จาก LINE bot · แล้ว redirect / · ก่อนรอบนี้ไม่มีใครอ่านกลับ
+//      → linkToken หาย → user ต้องเริ่มจาก LINE bot ใหม่ทุกครั้ง.
+// Now: ทุก login success path เรียก helper นี้ก่อน showApp() · ถ้ามี pending → กลับไป /auth/line
+//      เพื่อให้ user ยืนยัน LINE link ต่อได้ทันที.
+function _redirectToPendingLineLink() {
+ try {
+ const pendingLink = sessionStorage.getItem('pdb_pending_line_link');
+ if (!pendingLink) return false;
+ sessionStorage.removeItem('pdb_pending_line_link');
+ window.location.href = `/auth/line?linkToken=${encodeURIComponent(pendingLink)}`;
+ return true;
+ } catch (_e) { return false; }
+}
+
 // On split pages (landing.html / app.html), some of these elements
 // will be missing — call .classList only when the node exists.
 function showLanding() {
@@ -157,6 +173,7 @@ async function doLogin() {
  localStorage.setItem('pdb_token', data.token);
  localStorage.setItem('pdb_user', JSON.stringify(data.user));
  document.getElementById('auth-modal').classList.add('hidden');
+ if (_redirectToPendingLineLink()) return;  // v9.4.2 (L4)
  _isInitVerified = true;
  if (showApp()) initAppData();
  } catch (e) {
@@ -228,6 +245,7 @@ async function doRegister() {
  localStorage.setItem('pdb_token', data.token);
  localStorage.setItem('pdb_user', JSON.stringify(data.user));
  document.getElementById('auth-modal').classList.add('hidden');
+ if (_redirectToPendingLineLink()) return;  // v9.4.2 (L4)
  _isInitVerified = true;
  // v7.0.1 — เข้า workspace ทันทีหลัง register (ไม่ redirect ไป pricing)
  // user อัปเกรดได้ภายหลังจาก Profile modal
@@ -332,6 +350,7 @@ async function doResetPassword() {
  localStorage.setItem('pdb_token', data.token);
  localStorage.setItem('pdb_user', JSON.stringify(data.user));
  document.getElementById('auth-modal').classList.add('hidden');
+ if (_redirectToPendingLineLink()) return;  // v9.4.2 (L4)
  _isInitVerified = true;
  _resetToken = null;
  // Trigger redirect/show first; let toast render after to avoid the
@@ -370,6 +389,7 @@ function _handleGoogleLoginFragment() {
   localStorage.setItem('pdb_user', JSON.stringify(state.currentUser));
   // Clean URL (เอา fragment ออก) — ต้องอยู่ที่ /app
   window.history.replaceState({}, document.title, '/app');
+  if (_redirectToPendingLineLink()) return true;  // v9.4.2 (L4)
   // v8.1.2 perf: token เพิ่งออกจาก backend (verified ID token + signed JWT) →
   // เชื่อใจได้ทันที, ไม่ต้อง re-verify ผ่าน /api/auth/me ที่ initAuth ทำต่อ
   _isInitVerified = true;

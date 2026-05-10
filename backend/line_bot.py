@@ -153,8 +153,14 @@ async def _handle_account_link(event: dict) -> None:
         logger.warning("_handle_account_link: missing userId or nonce")
         return
 
+    # v9.4.3 (C1) — Upgrade to WARNING when LINE rejects · visibility for debugging
+    # "เพื่อนต่อไม่ได้" issues. Captures whether failure happened at LINE platform level
+    # (ส่งผ่าน webhook กลับมาบอกว่า result=failed) หรือ silently (ไม่ webhook กลับเลย).
     if result != "ok":
-        logger.info("_handle_account_link: result=%s — skip", result)
+        logger.warning(
+            "_handle_account_link: LINE rejected · result=%s · line_user=%s · nonce_prefix=%s",
+            result, line_user_id, nonce[:8] if nonce else "(none)",
+        )
         return
 
     # Match nonce → find LineUser row

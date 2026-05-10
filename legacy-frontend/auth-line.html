@@ -8,7 +8,7 @@
  <link rel="preconnect" href="https://fonts.googleapis.com">
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
- <link rel="stylesheet" href="/legacy/shared.css?v=9.4.2">
+ <link rel="stylesheet" href="/legacy/shared.css?v=9.4.3">
  <style>
   :root {
    --line-green: #06c755;
@@ -115,6 +115,45 @@
    color: var(--text-muted);
    line-height: 1.6;
   }
+  /* v9.4.3 — Countdown timer styling */
+  .auth-line-countdown {
+   margin-top: 12px;
+   padding: 10px 14px;
+   background: rgba(255, 165, 0, 0.06);
+   border: 1px solid rgba(255, 165, 0, 0.2);
+   border-radius: 10px;
+   font-size: 12.5px;
+   text-align: center;
+   color: var(--text-secondary);
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+  }
+  .auth-line-countdown-label {
+   font-weight: 500;
+  }
+  .auth-line-countdown-value {
+   font-variant-numeric: tabular-nums;
+   font-weight: 600;
+   color: #ff9c33;
+   letter-spacing: 0.5px;
+  }
+  .auth-line-countdown.warning .auth-line-countdown-value {
+   color: #ef4444;
+   animation: pulse 1s ease-in-out infinite;
+  }
+  .auth-line-countdown.expired {
+   background: rgba(239, 68, 68, 0.08);
+   border-color: rgba(239, 68, 68, 0.25);
+  }
+  .auth-line-countdown.expired .auth-line-countdown-value {
+   color: #ef4444;
+   animation: none;
+  }
+  @keyframes pulse {
+   0%, 100% { opacity: 1; }
+   50% { opacity: 0.6; }
+  }
  </style>
 </head>
 <body>
@@ -137,6 +176,12 @@
    <span id="auth-line-state-text">กำลังตรวจสอบสถานะ...</span>
   </div>
 
+  <!-- v9.4.3 — Countdown timer (LINE linkToken TTL = 10 นาที) -->
+  <div class="auth-line-countdown" id="auth-line-countdown" style="display:none">
+   <span class="auth-line-countdown-label">⏱️ ลิงก์เหลือเวลา</span>
+   <span class="auth-line-countdown-value" id="auth-line-countdown-value">10:00</span>
+  </div>
+
   <div class="auth-line-actions" id="auth-line-actions" style="display:none">
    <button class="btn btn-primary btn-block" id="btn-confirm-link">ยืนยันการเชื่อมบัญชี</button>
    <button class="btn btn-outline btn-block" id="btn-login-first" style="display:none">เข้าสู่ระบบก่อน</button>
@@ -149,6 +194,6 @@
   </div>
  </div>
 
- <script src="/legacy/auth-line.js?v=9.4.2"></script>
+ <script src="/legacy/auth-line.js?v=9.4.3"></script>
 </body>
 </html>
