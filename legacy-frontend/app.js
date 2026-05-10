@@ -615,6 +615,7 @@ const I18N = {
  'upload.tray.done':             'เสร็จแล้ว',
  'upload.tray.retry':            'ลองใหม่',
  'upload.tray.dismiss':          'ลบออก',
+ 'upload.tray.cancel':           'ยกเลิก',
  'upload.tray.position':         'อันดับ {n}',
  'upload.tray.position_of':      'อันดับ {n} จาก {total}',
  'upload.tray.elapsed':          'ใช้เวลา {sec} วินาที',
@@ -927,6 +928,7 @@ const I18N = {
  'upload.tray.done':             'Done',
  'upload.tray.retry':            'Retry',
  'upload.tray.dismiss':          'Dismiss',
+ 'upload.tray.cancel':           'Cancel',
  'upload.tray.position':         'Position {n}',
  'upload.tray.position_of':      'Position {n} of {total}',
  'upload.tray.elapsed':          'Elapsed {sec}s',
@@ -2044,6 +2046,9 @@ const UploadTray = (() => {
    list.innerHTML = items.map(_renderItem).join('');
 
    // Wire actions
+   list.querySelectorAll('[data-cancel-id]').forEach(btn => {
+     btn.addEventListener('click', () => _onCancel(btn.dataset.cancelId));
+   });
    list.querySelectorAll('[data-retry-id]').forEach(btn => {
      btn.addEventListener('click', () => _onRetry(btn.dataset.retryId));
    });
@@ -2116,10 +2121,15 @@ const UploadTray = (() => {
      ? `<span class="upload-tray-elapsed">${_formatElapsed(item.elapsed_sec)}</span>`
      : '';
 
+   // v9.4.5 — Cancel button สำหรับ queued/extracting ที่ยังไม่ fail (user ยกเลิกเองได้)
+   const isActiveQueueState = !isFailed && (item.processing_status === 'queued' || item.processing_status === 'extracting');
    const actions = isFailed ? `
      <div class="upload-tray-actions">
        ${item.is_retryable ? `<button class="btn btn-sm btn-outline" type="button" data-retry-id="${_esc(item.id)}">${_esc(t('upload.tray.retry'))}</button>` : ''}
        <button class="btn btn-sm btn-ghost" type="button" data-dismiss-id="${_esc(item.id)}">${_esc(t('upload.tray.dismiss'))}</button>
+     </div>` : isActiveQueueState ? `
+     <div class="upload-tray-actions">
+       <button class="btn btn-sm btn-ghost" type="button" data-cancel-id="${_esc(item.id)}">${_esc(t('upload.tray.cancel'))}</button>
      </div>` : '';
 
    return `
@@ -2160,6 +2170,30 @@ const UploadTray = (() => {
      _expandedIds.delete(fileId);
      await _fetchStatus().then(_render);
    } catch (e) { /* defensive — dismiss fail = next poll cleans */ }
+ }
+
+ // v9.4.5 — cancel queued/extracting (ไม่ใช่ error)
+ async function _onCancel(fileId) {
+   const lang = getLang();
+   const confirmMsg = lang === 'th' ? 'ยกเลิกไฟล์นี้จากคิว?' : 'Cancel this file from the queue?';
+   if (typeof showConfirm === 'function') {
+     if (!await showConfirm(confirmMsg)) return;
+   } else if (!confirm(confirmMsg)) {
+     return;
+   }
+   try {
+     const res = await authFetch(`/api/upload/${fileId}/cancel`, { method: 'POST' });
+     if (!res.ok) {
+       const err = await res.json().catch(() => ({}));
+       const msg = (err.error && err.error.message) || (lang === 'th' ? 'ยกเลิกไม่ได้' : 'Cancel failed');
+       showToast(msg, 'error');
+       return;
+     }
+     _expandedIds.delete(fileId);
+     await _fetchStatus().then(_render);
+   } catch (e) {
+     showToast(lang === 'th' ? 'เครือข่ายขัดข้อง' : 'Network error', 'error');
+   }
  }
 
  return { open, close, openIfHasItems, notifyEnqueued };

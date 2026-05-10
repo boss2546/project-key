@@ -1027,6 +1027,47 @@ async def dismiss_upload_error(
     return {"deleted": True}
 
 
+@app.post("/api/upload/{file_id}/cancel")
+async def cancel_upload(
+    file_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """v9.4.5 — ยกเลิกไฟล์ใน queue (queued/extracting) + ลบ raw + Drive copy.
+
+    Why: ไฟล์ใหญ่ค้างคิวนาน user อยากยกเลิก; เดิม endpoint dismiss-error รับเฉพาะ
+    status='error'. Endpoint นี้รับ queued/extracting → set ลบทิ้งทันที.
+    Worker จะเห็น row หายไป (เพราะ `delete f`) → claim/process ตัดเอง (rowcount=0).
+    """
+    res = await db.execute(
+        select(File).where(File.id == file_id, File.user_id == current_user.id)
+    )
+    f = res.scalar_one_or_none()
+    if not f:
+        raise HTTPException(404, detail={"error": {"code": "FILE_NOT_FOUND", "message": "ไม่พบไฟล์"}})
+    if f.processing_status not in ("queued", "extracting"):
+        raise HTTPException(409, detail={"error": {
+            "code": "NOT_CANCELLABLE",
+            "message": "ยกเลิกได้เฉพาะไฟล์ที่ queued/extracting",
+        }})
+
+    if f.raw_path and os.path.exists(f.raw_path):
+        try:
+            os.remove(f.raw_path)
+        except OSError as e:
+            logger.warning(f"cancel_upload: rm raw_path failed for {file_id}: {e}")
+
+    try:
+        from .storage_router import delete_drive_file_if_byos
+        await delete_drive_file_if_byos(current_user.id, db, file_id)
+    except Exception as e:
+        logger.warning(f"cancel_upload: Drive delete failed for {file_id}: {e}")
+
+    await db.delete(f)
+    await db.commit()
+    return {"cancelled": True}
+
+
 @app.get("/api/healthz/queue")
 async def healthz_queue(db: AsyncSession = Depends(get_db)):
     """v9.4.0 — public health endpoint สำหรับ Fly.io probe + frontend banner.

@@ -47,6 +47,7 @@ WORKER_DISABLED = os.getenv("UPLOAD_WORKER_DISABLED", "").lower() in ("1", "true
 
 # ─── Module state ─────────────────────────────────────────────────────
 _worker_task: Optional[asyncio.Task] = None
+_heartbeat_task: Optional[asyncio.Task] = None
 _shutdown_event: Optional[asyncio.Event] = None
 _worker_started_at: Optional[datetime] = None
 
@@ -105,7 +106,7 @@ async def start_worker() -> None:
 
     Hatch: ตั้ง env UPLOAD_WORKER_DISABLED=true เพื่อปิด worker (rollback Tier 2).
     """
-    global _worker_task, _shutdown_event, _worker_started_at
+    global _worker_task, _heartbeat_task, _shutdown_event, _worker_started_at
 
     if WORKER_DISABLED:
         logger.warning("upload_worker.disabled — env UPLOAD_WORKER_DISABLED set")
@@ -119,6 +120,10 @@ async def start_worker() -> None:
     await _recover_stale_jobs()
     _worker_started_at = datetime.utcnow()
     _worker_task = asyncio.create_task(_worker_loop(), name="upload_worker")
+    # v9.4.5 — separate heartbeat task. เดิม heartbeat write ใน _worker_loop เท่านั้น →
+    # job class-3 (video ~90s) ทำให้ heartbeat ค้างเกิน HEARTBEAT_STALE_SEC=30s →
+    # /healthz return 503 + frontend show "ระบบประมวลผลหยุด" banner ทั้งที่ worker ยัง busy.
+    _heartbeat_task = asyncio.create_task(_heartbeat_loop(), name="upload_heartbeat")
     logger.info("upload_worker.started")
 
 
@@ -126,12 +131,14 @@ async def stop_worker() -> None:
     """เรียกตอน FastAPI shutdown. รอ task เสร็จ (max 5s) แล้วยอมแพ้."""
     if _shutdown_event:
         _shutdown_event.set()
-    if _worker_task:
+    for name, task in (("worker", _worker_task), ("heartbeat", _heartbeat_task)):
+        if not task:
+            continue
         try:
-            await asyncio.wait_for(_worker_task, timeout=5.0)
-            logger.info("upload_worker.stopped")
+            await asyncio.wait_for(task, timeout=5.0)
+            logger.info(f"upload_{name}.stopped")
         except asyncio.TimeoutError:
-            logger.warning("upload_worker.stop_timeout — task did not finish in 5s")
+            logger.warning(f"upload_{name}.stop_timeout — task did not finish in 5s")
 
 
 def get_worker_health() -> dict:
@@ -165,6 +172,26 @@ def get_worker_health() -> dict:
 # ═══════════════════════════════════════════════════════════════════
 # Internal — main loop + claim + process
 # ═══════════════════════════════════════════════════════════════════
+
+async def _heartbeat_loop() -> None:
+    """v9.4.5 — write heartbeat ทุก HEARTBEAT_INTERVAL_SEC bypass _worker_loop.
+
+    Worker loop เขียน heartbeat ก่อน claim/process ของแต่ละ job. Job class-3 (video)
+    ใช้ ~90s ต่อตัว → heartbeat ค้างเกิน HEARTBEAT_STALE_SEC=30s → /healthz บอก
+    "stopped" + frontend banner เด้ง ทั้งที่ worker ยัง busy. แยก task นี้ทำให้
+    heartbeat fresh ตลอดถ้า event loop ยัง responsive.
+    """
+    interval = max(1.0, HEARTBEAT_STALE_SEC / 6.0)  # 5s default (30/6)
+    while not _shutdown_event.is_set():
+        try:
+            _write_heartbeat()
+        except Exception as e:
+            logger.warning(f"upload_heartbeat.write_failed (non-fatal): {e}")
+        try:
+            await asyncio.wait_for(_shutdown_event.wait(), timeout=interval)
+        except asyncio.TimeoutError:
+            pass
+
 
 async def _worker_loop() -> None:
     """Main loop — poll DB, claim 1 job, process, repeat. Stops on shutdown event."""
@@ -544,19 +571,19 @@ def format_user_error(exc: Exception) -> str:
 
 
 async def _recover_stale_jobs() -> None:
-    """Reset stuck 'extracting' jobs (extract_started_at เก่ากว่า cutoff) → 'queued'.
+    """Reset ALL 'extracting' rows → 'queued' ตอน startup.
 
-    เรียกตอน startup. ป้องกัน orphan rows กรณี server crash กลาง extract.
+    เดิม: cutoff 30 นาที → หลัง deploy/restart ไฟล์ที่ extracting < 30 นาที จะค้าง
+    เพราะ worker ใหม่ skip + worker เก่าตายไปแล้ว.
+    v9.4.5: ที่ startup ไม่มี worker ตัวอื่นแล้ว → ทุก 'extracting' = orphan ของ
+    process เก่า → reset ทั้งหมด ไม่เช็คเวลา. Periodic stale sweep (ระหว่างรัน)
+    ยังไม่มี — หากต้องการ implement แยก โดยใช้ STALE_EXTRACT_TIMEOUT_SEC.
     """
-    cutoff = datetime.utcnow() - timedelta(seconds=STALE_EXTRACT_TIMEOUT_SEC)
     try:
         async with AsyncSessionLocal() as db:
             result = await db.execute(
                 update(File)
-                .where(
-                    File.processing_status == "extracting",
-                    File.extract_started_at < cutoff,
-                )
+                .where(File.processing_status == "extracting")
                 .values(
                     processing_status="queued",
                     extract_started_at=None,
@@ -571,7 +598,7 @@ async def _recover_stale_jobs() -> None:
                     extra={
                         "event": "recovered_stale",
                         "count": result.rowcount,
-                        "cutoff": cutoff.isoformat(),
+                        "scope": "all_extracting_at_startup",
                     },
                 )
     except Exception as e:
