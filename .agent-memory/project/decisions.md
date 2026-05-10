@@ -154,6 +154,43 @@
 - `organize_new_files()` return value เพิ่ม `file_ids` array (เพื่อให้ caller รัน detection ตามได้)
 - **ห้าม** ใส่ `duplicates_found` กลับเข้า upload response (frontend จะสับสน 2 จุด)
 
+## STORAGE-006: invalid_grant graceful coverage = ALL push helpers (v9.3.5, 2026-05-10)
+**Why:** v9.3.0 patch (commit `91cb37c`) added `_is_refresh_failure` + `_mark_drive_connection_errored` helpers แต่ใช้แค่ใน `push_profile_to_drive_if_byos` (1 ใน 9 helpers). 8 helpers ที่เหลือ + sync flow silent-fail บน RefreshError → user upload ไฟล์ → background push fail เงียบ → UI ยังเขียว "เชื่อมต่อแล้ว" → user ไม่รู้ต้อง re-auth จนกว่าจะเปิด Drive ดูเอง.
+
+**Live test (2026-05-10):** bossok2546 user ติด token revoked (testing mode 7-day expire) · 8 ไฟล์ stuck local · `/api/drive/sync` คืน HTTP 500 (RefreshError ที่ `load_connection` ก่อน try-block)
+
+**Implementation (v9.3.5):**
+- ทุก push_*_to_drive_if_byos + delete_drive_file_if_byos เรียก `_mark_drive_connection_errored` ใน `_is_refresh_failure(e) = True` case
+- `drive_sync.run_full_sync` wrap `load_connection()` ใน try-block + fallback re-fetch DriveConnection ถ้า self._connection ยังไม่ bind
+- `/api/drive/sync` คืน 200 + `status='completed_with_errors'` (เดิม raise 500)
+- Frontend: persistent error banner ที่ top of /app + auto-sync หลัง reconnect + visibility-based polling
+
+**UX outcome:**
+- User เห็น "🔌 Google Drive ของคุณหมดอายุการเชื่อมต่อ" banner ทันทีที่เกิด invalid_grant
+- 1-click reconnect → auto-sync ไฟล์ stuck → ไม่ต้องกด sync เอง
+- Testing mode notice reworded จาก jargon เป็น user-friendly text
+
+**Implication:**
+- ทุก push helper ใหม่ที่เพิ่มใน future ต้อง follow pattern เดียวกัน (else regress UX)
+- Plan v9.3.5 = canonical pattern reference
+
+**See also:** [plans/v9.3.5-byos-invalid-grant-coverage.md](../plans/v9.3.5-byos-invalid-grant-coverage.md)
+
+## STORAGE-007: Submit Google OAuth verification (recommended, 2026-05-10)
+**Why:** ปัจจุบัน `GOOGLE_OAUTH_MODE=testing` → Google revoke refresh_token หลัง 7 วัน → user เจอ invalid_grant → ต้อง reconnect ทุก 7 วันตลอดไป. ไม่ใช่ "best UX" ระยะยาว.
+
+**Action items (founder ต้องทำเอง — agent ทำให้ไม่ได้):**
+1. Google Cloud Console → OAuth consent screen → "Submit for verification"
+2. Privacy Policy URL + Terms URL ของ PDB
+3. Scope = `drive.file` + `openid` + `email` + `profile` = **non-sensitive** (ฟรี · ไม่ต้อง security audit)
+4. รอ Google review 2-4 weeks
+5. หลัง verified → `flyctl secrets set GOOGLE_OAUTH_MODE=production -a personaldatabank`
+6. ทำตามขั้นตอนนี้แล้ว → token ที่ออกใหม่ทั้งหมดไม่หมดอายุ (จนกว่า user จะ revoke เอง) → UX ดีถาวร
+
+**Effort:** ~30 นาที setup + 2-4 weeks waiting · ไม่ block code ของ v9.3.5
+
+**Status:** OPEN — pending founder action
+
 ## DUP-004: Duplicate detection DISABLED temporarily (v9.3.2, 2026-05-08)
 **Why:** `compute_content_hash()` crashes กับ `UnicodeEncodeError: surrogates not allowed` สำหรับ PDF text ที่มี lone surrogate code points (PDF font encoding edge case). Manifests เป็น HTTP 500 บน `POST /api/files/{id}/reprocess` ตามที่เห็นใน Fly.io log 2026-05-08 11:31:36 position 12562-12563.
 

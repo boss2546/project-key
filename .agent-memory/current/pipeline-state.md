@@ -5,12 +5,18 @@
 
 ---
 
-## 🎯 Current State: `plan_approved` ✅ v9.3.5 building (2026-05-10)
+## 🎯 Current State: `built_pending_review` ✅ v9.3.5 BYOS Reconnect UX (2026-05-10)
 
-**Master HEAD:** `c0ffdc0` v9.3.4 (review_passed, รอ deploy)
-**Active build:** v9.3.5 BYOS Reconnect UX — เขียว started
-**Mode:** Sequential (แดง→เขียว→ฟ้า) · user approved + authorized plan revise per actual code
-**Target APP_VERSION:** 9.3.5
+**Master HEAD:** v9.3.5 build commits (เขียว done, รอฟ้า review)
+**APP_VERSION:** 9.3.5
+**Mode:** Sequential (แดง→เขียว→ฟ้า) — เขียวเสร็จ · ส่งต่อ ฟ้า
+
+### v9.3.5 build summary
+- Backend: 9 helpers patched (storage_router) + drive_sync wrap + endpoint status field
+- Frontend: banner + auto-sync after reconnect + visibility polling + reword testing notice + upload-warning toast
+- Cache-bust catch-up: `?v=9.3.1 → ?v=9.3.5` (drift จาก v9.3.2/3/4 ที่ไม่เคย bump)
+- Self-test: APP_VERSION + 13 imports + py_compile + JS syntax + HTML parse — all PASS
+- Plan ref: [plans/v9.3.5-byos-invalid-grant-coverage.md](../plans/v9.3.5-byos-invalid-grant-coverage.md) (v3 — adjusted to actual code)
 
 **v9.4.0 status:** `plan_pending_approval` — DEFER (user สั่งทำแค่ v9.3.5 ก่อน)
 

@@ -210,6 +210,42 @@ Pydantic raises 422 for invalid type/source/core/wing. Service raises 400 for IN
 
 ดู [`docs/BYOS_SETUP.md`](../../docs/BYOS_SETUP.md) สำหรับ admin setup walkthrough
 
+### v9.3.5 — Sync error contract (extended invalid_grant graceful coverage)
+
+**`POST /api/drive/sync` — ห้ามคืน 500 อีกแล้ว** (เดิม v9.3.0-9.3.4 throw RefreshError ที่ load_connection):
+- HTTP **200** เสมอ (ยกเว้น 401 unauthorized · 400 not_byos / no_connection · 503 not_configured)
+- Response body มี `status` field:
+  - `"ok"` — `stats.errors === 0` (clean sync)
+  - `"completed_with_errors"` — `stats.errors > 0` (partial fail · token revoked / Drive offline / etc.)
+
+```json
+{
+  "status": "completed_with_errors",
+  "stats": {
+    "pulled_new": 0,
+    "pulled_updated": 0,
+    "pulled_deleted": 0,
+    "pushed_new": 0,
+    "pushed_updated": 0,
+    "conflicts_resolved": 0,
+    "errors": 1,
+    "duration_ms": 234
+  }
+}
+```
+
+**Behavioral coverage extended (v9.3.5):**
+- v9.3.0 เพิ่ม `_is_refresh_failure` + `_mark_drive_connection_errored` แต่ใช้แค่ `push_profile_to_drive_if_byos`
+- v9.3.5 ขยายไปครบทุก helper: `push_graph` / `push_clusters` / `push_relations` / `push_contexts` / `push_summary` / `push_extracted_text` / `push_raw_file` / `delete_drive_file_if_byos`
+- ทุก helper เมื่อเจอ RefreshError → set `last_sync_status='error'` + `last_sync_error="...invalid_grant..."` ใน DB
+- `/api/drive/status.last_sync_error` จึง populate ได้จากทุก push path (ไม่ใช่แค่ profile push)
+
+**Frontend signal flow (v9.3.5):**
+- `last_sync_status='error'` → frontend banner ที่ top of /app (storage_mode.js `renderDriveErrorBanner`)
+- User กด "เชื่อมต่อใหม่" → OAuth flow → callback success → auto-trigger `/api/drive/sync` → push stuck files → toast "✓ ซิงค์ N ไฟล์ขึ้น Drive แล้ว"
+
+ดู [STORAGE-006 ใน decisions.md](../project/decisions.md#storage-006) + [plans/v9.3.5-byos-invalid-grant-coverage.md](../plans/v9.3.5-byos-invalid-grant-coverage.md)
+
 ---
 
 ## 🔁 Duplicate Detection (v7.1, NEW)
