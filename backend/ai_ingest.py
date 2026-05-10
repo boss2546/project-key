@@ -35,6 +35,11 @@ logger = logging.getLogger(__name__)
 
 # ─── Feature detection ──────────────────────────────────────────────
 
+# Gemini File-API model สำหรับ audio/video transcription.
+# Why constant: Google deprecate gemini-2.0-flash (2026-05-10) → 404 NOT_FOUND
+# ทุก ingest. ตั้ง override ด้วย env GEMINI_FILE_MODEL ถ้าต้องเปลี่ยนเร็ว.
+GEMINI_FILE_MODEL = os.getenv("GEMINI_FILE_MODEL", "gemini-2.5-flash")
+
 _HAS_GEMINI = False
 _genai_client = None
 try:
@@ -43,7 +48,7 @@ try:
     if _api_key:
         _genai_client = genai.Client(api_key=_api_key)
         _HAS_GEMINI = True
-        logger.info("Gemini multimodal API enabled (google-genai SDK)")
+        logger.info(f"Gemini multimodal API enabled (model={GEMINI_FILE_MODEL})")
     else:
         logger.warning("GOOGLE_API_KEY not set — AI multimodal ingestion disabled")
 except ImportError:
@@ -54,7 +59,10 @@ except ImportError:
 
 AUDIO_FORMATS = {"mp3", "wav", "m4a", "flac", "aac", "ogg", "opus", "wma"}
 VIDEO_FORMATS = {"mp4", "mov", "mkv", "webm", "avi", "wmv", "flv", "m4v", "3gp"}
-AI_VISION_FORMATS = set()  # reserved for Phase B v3 (smart image describe)
+# v9.4.2 — Vision formats: Gemini 2.5 Flash อ่านข้อความในรูป + อธิบายภาพได้แม่นกว่า
+# Tesseract (รองรับไทย+อังกฤษ native, ไม่ต้องลง binary). ก่อนหน้านี้รูปไป Tesseract เท่านั้น
+# → ถ้าไม่มี text → "[Image: no text detected]" → user เห็นแต่ marker, ไม่มีข้อมูลภาพ.
+AI_VISION_FORMATS = {"jpg", "jpeg", "png", "webp", "heic", "heif", "gif", "bmp", "tiff", "tif"}
 
 ALL_AI_FORMATS = AUDIO_FORMATS | VIDEO_FORMATS | AI_VISION_FORMATS
 
@@ -140,6 +148,40 @@ async def _upload_to_gemini(filepath: str) -> object:
     )
 
 
+async def _wait_for_file_active(file_obj, progress_callback=None, timeout: int = 300) -> object:
+    """Poll Gemini until file.state == ACTIVE before calling generate_content.
+
+    Why: video uploads ขึ้น state=PROCESSING ก่อน → ใช้ทันที = 400 FAILED_PRECONDITION
+    "File X is not in an ACTIVE state". Audio เล็ก-รูป มัก ACTIVE ทันที, video ใหญ่ใช้ 5-30s.
+    """
+    import asyncio
+    state = getattr(file_obj, "state", None)
+    state_name = getattr(state, "name", str(state)) if state is not None else "UNKNOWN"
+    if state_name == "ACTIVE":
+        return file_obj
+    loop = asyncio.get_event_loop()
+    elapsed = 0
+    poll_interval = 2
+    while elapsed < timeout:
+        await _safe_async_progress(
+            progress_callback, f"Gemini เตรียมไฟล์ ({state_name}, {elapsed}s)", None
+        )
+        await asyncio.sleep(poll_interval)
+        elapsed += poll_interval
+        refreshed = await loop.run_in_executor(
+            None, lambda: _genai_client.files.get(name=file_obj.name)
+        )
+        state = getattr(refreshed, "state", None)
+        state_name = getattr(state, "name", str(state)) if state is not None else "UNKNOWN"
+        if state_name == "ACTIVE":
+            return refreshed
+        if state_name == "FAILED":
+            raise RuntimeError(f"Gemini file processing FAILED: {file_obj.name}")
+    raise TimeoutError(
+        f"Gemini file not ACTIVE after {timeout}s (last state={state_name})"
+    )
+
+
 async def _ingest_audio(filepath: str, ext: str, progress_callback=None) -> str:
     """Transcribe audio file via Gemini Audio understanding.
 
@@ -153,6 +195,7 @@ async def _ingest_audio(filepath: str, ext: str, progress_callback=None) -> str:
 
     await _safe_async_progress(progress_callback, "อัปโหลดไป Gemini Files API", 30)
     file_obj = await _upload_to_gemini(filepath)
+    file_obj = await _wait_for_file_active(file_obj, progress_callback)
 
     prompt = (
         "Transcribe this audio file completely. "
@@ -170,7 +213,7 @@ async def _ingest_audio(filepath: str, ext: str, progress_callback=None) -> str:
     response = await loop.run_in_executor(
         None,
         lambda: _genai_client.models.generate_content(
-            model="gemini-2.0-flash",
+            model=GEMINI_FILE_MODEL,
             contents=[file_obj, prompt],
         ),
     )
@@ -194,6 +237,7 @@ async def _ingest_video(filepath: str, ext: str, progress_callback=None) -> str:
 
     await _safe_async_progress(progress_callback, "อัปโหลดวิดีโอไป Gemini", 25)
     file_obj = await _upload_to_gemini(filepath)
+    file_obj = await _wait_for_file_active(file_obj, progress_callback)
 
     prompt = (
         "Analyze this video comprehensively:\n"
@@ -212,7 +256,7 @@ async def _ingest_video(filepath: str, ext: str, progress_callback=None) -> str:
     response = await loop.run_in_executor(
         None,
         lambda: _genai_client.models.generate_content(
-            model="gemini-2.0-flash",
+            model=GEMINI_FILE_MODEL,
             contents=[file_obj, prompt],
         ),
     )
@@ -223,10 +267,43 @@ async def _ingest_video(filepath: str, ext: str, progress_callback=None) -> str:
 
 
 async def _ingest_image_smart(filepath: str, ext: str, progress_callback=None) -> str:
-    """Smart image description via Gemini Vision — better than OCR for charts/diagrams.
+    """Vision describe + OCR text-in-image via Gemini 2.5 Flash.
 
-    Reserved for Phase B v3 — currently HEIC/etc. use Tesseract OCR.
-    progress_callback signature kept consistent with sibling functions for future impl.
+    Combines: (1) visual scene description (2) extract any embedded text (Thai+English)
+    (3) describe charts/diagrams. ไม่ต้อง wait_for_active เพราะรูปเล็ก state=ACTIVE
+    ทันทีหลัง upload, แต่ยังเรียกเพื่อ safety (no-op ถ้า ACTIVE แล้ว).
+
+    Returns markdown text. On error returns "[AI vision error: ...]" marker.
     """
-    del filepath, ext, progress_callback  # mark intentionally unused (Phase B v3 stub)
-    return "[AI vision not yet implemented in Phase B v2]"
+    logger.info(f"AI image ingest: {os.path.basename(filepath)} ({ext})")
+
+    await _safe_async_progress(progress_callback, "อัปโหลดรูปไป Gemini", 30)
+    file_obj = await _upload_to_gemini(filepath)
+    file_obj = await _wait_for_file_active(file_obj, progress_callback, timeout=60)
+
+    prompt = (
+        "Analyze this image comprehensively in markdown:\n"
+        "1. **Description** — describe what's in the image (objects, people, scene, mood)\n"
+        "2. **Text content** — extract ALL visible text exactly as shown "
+        "(preserve original language: Thai, English, etc.)\n"
+        "3. **Type** — photograph / screenshot / diagram / chart / document / artwork\n"
+        "4. **Notable details** — any context useful for search later "
+        "(brand names, places, dates, key numbers, etc.)\n"
+        "Use Thai if image content is Thai, English otherwise. Skip sections that don't apply."
+    )
+
+    await _safe_async_progress(progress_callback, f"Gemini วิเคราะห์รูป ({ext})", None)
+
+    import asyncio
+    loop = asyncio.get_event_loop()
+    response = await loop.run_in_executor(
+        None,
+        lambda: _genai_client.models.generate_content(
+            model=GEMINI_FILE_MODEL,
+            contents=[file_obj, prompt],
+        ),
+    )
+    text = response.text or "[AI image: no description generated]"
+    logger.info(f"AI image done: {len(text)} chars from {os.path.basename(filepath)}")
+    await _safe_async_progress(progress_callback, "รับผลลัพธ์จาก Gemini", 90)
+    return text

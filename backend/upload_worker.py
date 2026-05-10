@@ -516,6 +516,15 @@ def format_user_error(exc: Exception) -> str:
         return "Gemini ตอบช้ากว่าปกติ — กดลองใหม่อีกครั้ง"
     if "google" in s_lower and "auth" in s_lower:
         return "Gemini API key ไม่ถูกต้อง — ติดต่อแอดมิน"
+    # v9.4.2 — model deprecate/unavailable + Files API state errors
+    if "404" in s and ("not_found" in s_lower or "no longer available" in s_lower):
+        return "AI model ปลด/เปลี่ยนชื่อแล้ว — ติดต่อแอดมินอัปเดต GEMINI_FILE_MODEL"
+    if "failed_precondition" in s_lower or "not in an active state" in s_lower:
+        return "Gemini เตรียมไฟล์ไม่ทัน — กดลองใหม่อีกครั้ง"
+    if "permission_denied" in s_lower or "permission denied" in s_lower:
+        return "Gemini API ไม่อนุญาต — ตรวจสอบ key permissions"
+    if "invalid_argument" in s_lower or name == "ClientError":
+        return f"Gemini ปฏิเสธคำขอ ({name}) — กดลองใหม่หรือติดต่อแอดมินถ้ายังไม่หาย"
 
     # Tesseract
     if "tesseract" in s_lower:

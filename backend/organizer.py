@@ -23,6 +23,7 @@ async def organize_files(db: AsyncSession, user_id: str):
             File.user_id == user_id,
             File.extracted_text != "",
             File.file_kind == "processed",  # v9.1.0 vault exclusion
+            File.extraction_status == "ok",  # v9.4.2: ห้าม organize error-text files
         )
         .options(selectinload(File.insight), selectinload(File.summary), selectinload(File.cluster_maps))
     )
@@ -437,6 +438,7 @@ async def organize_new_files(db: AsyncSession, user_id: str) -> dict:
             File.user_id == user_id,
             File.extracted_text != "",
             File.file_kind == "processed",  # v9.1.0 vault exclusion
+            File.extraction_status == "ok",  # v9.4.2: ห้าม organize error-text files
             ~exists(select(FileSummary.file_id).where(FileSummary.file_id == File.id))
         ).options(selectinload(File.insight), selectinload(File.summary), selectinload(File.cluster_maps))
     )

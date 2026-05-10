@@ -262,14 +262,34 @@ def classify_extraction_status(text: str) -> str:
     if not text.startswith("["):
         return "ok"
     lower = text.lower()
+    # Empty markers
+    if lower.startswith("[empty"):
+        return "empty"
     if "encrypted" in lower or "password-protected" in lower:
         return "encrypted"
-    if "no text detected" in lower or "no text content" in lower or "ocr found no text" in lower:
-        return "ocr_failed"
+    # AI ingest configuration / unsupported (caller hasn't set up AI properly)
+    if "ai ingest not configured" in lower or "ai ingest unsupported" in lower:
+        return "unsupported"
     if "unsupported file type" in lower:
         return "unsupported"
+    # AI ingest / vision errors → ocr_failed (retryable)
+    if (
+        "ai ingest error" in lower
+        or "ai vision error" in lower
+        or "ai image: no description" in lower
+        or "ai audio: no transcription" in lower
+        or "ai video: no analysis" in lower
+        or "image: ocr not available" in lower
+        or "image: no text detected" in lower
+    ):
+        return "ocr_failed"
+    if "no text detected" in lower or "no text content" in lower or "ocr found no text" in lower:
+        return "ocr_failed"
     if "ocr error" in lower or "extraction error" in lower:
         return "ocr_failed"
+    # Extractor missing dependencies (xlsx/pptx/rtf/html unavailable)
+    if "extractor unavailable" in lower:
+        return "unsupported"
     return "ok"  # safe default — unknown bracket marker shouldn't block
 
 
