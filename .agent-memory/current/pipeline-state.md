@@ -47,10 +47,12 @@
 3. 🟡 **STORAGE-007 long-term:** Submit Google OAuth verification (founder external work)
 
 **v9.4.0 status:** `plan_pending_approval` — DEFER (user สั่งทำแค่ v9.3.5 ก่อน)
-**v9.4.0 plan revised 2026-05-10:** [plans/upload-queue-v9.4.0.md](../plans/upload-queue-v9.4.0.md) ⭐ NEW (detailed proactive edition · supersedes upload-queue-progress-v9.4.0.md)
-- เพิ่ม: Truthfulness Contract (TC-1..6) + Multi-tenant fairness (round-robin) + Per-plan tier queue caps + Observability (/healthz/queue) + ADRs (7 decisions) + State Machine + FMEA (25 modes) + Performance Budget + Rollback Plan (4-tier) + 75 test cases
-- Effort revised: เขียว ~22-24 ชม. + ฟ้า ~7-8 ชม. = ~30 ชม.
-- Open Questions revised: Q1-Q7 (ดูใน plan file)
+**v9.4.0 plan revised 2026-05-10 (v2 post-audit):** [plans/upload-queue-v9.4.0.md](../plans/upload-queue-v9.4.0.md) ⭐ Detailed Proactive Edition + เขียว field-audit fixes
+- v1 → v2: เขียวอ่านโค้ดจริงเทียบ plan แล้วเจอ 11 mismatches (3 BLOCKER + 3 MEDIUM + 5 LOW) → แดง 3-in-1 mode revise
+- Fixed: M-1 i18n pattern (I18N.th/.en single global · ไม่ใช่ separate vars) · M-3 WAL mode (added explicit code) · M-4 reprocess+promote refactor (เข้า scope · "ไม่ค้าง" 100%) · M-2 func import · M-9 t(key,vars) extension · M-10 safer SQL via SQLAlchemy ORM
+- Total scope: Truthfulness Contract (TC-1..6) + Multi-tenant fairness + Per-plan caps + Observability + 7 ADRs + State Machine + FMEA (25) + Rollback (4-tier) + 83 tests
+- Effort v2: เขียว ~25-27 ชม. (+3 hrs) + ฟ้า ~8-9 ชม. (+1 hr) = **~33-36 ชม. (~4 วัน)**
+- Open Questions: Q1-Q7 (ดูใน plan file)
 
 ### Plan A — v9.3.5 BYOS invalid_grant graceful coverage 🩹 [BUILDING]
 - **Plan file:** [plans/v9.3.5-byos-invalid-grant-coverage.md](../plans/v9.3.5-byos-invalid-grant-coverage.md)
