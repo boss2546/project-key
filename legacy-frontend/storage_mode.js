@@ -460,7 +460,12 @@ function wireDriveErrorBanner() {
 
   if (reconnectBtn && !reconnectBtn._wired) {
     reconnectBtn.addEventListener('click', () => {
-      // ก่อน redirect — แสดง expectation message (ลด confusion ที่ Google consent screen)
+      // v9.3.5 BUG-02 — guard double-click race
+      // Why: 600ms toast delay เปิดช่อง user กดซ้ำ → 2 OAuth init requests → 1 stale state
+      // Fix: disable ทันทีหลัง click · ไม่ต้อง re-enable เพราะ page redirect ไป Google
+      if (reconnectBtn.disabled) return;
+      reconnectBtn.disabled = true;
+
       showToast(
         isTH
           ? 'กำลังพาไป Google เพื่อยืนยันสิทธิ์ — ใช้เวลา 30 วินาที'

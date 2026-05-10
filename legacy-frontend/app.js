@@ -594,6 +594,16 @@ const NODE_COLORS = {
 // ═══════════════════════════════════════════
 const I18N = {
  th: {
+ // v9.3.5 — BYOS Drive disconnect alert banner + testing-mode notice
+ // Why: data-i18n attrs ใน app.html ต้องมี keys ครบทั้ง 2 langs · ไม่งั้น
+ // applyLanguage() จะ fallback to el.textContent (Thai default) ทำให้ EN
+ // users เห็น Thai ใน banner title + buttons + notice
+ 'drive.errorBanner.title': 'Google Drive ของคุณหมดอายุการเชื่อมต่อ',
+ 'drive.errorBanner.detail': 'ไฟล์ใหม่ยังไม่ได้ขึ้น Drive — กดเพื่อเชื่อมต่อใหม่',
+ 'drive.errorBanner.reconnect': 'เชื่อมต่อใหม่',
+ 'drive.errorBanner.dismiss': 'ภายหลัง',
+ 'drive.testingNotice': 'ขณะนี้ระบบเชื่อมต่อ Drive แบบ Beta — การเชื่อมต่อจะหมดอายุทุก 7 วัน · กรุณาเชื่อมต่อใหม่เมื่อแอพแจ้งเตือน',
+
  // v8.1.0 — Google Sign-In
  'auth.signInWithGoogle': 'เข้าสู่ระบบด้วย Google',
  'auth.signUpWithGoogle': 'สมัครสมาชิกด้วย Google',
@@ -858,6 +868,13 @@ const I18N = {
  },
 
  en: {
+ // v9.3.5 — BYOS Drive disconnect alert banner + testing-mode notice
+ 'drive.errorBanner.title': 'Google Drive connection expired',
+ 'drive.errorBanner.detail': "New files haven't been uploaded to Drive — click to reconnect",
+ 'drive.errorBanner.reconnect': 'Reconnect',
+ 'drive.errorBanner.dismiss': 'Later',
+ 'drive.testingNotice': 'Drive connection is in Beta mode — expires every 7 days · please reconnect when prompted',
+
  // v8.1.0 — Google Sign-In
  'auth.signInWithGoogle': 'Sign in with Google',
  'auth.signUpWithGoogle': 'Sign up with Google',
