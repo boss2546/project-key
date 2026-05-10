@@ -1596,6 +1596,23 @@ async function uploadFiles(fileList) {
  loadStats();
  loadUnprocessedCount();
  loadUsageInfo();
+
+ // v9.3.5 — เตือน user ถ้า BYOS connection พังตอน upload (background push silent-fail)
+ // Why: backend log warning แต่ user ไม่เห็น · UI ต้องบอกตรงๆ ว่า "ไฟล์ขึ้น server แล้ว
+ // แต่ไม่ได้ขึ้น Drive — เชื่อมต่อใหม่ที่แถบเตือนด้านบน"
+ try {
+  if (window._driveStatus
+      && window._driveStatus.feature_available
+      && window._driveStatus.storage_mode === 'byos'
+      && window._driveStatus.last_sync_status === 'error') {
+   showToast(
+    isTH
+     ? 'ไฟล์อัพโหลดเข้าเซิร์ฟเวอร์แล้ว แต่ยังไม่ได้ขึ้น Drive — กรุณาเชื่อมต่อใหม่ที่แถบเตือนด้านบน'
+     : 'Files uploaded to server but not synced to Drive — please reconnect via top banner',
+    'warning'
+   );
+  }
+ } catch (_warnErr) { /* defensive — ไม่ block upload flow */ }
  } catch (e) {
   if (e && e.status === 401) {
    // Mirror authFetch's session-expired flow

@@ -4978,3 +4978,74 @@ td {
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   v9.3.5 — BYOS Drive disconnect alert banner
+   Why: User upload ไฟล์ → push silent-fail (token revoked) →
+   user ไม่รู้ ต้องเปิด Profile menu เอง · banner เด้งทันที = "best UX"
+   Pattern: ใช้ rgba literal เดียวกับ .upload-sensitive-warning + .mcp-token-warning
+   ที่มีอยู่แล้ว (consistent · ไม่เพิ่ม CSS variable ใหม่ ตาม UI Foundation §1)
+   ═══════════════════════════════════════════════════════════════ */
+
+.drive-error-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  margin: var(--space-3) 0;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--fs-base);
+  z-index: var(--z-sticky);
+}
+
+.drive-error-banner.hidden {
+  display: none;
+}
+
+.drive-error-banner-icon {
+  color: var(--warning);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.drive-error-banner-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.drive-error-banner-text strong {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.drive-error-banner-text span {
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+}
+
+.drive-error-banner-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+@media (max-width: 600px) {
+  .drive-error-banner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+    padding: var(--space-3);
+  }
+  .drive-error-banner-actions {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+}

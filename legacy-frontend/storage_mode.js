@@ -14,6 +14,9 @@
 // STATE
 // ═══════════════════════════════════════════
 let _driveStatus = null;
+// v9.3.5 — banner dismiss persists แค่ session-only (ไม่ persist ข้าม reload)
+// Why: ป้องกัน user กดผิดแล้วลืม banner ค้างจนกว่าจะ reconnect
+let _driveBannerDismissedThisSession = false;
 
 // ═══════════════════════════════════════════
 // INIT — called from initAppData() in app.js
@@ -28,6 +31,10 @@ async function initStorageMode() {
 
   // 3. Wire up event listeners
   wireStorageModeEvents();
+
+  // v9.3.5 — Banner UX layer
+  wireDriveErrorBanner();
+  setupDriveStatusVisibilityPolling();
 }
 
 
@@ -41,14 +48,54 @@ function handleDriveCallbackParams() {
   const error = params.get('error');
 
   if (driveConnected === 'true') {
+    const isTH = getLang() === 'th';
     showToast(
-      getLang() === 'th'
-        ? 'เชื่อมต่อ Google Drive สำเร็จ! ไฟล์ของคุณจะซิงค์อัตโนมัติ'
-        : 'Google Drive connected! Your files will sync automatically.',
+      isTH
+        ? 'เชื่อมต่อ Google Drive สำเร็จ! กำลังซิงค์ไฟล์ที่ค้าง...'
+        : 'Google Drive connected! Syncing pending files...',
       'success'
     );
     // Clean URL without reload
     window.history.replaceState({}, '', '/');
+
+    // v9.3.5 — reset banner dismiss flag (state เพิ่งกลับมา healthy)
+    _driveBannerDismissedThisSession = false;
+
+    // v9.3.5 — Auto-trigger sync to push stuck files (ไฟล์ที่ user upload ระหว่าง token พัง)
+    // Why: user goal "ดีที่สุด" = 1 click reconnect → ระบบจัดการที่เหลือเอง
+    setTimeout(async () => {
+      try {
+        const syncRes = await authFetch('/api/drive/sync', { method: 'POST' });
+        if (syncRes.ok) {
+          const syncData = await syncRes.json();
+          const stats = syncData.stats || {};
+          const pushed = stats.pushed_new || 0;
+          const errs = stats.errors || 0;
+          if (pushed > 0 && errs === 0) {
+            showToast(
+              isTH
+                ? `✓ ซิงค์ ${pushed} ไฟล์ขึ้น Drive แล้ว`
+                : `✓ Synced ${pushed} files to Drive`,
+              'success'
+            );
+          } else if (pushed > 0 && errs > 0) {
+            showToast(
+              isTH
+                ? `ซิงค์ ${pushed} ไฟล์สำเร็จ · ${errs} ไฟล์ล้มเหลว`
+                : `Synced ${pushed} files · ${errs} failed`,
+              'warning'
+            );
+          }
+        }
+        // Refresh status (banner หายเพราะ status='success') + file list (badge update)
+        await refreshDriveStatus();
+        if (typeof loadFiles === 'function') loadFiles();
+      } catch (e) {
+        // Silent fail — banner กลับมาถ้า status ยัง error
+        console.warn('Auto-sync after reconnect failed:', e);
+      }
+    }, 1500); // ให้ user เห็น toast แรกก่อน
+
     // Auto-open profile modal — return user to context before OAuth redirect
     setTimeout(() => {
       const modal = document.getElementById('profile-modal');
@@ -79,7 +126,10 @@ async function refreshDriveStatus() {
   } catch {
     _driveStatus = { feature_available: false };
   }
+  // v9.3.5 — expose ให้ app.js เช็คใน upload flow ได้
+  try { window._driveStatus = _driveStatus; } catch (_e) {}
   renderStorageModeUI();
+  renderDriveErrorBanner();  // v9.3.5 — proactive banner
 }
 
 
@@ -350,6 +400,103 @@ async function syncDriveNow() {
 function wireStorageModeEvents() {
   // Events are wired via onclick in renderStorageModeUI
   // Nothing to wire here currently — future: Picker integration
+}
+
+
+// ═══════════════════════════════════════════
+// v9.3.5 — Drive Error Banner (proactive UX)
+// ═══════════════════════════════════════════
+
+/**
+ * Render banner ที่ top ของ /app เมื่อ last_sync_status='error'
+ * (token revoked / Google API down / etc.)
+ *
+ * เรียกจาก refreshDriveStatus() — ทุกครั้งที่ status update
+ * Why: User ไม่ต้องเปิด Profile menu เพื่อรู้ว่า Drive พัง · banner เห็นทันที
+ */
+function renderDriveErrorBanner() {
+  const banner = document.getElementById('drive-error-banner');
+  if (!banner) return;
+
+  const isErrored = _driveStatus
+    && _driveStatus.feature_available
+    && _driveStatus.drive_connected
+    && _driveStatus.last_sync_status === 'error';
+
+  // Hidden conditions: ไม่มี error · หรือ user dismiss แล้ว session นี้
+  if (!isErrored || _driveBannerDismissedThisSession) {
+    banner.classList.add('hidden');
+    return;
+  }
+
+  // Show banner + translate technical error → user-friendly text
+  banner.classList.remove('hidden');
+  const detail = document.getElementById('drive-error-banner-detail');
+  if (detail) {
+    const isTH = getLang() === 'th';
+    const errStr = (_driveStatus.last_sync_error || '').toLowerCase();
+    if (errStr.indexOf('invalid_grant') >= 0
+        || errStr.indexOf('expired') >= 0
+        || errStr.indexOf('revoked') >= 0) {
+      detail.textContent = isTH
+        ? 'การเชื่อมต่อหมดอายุ — ไฟล์ใหม่ยังไม่ได้ขึ้น Drive · กดเพื่อเชื่อมต่อใหม่'
+        : 'Connection expired — new files haven\'t been uploaded to Drive · click to reconnect';
+    } else {
+      detail.textContent = isTH
+        ? 'พบปัญหา — กรุณาลองเชื่อมต่อใหม่'
+        : 'Connection issue — please try reconnecting';
+    }
+  }
+}
+
+/**
+ * Wire ปุ่ม "เชื่อมต่อใหม่" + "ภายหลัง" ใน banner
+ * Once-per-session — เรียกตอน initStorageMode
+ */
+function wireDriveErrorBanner() {
+  const reconnectBtn = document.getElementById('drive-error-banner-reconnect');
+  const dismissBtn = document.getElementById('drive-error-banner-dismiss');
+  const isTH = getLang() === 'th';
+
+  if (reconnectBtn && !reconnectBtn._wired) {
+    reconnectBtn.addEventListener('click', () => {
+      // ก่อน redirect — แสดง expectation message (ลด confusion ที่ Google consent screen)
+      showToast(
+        isTH
+          ? 'กำลังพาไป Google เพื่อยืนยันสิทธิ์ — ใช้เวลา 30 วินาที'
+          : 'Redirecting to Google for re-authorization — takes 30 seconds',
+        'info'
+      );
+      setTimeout(() => connectDrive(), 600);
+    });
+    reconnectBtn._wired = true;
+  }
+
+  if (dismissBtn && !dismissBtn._wired) {
+    dismissBtn.addEventListener('click', () => {
+      _driveBannerDismissedThisSession = true;
+      const banner = document.getElementById('drive-error-banner');
+      if (banner) banner.classList.add('hidden');
+    });
+    dismissBtn._wired = true;
+  }
+}
+
+/**
+ * Visibility-based polling — refresh status เมื่อ user กลับมา focus tab
+ * Why: ไม่ใช้ continuous polling (ประหยัด API call) · trigger แค่เมื่อจำเป็น
+ */
+function setupDriveStatusVisibilityPolling() {
+  // หลัง user สลับ tab กลับมา
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible') {
+      try { await refreshDriveStatus(); } catch (_e) {}
+    }
+  });
+  // หลัง browser focus กลับ window
+  window.addEventListener('focus', async () => {
+    try { await refreshDriveStatus(); } catch (_e) {}
+  });
 }
 
 
