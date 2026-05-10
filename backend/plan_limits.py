@@ -56,6 +56,10 @@ PLAN_LIMITS = {
         "export_limit_monthly": 100,
         "refresh_limit_monthly": 0,
         "pack_share_limit_monthly": 5,    # v9.3.0 — share Context Pack
+        # v9.4.0 — Upload Queue cap (จำนวนไฟล์สูงสุดที่ค้างใน queue/extracting พร้อมกัน)
+        # ป้องกัน user spam อัปไฟล์เยอะจน block worker (multi-tenant fairness)
+        # ดู ADR-007 ใน plans/upload-queue-v9.4.0.md
+        "upload_queue_cap": 10,
         "semantic_search_enabled": False,
         "version_history_days": 0,
         # v9.0.0 — re-enable v7.5.0 formats (image OCR + xlsx/pptx/html/json/rtf)
@@ -73,6 +77,7 @@ PLAN_LIMITS = {
         "export_limit_monthly": 3000,
         "refresh_limit_monthly": 100,
         "pack_share_limit_monthly": 50,   # v9.3.0
+        "upload_queue_cap": 50,           # v9.4.0
         "semantic_search_enabled": True,
         "version_history_days": 70,
         "allowed_file_types": ALL_FILE_TYPES,
@@ -87,6 +92,7 @@ PLAN_LIMITS = {
         "export_limit_monthly": 999999,
         "refresh_limit_monthly": 999999,
         "pack_share_limit_monthly": 999999,   # v9.3.0
+        "upload_queue_cap": 200,              # v9.4.0 — high but bounded (avoid DoS)
         "semantic_search_enabled": True,
         "version_history_days": 999999,
         "allowed_file_types": ALL_FILE_TYPES,

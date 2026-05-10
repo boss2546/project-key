@@ -22,15 +22,12 @@ from .database import (
     MCPToken, MCPUsageLog, WebhookLog, UsageLog, AuditLog,
     DriveConnection,
 )
-from .extraction import extract_text, cleanup_extracted_text, classify_extraction_status
 from .organizer import organize_files
 from .retriever import chat_with_retrieval
-from .duplicate_detector import (
-    compute_content_hash,
-    detect_duplicates_for_batch,
-)
+from .duplicate_detector import detect_duplicates_for_batch
 # v7.1: detect_duplicates_for_batch ถูกเรียกใน /api/organize-new (post-organize)
-# compute_content_hash ยังเรียกใน /api/upload เพื่อเก็บ hash สำหรับ exact-match query
+# v9.4.0: extract_text + classify_extraction_status + compute_content_hash ย้ายไป
+# upload_worker.py — main.py ไม่ extract เองแล้ว (save+queue mode)
 from .profile import get_profile, update_profile, is_profile_complete
 from .context_packs import list_packs, get_pack, create_pack, delete_pack, regenerate_pack
 from .graph_builder import build_full_graph, get_graph_data, get_node_detail, get_neighborhood
@@ -107,6 +104,25 @@ async def startup():
         except Exception as e:
             logger.warning(f"Startup: search index rebuild failed: {e}")
         break
+
+    # v9.4.0 — start upload_worker (background async task)
+    # ทำหน้าที่ poll DB queue + extract files ที่ status='queued'
+    # Recovery: reset stale 'extracting' (> 30 min) → 'queued' ก่อนเริ่ม loop
+    try:
+        from .upload_worker import start_worker
+        await start_worker()
+    except Exception as e:
+        logger.warning(f"Startup: upload_worker start failed: {e}")
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    """v9.4.0 — graceful worker shutdown (max 5s timeout)."""
+    try:
+        from .upload_worker import stop_worker
+        await stop_worker()
+    except Exception as e:
+        logger.warning(f"Shutdown: upload_worker stop failed: {e}")
 
 
 # ═══════════════════════════════════════════
@@ -441,6 +457,11 @@ SKIP_TEMPLATES = {
         "message": "ไฟล์ว่างเปล่า",
         "suggestion": "ตรวจว่าไฟล์ไม่เสียหายก่อนอัปใหม่",
     },
+    # v9.4.0 — per-user upload queue cap (multi-tenant fairness)
+    "QUEUE_FULL": {
+        "message": "คิว upload เต็ม ({limit} ไฟล์) — รอบางไฟล์เสร็จก่อน",
+        "suggestion": "รอประมาณ 1-2 นาทีแล้วลองอีกครั้ง หรืออัปเกรดแพลน",
+    },
 }
 
 
@@ -484,28 +505,29 @@ async def upload_files(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Upload one or more files, extract text, save to database.
+    """v9.4.0 — save + queue mode.
 
-    v7.1: คำนวณ + เก็บ content_hash (SHA-256 ของ normalized extracted_text) ใน DB
-    สำหรับใช้ใน duplicate detection ตอน /api/organize-new (ไม่ detect ตรงนี้
-    เพราะ vector_search ยังไม่ index ไฟล์ใหม่ → semantic ไม่ทำงานเต็มที่)
+    Extract + AI ingest ย้ายไป upload_worker (background async loop).
+    Returns ทันที (~100-200ms ต่อไฟล์ vs 30-120s ใน v9.3.4).
 
-    v7.5.0: skip entries มี structured `{code, message, suggestion}` schema
-    + รองรับ image OCR (png/jpg/jpeg/webp) + EMPTY_FILE detection
+    Per-user quota lock + per-plan upload_queue_cap (ADR-007 multi-tenant fairness).
+    BYOS Drive push ย้ายไปทำใน worker (post-extract) — แทน BackgroundTask เดิม.
+
+    Vault files (ext ไม่อยู่ใน allowed_types) ไม่เข้า queue — extract = name only,
+    ทำตรงๆ ใน request นี้ (เร็วอยู่แล้ว).
     """
+    # M-2 fix v2: explicit imports (pattern เดิม = local import inside function)
+    from sqlalchemy import func
+    from .plan_limits import get_limits as _gl, get_file_count as _fc
+    from .upload_worker import get_priority_class, get_avg_sec
+
     uploaded = []
     skipped = []
-    # v5.9.3 — get plan-specific limits
-    from .plan_limits import get_limits as _gl
     _limits = _gl(current_user)
     allowed_types = _limits["allowed_file_types"]
     max_bytes = _limits["max_file_size_mb"] * 1024 * 1024
-
-    from .plan_limits import get_file_count as _fc
     file_limit = _limits["file_limit"]
-
-    # v7.0.1 — track per-file payloads so we can push to Drive after DB commit
-    pending_drive_pushes: list[tuple[str, str, bytes, str, str]] = []
+    queue_cap = _limits.get("upload_queue_cap", 10)
 
     # v9.2.0 — per-user lock for atomic quota reservation across parallel requests
     quota_lock = await _get_user_quota_lock(current_user.id)
@@ -543,84 +565,99 @@ async def upload_files(
         raw_path = os.path.join(user_upload_dir, safe_filename)
 
         async with quota_lock:
+            # File limit check (existing v9.2.0)
             live_count = await _fc(db, current_user.id)
             if live_count >= file_limit:
                 skipped.append(_make_skip("QUOTA_EXCEEDED", original_name, limit=file_limit))
                 continue
-            placeholder = File(
-                id=file_id,
-                user_id=current_user.id,
-                filename=original_name,
-                filetype=ext,
-                raw_path=raw_path,
-                extracted_text="",
-                processing_status="processing",
-                content_hash=None,
-                extraction_status="pending",
-                file_kind="vault_only" if is_vault else "processed",
+
+            # v9.4.0 — Per-plan upload queue cap (ADR-007)
+            queue_count = await db.scalar(
+                select(func.count()).select_from(File).where(
+                    File.user_id == current_user.id,
+                    File.processing_status.in_(["queued", "extracting"]),
+                )
             )
+            if (queue_count or 0) >= queue_cap:
+                skipped.append(_make_skip("QUEUE_FULL", original_name, limit=queue_cap))
+                continue
+
+            now = datetime.utcnow()
+
+            if is_vault:
+                # Vault path — ไม่เข้า queue, extract = name-based, ทำตรงๆ
+                from .vault import build_vault_searchable_text
+                vault_text = build_vault_searchable_text(original_name, ext)
+                placeholder = File(
+                    id=file_id,
+                    user_id=current_user.id,
+                    filename=original_name,
+                    filetype=ext,
+                    raw_path=raw_path,
+                    extracted_text=vault_text,
+                    processing_status="vault_only",
+                    extraction_status="vault",
+                    file_kind="vault_only",
+                    queued_at=now,
+                    extract_completed_at=now,
+                    progress_pct=100,
+                )
+            else:
+                # v9.4.0 — Queue path: insert placeholder + return ทันที
+                # worker จะ pickup → extract → update status='uploaded'
+                placeholder = File(
+                    id=file_id,
+                    user_id=current_user.id,
+                    filename=original_name,
+                    filetype=ext,
+                    raw_path=raw_path,
+                    extracted_text="",
+                    processing_status="queued",   # ← v9.4.0: queued (was "processing")
+                    content_hash=None,
+                    extraction_status="pending",
+                    file_kind="processed",
+                    queued_at=now,
+                )
             db.add(placeholder)
             await db.commit()
 
-        # ── Slow work runs OUTSIDE the lock (parallel-safe) ───────────────
+        # Save raw bytes (outside lock — IO doesn't need to block other users)
         with open(raw_path, "wb") as f:
             f.write(contents)
 
+        # คำนวณ queue_position + estimated_wait_sec (TC-4 truthful)
         if is_vault:
-            from .vault import build_vault_searchable_text
-            extracted = build_vault_searchable_text(original_name, ext)
-            content_hash = None  # vault ไม่ทำ dedupe (Q6 user decision)
-            ext_status = "vault"
-            proc_status = "vault_only"
-            file_kind = "vault_only"
+            queue_position = 0
+            estimated_wait_sec = 0
+            wait_source = "rolling_avg"
         else:
-            extracted = extract_text(raw_path, ext)
-            if extracted.startswith("[AI ingest needed:"):
-                try:
-                    from .ai_ingest import ingest_via_ai
-                    extracted = await ingest_via_ai(raw_path, ext)
-                except Exception as e:
-                    logger.error(f"AI ingest failed for {original_name}: {e}")
-                    extracted = f"[AI ingest error: {type(e).__name__}: {str(e)[:200]}]"
-
-            content_hash = compute_content_hash(extracted)
-            ext_status = classify_extraction_status(extracted)
-            proc_status = "uploaded"
-            file_kind = "processed"
-
-        # Finalize the placeholder row
-        # v9.3.3 — defense-in-depth: extract_text() already sanitizes, but the
-        # ai_ingest path is independent — wrap here so all DB writes are clean.
-        from .extraction import strip_surrogates
-        placeholder.extracted_text = strip_surrogates(extracted)
-        placeholder.processing_status = proc_status
-        placeholder.content_hash = content_hash
-        placeholder.extraction_status = ext_status
-        placeholder.file_kind = file_kind
-
-        mime_guess = _guess_mime(ext, upload_file.content_type)
-        pending_drive_pushes.append((file_id, original_name, contents, mime_guess, extracted))
+            # Position = #queued rows ของ user คนนี้ที่ queued_at <= now
+            qp_res = await db.execute(
+                select(File.filetype).where(
+                    File.user_id == current_user.id,
+                    File.processing_status == "queued",
+                    File.queued_at <= now,
+                )
+            )
+            ahead = qp_res.fetchall()
+            queue_position = len(ahead)
+            # Sum rolling avg for files ahead in queue (TC-4)
+            estimated_wait_sec = int(sum(
+                get_avg_sec(get_priority_class(f[0])) for f in ahead
+            ))
+            wait_source = "rolling_avg"
 
         uploaded.append({
             "id": file_id,
             "filename": original_name,
             "filetype": ext,
-            "uploaded_at": datetime.utcnow().isoformat(),
-            "processing_status": proc_status,
-            "text_length": len(extracted),
-            "file_kind": file_kind,  # v9.1.0 — frontend toast routes by kind
+            "uploaded_at": now.isoformat() + "Z",
+            "processing_status": placeholder.processing_status,
+            "queue_position": queue_position,
+            "estimated_wait_sec": estimated_wait_sec,
+            "estimated_wait_source": wait_source,
+            "file_kind": placeholder.file_kind,
         })
-
-    await db.commit()
-
-    # v7.0.1 — schedule Drive pushes after commit so the DB row exists when the
-    # background task opens its own session. No-op for managed users.
-    if pending_drive_pushes:
-        background_tasks.add_task(
-            _push_uploads_to_drive,
-            current_user.id,
-            pending_drive_pushes,
-        )
 
     return {
         "uploaded": uploaded,
@@ -697,6 +734,321 @@ async def _push_uploads_to_drive(
                     "Background Drive push failed for user %s file %s: %s",
                     user_id, file_id, e,
                 )
+
+
+# ═══════════════════════════════════════════════════════════════
+# v9.4.0 — Upload Queue endpoints
+# ═══════════════════════════════════════════════════════════════
+
+
+def _why_slow(f: File, queue_position: int = 0, estimated_wait_sec: int = 0) -> str | None:
+    """v9.4.0 TC-3 — explain ทำไมไฟล์ช้า ในภาษาที่ user เข้าใจ.
+
+    Return None ถ้าไม่ใช่ scenario ที่ "ช้า" (queue position 1-3 ไม่ต้องอธิบาย).
+    """
+    from .ai_ingest import AUDIO_FORMATS, VIDEO_FORMATS
+
+    ext = (f.filetype or "").lower()
+    status = f.processing_status
+
+    if status == "queued" and queue_position > 3:
+        if estimated_wait_sec > 60:
+            mins = estimated_wait_sec // 60
+            return f"อันดับ {queue_position} — ประมาณ {mins} นาที"
+        return f"อันดับ {queue_position} — ประมาณ {estimated_wait_sec} วินาที"
+
+    if status == "extracting":
+        step = (f.progress_step or "").lower()
+        if "ocr" in step:
+            return "ไฟล์ใหญ่ — OCR ใช้เวลานาน"
+        if ext in AUDIO_FORMATS:
+            return "Gemini ถอดเสียง — รอประมาณ 1-3 นาที"
+        if ext in VIDEO_FORMATS:
+            return "Gemini วิเคราะห์วิดีโอ — รอประมาณ 2-5 นาที"
+
+    return None
+
+
+@app.get("/api/upload-status")
+async def upload_status(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """v9.4.0 — list ไฟล์ของ user ที่อยู่ใน queue/extracting/error (24hr window).
+
+    Frontend Upload Tray polls endpoint นี้ทุก 2s ระหว่าง tray เปิด.
+    Response shape ออกแบบเป็น flat (event-stream-compatible) สำหรับ FH-2 SSE upgrade.
+    """
+    from sqlalchemy import func
+    from datetime import timedelta
+    from .upload_worker import get_priority_class, get_avg_sec, MAX_RETRY_ATTEMPTS, get_worker_health
+
+    # Active = queued + extracting (เรียง queued_at)
+    active_res = await db.execute(
+        select(File).where(
+            File.user_id == current_user.id,
+            File.processing_status.in_(["queued", "extracting"]),
+        ).order_by(File.queued_at.asc())
+    )
+    active_files = active_res.scalars().all()
+
+    # Failed = error ภายใน 24hr (ไม่โชว์ของเก่ามาก)
+    failed_cutoff = datetime.utcnow() - timedelta(hours=24)
+    failed_res = await db.execute(
+        select(File).where(
+            File.user_id == current_user.id,
+            File.processing_status == "error",
+            File.extract_completed_at >= failed_cutoff,
+        ).order_by(File.uploaded_at.desc())
+    )
+    failed_files = failed_res.scalars().all()
+
+    now = datetime.utcnow()
+    active_payload = []
+    queued_idx = 0
+    queued_eta_acc = 0  # accumulated estimated wait for queued items
+    for f in active_files:
+        if f.processing_status == "queued":
+            queued_idx += 1
+            qp = queued_idx
+            queued_eta_acc += get_avg_sec(get_priority_class(f.filetype or ""))
+            step = f.progress_step or f"อันดับที่ {qp} — กำลังรอคิว"
+        else:
+            qp = 0
+            step = f.progress_step or "กำลังประมวลผล"
+
+        # Elapsed = now - extract_started_at (extracting) or now - queued_at (queued)
+        ref_time = f.extract_started_at if f.processing_status == "extracting" else f.queued_at
+        elapsed_sec = int((now - ref_time).total_seconds()) if ref_time else 0
+        why_slow = _why_slow(f, qp, int(queued_eta_acc) if f.processing_status == "queued" else 0)
+
+        active_payload.append({
+            "id": f.id,
+            "filename": f.filename,
+            "filetype": f.filetype,
+            "processing_status": f.processing_status,
+            "extraction_status": f.extraction_status,
+            "queue_position": qp,
+            "progress_step": step,
+            "progress_pct": f.progress_pct,
+            "progress_pct_known": f.progress_pct is not None,
+            "stages": {
+                "queued_at": (f.queued_at.isoformat() + "Z") if f.queued_at else None,
+                "extract_started_at": (f.extract_started_at.isoformat() + "Z") if f.extract_started_at else None,
+                "extract_completed_at": (f.extract_completed_at.isoformat() + "Z") if f.extract_completed_at else None,
+            },
+            "elapsed_sec": elapsed_sec,
+            "attempt_count": f.attempt_count or 0,
+            "is_retryable": False,
+            "why_slow": why_slow,
+        })
+
+    failed_payload = []
+    for f in failed_files:
+        is_retryable = (
+            (f.attempt_count or 0) < MAX_RETRY_ATTEMPTS
+            and bool(f.raw_path)
+            and os.path.exists(f.raw_path)
+        )
+        failed_payload.append({
+            "id": f.id,
+            "filename": f.filename,
+            "filetype": f.filetype,
+            "processing_status": "error",
+            "extraction_status": f.extraction_status,
+            "extract_error": f.extract_error or "ไม่ทราบสาเหตุ",
+            "attempt_count": f.attempt_count or 0,
+            "is_retryable": is_retryable,
+            "stages": {
+                "queued_at": (f.queued_at.isoformat() + "Z") if f.queued_at else None,
+                "extract_started_at": (f.extract_started_at.isoformat() + "Z") if f.extract_started_at else None,
+                "extract_completed_at": (f.extract_completed_at.isoformat() + "Z") if f.extract_completed_at else None,
+            },
+        })
+
+    # System status (TC-6 banner trigger)
+    worker_health = get_worker_health()
+    if worker_health["status"] not in ("running", "disabled"):
+        system_status = "stopped"
+    elif active_files:
+        oldest_queued = min(
+            (f.queued_at for f in active_files if f.queued_at),
+            default=None,
+        )
+        if oldest_queued and (now - oldest_queued).total_seconds() > 300:
+            system_status = "degraded"
+        else:
+            system_status = "ok"
+    else:
+        system_status = "ok"
+
+    queued_count = sum(1 for f in active_files if f.processing_status == "queued")
+    extracting_count = sum(1 for f in active_files if f.processing_status == "extracting")
+
+    return {
+        "active": active_payload,
+        "failed": failed_payload,
+        "summary": {
+            "queued_count": queued_count,
+            "extracting_count": extracting_count,
+            "failed_count": len(failed_payload),
+            "total_active": len(active_payload),
+            "system_status": system_status,
+        },
+    }
+
+
+@app.post("/api/upload/{file_id}/retry")
+async def retry_upload(
+    file_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """v9.4.0 — reset failed file → 'queued' (worker จะ pickup ทำใหม่)."""
+    from sqlalchemy import func
+    from .upload_worker import MAX_RETRY_ATTEMPTS
+
+    res = await db.execute(
+        select(File).where(File.id == file_id, File.user_id == current_user.id)
+    )
+    f = res.scalar_one_or_none()
+    if not f:
+        raise HTTPException(404, detail={"error": {"code": "FILE_NOT_FOUND", "message": "ไม่พบไฟล์"}})
+    if f.processing_status != "error":
+        raise HTTPException(409, detail={"error": {"code": "NOT_RETRYABLE", "message": "ไฟล์นี้ไม่อยู่ในสถานะ error"}})
+    if (f.attempt_count or 0) >= MAX_RETRY_ATTEMPTS:
+        raise HTTPException(409, detail={"error": {"code": "NOT_RETRYABLE", "message": f"เกิน retry limit ({MAX_RETRY_ATTEMPTS} ครั้ง)"}})
+    if not f.raw_path or not os.path.exists(f.raw_path):
+        raise HTTPException(410, detail={"error": {"code": "FILE_GONE", "message": "ไฟล์ดิบหายไปแล้ว — ต้องอัปใหม่"}})
+
+    # Reset to queued
+    f.processing_status = "queued"
+    f.extract_started_at = None
+    f.extract_completed_at = None
+    f.extract_error = None
+    f.progress_step = None
+    f.progress_pct = None
+    f.attempt_count = (f.attempt_count or 0) + 1
+    f.queued_at = datetime.utcnow()
+    await db.commit()
+
+    # คำนวณ queue_position ใหม่
+    qp_res = await db.execute(
+        select(func.count()).select_from(File).where(
+            File.user_id == current_user.id,
+            File.processing_status == "queued",
+            File.queued_at <= f.queued_at,
+        )
+    )
+    return {
+        "id": f.id,
+        "processing_status": "queued",
+        "queue_position": qp_res.scalar() or 1,
+        "attempt_count": f.attempt_count,
+    }
+
+
+@app.post("/api/upload/{file_id}/dismiss-error")
+async def dismiss_upload_error(
+    file_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """v9.4.0 — ลบ failed row + raw file + Drive copy (ถ้ามี)."""
+    res = await db.execute(
+        select(File).where(File.id == file_id, File.user_id == current_user.id)
+    )
+    f = res.scalar_one_or_none()
+    if not f:
+        raise HTTPException(404, detail={"error": {"code": "FILE_NOT_FOUND", "message": "ไม่พบไฟล์"}})
+    if f.processing_status != "error":
+        raise HTTPException(409, detail={"error": {"code": "NOT_DISMISSIBLE", "message": "ไฟล์นี้ไม่ใช่สถานะ error"}})
+
+    # ลบ raw file (best-effort)
+    if f.raw_path and os.path.exists(f.raw_path):
+        try:
+            os.remove(f.raw_path)
+        except OSError as e:
+            logger.warning(f"dismiss_error: rm raw_path failed for {file_id}: {e}")
+
+    # ลบ Drive copy (BYOS only)
+    try:
+        from .storage_router import delete_drive_file_if_byos
+        await delete_drive_file_if_byos(current_user.id, db, file_id)
+    except Exception as e:
+        logger.warning(f"dismiss_error: Drive delete failed for {file_id}: {e}")
+
+    await db.delete(f)
+    await db.commit()
+    return {"deleted": True}
+
+
+@app.get("/api/healthz/queue")
+async def healthz_queue(db: AsyncSession = Depends(get_db)):
+    """v9.4.0 — public health endpoint สำหรับ Fly.io probe + frontend banner.
+
+    Returns 200 ปกติ · 503 ถ้า worker stopped/crashed หรือ oldest queued > 5 นาที.
+    No auth — public probe (เหมือน /api/healthz เดิม).
+    """
+    from sqlalchemy import func
+    from datetime import timedelta
+    from .upload_worker import get_worker_health
+
+    worker = get_worker_health()
+    queued = await db.scalar(
+        select(func.count()).select_from(File).where(File.processing_status == "queued")
+    )
+    extracting = await db.scalar(
+        select(func.count()).select_from(File).where(File.processing_status == "extracting")
+    )
+
+    cutoff_24h = datetime.utcnow() - timedelta(hours=24)
+    error_24h = await db.scalar(
+        select(func.count()).select_from(File).where(
+            File.processing_status == "error",
+            File.extract_completed_at >= cutoff_24h,
+        )
+    )
+    success_24h = await db.scalar(
+        select(func.count()).select_from(File).where(
+            File.processing_status == "uploaded",
+            File.extract_completed_at >= cutoff_24h,
+        )
+    )
+
+    oldest_queued = await db.scalar(
+        select(func.min(File.queued_at)).where(File.processing_status == "queued")
+    )
+    oldest_age = int((datetime.utcnow() - oldest_queued).total_seconds()) if oldest_queued else 0
+
+    total_24h = (success_24h or 0) + (error_24h or 0)
+    success_rate = round((success_24h or 0) / total_24h, 3) if total_24h > 0 else 1.0
+
+    body = {
+        "worker": worker,
+        "queue": {
+            "queued": queued or 0,
+            "extracting": extracting or 0,
+            "error_24h": error_24h or 0,
+            "oldest_queued_age_sec": oldest_age,
+        },
+        "metrics": {
+            "avg_extract_sec_by_class": worker.get("avg_extract_sec_by_class", {}),
+            "extract_success_rate_24h": success_rate,
+        },
+    }
+
+    # 503 ถ้า degraded (Fly.io probe จะ restart machine)
+    alerts = []
+    if worker["status"] not in ("running", "disabled"):
+        alerts.append({"code": "WORKER_NOT_RUNNING", "status": worker["status"]})
+    if oldest_age > 300:
+        alerts.append({"code": "OLDEST_QUEUED_OVER_5MIN", "value_sec": oldest_age})
+
+    if alerts:
+        body["alerts"] = alerts
+        return JSONResponse(body, status_code=503)
+    return body
 
 
 @app.post("/api/organize")
@@ -1619,41 +1971,39 @@ async def reprocess_file(
     if not file.raw_path or not os.path.exists(file.raw_path):
         raise HTTPException(status_code=404, detail="Original file not available — cannot reprocess")
 
-    old_text = file.extracted_text or ""
-    old_length = len(old_text)
-
-    # Re-extract with updated pipeline (PyPDF2/OCR/image OCR/etc.)
-    raw_text = extract_text(file.raw_path, file.filetype)
+    # v9.4.0 — async reprocess via queue (was inline extract in v9.3.4)
+    # Reset row → 'queued' → worker pickup → re-extract → 'uploaded'
+    # mode='cleanup' (LLM Thai cleanup) deferred to v9.5.0 — treat as 'reextract'
+    from sqlalchemy import func
 
     if mode == "cleanup":
-        # LLM cleanup — fix Thai spacing, Private Use chars, etc. (legacy)
-        new_text = await cleanup_extracted_text(raw_text, file.filename)
-        method = "llm_cleanup"
-    else:
-        # mode=reextract — skip LLM cleanup (faster + no LLM cost)
-        new_text = raw_text
-        method = "reextract"
+        logger.info(
+            f"reprocess_file: mode=cleanup deferred to v9.5.0 — using reextract for {file_id}"
+        )
 
-    # v9.3.3 — defense-in-depth: sanitize lone surrogates before DB write
-    # (extract_text already sanitizes, but reprocess paths may use mode=reextract
-    # or AI mode where text comes from different sources)
-    from .extraction import strip_surrogates
-    file.extracted_text = strip_surrogates(new_text)
-    file.processing_status = "reprocessed"
-    file.extraction_status = classify_extraction_status(file.extracted_text)  # v7.5.0
-    # v7.1 — recompute hash since text changed
-    file.content_hash = compute_content_hash(file.extracted_text)
+    file.processing_status = "queued"
+    file.extract_started_at = None
+    file.extract_completed_at = None
+    file.extract_error = None
+    file.progress_step = None
+    file.progress_pct = None
+    file.queued_at = datetime.utcnow()
     await db.commit()
 
+    qp_res = await db.execute(
+        select(func.count()).select_from(File).where(
+            File.user_id == current_user.id,
+            File.processing_status == "queued",
+            File.queued_at <= file.queued_at,
+        )
+    )
     return {
         "status": "ok",
         "file_id": file.id,
         "filename": file.filename,
-        "old_text_length": old_length,
-        "new_text_length": len(new_text),
-        "improved": len(new_text) != old_length,
-        "extraction_method": method,
-        "extraction_status": file.extraction_status,
+        "processing_status": "queued",
+        "queue_position": qp_res.scalar() or 1,
+        "extraction_method": "reextract",  # v9.4.0: cleanup mode deferred
     }
 
 
@@ -1801,33 +2151,37 @@ async def promote_vault_file(
             "message": f"ไฟล์ .{file.filetype} ยังไม่รองรับ — เก็บใน vault ต่อไป",
         }
 
-    # ลอง extract เหมือน upload flow
-    extracted = extract_text(file.raw_path, file.filetype)
-    if extracted.startswith("[AI ingest needed:"):
-        try:
-            from .ai_ingest import ingest_via_ai
-            extracted = await ingest_via_ai(file.raw_path, file.filetype)
-        except Exception as e:
-            logger.error(f"Promote AI ingest failed for {file_id}: {e}")
-            extracted = f"[AI ingest error: {type(e).__name__}: {str(e)[:200]}]"
+    # v9.4.0 — async vault → processed via queue (was inline extract+ai_ingest in v9.3.4)
+    # Worker จะ pickup → extract → file_kind='processed' + status='uploaded'
+    from sqlalchemy import func
 
-    # v9.3.3 — defense-in-depth: sanitize before DB write (promote vault path)
-    from .extraction import strip_surrogates
-    extracted = strip_surrogates(extracted)
-    file.extracted_text = extracted
-    file.content_hash = compute_content_hash(extracted)
-    file.extraction_status = classify_extraction_status(extracted)
     file.file_kind = "processed"
-    file.processing_status = "uploaded"  # ให้ organize-new จับไป cluster ทีหลัง
+    file.processing_status = "queued"
+    file.extraction_status = "pending"
+    file.extracted_text = ""  # clear vault searchable text — worker จะใส่ extracted จริง
+    file.content_hash = None
+    file.extract_started_at = None
+    file.extract_completed_at = None
+    file.extract_error = None
+    file.progress_step = None
+    file.progress_pct = None
+    file.queued_at = datetime.utcnow()
     await db.commit()
 
+    qp_res = await db.execute(
+        select(func.count()).select_from(File).where(
+            File.user_id == current_user.id,
+            File.processing_status == "queued",
+            File.queued_at <= file.queued_at,
+        )
+    )
     return {
         "status": "ok",
         "file_id": file_id,
         "promoted": True,
         "file_kind": "processed",
-        "text_length": len(extracted),
-        "extraction_status": file.extraction_status,
+        "processing_status": "queued",
+        "queue_position": qp_res.scalar() or 1,
     }
 
 
@@ -2961,6 +3315,20 @@ def _serialize_file(f: File) -> dict:
             if getattr(f, "file_kind", "") == "vault_only"
             else None
         ),
+        # v9.4.0 — Upload Queue + Visible Progress fields
+        "progress_step": getattr(f, "progress_step", None),
+        "progress_pct": getattr(f, "progress_pct", None),
+        "queued_at": (
+            f.queued_at.isoformat() + "Z" if getattr(f, "queued_at", None) else None
+        ),
+        "extract_started_at": (
+            f.extract_started_at.isoformat() + "Z" if getattr(f, "extract_started_at", None) else None
+        ),
+        "extract_completed_at": (
+            f.extract_completed_at.isoformat() + "Z" if getattr(f, "extract_completed_at", None) else None
+        ),
+        "extract_error": getattr(f, "extract_error", None),
+        "attempt_count": getattr(f, "attempt_count", 0) or 0,
     }
 
 
