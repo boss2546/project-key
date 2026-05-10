@@ -151,11 +151,14 @@ class DriveSync:
         Why push-then-pull?
             ถ้า user แก้ใน UI ปุ๊บ + sync วูบ → push ขึ้น Drive ก่อน
             กัน race ที่ pull-first จะมาทับงานของ user
-        """
-        if not self._client:
-            await self.load_connection()
-        assert self._client is not None and self._connection is not None
 
+        v9.3.5 — load_connection() ถูกย้ายเข้า try-block.
+        Why: เดิม load_connection อยู่นอก try → ถ้า ensure_pdb_folder_structure()
+        throw RefreshError (token revoked) → exception bubble ขึ้นถึง endpoint
+        → 500 + last_sync_status ค้าง 'pending' → UI ไม่รู้ว่าต้อง re-auth
+        ตอนนี้ catch ครบ + mark error ใน DB → frontend เห็น signal → render
+        "เชื่อมต่อใหม่" prompt
+        """
         started = datetime.utcnow()
         stats: SyncStats = {
             "pulled_new": 0, "pulled_updated": 0, "pulled_deleted": 0,
@@ -164,6 +167,12 @@ class DriveSync:
         }
 
         try:
+            # v9.3.5 — load_connection อยู่ใน try แล้ว · ครอบ ensure_pdb_folder_structure
+            # ที่อาจ throw RefreshError ตอน Drive API call ครั้งแรก
+            if not self._client:
+                await self.load_connection()
+            assert self._client is not None and self._connection is not None
+
             self._connection.last_sync_status = "syncing"
             await self.db.commit()
 
@@ -174,13 +183,36 @@ class DriveSync:
             self._connection.last_sync_error = None
             self._connection.last_sync_at = datetime.utcnow()
         except Exception as e:
-            self._connection.last_sync_status = "error"
-            self._connection.last_sync_error = f"{type(e).__name__}: {e}"
             stats["errors"] += 1
             logger.exception("BYOS sync failed for user %s", self.user_id)
-            # ไม่ raise — caller (background job) จะ retry รอบหน้า
+            # v9.3.5 — load_connection อาจ throw ก่อน self._connection bind สำเร็จ
+            # → fallback: re-fetch DriveConnection จาก DB เพื่อ mark error ให้ได้
+            if self._connection is not None:
+                self._connection.last_sync_status = "error"
+                self._connection.last_sync_error = f"{type(e).__name__}: {e}"[:255]
+            else:
+                # connection ไม่ load สำเร็จ — query DB ตรงๆ แล้ว mark
+                try:
+                    res = await self.db.execute(
+                        select(DriveConnection).where(
+                            DriveConnection.user_id == self.user_id
+                        )
+                    )
+                    conn_row = res.scalar_one_or_none()
+                    if conn_row is not None:
+                        conn_row.last_sync_status = "error"
+                        conn_row.last_sync_error = f"{type(e).__name__}: {e}"[:255]
+                except Exception as fallback_err:
+                    logger.warning(
+                        "BYOS: failed to mark error via fallback path: %s", fallback_err,
+                    )
+            # ไม่ raise — caller (background job/endpoint) จะเห็น stats.errors > 0
         finally:
-            await self.db.commit()
+            try:
+                await self.db.commit()
+            except Exception as commit_err:
+                # อย่าให้ commit fail ทำลาย stats return — log ก็พอ
+                logger.warning("BYOS sync final commit failed (non-fatal): %s", commit_err)
             stats["duration_ms"] = int((datetime.utcnow() - started).total_seconds() * 1000)
 
         return stats
