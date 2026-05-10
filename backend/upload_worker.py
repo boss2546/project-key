@@ -50,6 +50,11 @@ _worker_task: Optional[asyncio.Task] = None
 _heartbeat_task: Optional[asyncio.Task] = None
 _shutdown_event: Optional[asyncio.Event] = None
 _worker_started_at: Optional[datetime] = None
+# v9.4.6 — main event loop reference, captured at start_worker.
+# Why: extract_text runs sync ใน thread pool via asyncio.to_thread → ใน thread
+# นั้น asyncio.get_event_loop() return loop คนละตัว (or raises). progress callback
+# ต้อง schedule กลับ main loop เพื่อ commit DB write. เก็บ main loop ที่ startup.
+_main_loop: Optional[asyncio.AbstractEventLoop] = None
 
 # Rolling average per priority class (TC-4 truthful estimated_wait)
 # Updated atomically after each successful extract via update_avg_sec()
@@ -119,6 +124,9 @@ async def start_worker() -> None:
     _shutdown_event = asyncio.Event()
     await _recover_stale_jobs()
     _worker_started_at = datetime.utcnow()
+    # v9.4.6 — capture main loop reference สำหรับ cross-thread progress callbacks
+    global _main_loop
+    _main_loop = asyncio.get_running_loop()
     _worker_task = asyncio.create_task(_worker_loop(), name="upload_worker")
     # v9.4.5 — separate heartbeat task. เดิม heartbeat write ใน _worker_loop เท่านั้น →
     # job class-3 (video ~90s) ทำให้ heartbeat ค้างเกิน HEARTBEAT_STALE_SEC=30s →
@@ -360,17 +368,22 @@ async def _process_job(job: dict) -> None:
     def _sync_report(step: str, pct: Optional[int] = None) -> None:
         """Report progress (sync caller — extract_text via to_thread).
 
-        Schedule async write via run_coroutine_threadsafe (cross-thread safe).
+        v9.4.6 fix: ใช้ _main_loop ที่ capture ตอน start_worker. เดิมเรียก
+        asyncio.get_event_loop() ใน thread ที่ extract ทำงาน → ได้ loop คนละตัว
+        (or RuntimeError ใน Py 3.12+) → run_coroutine_threadsafe schedule ลง loop
+        ที่ไม่มี session → progress write ไม่ commit → tray UI ไม่ update.
         """
         nonlocal last_progress_write
         now = time.monotonic()
         if now - last_progress_write < PROGRESS_DB_THROTTLE_SEC:
             return
         last_progress_write = now
+        if _main_loop is None:
+            logger.debug("sync_report: main loop not captured yet")
+            return
         try:
-            loop = asyncio.get_event_loop()
             asyncio.run_coroutine_threadsafe(
-                _write_progress(file_id, step, pct), loop,
+                _write_progress(file_id, step, pct), _main_loop,
             )
         except Exception as e:
             # Non-fatal — progress write fail แค่ทำให้ tray UI หยุด update

@@ -2122,15 +2122,17 @@ const UploadTray = (() => {
      : '';
 
    // v9.4.5 — Cancel button สำหรับ queued/extracting ที่ยังไม่ fail (user ยกเลิกเองได้)
-   const isActiveQueueState = !isFailed && (item.processing_status === 'queued' || item.processing_status === 'extracting');
+   // v9.4.6 — render Cancel ตราบที่ !isFailed (รวม status อื่นๆ ที่ active เช่น
+   // optimistic placeholder ก่อน first poll); backend จะ reject 409 ถ้าไม่ใช่
+   // queued/extracting จริง → user เห็น toast "ยกเลิกได้เฉพาะ queued/extracting"
    const actions = isFailed ? `
      <div class="upload-tray-actions">
        ${item.is_retryable ? `<button class="btn btn-sm btn-outline" type="button" data-retry-id="${_esc(item.id)}">${_esc(t('upload.tray.retry'))}</button>` : ''}
        <button class="btn btn-sm btn-ghost" type="button" data-dismiss-id="${_esc(item.id)}">${_esc(t('upload.tray.dismiss'))}</button>
-     </div>` : isActiveQueueState ? `
+     </div>` : `
      <div class="upload-tray-actions">
-       <button class="btn btn-sm btn-ghost" type="button" data-cancel-id="${_esc(item.id)}">${_esc(t('upload.tray.cancel'))}</button>
-     </div>` : '';
+       <button class="btn btn-sm btn-outline btn-cancel-upload" type="button" data-cancel-id="${_esc(item.id)}">${_esc(t('upload.tray.cancel'))}</button>
+     </div>`;
 
    return `
      <li class="upload-tray-item" data-file-id="${_esc(item.id)}">
