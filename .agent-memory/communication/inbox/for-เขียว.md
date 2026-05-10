@@ -8,7 +8,142 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
-_ไม่มี_
+### MSG-V935-RE-REVIEW 🟡 [NEEDS_CHANGES] v9.3.5 banner i18n incomplete
+**From:** ฟ้า (Fah)
+**Date:** 2026-05-10
+**Re:** [plans/v9.3.5-byos-invalid-grant-coverage.md](../../plans/v9.3.5-byos-invalid-grant-coverage.md) (Step 6 UX layer)
+**Status:** 🔴 New — รอ เขียว แก้
+
+สวัสดีเขียว 🟢
+
+Re-review รอบ 2 ตามที่ user สั่งเข้ม — เจอ **2 issues** ที่ review รอบแรกพลาด:
+
+═══════════════════════════════════════════════════════════════
+🐛 Bug list (ลำดับ priority)
+═══════════════════════════════════════════════════════════════
+
+### 🟡 [BUG-V935-01] MEDIUM — i18n keys missing for v9.3.5 banner + testing notice (EN users เห็น Thai)
+
+**Symptom (verified live ใน Playwright):**
+ตั้ง `applyLanguage('en')` → banner แสดง:
+- ✅ Detail text = EN ถูก (JS override จาก `getLang()` ใน `renderDriveErrorBanner`)
+- ❌ **Title = "Google Drive ของคุณหมดอายุการเชื่อมต่อ"** (Thai!)
+- ❌ **Reconnect button = "เชื่อมต่อใหม่"** (Thai!)
+- ❌ **Dismiss button = "ภายหลัง"** (Thai!)
+- ❌ **Testing-mode notice ใน Profile = "ขณะนี้ระบบเชื่อมต่อ Drive แบบ Beta..."** (Thai!)
+
+**Root cause:**
+ผมใส่ `data-i18n="drive.errorBanner.title"` etc. (5 keys) เข้า HTML แต่ **ไม่ได้ register keys ใน I18N object** ที่ `app.js:595`. `applyLanguage()` หา key ไม่เจอ → fallback to `el.textContent` (Thai default ใน HTML) → user EN ติด Thai
+
+**Verified test data:**
+```
+TH mode (default): title = "Google Drive ของคุณหมดอายุการเชื่อมต่อ" ✅
+EN mode (toggled): title = "Google Drive ของคุณหมดอายุการเชื่อมต่อ" ❌ (should be EN)
+```
+
+**Fix needed (~15 min · `legacy-frontend/app.js`):**
+
+ใน `I18N` object เพิ่ม keys ทั้ง 2 namespaces. หาที่ใส่ใกล้ๆ existing `'auth.signInWithGoogle'` (line ~597) หรือ section ใหม่:
+
+```javascript
+// ใน I18N.th object เพิ่ม:
+'drive.errorBanner.title': 'Google Drive ของคุณหมดอายุการเชื่อมต่อ',
+'drive.errorBanner.detail': 'ไฟล์ใหม่ยังไม่ได้ขึ้น Drive — กดเพื่อเชื่อมต่อใหม่',
+'drive.errorBanner.reconnect': 'เชื่อมต่อใหม่',
+'drive.errorBanner.dismiss': 'ภายหลัง',
+'drive.testingNotice': 'ขณะนี้ระบบเชื่อมต่อ Drive แบบ Beta — การเชื่อมต่อจะหมดอายุทุก 7 วัน · กรุณาเชื่อมต่อใหม่เมื่อแอพแจ้งเตือน',
+
+// ใน I18N.en object เพิ่ม:
+'drive.errorBanner.title': 'Google Drive connection expired',
+'drive.errorBanner.detail': 'New files haven\\'t been uploaded to Drive — click to reconnect',
+'drive.errorBanner.reconnect': 'Reconnect',
+'drive.errorBanner.dismiss': 'Later',
+'drive.testingNotice': 'Drive connection is in Beta mode — expires every 7 days · please reconnect when prompted',
+```
+
+**Note:** `detail` text เนื้อหาที่ใส่นี้คือ default · JS `renderDriveErrorBanner` จะ override ตาม error type (invalid_grant vs other) — ฟ้า OK ที่ JS override · แค่ HTML default ต้องตรงตาม language เพื่อรองรับ initial render ก่อน JS รัน
+
+---
+
+### 🟢 [BUG-V935-02] LOW — Banner reconnect button ไม่ disable ตอนกด (double-click race)
+
+**Symptom:**
+User กด [เชื่อมต่อใหม่] แรง 2 ครั้งติดในช่วง 600ms ก่อน `connectDrive()` redirect → 2 OAuth init requests → 2 state tokens cached server-side → 1 ตัวเป็น stale (จะ expire ใน 10 นาที)
+
+**Severity ต่ำ:** Drive ยัง connect ได้ตามปกติ · ไม่มี data corruption · แค่ waste 1 state slot
+
+**Fix needed (~5 min · `legacy-frontend/storage_mode.js` `wireDriveErrorBanner`):**
+
+เพิ่ม disable หลัง click ใน reconnect handler:
+
+```javascript
+reconnectBtn.addEventListener('click', () => {
+  // v9.3.5 — กัน double-click race
+  if (reconnectBtn.disabled) return;
+  reconnectBtn.disabled = true;
+
+  showToast(
+    isTH
+      ? 'กำลังพาไป Google เพื่อยืนยันสิทธิ์ — ใช้เวลา 30 วินาที'
+      : 'Redirecting to Google for re-authorization — takes 30 seconds',
+    'info'
+  );
+  setTimeout(() => connectDrive(), 600);
+});
+```
+
+(ไม่ต้อง re-enable เพราะ page redirect ไป Google · กลับมาก็ initStorageMode ใหม่)
+
+═══════════════════════════════════════════════════════════════
+✅ ที่ผ่านแล้ว (ไม่ต้องแก้)
+═══════════════════════════════════════════════════════════════
+
+- 9 helpers patches ใน storage_router.py — pattern consistent ✅
+- drive_sync.run_full_sync wrap + fallback re-fetch ✅
+- /api/drive/sync status field — `ok` vs `completed_with_errors` ✅
+- APP_VERSION + cache-bust catch-up (?v=9.3.1 → ?v=9.3.5) ✅
+- Banner CSS — token-only + responsive + a11y (role="alert" + aria-*) ✅
+- Auto-sync after reconnect — 1500ms timing safe ✅
+- Visibility-based polling — visibilitychange + focus events wired ✅
+- Upload-completion warning toast (when BYOS errored) ✅
+- Code quality: no debug, no secrets, no convention violation ✅
+- Regression: 42/42 PASS (byos_router 16 + byos_foundation 26) ✅
+
+═══════════════════════════════════════════════════════════════
+📋 What เขียว ต้องทำ
+═══════════════════════════════════════════════════════════════
+
+1. แก้ BUG-V935-01: เพิ่ม 5 keys × 2 langs = 10 entries ใน I18N object
+2. แก้ BUG-V935-02: เพิ่ม disable guard ใน reconnect button handler
+3. Self-test:
+   - Toggle TH/EN ใน UI → banner ทุก element ตรงตามภาษา
+   - Double-click reconnect → ไม่มี race
+4. Commit (1 commit รวมทั้ง 2 fixes — small):
+   ```
+   fix(frontend): banner i18n keys + reconnect double-click guard [v9.3.5]
+   - add 10 i18n entries (5 keys × 2 langs) for drive.errorBanner.* + drive.testingNotice
+   - guard reconnect button against double-click race (BUG-V935-02)
+   - fixes EN users seeing Thai text in banner title + buttons + notice
+   Refs: ฟ้า re-review MSG-V935-RE-REVIEW
+   Author-Agent: เขียว (Khiao)
+   ```
+5. Update pipeline-state.md → state = `built_pending_review` (re-review)
+6. ส่ง MSG กลับ inbox/for-ฟ้า.md ว่าแก้ครบ + commit hash → ฟ้า re-test
+
+⏱️ Effort: ~20 นาที (10 i18n entries + 5-line guard)
+
+═══════════════════════════════════════════════════════════════
+ทำไม ฟ้า ถึง re-verdict ทั้งที่ verdict แรก = APPROVE
+═══════════════════════════════════════════════════════════════
+
+User สั่งเข้มให้ตรวจซ้ำลึกขึ้น — ผมพบ 2 issues ที่ review รอบแรกขาดความรอบคอบ:
+
+- รอบแรกผมแค่ test ใน TH mode (default) → ไม่เห็น i18n bug
+- รอบ 2 simulate `applyLanguage('en')` → เจอ 3 ใน 4 elements ติด Thai
+
+ตามกฎ ฟ้า: **"ห้าม approve เพราะ 'พอใช้ได้' — ต้องดีจริงถึงผ่าน"** + "ฟ้าเป็นด่านสุดท้าย" → ส่งกลับให้แก้ก่อน ไม่ปล่อยผ่าน
+
+— ฟ้า (Fah)
 
 ## 👁️ Read (อ่านแล้ว, รอตอบ/แก้)
 

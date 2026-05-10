@@ -5,20 +5,36 @@
 
 ---
 
-## 🎯 Current State: `review_passed` ✅ v9.3.5 BYOS Reconnect UX (2026-05-10)
+## 🎯 Current State: `review_needs_changes` 🟡 v9.3.5 (re-review found 2 i18n bugs · 2026-05-10)
 
-**Master HEAD:** v9.3.5 build (7 commits c99616f → 0d93181) + ฟ้า review APPROVE
+**Master HEAD:** v9.3.5 build (8 commits c99616f → f216b73)
 **APP_VERSION:** 9.3.5
-**Production:** 🔴 still v9.3.1 — รอ user `flyctl deploy` (combined v9.3.2/3/4/5 deploy)
-**Mode:** Sequential (แดง→เขียว→ฟ้า) — pipeline complete
+**Production:** 🔴 still v9.3.1 — รอ deploy (block until เขียว fixes 2 i18n issues)
+**Mode:** Sequential (แดง→เขียว→ฟ้า) — looped back to เขียว
 
-### v9.3.5 review verdict (ฟ้า)
-- ✅ **APPROVE** — 0 critical / 0 high / 0 medium / 0 low issues
-- Test results: **42/42 regression PASS** (byos_router 16 + byos_foundation 26)
-- **4/4 invalid_grant unit tests PASS** (heuristic + mark error verified)
-- **UI banner visually verified** via Playwright on localhost (screenshot proof)
-- Code checklist: plan compliance + no debug + no secrets + a11y + token-only — all PASS
-- Review report: [inbox/for-User.md REVIEW-V935-BYOS](../communication/inbox/for-User.md)
+### v9.3.5 re-review verdict (ฟ้า · per user re-verification request)
+
+**First-pass (initial):** APPROVE (rushed · only tested TH mode)
+**Second-pass (per user "เข้าไปตรวจสอบสิว่าทุกอย่างถูกต้องไหม"):** 🟡 **NEEDS_CHANGES**
+
+- 🟡 **BUG-V935-01 MEDIUM** — i18n keys missing for 5 banner+notice data-i18n attrs
+  - EN users see Thai text in banner title + 2 buttons + testing-mode notice (3/4 elements)
+  - Verified live via Playwright `applyLanguage('en')` toggle test
+  - Fix: add 10 entries (5 keys × 2 langs) to I18N object in app.js
+- 🟢 **BUG-V935-02 LOW** — reconnect button no double-click guard (race wastes 1 state cache slot)
+  - Fix: add `if (btn.disabled) return; btn.disabled = true;` before connectDrive()
+
+### What still passes (ไม่ต้องแก้)
+- 9 helper patches storage_router · drive_sync wrap · endpoint status · cache-bust · banner CSS · auto-sync · polling · upload toast
+- 42/42 regression PASS · 4/4 invalid_grant unit PASS · UI banner visual PASS
+
+### Review reports
+- Initial APPROVE (now superseded): [inbox/for-User.md REVIEW-V935-BYOS](../communication/inbox/for-User.md)
+- Re-review NEEDS_CHANGES: [inbox/for-เขียว.md MSG-V935-RE-REVIEW](../communication/inbox/for-เขียว.md)
+
+### Pending action
+- 🟢 **เขียว**: แก้ 2 bugs (~20 นาที) + ส่ง MSG กลับ ฟ้า inbox + update state = built_pending_review
+- 🔵 **ฟ้า**: รอเขียว → re-test EN toggle + double-click → APPROVE final
 
 ### v9.3.5 build summary
 - Backend: 9 helpers patched (storage_router) + drive_sync wrap + endpoint status field
