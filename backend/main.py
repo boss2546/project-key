@@ -1695,7 +1695,21 @@ async def update_summary(file_id: str, req: SummaryUpdateRequest, current_user: 
 
 @app.delete("/api/files/{file_id}")
 async def delete_file(file_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    """Delete a file and its related data."""
+    """Delete a file and its related data — full cleanup across all storage layers.
+
+    v9.3.5.3 — เพิ่ม Drive + vector_search cleanup ให้ครบทุก layer (เดิมขาด 2 steps)
+
+    Why: User report bug "ลบในระบบไม่ลบใน Google Drive · sync ดึงกลับ"
+    - เดิม DELETE ลบแค่ disk + DB row
+    - Drive ยังเก็บไฟล์ → sync pull (Case A: not in cache) → IMPORT BACK → "งอก"
+    - vector_search index ยัง hold file → semantic search return ghost results
+
+    Cleanup ครบทุก layer (mirror skip-duplicates pattern):
+      1. Disk: ลบ raw_path file
+      2. Drive: trash ไฟล์ (best-effort · BYOS-aware · no-op for managed users)
+      3. Vector index: remove file embeddings
+      4. DB: cascade delete File row + FileInsight + FileSummary + FileClusterMap (FK)
+    """
     result = await db.execute(
         select(File).where(File.id == file_id, File.user_id == current_user.id)
     )
@@ -1703,9 +1717,36 @@ async def delete_file(file_id: str, current_user: User = Depends(get_current_use
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
 
+    # 1. Disk: best-effort ลบ raw file
     if file.raw_path and os.path.exists(file.raw_path):
-        os.remove(file.raw_path)
+        try:
+            os.remove(file.raw_path)
+        except OSError as e:
+            logger.warning(f"delete_file: failed to remove raw_path {file.raw_path}: {e}")
 
+    # 2. Drive: best-effort trash (BYOS-aware · no-op for managed users / not connected)
+    # v9.3.5.3 — สำคัญ! เดิมไม่มี → sync re-import file ที่ลบไปแล้ว
+    if file.drive_file_id:
+        try:
+            from .storage_router import delete_drive_file_if_byos
+            await delete_drive_file_if_byos(
+                current_user.id, db, file.drive_file_id,
+            )
+        except Exception as e:
+            logger.warning(
+                f"delete_file: BYOS Drive delete failed for {file_id}: {e}"
+            )
+
+    # 3. Vector index: best-effort remove (no-op ถ้าไฟล์ยังไม่ organize)
+    try:
+        from . import vector_search as _vs
+        _vs.remove_file(file.id, user_id=current_user.id)
+    except Exception as e:
+        logger.warning(
+            f"delete_file: vector_search remove failed for {file_id}: {e}"
+        )
+
+    # 4. DB: cascade delete (FK ลบ FileInsight + FileSummary + FileClusterMap อัตโนมัติ)
     await db.delete(file)
     await db.commit()
     return {"status": "ok"}
