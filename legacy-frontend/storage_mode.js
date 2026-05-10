@@ -225,6 +225,59 @@ async function disconnectDrive() {
 
 
 // ═══════════════════════════════════════════
+// v9.3.5.1 — Friendly error message helper
+// ═══════════════════════════════════════════
+
+/**
+ * แปลง raw backend error (เช่น Python tuple "invalid_grant: ('...', {...})")
+ * → ข้อความ user-friendly พร้อม HTML-escape
+ *
+ * Pattern: match keyword ใน error string → return localized text
+ * - "invalid_grant" / "expired" / "revoked" → token หมดอายุ
+ * - else → generic "พบปัญหา"
+ *
+ * Why helper: เดิมแสดง raw error แบบ
+ *   "invalid_grant: ('invalid_grant: Token has been expired or revoked.', {...})"
+ * ซึ่งเป็น Python repr → user งง · technical jargon
+ *
+ * @param {string} rawErr - last_sync_error จาก backend
+ * @param {boolean} isTH - true=Thai, false=English
+ * @returns {string} HTML-escaped user-friendly text
+ */
+function _friendlyDriveErrorReason(rawErr, isTH) {
+  const errStr = (rawErr || '').toLowerCase();
+  let friendly;
+  if (errStr.indexOf('invalid_grant') >= 0
+      || errStr.indexOf('expired') >= 0
+      || errStr.indexOf('revoked') >= 0) {
+    friendly = isTH
+      ? 'การเชื่อมต่อหมดอายุ — Google ขอให้ยืนยันสิทธิ์ใหม่'
+      : 'Connection expired — Google requires re-authorization';
+  } else if (errStr.indexOf('quota') >= 0) {
+    friendly = isTH
+      ? 'พื้นที่ Drive ไม่พอ — กรุณาเคลียร์พื้นที่หรืออัปเกรด Google'
+      : 'Drive quota exceeded — please free up space or upgrade Google';
+  } else if (errStr.indexOf('network') >= 0 || errStr.indexOf('timeout') >= 0) {
+    friendly = isTH
+      ? 'เชื่อมต่อเครือข่ายไม่เสถียร — กรุณาลองใหม่'
+      : 'Network unstable — please retry';
+  } else {
+    friendly = isTH
+      ? 'พบปัญหาในการเชื่อมต่อ — กรุณาลองเชื่อมต่อใหม่'
+      : 'Connection issue — please try reconnecting';
+  }
+  // HTML-escape for safe innerHTML insertion (defensive · backend should be safe but better-safe)
+  if (typeof escapeHtml === 'function') {
+    return escapeHtml(friendly);
+  }
+  // Fallback if escapeHtml not loaded yet (shouldn't happen — app.js loads after)
+  const div = document.createElement('div');
+  div.textContent = friendly;
+  return div.innerHTML;
+}
+
+
+// ═══════════════════════════════════════════
 // Render UI
 // ═══════════════════════════════════════════
 
@@ -264,15 +317,19 @@ function renderStorageModeUI() {
   const statusDesc = document.getElementById('storage-mode-desc');
   if (statusDesc) {
     if (isErrored) {
-      const errMsg = _driveStatus.last_sync_error || 'invalid_grant';
+      // v9.3.5.1 — แปลง raw error → user-friendly + HTML-escape (กัน technical jargon โผล่หา user)
+      const friendlyReason = _friendlyDriveErrorReason(_driveStatus.last_sync_error, isTH);
+      const safeEmail = (typeof escapeHtml === 'function')
+        ? escapeHtml(_driveStatus.drive_email || '')
+        : (_driveStatus.drive_email || '');
       statusDesc.innerHTML = `
         <div class="storage-connected-info storage-errored">
           <div class="storage-connected-row">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-warning, #f59e0b)" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             <span>${isTH ? 'การเชื่อมต่อ Google Drive หมดอายุ' : 'Google Drive connection expired'}</span>
           </div>
-          <div class="storage-email">${_driveStatus.drive_email || ''}</div>
-          <div class="storage-sync-time storage-error-detail">${isTH ? 'เหตุผล' : 'Reason'}: ${errMsg}</div>
+          <div class="storage-email">${safeEmail}</div>
+          <div class="storage-sync-time storage-error-detail">${isTH ? 'เหตุผล' : 'Reason'}: ${friendlyReason}</div>
           <div class="storage-folder">${isTH
             ? 'กดปุ่มด้านล่างเพื่อเชื่อมต่อใหม่ — ข้อมูลของคุณยังอยู่ครบ'
             : 'Click below to reconnect — your data is intact'
@@ -434,6 +491,8 @@ function renderDriveErrorBanner() {
   const detail = document.getElementById('drive-error-banner-detail');
   if (detail) {
     const isTH = getLang() === 'th';
+    // v9.3.5.1 — banner detail พิเศษกว่า profile modal (เพิ่ม "ไฟล์ใหม่ยังไม่ได้ขึ้น Drive")
+    // เพราะ context banner = top of /app · user เพิ่งทำ action · ต้องบอกผลกระทบชัด
     const errStr = (_driveStatus.last_sync_error || '').toLowerCase();
     if (errStr.indexOf('invalid_grant') >= 0
         || errStr.indexOf('expired') >= 0
