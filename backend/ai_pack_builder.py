@@ -96,6 +96,7 @@ async def _build_inventory_for_clarify(
             File.user_id == user_id,
             File.processing_status == "ready",
             File.file_kind == "processed",
+            File.extraction_status == "ok",  # v9.4.8: exclude error-text files
         ).options(selectinload(File.cluster_maps))   # eager-load กัน async lazy-load
         .order_by(desc(File.uploaded_at)).limit(max_files)
     )
@@ -155,6 +156,7 @@ async def _build_inventory_for_propose(
             File.user_id == user_id,
             File.processing_status == "ready",
             File.file_kind == "processed",  # vault filter
+            File.extraction_status == "ok",  # v9.4.8: exclude error-text files
         ).options(selectinload(File.summary), selectinload(File.cluster_maps))
         .order_by(desc(File.uploaded_at)).limit(max_files)
     )
@@ -261,6 +263,7 @@ async def clarify_prompt(
             File.user_id == user_id,
             File.processing_status == "ready",
             File.file_kind == "processed",
+            File.extraction_status == "ok",  # v9.4.8: exclude error-text files
         ).limit(1)
     )
     has_files = files_count_q.scalar_one_or_none() is not None
@@ -455,6 +458,7 @@ async def propose_pack(
                 File.id.in_(selected_file_ids),
                 File.user_id == user_id,
                 File.file_kind == "processed",   # safety: AI อาจ hallucinate vault file id
+                File.extraction_status == "ok",  # v9.4.8: exclude error-text files
             ).options(selectinload(File.summary))
         )
         for f in files_res.scalars().all():

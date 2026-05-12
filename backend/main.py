@@ -2214,6 +2214,16 @@ async def delete_file(
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
 
+    # v9.4.8 — guard DELETE-while-extracting race
+    # Worker อาจกำลังอ่าน raw_path → os.remove() บน Linux สำเร็จ (worker ยัง read fd ได้)
+    # แต่ DB row หาย → worker UPDATE rowcount=0 + vector index inconsistent.
+    # บังคับให้ user กด Cancel ก่อน (/api/upload/{id}/cancel) ในสถานะ queue
+    if file.processing_status in ("queued", "extracting"):
+        raise HTTPException(409, detail={"error": {
+            "code": "FILE_IN_QUEUE",
+            "message": "ไฟล์อยู่ในคิวประมวลผล — กดยกเลิกก่อนลบ",
+        }})
+
     # Capture for background task ก่อน db.delete (ORM ออบเจกต์ detach หลัง commit)
     file_storage_source = file.storage_source
     file_drive_file_id = file.drive_file_id

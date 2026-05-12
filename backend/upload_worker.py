@@ -61,6 +61,16 @@ _main_loop: Optional[asyncio.AbstractEventLoop] = None
 _AVG_EXTRACT_SEC: dict[int, float] = {1: 1.0, 2: 15.0, 3: 90.0}
 _AVG_SAMPLE_COUNT: dict[int, int] = {1: 0, 2: 0, 3: 0}
 
+# v9.4.8 — cap per-class duration ก่อนเข้า rolling avg.
+# Why: PDF text (PyPDF2) ~3s vs PDF image-OCR (20 pages × 60s) ~1200s ใน class-2
+# เดียวกัน → 1 OCR pull avg ไป 300+s → text PDF users เห็น estimate "5 นาที" ทั้งที่
+# ของจริง ~3s. Cap = "outlier ไม่กระทบ typical-case estimate"
+_AVG_CAP_SEC: dict[int, float] = {
+    1: 5.0,     # fast (txt/code): cap 5s (anomaly = OS slow)
+    2: 60.0,    # doc: cap 60s (text PDF ใช้ <30s, image-OCR > 60s = outlier)
+    3: 300.0,   # av/img: cap 300s (Gemini Vision ~10s, video ~90s, huge video = outlier)
+}
+
 # ─── Ext → priority class mapping (ADR-006 fairness sort) ────────────
 PRIORITY_CLASS_FAST = frozenset({  # priority 1 — sub-second extract
     "txt", "md", "csv", "png", "jpg", "jpeg", "webp", "heic", "heif",
@@ -93,11 +103,18 @@ def get_avg_sec(priority_class: int) -> float:
 
 
 def update_avg_sec(priority_class: int, duration_sec: float) -> None:
-    """Update rolling avg ด้วย exponential smoothing (alpha=0.2)."""
+    """Update rolling avg ด้วย exponential smoothing (alpha=0.2).
+
+    v9.4.8: cap duration ที่ _AVG_CAP_SEC[priority_class] ก่อนเข้า formula
+    เพื่อกัน outlier (เช่น image-OCR PDF 20 หน้า ใช้ 1200s) ดึง avg ไปทำลาย
+    estimate ของ typical case (text PDF ~3s).
+    """
     if duration_sec < 0:
         return
-    cur = _AVG_EXTRACT_SEC.get(priority_class, duration_sec)
-    new = 0.8 * cur + 0.2 * duration_sec
+    cap = _AVG_CAP_SEC.get(priority_class, duration_sec)
+    capped = min(duration_sec, cap)
+    cur = _AVG_EXTRACT_SEC.get(priority_class, capped)
+    new = 0.8 * cur + 0.2 * capped
     _AVG_EXTRACT_SEC[priority_class] = round(new, 2)
     _AVG_SAMPLE_COUNT[priority_class] = _AVG_SAMPLE_COUNT.get(priority_class, 0) + 1
 
