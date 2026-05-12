@@ -1,97 +1,84 @@
 # 🎯 Active Tasks
 
 > Source of truth คือ [pipeline-state.md](pipeline-state.md) — ไฟล์นี้เป็น overview สั้นๆ
-> Pipeline ตอนนี้ = `plan_pending_approval` 🔴 (v9.4.0 Upload Queue + Progress)
+> Pipeline ตอนนี้ = `idle` 🟢 (no active feature · ready for new assignment)
 
 ---
 
 ## 🔄 Current Pipeline
 
-**State:** `plan_pending_approval` 🔴 (v9.4.0 Upload Queue — 2026-05-10)
-**Master HEAD:** `c0ffdc0` v9.3.4 (review_passed, รอ deploy)
-**APP_VERSION (target):** 9.4.0
-**Production:** 🔴 v9.3.1 live · master ahead (v9.3.2/3/4 stacked + รอ deploy)
-**Active plan:** [plans/upload-queue-progress-v9.4.0.md](../plans/upload-queue-progress-v9.4.0.md)
-**Mode:** Sequential (แดง→เขียว→ฟ้า)
+**State:** `idle` 🟢
+**Master HEAD:** `7a2f84a` v9.4.8
+**APP_VERSION:** 9.4.8
+**Production:** ✅ v9.4.8 live · worker healthy · queue empty · 100% success_24h
+**Active plan:** ไม่มี (พร้อมรับงานใหม่)
+**Mode:** Free — user เลือกได้ว่าจะเข้า sequential pipeline (แดง→เขียว→ฟ้า) หรือ 3-in-1 mode (Opus 4.7 ตรง)
 
 ---
 
-## 🔴 Pending Plan (รอ user approve)
+## 📋 Known Backlog (จาก ฟ้า audit 2026-05-12)
 
-- **v9.4.0 Upload Queue + Progress** — [plans/upload-queue-progress-v9.4.0.md](../plans/upload-queue-progress-v9.4.0.md)
-  - แยก upload (เร็ว) ออกจาก extract (ช้า) → DB-backed queue + in-process worker + persistent UI tray
-  - 6 DB columns + 4 endpoints + 1 backend module + frontend tray
-  - 4 Open Questions รอ user ตอบ (worker concurrency / tray location / auto-retry / rollout)
-  - Effort: เขียว ~2.5 วัน + ฟ้า ~1 วัน
-  - Mode: Sequential
+### 🟡 Medium priority
+- [ ] **BACKLOG-009: Re-enable Duplicate Detection** — `_DEDUP_DISABLED = True` ใน [backend/duplicate_detector.py](../../backend/duplicate_detector.py)
+  - **Why disabled:** v9.3.2 (2026-05-08) — UnicodeEncodeError surrogate crash บน PDF text edge case
+  - **Why ready to re-enable:** v9.3.3 + v9.3.4 ใส่ `strip_surrogates` ที่ extraction + LLM + ai_ingest boundary แล้ว
+  - **Steps:** verify guard ครอบคลุม → เพิ่ม pytest case lone surrogate → flip flag → smoke
+  - **Effort:** ~1-2 ชม. รวม audit + test + flip
+  - **Risk:** 🟢 LOW (low-blast-radius · 1 flag)
 
-## 📋 In-flight (uncommitted, will be picked up by patch)
+### 🟢 Low priority (housekeeping)
+- [ ] **Update contracts** — `contracts/api-spec.md` + `contracts/data-models.md` ยังขาด v9.4.0+ schema (7 cols + WAL) + endpoints (`/api/upload-status`, `/api/upload/{id}/retry|dismiss-error|cancel`, `/api/healthz/queue`)
+  - **When:** ทำตอนแตะ upload pipeline รอบหน้า · ไม่ต้องทำตอนนี้
+- [ ] **Update `project/overview.md`** — ยังบอก production = v6.0.0 + ในdev = v7.0.0 BYOS · จริง = v9.4.8 ทั้งคู่
+  - **When:** ทำพร้อม contracts update
 
-- 5 HTML cache-bust changes (need correction `?v=9.2.2` → `?v=9.3.0`)
-- landing.css iOS Phase 3 fallback (committed below master HEAD = correct)
-- iOS plan + spec file untracked → จะ rename + finalize ใน patch
-
-## 🟢 Plans archived (post-Share Pack ship)
-
-- ~~v9.3.0 Share Context Pack~~ → `plans/archive/2026-05-08-share-pack-v9.3.0.md` (shipped 5 commits in master, included in `dbf08cf` chain)
-
----
-
-## ✅ Recent Releases (เรียงจากใหม่ไปเก่า — ดูรายละเอียดใน pipeline-state.md)
-
-- **v9.3.0 Phase A** (2026-05-08, master) — UI foundation tokens + canonical atoms (committed `dbf08cf`)
-- **v9.3.0 Share Pack** (2026-05-08, master) — Pack share/clone (committed `9fa78f8` chain)
-- **v9.2.1** (2026-05-07, deployed) — Parallel uploads + UX progress + mobile audit
-- **v9.2.0** (2026-05-07) — AI Pack Builder
-- **v9.1.0** (2026-05-07) — Raw File Vault
-- **v9.0.1** (2026-05-07) — Context Pack correctness
-- **v9.0.0** (2026-05-06/07) — Multimodal expansion (HEIC/audio/video)
-- **v8.2.0** (2026-05-06) — Admin Panel
-- **v8.1.0** (2026-05-04) — Google Sign-In
-- **v8.0.0–8.0.7** (2026-05-04) — LINE Bot
-
----
-
-## 🧪 Pre-launch Gates (ที่ user ต้องทำเอง — ไม่ใช่ code work)
-
-- 📝 Submit Google OAuth verification (openid+email+profile, 1-3 วัน, ฟรี — สำคัญก่อน public >100 users)
-- 🔁 Token rotation (LINE + Resend) — Browser Worker logs exposure
-- 📱 LINE Rich Menu deploy: `fly ssh console -C "python scripts/setup_line_rich_menu.py"`
-
----
-
-## 📜 Long-term Backlog (deferred — no timeline)
-
+### 📜 Long-term backlog (deferred · no timeline)
 - [ ] [BACKLOG-001] BYOS multi-account (personal + work Drive per user)
 - [ ] [BACKLOG-002] Real-time sync via Drive Push Notifications (currently 5-min poll)
 - [ ] [BACKLOG-003] Full `drive` scope (CASA verification $25K-85K/yr)
 - [ ] [BACKLOG-004] BYOS for OneDrive / Dropbox / iCloud
 - [ ] [BACKLOG-005] Custom domain (replace `personaldatabank.fly.dev`)
-- [ ] [BACKLOG-006] Submit Google OAuth verification (pairs with pre-launch gate above)
+- [ ] [BACKLOG-006] Submit Google OAuth verification (pairs with pre-launch gate)
 - [ ] [BACKLOG-007] Frontend migration to React/Vue (per FE-001 — defer)
-- [ ] [BACKLOG-009] **Re-enable duplicate detection** — fix UnicodeEncodeError surrogate bug. Flip `_DEDUP_DISABLED = False` in [backend/duplicate_detector.py](../../backend/duplicate_detector.py) after adding pytest case. See [decisions.md DUP-004](../project/decisions.md#dup-004) + [plan v9.3.2](../plans/v9.3.2-disable-duplicate-detection.md).
+
+---
+
+## ✅ Recent Releases (เรียงจากใหม่ไปเก่า — รายละเอียดใน pipeline-state.md)
+
+- **v9.4.8** (2026-05-12, deployed) — DELETE guard + ai_pack filter + rolling avg cap
+- **v9.4.0–9.4.7** (2026-05-10/11, deployed) — Upload Queue + Visible Progress + 7 hotfix iterations (3-in-1 mode)
+- **v9.3.5** (2026-05-10, deployed) — BYOS Reconnect UX FINAL (last formal sequential pass)
+- **v9.3.0–9.3.4** (2026-05-08, deployed) — UI Foundation tokens + Stability patches (surrogate boundary)
+- **v9.0–v9.2** (2026-05-07) — Context Pack correctness + Raw Vault + AI Pack Builder + Parallel uploads
+- **v8.x** — LINE Bot + Admin + Google Sign-In
+
+---
+
+## 🧪 Pre-launch Gates (user-side · ไม่ใช่ code work)
+
+- 📝 Submit Google OAuth verification (openid+email+profile, 1-3 วัน, ฟรี — ก่อน public >100 users)
+- 🔁 Token rotation (LINE + Resend) — ถ้ามี exposure
+- 📱 LINE Rich Menu deploy: `fly ssh console -C "python scripts/setup_line_rich_menu.py"`
 
 ---
 
 ## ⚠️ ระบบ Pipeline ทำงานยังไง
 
 ```
-Default sequential (1 feature at a time):
-1. User เลือก feature
-2. แดง วาง plan
-3. User approve plan
-4. เขียว build code
-5. ฟ้า review + tests
-6. User approve review
-7. Merge → ย้ายไป Completed
+Sequential (แดง→เขียว→ฟ้า · 1 feature at a time):
+1. User เลือก feature → แดง วาง plan
+2. User approve plan → เขียว build code
+3. เขียว เสร็จ → ฟ้า review + tests
+4. User approve review → Merge → ย้ายไป Completed
 
 3-in-1 single-agent mode (per user authorization):
-- 1 agent ทำทั้ง plan + build + review (ไม่มี inter-session reload)
-- Used for: v9.0.1, v9.2.0
+- 1 agent ทำทั้ง plan + build + review (Claude Code Opus 4.7 1M context)
+- Used for: hot iterations, hotfix flurries, small patches
+- Recent use: v9.4.0 → v9.4.8 (11 versions)
 ```
 
-Default = sequential. 3-in-1 = explicit user override only.
+Default = sequential. 3-in-1 = explicit user override (ปกติทำเมื่อ velocity > governance สำคัญกว่า).
 
 ---
 
-**Last updated:** 2026-05-07 — แดง (Daeng) cleanup session
+**Last updated:** 2026-05-12 — 🔵 ฟ้า (Fah) · Track A1 pipeline-state drift fix

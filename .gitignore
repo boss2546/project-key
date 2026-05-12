@@ -32,6 +32,12 @@ context_packs/
 chroma_db/
 backups/
 
+# v9.4.x runtime + user data dirs (do not commit)
+# data/   = worker_heartbeat.txt + future runtime artifacts (regenerated)
+# datame/ = PRIVATE — user/business files used for local smoke testing
+data/
+datame/
+
 # IDE & tools
 .gemini/
 .vscode/
@@ -55,6 +61,7 @@ tests/testsprite/
 test-results/
 playwright-report/
 blob-report/
+.playwright-mcp/
 # Screenshots are regenerable via the spec files; keep repo lean.
 tests/baseline/
 tests/phase5-visual/
@@ -63,3 +70,17 @@ tests/v7.3.0-visual/
 tests/v7.4.0-visual/
 tests/current/
 tests/visual-diff-out/
+tests/_smoke_shots/
+
+# Root-level debug screenshots (ad-hoc audit artifacts · not source)
+/v9_3_5_*.png
+/v9_4_*.png
+/drive_bug_*.png
+/yt-*.png
+/smoke-*.png
+/smoke-mcp-*.png
+/login-*.png
+/login-step-*.png
+/profile-*.png
+/pdb-*.png
+/ui-test-*.png

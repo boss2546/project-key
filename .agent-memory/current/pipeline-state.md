@@ -5,403 +5,71 @@
 
 ---
 
-## 🎯 Current State: `build_complete` 🟢 v9.4.3 LINE UX Hardening (2026-05-10)
+## 🎯 Current State: `idle` 🟢 (no active feature in pipeline)
 
-**Master HEAD:** uncommitted (เขียว build complete · awaiting commit + ฟ้า review + deploy)
-**APP_VERSION:** 9.4.3
-**Plan:** `.agent-memory/plans/v9.4.2-line-ux-fixes.md` (extended scope · L1-L5 + L11 + A1/B1/C1)
-**Mode:** เขียว build complete — 9 todos · self-test after each step PASS
+**Master HEAD:** `7a2f84a` (v9.4.8 · 2026-05-12 08:54 +07)
+**APP_VERSION:** **9.4.8**
+**Production:** ✅ **v9.4.8 deployed live** ที่ `https://personaldatabank.fly.dev`
+- Worker uptime ~11 นาที (เพิ่ง deploy v9.4.8) · queue ว่าง · success_24h = 100% · error_24h = 0
+- avg_extract_sec_by_class: class 1 = 1.0s · class 2 = 13.27s · class 3 = 74.29s (post-cap healthy)
 
-### v9.4.3 build summary (3 hardening additions on top of v9.4.2)
-- **A1** — auth-line.html countdown timer (LINE linkToken TTL = 10 min) · UX
-- **B1** — log "stale nonce recovered" in confirm-link · debug visibility
-- **C1** — `_handle_account_link` result=failed upgraded INFO → WARNING · production diagnosis
-
-### Why v9.4.3 (extended from v9.4.2)
-User report: "เพื่อนต่อ LINE ไม่ได้" (founder ต่อได้ · เพื่อน fail ที่ access.line.me).
-Root cause analysis (5 hypotheses ranked): **H1 timing/linkToken expired (~70%)** most likely.
-- v9.4.2 L4 (resume linkToken after login) แก้ root cause หลัก
-- v9.4.3 A1 countdown timer + B1/C1 logging = defense in depth + observability
-- v9.4.2 L11 (token_hex + URL encode) = LINE spec compliance (defensive)
-
-### Test results
-- byos_router_smoke: **16/16 PASS**
-- byos_foundation_smoke: **26/26 PASS**
-- byos_storage_smoke: **20/20 PASS**
-- v9_4_2_smoke: **32/32 PASS** (regression intact)
-- v9_4_3_smoke (new): **30/30 PASS** (countdown + logging + URL-encoding + regression)
-
-### Files modified in v9.4.3 (3 modify · 1 new)
-- `backend/main.py` — confirm-link logs (B1 + C1)
-- `backend/line_bot.py` — _handle_account_link WARNING (C1)
-- `legacy-frontend/auth-line.html` — countdown UI + CSS (A1)
-- `legacy-frontend/auth-line.js` — startCountdown/stopCountdown (A1)
-- `backend/config.py` — APP_VERSION 9.4.2 → 9.4.3
-- `legacy-frontend/{admin,app,auth-line,landing,shared_pack}.html` — cache-bust
-- `scripts/v9_4_3_smoke.mjs` — new smoke (30 cases)
-
-### Pending next steps
-1. 🔴 User decision — commit + push + flyctl deploy (v9.4.1 + v9.4.2 + v9.4.3 bundled)
-2. 🟡 Test กับเพื่อนหลัง deploy (verify H1 fix works)
-3. 🟢 ถ้ายัง fail → check Fly.io log สำหรับ "LINE rejected" + "stale nonce recovered" entries
+**Mode:** ปัจจุบันไม่มี feature ใน pipeline · pipeline state = idle · พร้อมรับงานใหม่
 
 ---
 
-## (Archived) v9.4.2 LINE UX Fixes (2026-05-10)
+## ⚠️ Pipeline drift notice (2026-05-11 → 2026-05-12)
 
-**Master HEAD:** uncommitted (เขียว build complete · awaiting commit + ฟ้า review)
-**APP_VERSION:** 9.4.2
-**Plan:** `.agent-memory/plans/v9.4.2-line-ux-fixes.md`
-**Mode:** เขียว build phase complete — 6 steps · self-test after each step PASS
+**Memory ไฟล์เคย stale หลายรอบ** — sync ใหม่ 2026-05-12 (ฟ้า) ให้ตรง master HEAD จริง.
 
-### v9.4.2 build summary (5 LINE bugs closed · all frontend-only)
-- L1 — "Connect LINE" button opens bot URL directly (no more `/auth/line` dead-end)
-- L2 — "Open in LINE" button — `_lineBotUrl` exposed from `_renderLineStatus`
-- L3 — 10 LINE i18n keys × TH+EN (20 entries · pattern reuse from v9.3.5 Drive fix)
-- L4 — Pending linkToken sessionStorage resume after login (4 login paths)
-- L5 — `applyLanguage()` re-renders LINE status (lang toggle now updates badge/notice)
+**Session gap:** ระหว่าง 2026-05-10 ถึง 2026-05-12 มี **8 versions shipped ใน 3-in-1 mode** (user รันตรงผ่าน Claude Code Opus 4.7 1M context · ไม่ผ่าน sequential pipeline แดง→เขียว→ฟ้า · เห็นจาก commit `Co-Authored-By` trailer):
 
-### Files modified (3 frontend + 5 HTML cache-bust)
-- `legacy-frontend/line_ui.js` — connectLine refactor + _lineBotUrl expose
-- `legacy-frontend/app.js` — 20 i18n entries + applyLanguage loadLineStatus call
-- `legacy-frontend/landing.js` — `_redirectToPendingLineLink` helper + 4 login callers
-- `legacy-frontend/{admin,app,auth-line,landing,shared_pack}.html` — cache-bust v9.4.1 → v9.4.2
-- `backend/config.py` — APP_VERSION 9.4.1 → 9.4.2 (linter pre-bumped)
+| Version | Commit | Date | Scope |
+|---|---|---|---|
+| v9.4.0 | `aa26ed2` … `ee07e27` (~7 commits) | 2026-05-10 | Upload Queue + Visible Progress (worker · UI tray · 4 endpoints · WAL) |
+| v9.4.0.1 | `2c93a1d` | 2026-05-10 | UI hotfix · tray position + toast text |
+| v9.4.0.2 | `d81369c` | 2026-05-10 | UI hotfix · opaque BG + suppress queue toast |
+| v9.4.1 | `a314a42` | 2026-05-10 | Comprehensive Drive cleanup async + UI feedback |
+| v9.4.2 | `f45ab96` | 2026-05-10 | Gemini 2.5 Flash + Vision + truthful classification |
+| v9.4.3 | `c738ff0` | 2026-05-10 | LINE UX 5 fixes + nonce + countdown timer |
+| v9.4.4 | `f2e707e` | 2026-05-10 | i18n error CODE boundary + reprocess hardening |
+| v9.4.5 | `015628c` | 2026-05-10 | Worker heartbeat task + startup recovery + cancel endpoint |
+| v9.4.6 | `9f94765` | 2026-05-11 | Progress+cancel main loop ref + always-on Cancel button |
+| v9.4.7 | `e658c74` | 2026-05-11 | Filename 255-byte ext4 limit (Thai filename UTF-8 overflow fix) |
+| v9.4.8 | `7a2f84a` | 2026-05-12 | DELETE guard + ai_pack filter + rolling avg cap |
 
-### Backend NOT modified
-`/api/line/connect` endpoint becomes dead code (frontend stops calling it). Keep for backwards-compat with old cached clients · revisit cleanup in v9.5.0.
-
-### Pending next steps
-1. 🔴 User decision — ship v9.4.2 standalone or bundle with v9.4.1 in same flyctl deploy
-2. 🟡 ฟ้า review (~20 นาที) — manual UI test scenarios A-H from plan (Connect/Open/i18n/PendingLink/LangToggle)
-3. 🟢 After ฟ้า APPROVE → user push + flyctl deploy
+**Status ของ formal ฟ้า review:** ❌ ไม่มี · `MSG-V940-UPLOAD-QUEUE` ใน `inbox/for-ฟ้า.md` ยังค้างใน 🔴 New แต่ของ deploy + ใช้งานจริงไป 11 versions แล้ว · gap นี้ยอมรับเป็น operational reality.
 
 ---
 
-## (Archived) v9.4.1 Comprehensive Delete + Sync Cleanup (2026-05-10)
+## 📋 Known unresolved issues (จาก audit 2026-05-12 by ฟ้า)
 
-**Master HEAD:** uncommitted (เขียว build complete · awaiting commit + ฟ้า review)
-**APP_VERSION:** 9.4.1
-**Plan:** `.agent-memory/plans/v9.3.5.5-comprehensive-delete-cleanup.md` (originally v9.3.5.5 · bumped to 9.4.1 since current was 9.4.0.2)
-**Mode:** เขียว build phase complete — 8 steps done · self-test after each step PASS
+| # | Issue | Severity | Status |
+|---|---|---|---|
+| **P9** | Duplicate detection disabled ตั้งแต่ v9.3.2 — `_DEDUP_DISABLED = True` ใน `backend/duplicate_detector.py` | 🟡 MED | BACKLOG-009 · pending re-enable + pytest case |
+| **P5** | Untracked files หลายกลุ่มใน working tree (smoke scripts ใหม่ · screenshots · `data/`/`datame/`) | 🟡 MED | Track A2/A3 (in progress) |
+| **P4** | v9.4.2/4/5/6/7/8 ไม่มี plan files (shipped ใน 3-in-1 mode) | 🟢 LOW | Defer · ไม่กระทบ production · ทำ retro changelog ถ้าจำเป็น |
+| **P1** | v9.4.0 Truthfulness Contract TC-1..6 ไม่เคย E2E audit · ของ deploy แล้ว · worker health green | 🟢 LOW | Defer · prod stable 24h+ · ทำตอนแตะ upload pipeline รอบหน้า |
 
-### v9.4.1 build summary (10 findings closed)
-- F1 — MCP `_tool_delete_file` 6-step cleanup + storage_source guard
-- F2 — `/api/reset` per-file 4-step + stats response
-- F3 — sync Case A2 stale-link UPDATE existing row
-- F4 — Drive sub-folder cleanup (extracted/ + summaries/) helpers added
-- F5 — `_should_trash_drive_file` guard ปกป้อง drive_picked
-- F6 — DELETE BackgroundTasks pattern (response ~200ms · ไม่ block ที่ 504)
-- F7 — sync orphan retry budget (max 3 attempts per session)
-- F16 — `/api/files` filter `deleted_in_drive` (default-hidden)
-- F23 — DELETE returns `drive_cleanup` field + frontend toast feedback
-- F24 — keep_files=False reconnect duplicate-push guard (CRITICAL data integrity)
-
-### Files modified (5 backend + 1 frontend + 5 HTML cache-bust)
-- `backend/storage_router.py` — 2 new helpers + 1 guard utility
-- `backend/main.py` — DELETE refactor + `/api/reset` overhaul + `/api/files` filter + `_cleanup_drive_for_deleted_file` background helper
-- `backend/mcp_tools.py` — `_tool_delete_file` 6-step
-- `backend/drive_sync.py` — SyncStats +4 fields, retry budget, 3-way Case A, F24 push guard
-- `backend/config.py` — APP_VERSION 9.4.0.2 → 9.4.1
-- `legacy-frontend/app.js` — deleteFile reads `drive_cleanup` + 4 i18n keys
-- `legacy-frontend/{admin,app,auth-line,landing,shared_pack}.html` — cache-bust
-
-### Regression results (post-build)
-- byos_router_smoke: **16/16 PASS**
-- byos_foundation_smoke: **26/26 PASS**
-- byos_sync_smoke: **20 PASS / 4 FAIL** (same as baseline · 0 regression — pre-existing FakeDriveClient issues unrelated to v9.4.1 changes)
-
-### Pending next steps
-1. 🔴 User decision — commit + deploy v9.4.1 ตอนนี้ หรือรอ ฟ้า review ก่อน
-2. 🟡 ฟ้า review (~45 นาที) — code review + manual prod test scenarios A-K from plan
-3. 🟢 After ฟ้า APPROVE → user push + flyctl deploy
+**ที่เคยอยู่ใน Issue list · resolved แล้ว:**
+- ✅ **P7 (PDF 219.6s slow)** — v9.4.8 rolling avg cap (class 2: 60s outlier cap) · prod stat ลด 219.6 → 13.27s
+- ✅ **P3 (pipeline-state stale)** — sync วันนี้ (ไฟล์ที่คุณกำลังอ่าน)
 
 ---
 
-## (Archived) v9.3.5 BYOS Reconnect UX FINAL (2026-05-10)
+## 📜 Reference — historical state snapshots
 
-**Master HEAD:** v9.3.5 final (10 commits c99616f → 45285cd · all bugs fixed)
-**APP_VERSION:** 9.3.5
-**Production:** 🔴 still v9.3.1 — รอ user `flyctl deploy` (combined v9.3.2/3/4/5 deploy)
-**Mode:** Sequential (แดง→เขียว→ฟ้า) — pipeline complete after re-review loop
+ก่อนหน้า v9.4.x · pipeline เคยอยู่ใน sequential mode ปกติ (แดง→เขียว→ฟ้า). ดู git log สำหรับ chronology + ดู `plans/` archive สำหรับ formal plans ที่ shipped:
 
-### v9.3.5 verdict timeline
-1. **Initial review** (rushed TH-only): APPROVE
-2. **User-requested re-review** ("เข้าไปตรวจสอบสิว่าทุกอย่างถูกต้องไหม"): NEEDS_CHANGES
-   - 🟡 BUG-V935-01: i18n keys missing (EN users saw Thai)
-   - 🟢 BUG-V935-02: reconnect button no double-click guard
-3. **เขียว fix loop** (3-in-1 mode per user authorization): commit `45285cd`
-   - Added 10 i18n entries (5 keys × TH+EN)
-   - Added `if (btn.disabled) return; btn.disabled = true;` guard
-4. **ฟ้า final re-test:** ✅ **APPROVE FINAL**
-   - EN mode verified live via Playwright: title + detail + reconnect + dismiss + notice → all EN ✅
-   - TH ↔ EN ↔ TH toggle works ✅
-   - Regression: 42/42 PASS ✅
-
-### Final verdict: ✅ APPROVE
-- 0 critical / 0 high / 0 medium / 0 low issues
-- All bugs from re-review fixed + verified
-- Visual proof: `v9_3_5_en_banner_final.png` (EN mode banner correct)
-
-### Pending user action
-1. 🔴 **Decide fly.toml** — revert ลง 2048/2 (recommend) หรือ keep 4096/4
-2. 🚀 **Deploy:** `git push origin master` + `flyctl deploy --app personaldatabank`
-3. 🟡 **STORAGE-007 long-term:** Submit Google OAuth verification (founder external work)
-
-### v9.3.5 build summary
-- Backend: 9 helpers patched (storage_router) + drive_sync wrap + endpoint status field
-- Frontend: banner + auto-sync after reconnect + visibility polling + reword testing notice + upload-warning toast
-- Cache-bust catch-up: `?v=9.3.1 → ?v=9.3.5` (drift จาก v9.3.2/3/4 ที่ไม่เคย bump)
-- Plan ref: [plans/v9.3.5-byos-invalid-grant-coverage.md](../plans/v9.3.5-byos-invalid-grant-coverage.md) (v3 — adjusted to actual code)
-
-### Pending user action
-1. 🔴 **Decide fly.toml** — revert ลง 2048/2 (recommend) หรือ keep 4096/4
-2. 🚀 **Deploy:** `git push origin master` + `flyctl deploy --app personaldatabank`
-3. 🟡 **STORAGE-007 long-term:** Submit Google OAuth verification (founder external work)
-
-**v9.4.0 status:** `built_pending_review` ✅ — เขียว all 7 steps DONE (2026-05-10)
-
-### v9.4.0 progress — เขียว 3-in-1 mode COMPLETE
-
-**✅ ALL 7 STEPS DONE (7 commits):**
-1. `aa26ed2` Step 1 — DB schema +7 cols + WAL mode + migration
-2. `89407cc` Step 2 — backend/upload_worker.py (~440 lines)
-3. `e6e13c2` Step 3-4 — progress_callback in extraction.py + ai_ingest.py
-4. `8f08b3d` Step 5 — plan_limits +cap + main.py refactor + 4 endpoints + reprocess/promote
-5. `438d022` Step 6a-b — extend t(key,vars) + 25×2 i18n keys
-6. `da16413` (memo) — pipeline-state pause point
-7. `ee07e27` Step 6c-d + Step 7 — UploadTray module + CSS + version 9.4.0
-
-**Live server smoke test (2026-05-10):** 10/10 PASS
-- /api/healthz/queue → 200 + worker.status='running' + uptime + heartbeat ✅
-- /api/upload-status → 401 unauth ✅
-- /api/upload → 401 unauth ✅
-- /app → 200 HTML serves with v9.4.0 label ✅
-- app.js?v=9.4.0 → 200 + UploadTray module loaded ✅
-- styles.css?v=9.4.0 → 200 + 32 .upload-tray references ✅
-
-**Worker behavior verified:**
-- Startup: `upload_worker.started` logged ✅
-- WAL mode: `journal_mode = WAL (concurrent-safe)` confirmed ✅
-- Migration: idempotent on real DB (320 users, 213 files, 0 stuck rows) ✅
-- Heartbeat: data/worker_heartbeat.txt updated every 2s ✅
-- Graceful shutdown: `upload_worker.stopped` on SIGINT ✅
-
-**Pending action:**
-- 🔵 ฟ้า: review code + write 83 test cases + run full smoke suite + UI Foundation Contract §6 check
-- ผู้ใช้: รอ ฟ้า approve → push + deploy
-**v9.4.0 plan revised 2026-05-10 (v2 post-audit):** [plans/upload-queue-v9.4.0.md](../plans/upload-queue-v9.4.0.md) ⭐ Detailed Proactive Edition + เขียว field-audit fixes
-- v1 → v2: เขียวอ่านโค้ดจริงเทียบ plan แล้วเจอ 11 mismatches (3 BLOCKER + 3 MEDIUM + 5 LOW) → แดง 3-in-1 mode revise
-- Fixed: M-1 i18n pattern (I18N.th/.en single global · ไม่ใช่ separate vars) · M-3 WAL mode (added explicit code) · M-4 reprocess+promote refactor (เข้า scope · "ไม่ค้าง" 100%) · M-2 func import · M-9 t(key,vars) extension · M-10 safer SQL via SQLAlchemy ORM
-- Total scope: Truthfulness Contract (TC-1..6) + Multi-tenant fairness + Per-plan caps + Observability + 7 ADRs + State Machine + FMEA (25) + Rollback (4-tier) + 83 tests
-- Effort v2: เขียว ~25-27 ชม. (+3 hrs) + ฟ้า ~8-9 ชม. (+1 hr) = **~33-36 ชม. (~4 วัน)**
-- Open Questions: Q1-Q7 (ดูใน plan file)
-
-### Plan A — v9.3.5 BYOS invalid_grant graceful coverage 🩹 [BUILDING]
-- **Plan file:** [plans/v9.3.5-byos-invalid-grant-coverage.md](../plans/v9.3.5-byos-invalid-grant-coverage.md)
-- **Effort:** ~2-3 ชม. (เขียว) + ~1.5 ชม. (ฟ้า) = ~4 ชม. รวม
-- **Risk:** 🟢 LOW (code-only · ไม่มี migration · pattern reuse จาก v9.3.0)
-- **Why urgent:** Live test 2026-05-10 พบว่า bossok2546 user เจอ BYOS uploads silent-fail · UI หลอก "เชื่อมต่อแล้ว" · 8 files ติด local
-- **Scope:** Patch 8 helpers ใน storage_router.py (extend v9.3.0 pattern) + wrap drive_sync.load_connection
-
-### Plan B — v9.4.0 Upload Queue + Visible Progress 🚀 [FEATURE]
-- **Plan file:** [plans/upload-queue-progress-v9.4.0.md](../plans/upload-queue-progress-v9.4.0.md)
-- **Effort:** ~18.5 ชม. (เขียว) + ~6 ชม. (ฟ้า) = ~24.5 ชม. รวม (~3 วัน)
-- **Risk:** 🟡 MEDIUM (schema migration + worker module + frontend tray)
-- **Scope:** แยก upload เป็น save+queue + UI progress tray + worker recovery
-
-**คำแนะนำ:** Plan A ship ก่อน (urgent bug + low risk + ~4 ชม.) → Plan B ตามมา (feature + larger scope)
-**ทั้งสอง plans ไม่ conflict กัน** — Plan A patch except blocks ของ push helpers, Plan B restructure upload flow. Apply ได้แยกกันหรือต่อกัน.
-
-### v9.4.0 Goal (1 paragraph)
-แยก upload (เร็ว ≤ 200ms) ออกจาก extract (ช้า — OCR/Gemini) เป็น **DB-backed queue + in-process async worker** + **persistent UI tray** ที่ user เห็นทุกขั้นสด ไม่ค้าง + recoverable หลัง server restart + เก็บ extraction stack v9.3.4 เดิมทั้งหมด
-
-### v9.4.0 Scope (ขอบเขต)
-- ✅ Upload phase only — organize/AI queue เก็บไว้รอบหน้า
-- ✅ DB schema +6 columns (idempotent ADD-only migration)
-- ✅ 4 API endpoints: /api/upload (changed shape) + /api/upload-status (new) + /api/upload/{id}/retry (new) + /api/upload/{id}/dismiss-error (new)
-- ✅ 1 backend module ใหม่: `backend/upload_worker.py`
-- ✅ Frontend Upload Tray (vanilla, ใช้ atom เดิม + token foundation)
-- ✅ Backward compat: existing files / organize-new / Drive push ไม่กระทบ
-- ❌ ไม่แตะ extraction.py extract logic (เพิ่มแค่ progress_callback parameter)
-- ❌ ไม่ใช้ Redis/Celery/WebSocket
-- ❌ ไม่สร้าง atom variant ใหม่
-
-### Files
-- 5 backend modify + 1 backend create
-- 3 frontend modify
-- 3 test create (smoke 30 + Playwright 12 + pytest 15 = 57 cases)
-- 5 memory updates
-
-### Effort
-- เขียว: ~18.5 hrs (~2.5 วัน)
-- ฟ้า: ~6 hrs
-
-### Open Questions ที่รอ user ตัดสินใจ
-1. Worker concurrency: 1 (default, sequential) หรือ 2?
-2. Tray location: bottom-right (default) — confirmed safe (guide-fab hidden แล้ว)
-3. Auto-retry attempts ก่อนต้อง manual: 0 (default) / 1 / 3?
-4. Rollout: ทันที (default) หรือ feature flag?
-
-### Pending action
-- 🔴 **User**: review plan + answer Q1-Q4 หรือยอมรับ default
-- 🟢 **เขียว**: รอ user approve → start Step 1 (DB schema)
-- 🔵 **ฟ้า**: รอเขียวเสร็จ → run 57 cases + UI Foundation Contract §6 check
+- v9.3.5 BYOS Reconnect UX FINAL — เป็น last formal sequential pipeline pass (ฟ้า re-review APPROVE 2026-05-10)
+- v9.3.4 LLM/AI surrogate boundary — 3-in-1 mode
+- v9.3.3 extraction surrogate guard — 3-in-1 mode
+- v9.3.2 disable duplicate detection — 3-in-1 mode (current BACKLOG-009)
+- v9.3.0 Phase A-E UI foundation + Share Pack — sequential
+- v9.2.0 AI Pack Builder — sequential
+- v9.1.0 Raw File Vault — sequential
+- v9.0.1 Context Pack correctness — 3-in-1 mode
+- v8.x line bot + admin + google login — sequential
 
 ---
 
-## 🟢 Recently Done — v9.3.4 LLM/AI BOUNDARY (2026-05-08)
-
-**Master HEAD:** `043cdc3` v9.3.4 LLM + AI ingest surrogate boundary
-**APP_VERSION:** **9.3.4**
-**Production:** 🔴 still on v9.3.1 (buggy) until user runs `flyctl deploy` — patches v9.3.2/3/4 stacked + ready
-**Active patch:** v9.3.4 (LLM + AI ingest sanitize) on top of v9.3.3 (extract_text + DB write boundaries) on top of v9.3.2 (dedup disable)
-**Mode:** 3-in-1 (แดง+เขียว+ฟ้า ในคนเดียว) — pipeline complete, รอ user deploy
-
-### v9.3.4 Boundary summary
-- llm.py `_call_openrouter` wraps LLM response with `strip_surrogates` (covers call_llm + call_llm_pro + call_llm_json)
-- ai_ingest.py `ingest_via_ai` wraps Gemini audio/video transcription output
-- APP_VERSION 9.3.3 → 9.3.4
-- byos_router_smoke regression: 16/16 PASS
-
-### Bug origin (already fixed, ready to deploy)
-- v9.3.1 production: PDF extraction emits lone UTF-16 surrogates → DB write → UnicodeEncodeError (Fly log 12:19:42)
-- v9.3.2: disable duplicate detection (compute_content_hash crash path)
-- v9.3.3: strip_surrogates at extract_text boundary + 4 DB write sites
-- v9.3.4: extend to LLM + AI ingest output (defense-in-depth upstream)
-
-### Patch v9.3.2 summary
-- 🚧 Disabled `compute_content_hash` + `find_duplicate_for_file` + `detect_duplicates_for_batch` (3 public functions in duplicate_detector.py)
-- ✅ Bug fix: UnicodeEncodeError surrogate crash → no longer 500 on reprocess
-- ✅ Memory: DUP-004 + BACKLOG-009 + conventions disabled-features list
-- ✅ Re-enable path documented (single-flag flip + smoke test)
-
-### Self-test (เขียว)
-- duplicate_detector.py syntax OK · 3 functions return no-op · lone surrogate handled
-- byos_router_smoke: 16/16 PASS · byos_foundation_smoke: 26/26 PASS (regression)
-
-### Patch summary
-- ✅ P1 cache-bust HTML → `?v=9.3.0`
-- ✅ P2 iOS sidebar — verified shipped (no-op)
-- ✅ P3 JWT warn-log on production-like deploy
-- ✅ P4 Drive `invalid_grant` graceful + UI re-connect button
-- ✅ P5 memory sync + archive shipped plan + resolve inbox
-
-### Review tests
-- byos_router_smoke: 16/16 PASS · byos_foundation_smoke: 26/26 PASS
-- Python + JS syntax: OK · Cache-bust grep: 21/21 refs at `?v=9.3.0`
-- Issues: 0 critical / 0 high / 0 medium / 3 low (Phase 2 optional)
-
-### What this patch does
-- P1 cache-bust HTML ทั้งหมด → `?v=9.3.0` (แก้ downgrade ใน working tree)
-- P2 iOS sidebar Phase 1+2 ให้จบ (CSS fallback chain + JS `_setVh` IIFE)
-- P3 JWT_SECRET_KEY warn-log (production-like deploy)
-- P4 Drive `invalid_grant` graceful handling + UI re-connect button
-- P5 Memory drift cleanup + archive shipped Share Pack plan + resolve stale inbox
-
-### Audit corrections (verified 2026-05-08)
-- ❌ Audit "target = ?v=9.2.2" → actual target = `?v=9.3.0` (APP_VERSION ใน config.py)
-- ❌ Audit "JWT random per restart" → actual: persist ใน `.jwt_secret` file (volume) · ปัญหาเฉพาะ multi-machine/migrate
-- ❌ Audit "iOS sidebar ทำแล้ว" → actual: Phase 3+landing.css ทำแล้ว · Phase 1+2 ยังไม่ทำ
-
----
-
-## 🟡 Just Built (v9.3.0 — 2026-05-08)
-
-### v9.3.0 Share Context Pack (Detailed Edition) — BUILT in 3-in-1 mode
-- **Plan:** [plans/share-pack-v9.3.0.md](../plans/share-pack-v9.3.0.md)
-- **Mode:** 3-in-1 single-agent (แดง→เขียว→ฟ้า) per user authorization
-- **Author:** แดง→เขียว→ฟ้า — 2026-05-08
-- **Foundation:** master HEAD `127b064` (v9.2.1) → 7 commits (M1-M7)
-- **APP_VERSION:** 9.2.2 → 9.3.0
-- **Self-review verdict:** ✅ APPROVE — 36/36 v9.3.0 + 47/47 regression = **83/83 PASS**
-
-### Commits shipped (5 logical)
-- `7805359` feat(db+api): pack_shares table + pack_share module + token signing [M1-M2]
-- `7a4b7b9` feat(api): 5 endpoints + 1 HTML route for Pack Share [M3]
-- `08ea830` feat(frontend): sender pack card 📤 button + share bar + auto-copy [M4]
-- `4fb628e` feat(frontend): recipient /p/{token} preview page + landing redirect [M5+M6]
-- `9fa78f8` test(share-pack): comprehensive 36 cases (26 smoke + 10 Playwright) [M7]
-- (pending) chore: bump APP_VERSION 9.3.0 + memory updates
-
-### What shipped
-**Backend (4 modified + 1 new):**
-- `backend/database.py` — PackShare table + indexes
-- `backend/pack_share.py` (NEW, ~360 lines) — token sign/verify + 6 ops + cascade-safe atomic claim
-- `backend/plan_limits.py` — pack_share_limit_monthly + check helper + anti-abuse counter
-- `backend/main.py` — 3 Pydantic models + 5 endpoints + /p/{token} HTML route
-- `backend/config.py` — APP_VERSION 9.3.0
-
-**Frontend (4 modified + 3 new):**
-- `legacy-frontend/app.html` — version label v9.2.2 → v9.3.0 + ?v= bump
-- `legacy-frontend/app.js` — sender pack card 📤 + bar + 6 functions + clipboard
-- `legacy-frontend/styles.css` — .pack-share-bar (~70 lines)
-- `legacy-frontend/landing.js` — ?return=/p/... handler (post-login redirect)
-- `legacy-frontend/shared_pack.html` (NEW) — 4 view states standalone page
-- `legacy-frontend/shared_pack.js` (NEW) — preview load + claim flow + auto-claim
-- `legacy-frontend/shared_pack.css` (NEW) — responsive design + sticky CTA
-
-**Tests (2 new):**
-- `scripts/share_pack_smoke.py` (NEW, 26 cases) — backend smoke
-- `tests/e2e-ui/v9.3.0-share-pack.spec.js` (NEW, 10 cases) — Playwright real Chromium
-
-### Test Results (83/83 PASS)
-- ✅ 26/26 v9.3.0 backend smoke (M1 schema/token + M2 endpoints + M3 preview/claim + M4 HTML route)
-- ✅ 10/10 v9.3.0 Playwright UI (sender DOM + recipient page + E2E redirect)
-- ✅ 21/21 v9.0.1 correctness regression
-- ✅ 26/26 v9.2.0 AI Builder regression
-- ✅ Python syntax 5 files / JS syntax 3 files — clean
-
-### Privacy + cascade guards verified
-- ✅ Cloned pack: source_file_ids ≠ owner's (privacy — recipient ไม่ access ไฟล์ owner ตรงๆ)
-- ✅ Cross-user revoke: User B ไม่สามารถ revoke share ของ User A → 404 (steal guard)
-- ✅ Owner email masked: te****@x.com pattern verified
-- ✅ JWT scope=pack_share: payload ไม่มี 'sub' → กัน abuse as login token
-- ✅ Atomic view_count: 6 sequential visits → count=6 (no race)
-- ✅ File copy on claim: pre-check + atomic + rollback on partial fail (per Risk #1)
-
-### Awaiting User Action
-1. 🔴 **Manual smoke test ใน browser** — sender flow + recipient page on real device
-2. 🟢 **Push + deploy** — `git push origin master` + `fly deploy` (รวม v9.2.2 + v9.3.0)
-3. 🟡 (optional) Frontend integration smoke ที่ต้องมี real organized pack (Playwright limited to DOM contract — full E2E needs LLM-organized pack which requires OpenRouter)
-
----
-
-## 🟢 Recently Merged (v9.2.2)
-- **v9.2.2 — iOS Sidebar Footer Fix (2026-05-08)**
-    - **Status:** DONE (Implementation complete, verification tests created)
-    - **Fixes:** 100vh bug on iOS Safari, Footer visibility.
-    - **Files:** `backend/config.py`, `app.js`, `app.html`, `styles.css`, `shared.css`, `landing.css`.
-
-## 🔴 Previously pending (now BUILT — see above)
-
-### v9.3.0 Share Context Pack (Detailed Edition with milestone verification) — `built_pending_review` (revised 2026-05-08)
-- **Plan:** [plans/share-pack-v9.3.0.md](../plans/share-pack-v9.3.0.md)
-- **Effort:** เขียว ~2.5 วัน + ฟ้า ~1 วัน
-- **Design (per user "ละเอียดจริงๆ มี milestone test ทุกอย่าง UI จริงทั้ง sender + recipient"):**
-  - **Sender:** กด 📤 = ลิงก์ copy ทันที + bar เล็ก (toggle "+ แนบไฟล์" / revoke)
-  - **Recipient:** เปิด /p/{token} = preview ทันที (no login) → "เก็บ" → register/login → clone เข้า workspace
-  - **Cloned pack:** อิสระ (source_file_ids=[] privacy preserved)
-  - **No TTL · No email whitelist · No permission tier · clone-only**
-- **Schema:** 1 ตาราง `pack_shares`
-- **API:** 5 endpoints + 1 HTML page
-- **Plan limits:** Free 5/เดือน, Starter 50, Admin unlimited (revoked counts to anti-abuse)
-- **7 Milestones:** M1 schema/token · M2 share endpoints · M3 preview/claim · M4 sender UI · M5 recipient UI · M6 integration · M7 polish
-- **Tests:** 25 smoke + 35 pytest + **34 Playwright** (12 sender + 14 recipient + 8 integration) = **94 cases total**
-- **Per-milestone Playwright verification** ทุก milestone มี real Chromium UI test
-- **Privacy:** locked-pack guard, masked owner email (te****@x.com), revocable, source_file_ids=[] clone
-
-**Pending action:** User approve → state `plan_approved` → เขียว build (Milestone-by-Milestone)
-
----
-
-## 📜 History / Recent Pipeline Actions
-
-### 🟢 v9.2.2 — iOS Sidebar Footer Fix (2026-05-08)
-- **Goal:** Fix sidebar footer hidden behind iOS Safari toolbar.
-- **Strategy:** Hybrid 3-layer fix (dvh + --vh setter + safe-area padding).
-- **Implementation:** Added IIFE to app.js, updated CSS fallback chains, bumped version to 9.2.2.
-
-### 🟢 v9.2.1 — Parallel Upload & Mobile Toast Fix (2026-05-07)
-- **Status:** DONE & DEPLOYED
-- **Fixes:** Parallel extraction speedup + mobile toast overlap fix.
+**Last sync:** 2026-05-12 by 🔵 ฟ้า (Track A1 · pipeline-state drift fix)
