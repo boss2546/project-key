@@ -2,7 +2,7 @@
 
 Uses Pillow to draw a 6-tile (3×2) grid with PDB indigo theme + Thai labels.
 
-Run: python scripts/generate_line_rich_menu_image.py
+Run: python scripts/setup/generate_line_rich_menu_image.py
 Output: legacy-frontend/line-rich-menu.png
 
 Tile layout:

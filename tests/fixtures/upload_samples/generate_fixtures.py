@@ -3,7 +3,7 @@
 Run: python tests/fixtures/upload_samples/generate_fixtures.py
 
 Creates 12 sample files used by:
-- scripts/upload_resilience_e2e_verify.py (Backend E2E)
+- scripts/e2e/upload_resilience_e2e_verify.py (Backend E2E)
 - tests/test_extraction_v750.py (pytest unit)
 - tests/e2e-ui/v7.5.0-upload-resilience.spec.js (Playwright)
 

@@ -1,6 +1,6 @@
 """BYOS v7.0 — drive_oauth.py unit tests (no real Google OAuth call).
 
-Run: python scripts/byos_oauth_smoke.py
+Run: python scripts/smoke/byos_oauth_smoke.py
 
 Strategy:
 - Set fake env vars (CLIENT_ID/SECRET/ENCRYPTION_KEY) to satisfy is_byos_configured()

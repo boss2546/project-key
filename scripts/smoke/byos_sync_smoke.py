@@ -1,6 +1,6 @@
 """BYOS v7.0 — drive_sync.py mock smoke test (no real Drive API).
 
-Run: python scripts/byos_sync_smoke.py
+Run: python scripts/smoke/byos_sync_smoke.py
 
 Strategy:
 - Use real SQLite (apply migrations first via init_db)

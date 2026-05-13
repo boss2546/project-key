@@ -9,7 +9,7 @@ Coverage:
   Group D (5): validation
   Group E (3): quota / auth / multi-user
 
-Run from project root: python scripts/ai_pack_builder_smoke.py
+Run from project root: python scripts/smoke/ai_pack_builder_smoke.py
 """
 import asyncio
 import os

@@ -1,6 +1,6 @@
 """BYOS v7.0 — drive_storage.py mock smoke test (NO real Drive API call).
 
-Run: python scripts/byos_storage_smoke.py
+Run: python scripts/smoke/byos_storage_smoke.py
 
 Strategy:
 - Don't invoke real OAuth (no credentials yet)

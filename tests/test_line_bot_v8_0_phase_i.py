@@ -59,7 +59,7 @@ def _cleanup(user_id: str):
 def test_rm1_menu_definition_valid():
     """Menu structure has 6 areas + valid bounds"""
     from importlib.machinery import SourceFileLoader
-    mod = SourceFileLoader("setup_rm", "scripts/setup_line_rich_menu.py").load_module()
+    mod = SourceFileLoader("setup_rm", "scripts/setup/setup_line_rich_menu.py").load_module()
     defn = mod.RICH_MENU_DEFINITION
     assert defn["size"]["width"] == 2500
     assert defn["size"]["height"] == 1686
@@ -74,7 +74,7 @@ def test_rm1_menu_definition_valid():
 def test_rm2_menu_actions_have_handlers():
     """Each menu action data should map to a handler in line_bot postback"""
     from importlib.machinery import SourceFileLoader
-    mod = SourceFileLoader("setup_rm", "scripts/setup_line_rich_menu.py").load_module()
+    mod = SourceFileLoader("setup_rm", "scripts/setup/setup_line_rich_menu.py").load_module()
     defn = mod.RICH_MENU_DEFINITION
     # Postback actions in menu
     postback_actions = []
@@ -94,7 +94,7 @@ def test_rm2_menu_actions_have_handlers():
 def test_rm3_message_actions_known_keywords():
     """Message-type actions should produce text that matches known intents"""
     from importlib.machinery import SourceFileLoader
-    mod = SourceFileLoader("setup_rm", "scripts/setup_line_rich_menu.py").load_module()
+    mod = SourceFileLoader("setup_rm", "scripts/setup/setup_line_rich_menu.py").load_module()
     defn = mod.RICH_MENU_DEFINITION
     from backend.bot_handlers import detect_intent, Intent
 
@@ -243,7 +243,7 @@ def test_im1_generated_image_exists():
     """Image file exists at expected path"""
     repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     image_path = os.path.join(repo_root, "legacy-frontend", "line-rich-menu.png")
-    assert os.path.exists(image_path), "Run scripts/generate_line_rich_menu_image.py first"
+    assert os.path.exists(image_path), "Run scripts/setup/generate_line_rich_menu_image.py first"
 
 
 def test_im2_image_dimensions_correct():

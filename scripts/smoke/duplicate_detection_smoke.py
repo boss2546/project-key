@@ -1,6 +1,6 @@
 """v7.1 — Duplicate detection in-process smoke tests.
 
-Run: python scripts/duplicate_detection_smoke.py
+Run: python scripts/smoke/duplicate_detection_smoke.py
 
 Covers:
   Section 1: compute_content_hash + normalize_text behavior (5 cases)

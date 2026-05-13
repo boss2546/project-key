@@ -2,7 +2,7 @@
 
 ครอบคลุม 25 cases ตาม plan ก่อน handoff frontend testing.
 
-Run from project root: python scripts/share_pack_smoke.py
+Run from project root: python scripts/smoke/share_pack_smoke.py
 """
 import asyncio
 import os

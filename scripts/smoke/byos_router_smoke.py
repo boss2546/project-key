@@ -1,6 +1,6 @@
 """BYOS v7.0 — storage_router.py mock smoke test.
 
-Run: python scripts/byos_router_smoke.py
+Run: python scripts/smoke/byos_router_smoke.py
 
 Verifies:
   1. Managed user -> all push helpers no-op (return False)

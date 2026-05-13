@@ -1,6 +1,6 @@
 """Comprehensive pytest test suite for v9.2.0 AI Pack Builder.
 
-ครอบคลุมที่ smoke test (`scripts/ai_pack_builder_smoke.py`) ยังไม่ลงลึก:
+ครอบคลุมที่ smoke test (`scripts/smoke/ai_pack_builder_smoke.py`) ยังไม่ลงลึก:
 - Pydantic validation boundaries (10/500 chars exact, type enum, edge JSON)
 - LLM error scenarios (timeout, empty response, malformed JSON, retry behavior)
 - Race conditions (concurrent /clarify, concurrent /confirm same draft)

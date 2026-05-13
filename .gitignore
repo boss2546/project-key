@@ -72,15 +72,5 @@ tests/current/
 tests/visual-diff-out/
 tests/_smoke_shots/
 
-# Root-level debug screenshots (ad-hoc audit artifacts · not source)
-/v9_3_5_*.png
-/v9_4_*.png
-/drive_bug_*.png
-/yt-*.png
-/smoke-*.png
-/smoke-mcp-*.png
-/login-*.png
-/login-step-*.png
-/profile-*.png
-/pdb-*.png
-/ui-test-*.png
+# Ad-hoc audit artifacts (screenshots, scratch files) — not source
+.archive/

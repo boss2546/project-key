@@ -7,7 +7,7 @@ Steps:
 2. Upload menu image
 3. Set as default rich menu for all users
 
-Run: python scripts/setup_line_rich_menu.py
+Run: python scripts/setup/setup_line_rich_menu.py
 Requires: LINE_CHANNEL_ACCESS_TOKEN env var (or load from Fly secrets).
 
 Idempotent: deletes any existing default menu first.
@@ -81,7 +81,7 @@ def main():
     if not token:
         print("ERROR: LINE_CHANNEL_ACCESS_TOKEN not set.", file=sys.stderr)
         print("On Fly.io: fly ssh console -C 'env | grep LINE'", file=sys.stderr)
-        print("Or run with: LINE_CHANNEL_ACCESS_TOKEN=... python scripts/setup_line_rich_menu.py", file=sys.stderr)
+        print("Or run with: LINE_CHANNEL_ACCESS_TOKEN=... python scripts/setup/setup_line_rich_menu.py", file=sys.stderr)
         sys.exit(1)
 
     # Locate image
@@ -89,7 +89,7 @@ def main():
     image_path = os.path.join(repo_root, "legacy-frontend", "line-rich-menu.png")
     if not os.path.exists(image_path):
         print(f"ERROR: Image not found at {image_path}", file=sys.stderr)
-        print("Run first: python scripts/generate_line_rich_menu_image.py", file=sys.stderr)
+        print("Run first: python scripts/setup/generate_line_rich_menu_image.py", file=sys.stderr)
         sys.exit(1)
 
     headers = {"Authorization": f"Bearer {token}"}

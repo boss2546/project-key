@@ -1,6 +1,6 @@
 """BYOS v7.0 foundation smoke test (in-process TestClient).
 
-Run: python scripts/byos_foundation_smoke.py
+Run: python scripts/smoke/byos_foundation_smoke.py
 
 Covers:
   1. /api/drive/status (no env vars) -> feature_available=False
