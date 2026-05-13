@@ -3,7 +3,7 @@
 ## โปรเจกต์คืออะไร
 **Personal Data Bank (PDB)** เป็นพื้นที่ข้อมูลส่วนตัวที่ใช้ AI ช่วยจัดระเบียบ วิเคราะห์ และเชื่อมโยงข้อมูลของผู้ใช้
 
-**Production:** https://project-key.fly.dev/ (Fly.io app name `project-key` ยังคงเดิม — รอ custom domain ภายหลัง)
+**Production:** https://personaldatabank.fly.dev/ (renamed from `project-key.fly.dev` ใน migration 2026-05-01 — รอ custom domain ภายหลัง)
 **Current deployed version:** 6.0.0 (Personality Profile)
 **Next versions in pipeline:**
 - 6.1.0 (rebrand) — review_passed, pending merge + deploy
@@ -54,7 +54,7 @@
 - Docs: `/docs/`, `/DESIGN.md`, `/README.md`, `/docs/BYOS_SETUP.md` (v7.0)
 
 ## สถานะปัจจุบัน (2026-05-01)
-- ✅ Production live แล้ว at https://project-key.fly.dev/ (v6.0.0 — Personality Profile)
+- ✅ Production live แล้ว at https://personaldatabank.fly.dev/ (v6.0.0 — Personality Profile)
 - 🟡 v6.1.0 Rebrand: review_passed, pending merge + deploy
 - 🟢 v7.0.0 BYOS: Phase 4 substantial completion by ฟ้า, final polish + live OAuth + push pending
 - ✅ Stripe integration ทำงานได้

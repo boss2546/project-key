@@ -60,9 +60,9 @@
 **Why:** มี Dockerfile + fly.toml พร้อม
 **Implication:** ทุกการเปลี่ยนแปลงต้อง compatible กับ Fly volumes
 
-## DEPLOY-002: Keep Fly.io app name `project-key` (per rebrand v6.1.0 Q2)
-**Why:** Fly.io app rename ต้องสร้าง app ใหม่ + migrate volume + DNS — high risk + downtime
-**Implication:** Domain `project-key.fly.dev` คงเดิม. Custom domain (e.g., `personaldatabank.com`) defer ภายหลัง — DNS swap ไป Fly.io app เดิมได้
+## DEPLOY-002: Fly.io app renamed `project-key` → `personaldatabank` (migration 2026-05-01)
+**Why:** Original decision was to keep `project-key` (rename = volume migrate + DNS + downtime). Reversed during 2026-05-01 migration; new app `personaldatabank` provisioned with restored volume.
+**Implication:** Domain `personaldatabank.fly.dev` is current. Custom domain (e.g., `personaldatabank.com`) defer ภายหลัง — DNS swap ไปแอพ Fly.io ปัจจุบันได้
 
 ## STORAGE-001: Hybrid storage architecture for BYOS (v7.0)
 **Why:** Pure cloud-storage = slow search; pure server-storage = no user sovereignty. Hybrid = best of both.

@@ -7,7 +7,7 @@
 
 ## Base URL
 - Local: `http://localhost:8000`
-- Production: `https://project-key.fly.dev` (Fly.io app name คงเดิมตาม rebrand v6.1.0 Q2)
+- Production: `https://personaldatabank.fly.dev` (renamed from `project-key.fly.dev` in migration 2026-05-01)
 - API prefix: `/api`
 
 ## Authentication

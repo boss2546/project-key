@@ -15,7 +15,6 @@ venv/
 .env
 .env.*
 !.env.example
-migration_backup/
 
 # Database (personal data — do not commit)
 projectkey.db
