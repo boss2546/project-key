@@ -2,7 +2,8 @@
 
 > **Purpose:** ระบุไฟล์ทุกตัวที่จำเป็นสำหรับการ run server ใน production (fly.io app `personaldatabank`)
 > **Generated:** 2026-05-14
-> **Physical snapshot:** [`production-active/`](../../production-active/) (gitignored mirror, regenerable — ดู [production-active/README.md](../../production-active/README.md))
+> **Physical snapshot:** [`production-active/`](../../production-active/) (gitignored — 71 code files + real `.env` + template + runbook = 75 files. ดู [production-active/README.md](../../production-active/README.md))
+> **Deployment guide:** [`docs/deployment/RUNBOOK.md`](../deployment/RUNBOOK.md) · [`docs/deployment/.env.example`](../deployment/.env.example)
 > **Source-of-truth:** [Dockerfile](../../Dockerfile) + [fly.toml](../../fly.toml) + transitively-imported modules from `backend.main:app`
 >
 > **กฎความเชื่อ:**
