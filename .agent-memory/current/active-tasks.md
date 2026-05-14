@@ -58,7 +58,7 @@
 
 - 📝 Submit Google OAuth verification (openid+email+profile, 1-3 วัน, ฟรี — ก่อน public >100 users)
 - 🔁 Token rotation (LINE + Resend) — ถ้ามี exposure
-- 📱 LINE Rich Menu deploy: `fly ssh console -C "python scripts/setup_line_rich_menu.py"`
+- 📱 LINE Rich Menu deploy: script removed in 2026-05-14 cleanup; restore from git history (`git show 8a89eee~1:scripts/setup/setup_line_rich_menu.py`) before re-running
 
 ---
 

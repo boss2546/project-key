@@ -184,21 +184,13 @@ HTML/JS/CSS เสิร์ฟผ่าน FastAPI routes ใน [main.py:4144-4
 
 | Path | Why kept in repo |
 |---|---|
-| [tests/](../../tests/) | 125 pytest + Playwright tests (dev only) |
-| [scripts/](../../scripts/) | Smoke tests, e2e verifies, maintenance scripts (dev/CI only) |
-| [docs/](../../docs/) | Documentation, including this file |
-| [.agent-memory/](../../.agent-memory/) | Multi-agent team memory + plans + history |
-| [sandbox/](../../sandbox/) | **landing-v4 experiment** (deletable — see review notes) |
+| [docs/](../../docs/) | Documentation (manifest, deployment, handoff, reports) |
+| [.agent-memory/](../../.agent-memory/) | Multi-agent team memory (live plans + project + contracts) |
 | [backups/](../../backups/) | Local DB snapshots (gitignored runtime artifact) |
-| [chroma_db/](../../chroma_db/) | Local vector DB (gitignored runtime, regenerable) |
-| [node_modules/](../../node_modules/) | Playwright deps for browser tests (gitignored) |
-| [playwright.config.js](../../playwright.config.js) + .standalone.js | Playwright test config |
-| [package.json](../../package.json) + lock | Frontend test deps |
-| [requirements.txt](../../requirements.txt) | Local dev deps (Docker uses `requirements-fly.txt` instead) |
-| [pytest.ini](../../pytest.ini) | pytest config |
-| [mcp-proxy.js](../../mcp-proxy.js) | Local MCP proxy for development |
-| [REPORT-*.md](../../docs/reports/) | Release reports |
 | [DESIGN.md](../../DESIGN.md), [README.md](../../README.md) | Project docs |
+| [.env](../../.env) | Local dev env (gitignored) |
+| [.gitignore](../../.gitignore), [.dockerignore](../../.dockerignore) | Repo config |
+| [production-active/](../../production-active/) | Read-only mirror snapshot (gitignored) — see [README](../../production-active/README.md) |
 
 ---
 

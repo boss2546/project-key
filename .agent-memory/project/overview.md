@@ -48,10 +48,12 @@
 
 ## ที่อยู่ของ Source Code
 - Repo: d:\PDB\
-- Backend: `/backend/` (Python FastAPI)
+- Backend: `/backend/` (Python FastAPI — 43 modules, all reachable from main.py)
 - Frontend: `/legacy-frontend/` (HTML/CSS/JS — ยังไม่ได้ migrate เป็น framework)
-- Tests: `tests/test_*.py` + `tests/e2e-ui/*.spec.js` + `scripts/*_smoke.py` (in-process self-tests)
-- Docs: `/docs/`, `/DESIGN.md`, `/README.md`, `/docs/BYOS_SETUP.md` (v7.0)
+- Docs: `/docs/{manifest,deployment,handoff,reports}/`, `/DESIGN.md`, `/README.md`
+- Production mirror: `/production-active/` (gitignored snapshot — 71 files + .env + RUNBOOK)
+
+> **Note:** `tests/`, `scripts/`, `pytest.ini`, `playwright.config.js`, `package.json` ถูกลบใน cleanup 2026-05-14 — ถ้าจะ revive ดู git tag pre-cleanup หรือ commit ก่อน 8a89eee
 
 ## สถานะปัจจุบัน (2026-05-01)
 - ✅ Production live แล้ว at https://personaldatabank.fly.dev/ (v6.0.0 — Personality Profile)

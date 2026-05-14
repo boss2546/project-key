@@ -31,22 +31,18 @@ d:\PDB\
 │   ├── pricing.html
 │   └── guide/
 │
-├── chroma_db/           # Vector embeddings (ChromaDB)
-├── context_packs/       # Saved context packs
-├── docs/                # Documentation
-├── backups/             # Database backups
-├── summaries/           # AI-generated summaries
+├── docs/                # Documentation (manifest, deployment, handoff, reports)
+├── backups/             # Database backups (gitignored, auto-rotated)
+├── uploads/             # User uploads (gitignored, local dev)
 │
-├── projectkey.db        # SQLite database (main)
+├── production-active/   # Read-only mirror of production files (gitignored)
+├── projectkey.db        # SQLite database (gitignored, local dev)
 ├── DESIGN.md            # Design decisions
 ├── README.md            # Project README
 ├── Dockerfile           # Container build
 ├── fly.toml             # Fly.io config
-├── mcp-proxy.js         # MCP proxy server (Node.js)
-├── package.json         # Node deps
-├── requirements.txt     # Python deps
-├── requirements-fly.txt # Python deps for Fly.io
-└── .env                 # Secrets (ห้าม commit)
+├── requirements-fly.txt # Python deps used in Docker container
+└── .env                 # Secrets (gitignored)
 ```
 
 ## Data Flow หลัก
