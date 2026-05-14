@@ -197,7 +197,6 @@ HTML/JS/CSS เสิร์ฟผ่าน FastAPI routes ใน [main.py:4144-4
 | [requirements.txt](../../requirements.txt) | Local dev deps (Docker uses `requirements-fly.txt` instead) |
 | [pytest.ini](../../pytest.ini) | pytest config |
 | [mcp-proxy.js](../../mcp-proxy.js) | Local MCP proxy for development |
-| [skills/](../../skills/) + [skills-lock.json](../../skills-lock.json) | Claude Code skills config |
 | [REPORT-*.md](../../docs/reports/) | Release reports |
 | [DESIGN.md](../../DESIGN.md), [README.md](../../README.md) | Project docs |
 
