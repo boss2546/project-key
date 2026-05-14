@@ -112,6 +112,14 @@ async function authFetch(url, options = {}) {
  if (res.status === 401 && _isInitVerified) {
  // Token ถูก sign ด้วย key ที่ valid (เพราะ init verify ผ่านแล้ว)
  // แต่ตอนนี้ server reject → token หมดอายุจริง
+ // Defense-in-depth: ถ้า request นี้ยิงไปโดยไม่มี Authorization header
+ // (เช่น state.authToken ยัง null ตอน fire) → 401 = expected anonymous, ไม่ใช่
+ // session-expired. กัน race ที่ initAuth set token เสร็จ "หลัง" fetch fired
+ // แล้วทำให้ doLogout() ลบ token ที่เพิ่ง save (v8.1.1 redirect-loop)
+ const sentAuthHeader = options.headers && options.headers['Authorization'];
+ if (!sentAuthHeader) {
+  return res;
+ }
  if (!_logoutDebounce && state.authToken && !isBackground) {
   _logoutDebounce = true;
   hideLoadingOverlay();
@@ -1407,7 +1415,17 @@ function initGlobalModalUX() {
 // INIT
 // ═══════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
- // Apply saved language immediately
+ // Auth system — MUST run FIRST. landing.js _handleGoogleLoginFragment() reads
+ // window.location.hash (#token=...), saves JWT to state.authToken + localStorage,
+ // and sets _isInitVerified=true — all synchronously before anything else fires
+ // authFetch. Putting applyLanguage() first triggered a race: loadLineStatus()
+ // sent /api/line/status with no Authorization header (state.authToken still null),
+ // by the time 401 came back initAuth had set _isInitVerified=true + state.authToken,
+ // and authFetch's 401 handler at line 112 mistook anonymous-401 for session-expired
+ // and called doLogout() — wiping the JWT that was just saved.
+ initAuth?.();
+
+ // Apply saved language immediately (now safe — state.authToken set if fragment present)
  applyLanguage(getLang());
 
  // Language toggle button
@@ -1420,12 +1438,6 @@ document.addEventListener('DOMContentLoaded', () => {
  if (state.mcpInfo) renderMCPTools(state.mcpInfo.available_tools || []);
  }
  });
-
- // Auth system — decides whether to show landing or app.
- // Run FIRST so that landing-page click handlers register even if
- // app-only inits below throw (which they will on landing.html
- // because the #app DOM nodes are absent).
- initAuth?.();
 
  // Init all UI handlers — only when the app shell is present.
  // Each init wraps its own queries in `?.` but a few touch DOM
