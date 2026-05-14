@@ -1,5 +1,0 @@
-{"vp":"375-iphone-se-2","where":"app/mcp-setup","error":"TimeoutError: page.click: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#nav-mcp-setup')\u001b[22m\n"}
-{"vp":"375-iphone-se-2","where":"app/tokens","error":"Error: locator.click: Test timeout of 180000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#sidebar-toggle')\u001b[22m\n\u001b[2m    - locator resolved to <button aria-label=\"Menu\" id=\"sidebar-toggle\" aria-"}
-{"vp":"375-iphone-se-2","where":"app/mcp-logs","error":"Error: page.click: Target page, context or browser has been closed"}
-{"vp":"375-iphone-se-2","where":"profile","error":"Error: page.click: Target page, context or browser has been closed"}
-{"vp":"375-iphone-se-2","where":"longtext","error":"Error: page.click: Target page, context or browser has been closed"}

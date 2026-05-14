@@ -1,5 +1,0 @@
-{"vp":"320-iphone-se-1","failed":[{"url":"http://127.0.0.1:8000/api/admin/me","status":403},{"url":"http://127.0.0.1:8000/api/admin/me","failure":"net::ERR_ABORTED"},{"url":"http://127.0.0.1:8000/api/admin/me","status":403}]}
-{"vp":"375-iphone-se-2","failed":[{"url":"http://127.0.0.1:8000/api/admin/me","status":403},{"url":"http://127.0.0.1:8000/api/admin/me","failure":"net::ERR_ABORTED"},{"url":"http://127.0.0.1:8000/api/admin/me","status":403}]}
-{"vp":"393-pixel-5","failed":[{"url":"http://127.0.0.1:8000/api/admin/me","status":403},{"url":"http://127.0.0.1:8000/api/admin/me","failure":"net::ERR_ABORTED"},{"url":"http://127.0.0.1:8000/api/admin/me","status":403}]}
-{"vp":"320-iphone-se-1","failed":[{"url":"https://personaldatabank.fly.dev/api/admin/me","status":403},{"url":"https://personaldatabank.fly.dev/api/admin/me","status":403}]}
-{"vp":"375-iphone-se-2","failed":[{"url":"https://personaldatabank.fly.dev/api/admin/me","status":403},{"url":"https://personaldatabank.fly.dev/api/admin/me","status":403}]}
