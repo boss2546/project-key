@@ -73,3 +73,7 @@ tests/_smoke_shots/
 
 # Ad-hoc audit artifacts (screenshots, scratch files) — not source
 .archive/
+
+# Production snapshot — mirror of files actually deployed (manifest in docs/manifest/)
+# NOT a source-of-truth; regenerate from script if needed
+production-active/
