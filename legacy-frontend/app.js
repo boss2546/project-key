@@ -425,6 +425,18 @@ function startOrganizeStatusPoll() {
       } else if (snap) {
         // Fallback for old payload without history
         renderOrganizeTimeline();
+        // v10.0.x — P3-11 · ถ้า backend ไม่ส่ง history แต่มี snap.step_th/en → update .loading-message ให้เห็น phase
+        // เดิม: overlay text ค้างที่ "AI กำลังจัดระเบียบ..." (initial message) ไม่ขยับเลย
+        // ใหม่: sync ข้อความ phase จริงเข้า .loading-message ทุก poll · user เห็นความเคลื่อนไหว
+        if (_loadingOverlayEl) {
+          const isTH = getLang() === 'th';
+          const phaseMsg = isTH ? (snap.step_th || snap.phase) : (snap.step_en || snap.phase);
+          const msgEl = _loadingOverlayEl.querySelector('.loading-message');
+          if (msgEl && phaseMsg && !msgEl.classList.contains('hidden')) {
+            const cleanMsg = String(phaseMsg).replace(/</g, '&lt;');
+            if (msgEl.innerHTML !== cleanMsg) msgEl.innerHTML = cleanMsg;
+          }
+        }
       }
       if (!data.running) {
         // v10.0.5 — Backend says pipeline done. Auto-close overlay after a
@@ -794,6 +806,10 @@ const I18N = {
  'vault.promoteStillVault': 'ยังวิเคราะห์ไม่ได้ — เก็บในคลังต่อไป',
  'myData.noFiles': 'ยังไม่มีไฟล์ — เพิ่มไฟล์เข้าพื้นที่ส่วนตัวของคุณ',
  'myData.delete': 'ลบ',
+ 'myData.askAi': 'ถาม AI',
+ 'onboarding.title': 'ยินดีต้อนรับสู่ Personal Data Bank',
+ 'onboarding.desc': 'เริ่มต้นด้วยการอัปโหลดไฟล์ — หรือเชื่อมต่อ Google Drive เพื่อเก็บข้อมูลใน Drive ของคุณเอง (ปลอดภัย · ควบคุมได้เต็มที่)',
+ 'onboarding.cta': 'เชื่อมต่อ Drive',
 
  // Knowledge page
  'knowledge.title': 'มุมมองความรู้',
@@ -1108,6 +1124,10 @@ const I18N = {
  'vault.promoteStillVault': 'Cannot analyze yet — kept in vault',
  'myData.noFiles': 'No files yet — add files to your personal space',
  'myData.delete': 'Delete',
+ 'myData.askAi': 'Ask AI',
+ 'onboarding.title': 'Welcome to Personal Data Bank',
+ 'onboarding.desc': 'Start by uploading a file — or connect Google Drive to keep your data in YOUR Drive (private · full control)',
+ 'onboarding.cta': 'Connect Drive',
 
  // Knowledge page
  'knowledge.title': 'Knowledge View',
@@ -2225,7 +2245,16 @@ const UploadTray = (() => {
      }
    }
 
-   const items = [...(data.active || []), ...(data.failed || [])];
+   // v10.0.x — P3-13 · sort active items by queued_at (เก่าสุด = อันดับ 1)
+   //   เดิม: backend ส่งมาแล้วเรียง queued_at asc · แต่ notifyEnqueued() prepend optimistic
+   //         ทำให้ใหม่อยู่ก่อน old → ลำดับ 1→3→2 ใน UI
+   //   ใหม่: re-sort ตอน render ทุกครั้ง · stable order ตาม queued_at เสมอ
+   const sortedActive = [...(data.active || [])].sort((a, b) => {
+     const aT = a?.stages?.queued_at ? new Date(a.stages.queued_at).getTime() : 0;
+     const bT = b?.stages?.queued_at ? new Date(b.stages.queued_at).getTime() : 0;
+     return aT - bT;
+   });
+   const items = [...sortedActive, ...(data.failed || [])];
    list.innerHTML = items.map(_renderItem).join('');
 
    // Wire actions
@@ -2672,7 +2701,55 @@ async function loadFiles() {
  document.getElementById('file-count-badge').textContent = data.files.length;
  // v9.1.0 — update chip counts (load all 3 in parallel for accuracy)
  updateFileFilterCounts();
+ // v10.0.x — P3-14 · show onboarding banner ถ้า 0 ไฟล์ (best-effort)
+ _maybeShowOnboardingBanner(data.files.length);
  } catch (e) { console.error('Load files error:', e); }
+}
+
+// v10.0.x — P3-14 · Onboarding banner logic
+// Show เฉพาะ: 0 ไฟล์ + managed mode + Drive feature available + ยังไม่กด dismiss
+function _maybeShowOnboardingBanner(fileCount) {
+ const banner = document.getElementById('onboarding-banner');
+ if (!banner) return;
+ const dismissed = (() => { try { return localStorage.getItem('pdb_onboarding_dismissed') === '1'; } catch (_) { return false; } })();
+ if (dismissed || fileCount > 0) {
+   banner.classList.add('hidden');
+   return;
+ }
+ // เช็ค storage_mode + Drive feature_available · ใช้ window._driveStatus ที่ storage_mode.js set
+ const ds = window._driveStatus;
+ if (ds && ds.feature_available && ds.storage_mode === 'managed' && !ds.drive_connected) {
+   banner.classList.remove('hidden');
+ } else if (!ds) {
+   // Drive status ยังไม่โหลด · แสดง banner ทั่วไปแบบไม่มี CTA Drive (fallback)
+   banner.classList.remove('hidden');
+ } else {
+   banner.classList.add('hidden');
+ }
+}
+
+// Wire onboarding buttons (idempotent · only once)
+function _wireOnboardingBanner() {
+ if (_wireOnboardingBanner._done) return;
+ _wireOnboardingBanner._done = true;
+ const dismissBtn = document.getElementById('onboarding-dismiss');
+ const ctaBtn = document.getElementById('onboarding-cta-drive');
+ dismissBtn?.addEventListener('click', () => {
+   try { localStorage.setItem('pdb_onboarding_dismissed', '1'); } catch (_) {}
+   document.getElementById('onboarding-banner')?.classList.add('hidden');
+ });
+ ctaBtn?.addEventListener('click', () => {
+   // เปิด profile modal แล้วเลื่อนไปส่วน Storage Mode (Drive connect อยู่ตรงนั้น)
+   try { localStorage.setItem('pdb_onboarding_dismissed', '1'); } catch (_) {}
+   if (typeof window.openProfileModal === 'function') window.openProfileModal();
+   else if (typeof openProfileModal === 'function') openProfileModal();
+   document.getElementById('onboarding-banner')?.classList.add('hidden');
+ });
+}
+// Auto-wire on DOM ready (idempotent)
+if (typeof document !== 'undefined') {
+ if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _wireOnboardingBanner);
+ else _wireOnboardingBanner();
 }
 
 // v9.1.0 — Update filter chip counts (read from /api/stats — single call)
@@ -2735,11 +2812,19 @@ window.promoteVaultFile = promoteVaultFile;
 
 function renderFileList(files) {
  const container = document.getElementById('file-list');
- if (!files.length) {
+ // v10.0.x — P2-10 · กรอง phantom rows (ไฟล์ที่ failed upload + ไม่มี filename/filetype)
+ //   เดิม: ถ้า upload fail แต่ DB row ยังถูก commit → file มี filename="" → render "— —" ค้าง
+ //   ใหม่: skip rows ที่ไม่มี filename หรือ id (defensive)
+ const cleanFiles = (files || []).filter(f => f && f.id && f.filename && f.filename.trim());
+ const skippedCount = (files || []).length - cleanFiles.length;
+ if (skippedCount > 0) {
+   console.warn(`[renderFileList] skipped ${skippedCount} phantom row(s) without filename`);
+ }
+ if (!cleanFiles.length) {
  container.innerHTML = `<div class="empty-state"><p>${t('myData.noFiles')}</p></div>`;
  return;
  }
- container.innerHTML = files.map(f => {
+ container.innerHTML = cleanFiles.map(f => {
  const tags = (f.tags || []).map(tag => `<span class="tag-chip">${tag}</span>`).join('');
  const freshness = f.freshness && f.freshness !== 'current' ? `<span class="freshness-badge ${f.freshness}">${f.freshness}</span>` : '';
  const sot = f.source_of_truth ? '<span class="sot-badge"> Source of Truth</span>' : '';
@@ -2992,6 +3077,28 @@ function closeFileDetail() {
 document.getElementById('fd-close')?.addEventListener('click', closeFileDetail);
 
 // v5.2 — Download original file
+// v10.0.x — P2-8 · "Ask AI" button: pre-fill chat input + switch to chat page + focus
+document.getElementById('fd-ask-ai-btn')?.addEventListener('click', () => {
+ if (!_currentFileId) return;
+ const isTH = getLang() === 'th';
+ // ดึง filename จาก fd-filename (set ตอน openFileDetail)
+ const fname = document.getElementById('fd-filename')?.textContent?.trim() || '';
+ if (!fname) return;
+ const prompt = isTH ? `อธิบายเกี่ยวกับ "${fname}" ให้หน่อย` : `Tell me about "${fname}"`;
+ // Close detail panel + switch to chat
+ if (typeof closeFileDetail === 'function') closeFileDetail();
+ if (typeof switchPage === 'function') switchPage('chat');
+ setTimeout(() => {
+  const chatInput = document.getElementById('chat-input');
+  if (chatInput) {
+   chatInput.value = prompt;
+   chatInput.focus();
+   // adjust textarea height if applicable
+   chatInput.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+ }, 200);
+});
+
 document.getElementById('fd-download-btn')?.addEventListener('click', () => {
  if (!_currentFileId) return;
  // Direct download via browser — opens the file download
@@ -3069,24 +3176,32 @@ function toggleSummaryEdit(editing) {
  const summaryEdit = document.getElementById('fd-summary-edit');
  const whyView = document.getElementById('fd-why');
  const whyEdit = document.getElementById('fd-why-edit');
+ // v10.0.x — P2-7 · filename edit
+ const filenameView = document.getElementById('fd-filename');
+ const filenameEdit = document.getElementById('fd-filename-edit');
 
  if (editing) {
  // Enter edit mode — copy current text to textareas
  summaryEdit.value = summaryView.textContent;
  whyEdit.value = whyView.textContent;
+ if (filenameEdit) filenameEdit.value = filenameView?.textContent?.trim() || '';
  summaryView.classList.add('hidden');
  summaryEdit.classList.remove('hidden');
  whyView.classList.add('hidden');
  whyEdit.classList.remove('hidden');
+ filenameView?.classList.add('hidden');
+ filenameEdit?.classList.remove('hidden');
  editBtn.classList.add('hidden');
  editActions.classList.remove('hidden');
- summaryEdit.focus();
+ filenameEdit?.focus();
  } else {
  // Exit edit mode
  summaryView.classList.remove('hidden');
  summaryEdit.classList.add('hidden');
  whyView.classList.remove('hidden');
  whyEdit.classList.add('hidden');
+ filenameView?.classList.remove('hidden');
+ filenameEdit?.classList.add('hidden');
  editBtn.classList.remove('hidden');
  editActions.classList.add('hidden');
  }
@@ -3097,28 +3212,54 @@ async function saveSummaryEdit() {
 
  const summaryText = document.getElementById('fd-summary-edit').value.trim();
  const whyImportant = document.getElementById('fd-why-edit').value.trim();
+ // v10.0.x — P2-7 · filename edit
+ const filenameEditEl = document.getElementById('fd-filename-edit');
+ const newFilename = filenameEditEl ? filenameEditEl.value.trim() : '';
+ const oldFilename = document.getElementById('fd-filename')?.textContent?.trim() || '';
  const saveBtn = document.getElementById('fd-save-btn');
+ const isTH = getLang() === 'th';
+
+ // Client-side validation
+ if (!newFilename) {
+   showToast(isTH ? 'ชื่อไฟล์ห้ามว่าง' : 'Filename cannot be empty', 'error');
+   return;
+ }
+ if (newFilename.length > 255) {
+   showToast(isTH ? 'ชื่อไฟล์ยาวเกิน 255 ตัวอักษร' : 'Filename too long (max 255)', 'error');
+   return;
+ }
+
  saveBtn.disabled = true;
  saveBtn.textContent = '...';
 
  try {
+ const body = { summary_text: summaryText, why_important: whyImportant };
+ // ส่ง filename เฉพาะถ้าเปลี่ยน (ลด round-trip ของ rename branch ใน backend)
+ if (newFilename !== oldFilename) body.filename = newFilename;
+
  const res = await authFetch(`/api/summary/${_currentFileId}`, {
  method: 'PUT',
  headers: { 'Content-Type': 'application/json' },
- body: JSON.stringify({
- summary_text: summaryText,
- why_important: whyImportant
- })
+ body: JSON.stringify(body)
  });
- if (!res.ok) throw new Error('Save failed');
+ if (!res.ok) {
+   const errData = await res.json().catch(() => ({}));
+   const msg = errData?.detail?.error?.message || errData?.detail || 'Save failed';
+   throw new Error(String(msg).slice(0, 200));
+ }
 
  // Update display
  document.getElementById('fd-summary').textContent = summaryText;
  document.getElementById('fd-why').textContent = whyImportant;
+ if (newFilename !== oldFilename) {
+   document.getElementById('fd-filename').textContent = newFilename;
+   if (typeof loadFiles === 'function') loadFiles();
+ }
  toggleSummaryEdit(false);
- showToast(getLang() === 'th' ? 'บันทึก Summary แล้ว' : 'Summary saved', 'success');
+ showToast(isTH ? 'บันทึกเรียบร้อย' : 'Saved', 'success');
  } catch (e) {
- showToast(getLang() === 'th' ? 'บันทึกล้มเหลว' : 'Save failed', 'error');
+ const msg = (e && e.message) ? `: ${e.message}` : '';
+ showToast((isTH ? 'บันทึกล้มเหลว' : 'Save failed') + msg, 'error');
  }
  saveBtn.disabled = false;
  saveBtn.textContent = ' Save';
@@ -5519,10 +5660,25 @@ function toggleToolPermission(toolName, enabled) {
 async function generateMCPToken() {
  const labelInput = document.getElementById('mcp-token-label');
  const label = labelInput?.value?.trim() || 'Claude Connector';
+ const isTH = getLang() === 'th';
+
+ // v10.0.x — P3-12 · client-side validation · 1-80 chars
+ if (!label) {
+   showToast(isTH ? 'ชื่อ Token ห้ามว่าง' : 'Token name cannot be empty', 'error');
+   labelInput?.focus();
+   return;
+ }
+ if (label.length > 80) {
+   showToast(isTH
+     ? `ชื่อ Token ยาวเกิน 80 ตัวอักษร (ปัจจุบัน ${label.length})`
+     : `Token name too long (max 80, current ${label.length})`, 'error');
+   labelInput?.focus();
+   return;
+ }
 
  const btn = document.getElementById('btn-generate-token');
  btn.disabled = true;
- btn.innerHTML = `<span class="loading-spinner"></span> ${getLang() === 'th' ? 'กำลังสร้าง...' : 'Generating...'}`;
+ btn.innerHTML = `<span class="loading-spinner"></span> ${isTH ? 'กำลังสร้าง...' : 'Generating...'}`;
 
  try {
  const res = await authFetch('/api/mcp/tokens', {

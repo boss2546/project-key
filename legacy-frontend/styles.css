@@ -2834,6 +2834,69 @@
   resize: vertical;
   outline: none;
 }
+/* v10.0.x — P3-14 · Onboarding banner สำหรับ user ใหม่ (0 ไฟล์ + managed mode + Drive available) */
+.onboarding-banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  background: linear-gradient(135deg, rgba(99,102,241,0.10), rgba(99,102,241,0.04));
+  border: 1px solid rgba(99,102,241,0.30);
+  border-radius: 12px;
+  position: relative;
+}
+.onboarding-banner.hidden { display: none; }
+.onboarding-icon {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgba(99,102,241,0.15);
+  color: var(--accent, #6366f1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.onboarding-body { flex: 1; min-width: 0; }
+.onboarding-title {
+  margin: 0 0 4px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.onboarding-desc {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.onboarding-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+@media (max-width: 600px) {
+  .onboarding-banner { flex-direction: column; align-items: flex-start; }
+  .onboarding-actions { width: 100%; justify-content: space-between; }
+}
+
+/* v10.0.x — P2-7 · filename edit input · single-line variant of fd-edit-textarea */
+.fd-edit-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--accent-primary, #6366f1);
+  border-radius: 6px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 600;
+  font-family: inherit;
+  outline: none;
+  margin-bottom: 8px;
+}
+.fd-edit-input:focus { border-color: var(--accent, #6366f1); box-shadow: 0 0 0 2px rgba(99,102,241,0.15); }
 .btn-sm {
   padding: 5px 12px;
   font-size: 12px;

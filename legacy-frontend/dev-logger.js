@@ -622,6 +622,8 @@
   }
 
   const STYLES = `
+    /* v10.0.x — P2-9 mobile fix: ปุ่ม dev-logger ขยับขึ้นบนหน้าจอเล็ก
+       เพื่อไม่ทับ #toast-container (bottom:20px right:20px z-index 11050) */
     #${BTN_ID} {
       position: fixed; bottom: 18px; right: 18px;
       width: 44px; height: 44px; border-radius: 999px;
@@ -812,6 +814,12 @@
     #${FULL_ID} .pdb-dev-fdetail .label:first-child { margin-top: 0; }
     #${FULL_ID} .pdb-dev-empty {
       padding: 60px 24px; text-align: center; color: #64748b;
+    }
+
+    /* v10.0.x — P2-9 fix: ใต้ 500px ขยับปุ่มขึ้น 80px กัน #toast-container overlap (toast: bottom:20px right:20px) */
+    @media (max-width: 500px) {
+      #${BTN_ID} { bottom: 80px; right: 14px; width: 40px; height: 40px; }
+      #${PANEL_ID} { bottom: 130px; right: 14px; width: calc(100vw - 28px); }
     }
   `;
 
