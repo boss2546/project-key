@@ -4224,10 +4224,15 @@ async def delete_my_account(
         await db.delete(f)
         stats["files_deleted"] += 1
 
-    # 5. Clusters + context packs (md files)
+    # 5. Clusters
     clusters_result = await db.execute(select(Cluster).where(Cluster.user_id == user_id))
     for c in clusters_result.scalars().all():
         await db.delete(c)
+
+    # 6a. PackShare BEFORE ContextPack (FK: pack_shares.pack_id → context_packs.id NOT NULL)
+    await db.execute(sql_delete(PackShare).where(PackShare.owner_user_id == user_id))
+
+    # 6b. Context packs (md files)
     packs_result = await db.execute(select(ContextPack).where(ContextPack.user_id == user_id))
     for p in packs_result.scalars().all():
         if p.md_path and os.path.exists(p.md_path):
@@ -4237,8 +4242,7 @@ async def delete_my_account(
                 pass
         await db.delete(p)
 
-    # 6. PackShare (owner) + LineUser (linked LINE account) — no FK cascade
-    await db.execute(sql_delete(PackShare).where(PackShare.owner_user_id == user_id))
+    # 6c. LineUser (linked LINE account) — no FK cascade
     await db.execute(sql_delete(LineUser).where(LineUser.pdb_user_id == user_id))
 
     # 7. MCP tokens + logs + audit/usage logs
