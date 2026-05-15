@@ -22,6 +22,7 @@ from .database import (
     MCPToken, MCPUsageLog, WebhookLog, UsageLog, AuditLog,
     DriveConnection,
     ChatQuery, ContextInjectionLog, ContextMemory, PersonalityHistory, CanvasObject,
+    PackShare, LineUser,
 )
 from .organizer import organize_files
 from .retriever import chat_with_retrieval
@@ -4103,6 +4104,9 @@ async def reset_all(current_user: User = Depends(get_current_user), db: AsyncSes
     for c in clusters_result.scalars().all():
         await db.delete(c)
 
+    # v10.0.8 — PackShare rows ที่ user เป็น owner (FK ไม่มี ondelete=CASCADE)
+    await db.execute(sql_delete(PackShare).where(PackShare.owner_user_id == current_user.id))
+
     packs_result = await db.execute(select(ContextPack).where(ContextPack.user_id == current_user.id))
     for p in packs_result.scalars().all():
         if p.md_path and os.path.exists(p.md_path):
@@ -4233,18 +4237,40 @@ async def delete_my_account(
                 pass
         await db.delete(p)
 
-    # 6. MCP tokens + logs + audit/usage logs
+    # 6. PackShare (owner) + LineUser (linked LINE account) — no FK cascade
+    await db.execute(sql_delete(PackShare).where(PackShare.owner_user_id == user_id))
+    await db.execute(sql_delete(LineUser).where(LineUser.pdb_user_id == user_id))
+
+    # 7. MCP tokens + logs + audit/usage logs
     await db.execute(sql_delete(MCPUsageLog).where(MCPUsageLog.user_id == user_id))
     await db.execute(sql_delete(MCPToken).where(MCPToken.user_id == user_id))
     await db.execute(sql_delete(UsageLog).where(UsageLog.user_id == user_id))
     await db.execute(sql_delete(AuditLog).where(AuditLog.user_id == user_id))
 
-    # 7. Finally — delete user row (cascade: UserProfile + DriveConnection)
+    # 8. Finally — delete user row (cascade: UserProfile + DriveConnection)
     user_row = await db.get(User, user_id)
     if user_row:
         await db.delete(user_row)
 
     await db.commit()
+
+    # 9. Disk: remove per-user upload directory (empty after files deleted)
+    try:
+        import shutil
+        user_upload_dir = os.path.join(UPLOAD_DIR, user_id)
+        if os.path.isdir(user_upload_dir):
+            shutil.rmtree(user_upload_dir, ignore_errors=True)
+    except Exception as e:
+        logger.warning("delete_account: rmtree upload dir failed: %s", e)
+
+    # 10. Vector index in-memory dict — drop user's entry entirely
+    try:
+        from . import vector_search as _vs
+        _vs._user_indexes.pop(user_id, None)
+        _vs._user_doc_counts.pop(user_id, None)
+        _vs._user_idf.pop(user_id, None)
+    except Exception:
+        pass
 
     logger.info(
         "delete_account: user=%s files=%d drive=%d vector=%d cache=%d errors=%d",

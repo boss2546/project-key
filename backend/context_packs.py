@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from .database import ContextPack, File, Cluster, FileClusterMap, ChatQuery, ContextInjectionLog, gen_id
+from .database import ContextPack, File, Cluster, FileClusterMap, ChatQuery, ContextInjectionLog, PackShare, gen_id
 from .llm import call_llm_json, call_llm_pro
 from .config import CONTEXT_PACKS_DIR
 from . import vector_search
@@ -188,6 +188,7 @@ async def delete_pack(db: AsyncSession, pack_id: str, user_id: str) -> bool:
 
     # v10.0.8 — strip pack_id ออกจาก ContextInjectionLog.context_pack_ids (JSON array)
     # เดิมเหลือ stale id ใน log → audit ดูแล้วงงว่า pack อะไร
+    from sqlalchemy import delete as sql_delete
     log_res = await db.execute(
         select(ContextInjectionLog).join(
             ChatQuery, ChatQuery.id == ContextInjectionLog.chat_query_id
@@ -203,6 +204,9 @@ async def delete_pack(db: AsyncSession, pack_id: str, user_id: str) -> bool:
                 log.context_pack_ids = json.dumps([i for i in ids if i != pack_id])
         except (ValueError, TypeError):
             pass
+
+    # v10.0.8 — ลบ PackShare rows ที่ point ไปยัง pack นี้ (FK ไม่มี ondelete=CASCADE)
+    await db.execute(sql_delete(PackShare).where(PackShare.pack_id == pack_id))
 
     await db.delete(pack)
     await db.commit()
