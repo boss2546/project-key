@@ -571,26 +571,34 @@ function initAppData() {
 function _revealAdminLinkIfAdmin() {
  const btn = document.getElementById('btn-admin-panel');
  if (!btn) return;
- // Try cache first — TTL 60 วินาที (just enough for first /app load after login)
+ // v10.0.x — P1-4 · ขยาย TTL จาก 60s → 24hr (admin status เปลี่ยนแทบไม่เคย · ลด /api/admin/me ที่ขึ้น 403 spam ใน console สำหรับ regular users)
+ // ใช้ localStorage แทน sessionStorage เพื่อ persist ข้าม tab/reload
+ const TTL_MS = 24 * 3600 * 1000;
  try {
-  const cached = sessionStorage.getItem('pdb_admin_probe');
-  const ts = parseInt(sessionStorage.getItem('pdb_admin_probe_ts') || '0', 10);
-  if (cached !== null && (Date.now() - ts) < 60000) {
+  const cached = localStorage.getItem('pdb_admin_probe');
+  const ts = parseInt(localStorage.getItem('pdb_admin_probe_ts') || '0', 10);
+  if (cached !== null && (Date.now() - ts) < TTL_MS) {
    if (cached === '1') btn.classList.remove('hidden');
    return; // skip network call entirely
   }
- } catch (_) { /* sessionStorage unavailable */ }
- // Cache miss → fetch as before
- authFetch('/api/admin/me', { _background: true })
+ } catch (_) { /* localStorage unavailable */ }
+ // Cache miss → fetch (silent on 401/403 · expected for non-admin)
+ authFetch('/api/admin/me', { _background: true, _silent401: true })
   .then(res => {
    if (res && res.ok) btn.classList.remove('hidden');
-   // Cache for next reveal call
+   // Cache result regardless (1=admin · 0=not) เพื่อกัน probe ซ้ำ
    try {
-    sessionStorage.setItem('pdb_admin_probe', res && res.ok ? '1' : '0');
-    sessionStorage.setItem('pdb_admin_probe_ts', String(Date.now()));
+    localStorage.setItem('pdb_admin_probe', res && res.ok ? '1' : '0');
+    localStorage.setItem('pdb_admin_probe_ts', String(Date.now()));
    } catch (_) {}
   })
-  .catch(() => { /* fallback: keep hidden */ });
+  .catch(() => {
+   // Network error · cache as '0' temporarily (1 minute) เพื่อกัน retry storm
+   try {
+    localStorage.setItem('pdb_admin_probe', '0');
+    localStorage.setItem('pdb_admin_probe_ts', String(Date.now() - TTL_MS + 60000));
+   } catch (_) {}
+  });
 }
 
 // แสดง toast แจ้ง rebrand ครั้งเดียวต่อ browser (v6.1.0)
@@ -1751,13 +1759,28 @@ async function uploadFiles(fileList) {
    xhr.send(form);
  });
 
+ // v10.0.x — P0-3 · Auto-retry on transient network error (1 รอบ · 1.5s delay)
+ // เดิม: ถ้า ECONNREFUSED ระหว่าง parallel upload → fail ไฟล์นั้นทันที · user เห็น toast error
+ // ใหม่: retry อัตโนมัติ 1 ครั้ง · ส่วนใหญ่ recover ได้ (worker glitch / server reload)
+ const uploadOneWithRetry = async (file, idx) => {
+   const r1 = await uploadOne(file, idx);
+   if (!r1.networkError && r1.status !== 0) return r1;
+   // network error · wait 1.5s แล้วลอง 1 รอบ
+   console.warn('[upload] network error, retrying once:', file.name);
+   await new Promise(rs => setTimeout(rs, 1500));
+   const r2 = await uploadOne(file, idx);
+   if (r2.networkError) console.warn('[upload] retry also failed:', file.name);
+   return r2;
+ };
+
  try {
  const results = new Array(fileArr.length);
  let cursor = 0;
  const worker = async () => {
    while (cursor < fileArr.length) {
      const i = cursor++;
-     results[i] = await uploadOne(fileArr[i], i);
+     // v10.0.x — P0-3 · ใช้ uploadOneWithRetry แทน uploadOne ตรงๆ
+     results[i] = await uploadOneWithRetry(fileArr[i], i);
    }
  };
  const workerCount = Math.min(UPLOAD_CONCURRENCY, fileArr.length);
@@ -2975,29 +2998,64 @@ document.getElementById('fd-download-btn')?.addEventListener('click', () => {
  window.open(`/api/files/${_currentFileId}/download`, '_blank');
 });
 
-// v5.2 — Reprocess file (OCR + Thai fix)
+// v5.2 / v10.0.x — Reprocess file (OCR + Thai fix)
+// v10.0.x — P1-6 fix: backend v9.4.0+ ตอบ async queue format
+//   เดิม { status: 'ok', old_text_length, new_text_length }
+//   ใหม่ { status: 'ok', file_id, processing_status: 'queued', queue_position, extraction_method }
+// Frontend ต้อง poll upload-status เพื่อรอผล · เดิมแสดง "undefined → undefined ตัวอักษร" + ปุ่มไม่กลับมา enable
 document.getElementById('fd-reprocess-btn')?.addEventListener('click', async () => {
  if (!_currentFileId) return;
  const btn = document.getElementById('fd-reprocess-btn');
+ const isTH = getLang() === 'th';
+ const fileId = _currentFileId;
+ const originalText = btn.innerHTML;
  btn.disabled = true;
- btn.innerHTML = '⏳ Processing...';
+ btn.innerHTML = isTH ? '⏳ กำลังส่งคำขอ...' : '⏳ Submitting...';
  try {
- const res = await authFetch(`/api/files/${_currentFileId}/reprocess`, { method: 'POST' });
- const data = await res.json();
- if (data.status === 'ok') {
- showToast(getLang() === 'th'
- ? ` Re-extract สำเร็จ! ${data.old_text_length} → ${data.new_text_length} ตัวอักษร`
- : ` Re-extracted! ${data.old_text_length} → ${data.new_text_length} chars`, 'success');
- // Reload file detail to show new content
- openFileDetail(_currentFileId);
- } else {
- showToast(data.detail || 'Reprocess failed', 'error');
- }
+   const res = await authFetch(`/api/files/${fileId}/reprocess?mode=reextract`, { method: 'POST' });
+   const data = await res.json().catch(() => ({}));
+   if (!res.ok) {
+     const errMsg = data?.detail?.error?.message || data?.detail || `HTTP ${res.status}`;
+     throw new Error(String(errMsg).slice(0, 200));
+   }
+   // v9.4.0+ async response · status='ok' + processing_status='queued'
+   // → ต้อง poll upload-status รอ worker ทำเสร็จ (เหมือน retryExtraction ที่ row-level)
+   const queuePos = data.queue_position;
+   btn.innerHTML = isTH
+     ? `⏳ ในคิว #${queuePos || 1}...`
+     : `⏳ Queued #${queuePos || 1}...`;
+   showToast(isTH ? 'ส่งคำขอประมวลผลซ้ำแล้ว · กำลังรอ...' : 'Re-extract queued · waiting...', 'info');
+
+   // Poll upload-status (10s × 60 = 10 min max)
+   const t0 = Date.now();
+   const TIMEOUT_MS = 10 * 60 * 1000;
+   const POLL_MS = 1500;
+   while (Date.now() - t0 < TIMEOUT_MS) {
+     await new Promise(r => setTimeout(r, POLL_MS));
+     const sres = await authFetch('/api/upload-status');
+     if (!sres.ok) continue;
+     const sj = await sres.json();
+     const active = (sj.active || []).find(f => f.id === fileId);
+     const failed = (sj.failed || []).find(f => f.id === fileId);
+     if (failed) throw new Error(failed.extract_error || (isTH ? 'การประมวลผลล้มเหลว' : 'Extraction failed'));
+     if (!active) break;  // done · file ออกจาก active list = uploaded
+     const step = active.progress_step || (isTH ? 'กำลังประมวลผล...' : 'Processing...');
+     const pct = active.progress_pct;
+     btn.innerHTML = (pct != null && pct >= 0 && pct <= 100)
+       ? `⏳ ${step} (${pct}%)`
+       : `⏳ ${step}`;
+   }
+   showToast(isTH ? '✓ ประมวลผลซ้ำสำเร็จ' : '✓ Re-extracted successfully', 'success');
+   // Refresh detail panel เพื่อแสดง content/extracted_text ใหม่
+   if (_currentFileId === fileId) openFileDetail(fileId);
+   if (typeof loadFiles === 'function') loadFiles();
  } catch (e) {
- showToast(getLang() === 'th' ? ' Re-extract ล้มเหลว' : ' Reprocess failed', 'error');
+   const msg = (e && e.message) ? `: ${e.message}` : '';
+   showToast((isTH ? 'ประมวลผลซ้ำไม่สำเร็จ' : 'Reprocess failed') + msg, 'error');
+ } finally {
+   btn.disabled = false;
+   btn.innerHTML = originalText;
  }
- btn.disabled = false;
- btn.innerHTML = ' Re-extract';
 });
 
 // ─── Summary Edit Mode ───
@@ -4136,7 +4194,9 @@ function fitGraphToView() {
  const svg = d3.select('#graph-svg');
  const container = document.getElementById('graph-canvas');
  const w = container.clientWidth, h = container.clientHeight;
- const nodes = state.graphData.nodes.filter(n => n.x !== undefined);
+ // v10.0.x — P1-5 · Number.isFinite filter · เดิม `n.x !== undefined` ไม่ดัก NaN
+ // ทำให้ d3.extent() คืน [NaN, NaN] → cx/cy = NaN → transform("translate(NaN,NaN)") = D3 error
+ const nodes = state.graphData.nodes.filter(n => Number.isFinite(n.x) && Number.isFinite(n.y));
  if (!nodes.length) return;
 
  const xExtent = d3.extent(nodes, d => d.x);
@@ -4145,7 +4205,13 @@ function fitGraphToView() {
  const dy = (yExtent[1] - yExtent[0]) || 100;
  const cx = (xExtent[0] + xExtent[1]) / 2;
  const cy = (yExtent[0] + yExtent[1]) / 2;
+ // Guard final values · ห้ามให้ NaN/Infinity ผ่านลง translate()
+ if (!Number.isFinite(cx) || !Number.isFinite(cy) || !Number.isFinite(dx) || !Number.isFinite(dy)) {
+   console.warn('[graph] non-finite values for fit-to-view · skipping zoom', { cx, cy, dx, dy });
+   return;
+ }
  const scale = Math.min(0.85 * w / dx, 0.85 * h / dy, 2);
+ if (!Number.isFinite(scale) || scale <= 0) return;
 
  svg.transition().duration(500).ease(d3.easeCubicOut).call(
  _zoomBehavior.transform,
@@ -4308,7 +4374,7 @@ function _doRenderGraph() {
  .data(nodes)
  .join('g')
  .attr('class', 'graph-node')
- .attr('transform', d => `translate(${d.x},${d.y})`)
+ .attr('transform', d => `translate(${Number.isFinite(d.x) ? d.x : 0},${Number.isFinite(d.y) ? d.y : 0})`)
  .call(d3.drag()
  .on('start', (e, d) => {
  if (!e.active) simulation.alphaTarget(0.15).restart();
@@ -4369,7 +4435,7 @@ function _doRenderGraph() {
  .attr('y1', d => d.source.y)
  .attr('x2', d => d.target.x)
  .attr('y2', d => d.target.y);
- node.attr('transform', d => `translate(${d.x},${d.y})`);
+ node.attr('transform', d => `translate(${Number.isFinite(d.x) ? d.x : 0},${Number.isFinite(d.y) ? d.y : 0})`);
  });
 
  // Click on empty space → deselect
@@ -4547,9 +4613,23 @@ async function sendMessage() {
  headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({ question }),
  });
- const data = await res.json();
+ // v10.0.x — P0-2 · กัน .json() throw ถ้า response เป็น HTML error page
+ let data;
+ try { data = await res.json(); }
+ catch (parseErr) {
+   const txt = await res.text().catch(() => '');
+   throw new Error(`HTTP ${res.status} · ${(txt || parseErr.message || '').slice(0, 150)}`);
+ }
 
  clearInterval(elapsedTimer);
+ // v10.0.x — P0-2 · ถ้า server ตอบ error → แสดงให้ user เห็น (เดิม res.ok=false ก็แสดง data.answer=undefined)
+ if (!res.ok || !data.answer) {
+   removeMessage(loadingId);
+   const errMsg = data?.detail?.error?.message || data?.detail || data?.error || `HTTP ${res.status}`;
+   const msg = (getLang() === 'th' ? 'ไม่สามารถตอบคำถามได้: ' : 'Cannot answer: ') + String(errMsg).slice(0, 200);
+   addMessage(msg, 'assistant', true);
+   return;  // _chatBusy reset ใน finally
+ }
  // Replace loading with answer
  removeMessage(loadingId);
  const msgHtml = `${data.answer}
@@ -4561,7 +4641,9 @@ async function sendMessage() {
  } catch (e) {
  clearInterval(elapsedTimer);
  removeMessage(loadingId);
- addMessage(getLang() === 'th' ? 'เกิดข้อผิดพลาดในการเชื่อมต่อ AI' : 'Error connecting to AI', 'assistant', true);
+ // v10.0.x — P0-2 · แสดง error message จริงให้ user · เดิม "เกิดข้อผิดพลาด" ไม่ระบุสาเหตุ
+ const detail = (e && e.message) ? ` (${String(e.message).slice(0, 150)})` : '';
+ addMessage((getLang() === 'th' ? 'เกิดข้อผิดพลาดในการเชื่อมต่อ AI' : 'Error connecting to AI') + detail, 'assistant', true);
  } finally {
  _chatBusy = false;
  input.disabled = false;
@@ -4678,7 +4760,7 @@ function renderEvidenceGraph(data) {
  const nodeG = svg.selectAll('g')
  .data(nodes)
  .join('g')
- .attr('transform', d => `translate(${d.x},${d.y})`);
+ .attr('transform', d => `translate(${Number.isFinite(d.x) ? d.x : 0},${Number.isFinite(d.y) ? d.y : 0})`);
 
  nodeG.append('circle')
  .attr('r', 6)

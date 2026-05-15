@@ -137,10 +137,23 @@ function _redirectToAppOrAdmin() {
   window.location.href = '/app';
   return;
  }
+ // v10.0.x — P1-4 · ลด /api/admin/me 403 spam · ใช้ cache 24hr ก่อน
+ try {
+  const cached = localStorage.getItem('pdb_admin_probe');
+  const ts = parseInt(localStorage.getItem('pdb_admin_probe_ts') || '0', 10);
+  if (cached !== null && (Date.now() - ts) < 24 * 3600 * 1000) {
+   window.location.href = cached === '1' ? '/admin' : '/app';
+   return;
+  }
+ } catch (_) {}
  fetch('/api/admin/me', {
   headers: { 'Authorization': 'Bearer ' + token },
  })
   .then(res => {
+   try {
+    localStorage.setItem('pdb_admin_probe', res.ok ? '1' : '0');
+    localStorage.setItem('pdb_admin_probe_ts', String(Date.now()));
+   } catch (_) {}
    window.location.href = res.ok ? '/admin' : '/app';
   })
   .catch(() => {
@@ -507,6 +520,23 @@ function initAuth() {
 
  // Logout
  document.getElementById('btn-logout')?.addEventListener('click', doLogout);
+
+ // v10.0.x — P0-1 · BFCache / Back-button logout bypass guard
+ // เดิม: user กด Logout → doLogout() ล้าง localStorage + redirect ไป / · แต่กด "← Back"
+ //       browser restore /app จาก bfcache (DOM + JS memory cached) → user เห็นหน้า dashboard
+ //       เก่า · API ติด 401 แต่ UI ไม่ kick ออก = ผีดิบกลับหลุม
+ // Fix: ทุกครั้งที่หน้า restore (pageshow event.persisted=true) re-verify token จาก localStorage
+ //      · ถ้าไม่มี token → force reload ไปหน้า landing ทันที (bfcache fail-safe)
+ window.addEventListener('pageshow', (event) => {
+  if (event.persisted) {
+   const tok = (function () { try { return localStorage.getItem('pdb_token'); } catch (_) { return null; } })();
+   if (!tok) {
+    // Token cleared (logout happened) แต่ DOM ค้าง · force navigation ไป landing
+    console.log('[auth] bfcache restore detected · no token · forcing logout');
+    window.location.replace('/');
+   }
+  }
+ });
 
  // Check if already logged in
  // v7.5.1 — diagnostic logging + 1-retry on 401 to catch transient errors
