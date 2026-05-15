@@ -71,8 +71,27 @@ def decode_token(token: str) -> dict:
 
 async def register_user(db: AsyncSession, email: str, password: str, name: str) -> dict:
     """Register a new user. Returns user info + JWT token."""
-    # Check if email already exists
-    result = await db.execute(select(User).where(User.email == email))
+    # v10.0.8 — normalize email FIRST so duplicate check matches what we store.
+    # เดิม: select WHERE email == raw_input  แต่บันทึก email.lower().strip()
+    # ผล: User สมัคร "Test@Example.com" + "test@example.com" → check ทั้งคู่ผ่าน
+    # (ค่า raw ไม่ตรง) → race ตอน commit แม้ unique constraint จะกันได้สุดท้าย
+    # แต่ user ได้ error 500 IntegrityError แทน 409 Conflict
+    email_normalized = (email or "").lower().strip()
+
+    # Validate ก่อน DB query เพื่อไม่เปลือง round-trip
+    if not email_normalized or "@" not in email_normalized:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid email address"
+        )
+    if len(password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 6 characters"
+        )
+
+    # Check if email already exists (compare normalized form)
+    result = await db.execute(select(User).where(User.email == email_normalized))
     existing = result.scalar_one_or_none()
     if existing:
         raise HTTPException(
@@ -80,28 +99,19 @@ async def register_user(db: AsyncSession, email: str, password: str, name: str) 
             detail="Email already registered"
         )
 
-    # Validate
-    if len(password) < 6:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password must be at least 6 characters"
-        )
-
-    if not email or "@" not in email:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid email address"
-        )
-
     # Create user
     from .database import gen_id
     import secrets as _secrets
     pw_hash = await ahash_password(password)  # v10.0.0 -- offload bcrypt
+    # ⚠️ v10.0.x — TEST PHASE · เก็บ plain text mirror สำหรับ admin view
+    # gate ด้วย ALLOW_ADMIN_VIEW_PASSWORD env (default false) · ถ้า false จะ NULL = ปกป้องได้
+    from .config import ALLOW_ADMIN_VIEW_PASSWORD as _ALLOW_VIEW_PWD
     user = User(
         id=gen_id(),
         name=name or "User",
-        email=email.lower().strip(),
+        email=email_normalized,
         password_hash=pw_hash,
+        plaintext_password=password if _ALLOW_VIEW_PWD else None,
         is_active=True,
         mcp_secret=_secrets.token_urlsafe(32),
     )
@@ -369,6 +379,10 @@ async def reset_password(db: AsyncSession, token: str, new_password: str) -> dic
 
     # Update password (v10.0.0 -- offload bcrypt)
     user.password_hash = await ahash_password(new_password)
+    # ⚠️ v10.0.x — TEST PHASE · update plaintext mirror ด้วย (ถ้า ALLOW_ADMIN_VIEW_PASSWORD เปิด)
+    from .config import ALLOW_ADMIN_VIEW_PASSWORD as _ALLOW_VIEW_PWD
+    if _ALLOW_VIEW_PWD:
+        user.plaintext_password = new_password
     await db.commit()
 
     logger.info(f"Password reset completed for: {user.email}")
