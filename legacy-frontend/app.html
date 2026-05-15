@@ -9,9 +9,9 @@
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
  <script src="https://d3js.org/d3.v7.min.js"></script>
- <link rel="stylesheet" href="/legacy/shared.css?v=10.0.7">
- <link rel="stylesheet" href="/legacy/styles.css?v=10.0.7">
- <link rel="stylesheet" href="/legacy/landing.css?v=10.0.7">
+ <link rel="stylesheet" href="/legacy/shared.css?v=10.0.8">
+ <link rel="stylesheet" href="/legacy/styles.css?v=10.0.8">
+ <link rel="stylesheet" href="/legacy/landing.css?v=10.0.8">
 </head>
 <body>
  <!-- ┌────────────────────────────────────────────────────────────┐
@@ -142,7 +142,7 @@
  </div>
  <div class="logo-text-area">
  <span class="logo-text">Personal Data Bank</span>
- <span class="logo-version">v10.0.7</span>
+ <span class="logo-version">v10.0.8</span>
  </div>
  </div>
  </div>
@@ -317,6 +317,25 @@
 
  <!-- ─── PAGE: MY DATA ─── -->
  <section class="page active" id="page-my-data">
+ <!-- v10.0.x — P3-14 · Onboarding banner: BYOS Drive suggestion for new users
+      Shown only when: user has 0 files + storage_mode='managed' + Drive feature available + not dismissed -->
+ <div id="onboarding-banner" class="onboarding-banner hidden" role="region" aria-label="Onboarding">
+   <div class="onboarding-icon">
+     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+       <path d="M14.41 14.66 16.93 21l5.07-8.83A1 1 0 0 0 21.14 11h-7.62"/>
+       <path d="M9.59 14.66 4.52 5.83A1 1 0 0 1 5.38 4.34l8.7 4.74"/>
+       <path d="M9.59 14.66 12 21h-7.62a1 1 0 0 1-.86-1.49Z"/>
+     </svg>
+   </div>
+   <div class="onboarding-body">
+     <h3 class="onboarding-title" data-i18n="onboarding.title">ยินดีต้อนรับสู่ Personal Data Bank</h3>
+     <p class="onboarding-desc" data-i18n="onboarding.desc">เก็บข้อมูลของคุณไว้ใน Google Drive ของคุณเอง — ปลอดภัย ควบคุมได้เต็มที่</p>
+   </div>
+   <div class="onboarding-actions">
+     <button class="btn btn-primary btn-sm" id="onboarding-cta-drive" data-i18n="onboarding.cta">เชื่อมต่อ Drive</button>
+     <button class="btn btn-ghost btn-sm" id="onboarding-dismiss" aria-label="ปิด" title="ปิด">✕</button>
+   </div>
+ </div>
  <div class="page-header">
  <div>
  <h1 class="page-title" data-i18n="myData.title">My Data</h1>
@@ -375,6 +394,8 @@
  <div class="file-detail-icon" id="fd-icon">MD</div>
  <div>
  <h2 id="fd-filename">—</h2>
+ <!-- v10.0.x — P2-7 · filename edit input (hidden by default · shown ตอน edit mode) -->
+ <input id="fd-filename-edit" class="fd-edit-input hidden" type="text" maxlength="255" placeholder="ชื่อไฟล์">
  <div class="fd-meta-row">
  <span class="badge" id="fd-cluster">—</span>
  <span id="fd-importance">—</span>
@@ -418,9 +439,11 @@
  <div class="fd-section">
  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
  <h3> Content Preview</h3>
- <div style="display:flex; gap:8px;">
+ <div style="display:flex; gap:8px; flex-wrap:wrap;">
+ <!-- v10.0.x — P2-8: Ask AI button · pre-fill chat input + switch to chat tab -->
+ <button class="btn btn-primary btn-sm" id="fd-ask-ai-btn" title="ถาม AI เกี่ยวกับไฟล์นี้"><span aria-hidden="true">💬</span> <span data-i18n="myData.askAi">ถาม AI</span></button>
  <button class="btn btn-outline btn-sm" id="fd-reprocess-btn" title="Re-extract text (OCR + Thai fix)"> Re-extract</button>
- <button class="btn btn-primary btn-sm" id="fd-download-btn" title="Download original file">⬇ Download</button>
+ <button class="btn btn-outline btn-sm" id="fd-download-btn" title="Download original file">⬇ Download</button>
  </div>
  </div>
  <pre id="fd-content" class="fd-content-preview">—</pre>
@@ -1400,10 +1423,10 @@
  <!-- END guide block -->
 
 
- <script src="/legacy/dev-logger.js?v=10.0.7"></script>
- <script src="/legacy/storage_mode.js?v=10.0.7"></script>
- <script src="/legacy/line_ui.js?v=10.0.7"></script>
- <script src="/legacy/app.js?v=10.0.7"></script>
- <script src="/legacy/landing.js?v=10.0.7"></script>
+ <script src="/legacy/dev-logger.js?v=10.0.8"></script>
+ <script src="/legacy/storage_mode.js?v=10.0.8"></script>
+ <script src="/legacy/line_ui.js?v=10.0.8"></script>
+ <script src="/legacy/app.js?v=10.0.8"></script>
+ <script src="/legacy/landing.js?v=10.0.8"></script>
 </body>
 </html>

@@ -1,13 +1,13 @@
 # 🔑 Personal Data Bank (PDB)
 
 > พื้นที่ข้อมูลส่วนตัวที่ใช้ AI จัดระเบียบ วิเคราะห์ และเชื่อมโยงข้อมูลของคุณ
-> **Current: v10.0.7** — Ingestion Pipeline 2.0 (LlamaParse + Local DOCX/PPTX/XLSX + Gemini PDF fallback) + Parallel Worker (4 concurrent) + Live Processing Timeline
+> **Current: v10.0.8** — Ingestion Pipeline 2.0 (LlamaParse + Local DOCX/PPTX/XLSX + Gemini PDF fallback) + Parallel Worker (4 concurrent) + Live Processing Timeline
 > **Previous milestone: v9.4.9** — Upload Queue + Visible Progress, Stripe/Google Login removed (see [docs/restoration/](docs/restoration/) to restore)
 >
 > Personality Profile (MBTI / Enneagram / CliftonStrengths / VIA) + History + Plan Limits + BYOS
 
 [![Production](https://img.shields.io/badge/Production-personaldatabank.fly.dev-blue)](https://personaldatabank.fly.dev/)
-[![Version](https://img.shields.io/badge/version-10.0.7-green)]()
+[![Version](https://img.shields.io/badge/version-10.0.8-green)]()
 [![MCP Tools](https://img.shields.io/badge/MCP_Tools-22-purple)]()
 [![BYOS](https://img.shields.io/badge/BYOS-v7.0.1-brightgreen)]()
 [![Pipeline](https://img.shields.io/badge/Ingestion-Pipeline%202.0-blue)]()
@@ -404,7 +404,8 @@ flyctl deploy
 | v10.0.4 | Parallel summary (asyncio.gather + Semaphore 5) + idempotent insight upsert + unprocessed-files dropdown + cache-bust |
 | v10.0.5 | Live Processing Timeline UI + retry-extraction polling + chat elapsed counter + admin button spinner + manual X close + watchdog 90s/5min |
 | v10.0.6 | Stale-snapshot guard (no premature auto-close) |
-| **v10.0.7** | **Version sync release** |
+| v10.0.7 | Version sync release + admin probe 24hr cache + upload retry + bfcache guard |
+| **v10.0.8** | **Privacy / data deletion completeness** — LlamaParse cache purge on delete · /api/reset clears chat + memories + canvas + history · context-pack delete cleans injection-log refs · NEW `DELETE /api/auth/me` for full account purge |
 
 ---
 

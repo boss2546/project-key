@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from .database import ContextPack, File, Cluster, FileClusterMap, gen_id
+from .database import ContextPack, File, Cluster, FileClusterMap, ChatQuery, ContextInjectionLog, gen_id
 from .llm import call_llm_json, call_llm_pro
 from .config import CONTEXT_PACKS_DIR
 from . import vector_search
@@ -185,6 +185,24 @@ async def delete_pack(db: AsyncSession, pack_id: str, user_id: str) -> bool:
     # Delete .md file
     if pack.md_path and os.path.exists(pack.md_path):
         os.remove(pack.md_path)
+
+    # v10.0.8 — strip pack_id ออกจาก ContextInjectionLog.context_pack_ids (JSON array)
+    # เดิมเหลือ stale id ใน log → audit ดูแล้วงงว่า pack อะไร
+    log_res = await db.execute(
+        select(ContextInjectionLog).join(
+            ChatQuery, ChatQuery.id == ContextInjectionLog.chat_query_id
+        ).where(
+            ChatQuery.user_id == user_id,
+            ContextInjectionLog.context_pack_ids.like(f"%{pack_id}%"),
+        )
+    )
+    for log in log_res.scalars().all():
+        try:
+            ids = json.loads(log.context_pack_ids or "[]")
+            if pack_id in ids:
+                log.context_pack_ids = json.dumps([i for i in ids if i != pack_id])
+        except (ValueError, TypeError):
+            pass
 
     await db.delete(pack)
     await db.commit()

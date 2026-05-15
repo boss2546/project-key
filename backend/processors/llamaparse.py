@@ -74,6 +74,50 @@ def cache_set(file_hash: str, mode: str, text: str) -> None:
         logger.warning("llamaparse cache write failed: %s", e)
 
 
+def purge_cache_for_file(filepath: str) -> int:
+    """Remove all LlamaParse cache entries for this file (all modes).
+
+    Used on file delete / account reset so extracted text doesn't survive
+    on disk after the source file is removed (privacy). Returns the number
+    of cache files removed; safe to call when raw file no longer exists
+    (returns 0).
+    """
+    try:
+        if not filepath or not os.path.exists(filepath):
+            return 0
+        file_hash = _hash_file(filepath)
+    except Exception as e:
+        logger.warning("purge_cache_for_file hash failed for %s: %s", filepath, e)
+        return 0
+    if not _CACHE_DIR.exists():
+        return 0
+    removed = 0
+    for p in _CACHE_DIR.glob(f"{file_hash}.*.md"):
+        try:
+            p.unlink()
+            removed += 1
+        except OSError as e:
+            logger.warning("purge_cache_for_file unlink %s failed: %s", p, e)
+    return removed
+
+
+def purge_cache_by_hash(file_hash: str) -> int:
+    """Remove all LlamaParse cache entries for a precomputed sha256 hex.
+
+    Useful when raw file already deleted but caller captured its hash earlier.
+    """
+    if not _CACHE_DIR.exists() or not file_hash:
+        return 0
+    removed = 0
+    for p in _CACHE_DIR.glob(f"{file_hash}.*.md"):
+        try:
+            p.unlink()
+            removed += 1
+        except OSError as e:
+            logger.warning("purge_cache_by_hash unlink %s failed: %s", p, e)
+    return removed
+
+
 # ============================================================
 # Parser
 # ============================================================

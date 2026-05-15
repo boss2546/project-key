@@ -21,6 +21,7 @@ from .database import (
     ContextPack, GraphNode, GraphEdge, NoteObject, SuggestedRelation, GraphLens,
     MCPToken, MCPUsageLog, WebhookLog, UsageLog, AuditLog,
     DriveConnection,
+    ChatQuery, ContextInjectionLog, ContextMemory, PersonalityHistory, CanvasObject,
 )
 from .organizer import organize_files
 from .retriever import chat_with_retrieval
@@ -1266,31 +1267,30 @@ async def healthz_queue(db: AsyncSession = Depends(get_db)):
     worker = get_worker_health()
     cutoff_24h = datetime.utcnow() - timedelta(hours=24)
 
-    # v10.0.0: gather 5 health-stat queries (kept sequential previously, so
-    # the probe cost = 5x serial round-trips). Hit every 10s by Fly probe,
-    # so even small savings compound.
-    queued, extracting, error_24h, success_24h, oldest_queued = await asyncio.gather(
-        db.scalar(
-            select(func.count()).select_from(File).where(File.processing_status == "queued")
-        ),
-        db.scalar(
-            select(func.count()).select_from(File).where(File.processing_status == "extracting")
-        ),
-        db.scalar(
-            select(func.count()).select_from(File).where(
-                File.processing_status == "error",
-                File.extract_completed_at >= cutoff_24h,
-            )
-        ),
-        db.scalar(
-            select(func.count()).select_from(File).where(
-                File.processing_status == "uploaded",
-                File.extract_completed_at >= cutoff_24h,
-            )
-        ),
-        db.scalar(
-            select(func.min(File.queued_at)).where(File.processing_status == "queued")
-        ),
+    # v10.0.x — เปลี่ยน asyncio.gather() → sequential await
+    # เดิม: gather() บน 5 queries · share session เดียว · SQLAlchemy aiosqlite ไม่อนุญาต
+    #       concurrent ops บน session เดียว → throws InvalidRequestError 500
+    # ใหม่: รัน sequential (5 queries · ~5-10ms รวม · ไม่กระทบ Fly probe 10s cadence)
+    queued = await db.scalar(
+        select(func.count()).select_from(File).where(File.processing_status == "queued")
+    )
+    extracting = await db.scalar(
+        select(func.count()).select_from(File).where(File.processing_status == "extracting")
+    )
+    error_24h = await db.scalar(
+        select(func.count()).select_from(File).where(
+            File.processing_status == "error",
+            File.extract_completed_at >= cutoff_24h,
+        )
+    )
+    success_24h = await db.scalar(
+        select(func.count()).select_from(File).where(
+            File.processing_status == "uploaded",
+            File.extract_completed_at >= cutoff_24h,
+        )
+    )
+    oldest_queued = await db.scalar(
+        select(func.min(File.queued_at)).where(File.processing_status == "queued")
     )
     oldest_age = int((datetime.utcnow() - oldest_queued).total_seconds()) if oldest_queued else 0
 
@@ -2766,6 +2766,9 @@ async def reprocess_file(
 
 
 class SummaryUpdateRequest(BaseModel):
+    # v10.0.x — P2-7 · เพิ่ม filename field สำหรับ rename file
+    # (ไม่กระทบ raw_path หรือ Drive copy · เปลี่ยนแค่ display name)
+    filename: str | None = None
     summary_text: str | None = None
     key_topics: list[str] | None = None
     key_facts: list[str] | None = None
@@ -2774,7 +2777,7 @@ class SummaryUpdateRequest(BaseModel):
 
 @app.put("/api/summary/{file_id}")
 async def update_summary(file_id: str, req: SummaryUpdateRequest, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    """Update the summary for a file."""
+    """Update the summary (and optionally filename) for a file."""
     result = await db.execute(
         select(File).where(File.id == file_id, File.user_id == current_user.id)
         .options(selectinload(File.summary))
@@ -2782,22 +2785,41 @@ async def update_summary(file_id: str, req: SummaryUpdateRequest, current_user: 
     file = result.scalar_one_or_none()
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
-    if not file.summary:
-        raise HTTPException(status_code=404, detail="Summary not yet generated")
 
-    if req.summary_text is not None:
-        file.summary.summary_text = req.summary_text
-    if req.key_topics is not None:
-        file.summary.key_topics = json.dumps(req.key_topics, ensure_ascii=False)
-    if req.key_facts is not None:
-        file.summary.key_facts = json.dumps(req.key_facts, ensure_ascii=False)
-    if req.why_important is not None:
-        file.summary.why_important = req.why_important
-    if req.suggested_usage is not None:
-        file.summary.suggested_usage = req.suggested_usage
+    # v10.0.x — P2-7: filename rename ไม่ต้องมี summary (ทำได้กับไฟล์ที่ยังไม่ organize)
+    if req.filename is not None:
+        new_name = (req.filename or "").strip()
+        if not new_name:
+            raise HTTPException(400, detail={"error": {
+                "code": "FILENAME_REQUIRED",
+                "message": "ชื่อไฟล์ห้ามว่าง",
+            }})
+        if len(new_name) > 255:
+            raise HTTPException(400, detail={"error": {
+                "code": "FILENAME_TOO_LONG",
+                "message": f"ชื่อไฟล์ยาวเกิน 255 ตัวอักษร (ปัจจุบัน {len(new_name)})",
+            }})
+        file.filename = new_name
+
+    # Summary field updates ต้องมี summary row อยู่
+    summary_fields_provided = any(getattr(req, f) is not None for f in
+                                  ('summary_text', 'key_topics', 'key_facts', 'why_important', 'suggested_usage'))
+    if summary_fields_provided:
+        if not file.summary:
+            raise HTTPException(status_code=404, detail="Summary not yet generated")
+        if req.summary_text is not None:
+            file.summary.summary_text = req.summary_text
+        if req.key_topics is not None:
+            file.summary.key_topics = json.dumps(req.key_topics, ensure_ascii=False)
+        if req.key_facts is not None:
+            file.summary.key_facts = json.dumps(req.key_facts, ensure_ascii=False)
+        if req.why_important is not None:
+            file.summary.why_important = req.why_important
+        if req.suggested_usage is not None:
+            file.summary.suggested_usage = req.suggested_usage
 
     await db.commit()
-    return {"status": "ok", "file_id": file_id}
+    return {"status": "ok", "file_id": file_id, "filename": file.filename}
 
 
 @app.delete("/api/files/{file_id}")
@@ -2849,7 +2871,16 @@ async def delete_file(
     summary_md_path = summary_row or None
 
     # 1. Disk: best-effort ลบ raw file
+    # v10.0.8 — purge LlamaParse cache ก่อนลบไฟล์ (ต้อง hash bytes ของ raw_path)
+    # มิฉะนั้น extracted markdown จาก LlamaParse จะเหลือใน .llamaparse_cache/<sha>.md
     if file.raw_path and os.path.exists(file.raw_path):
+        try:
+            from .processors.llamaparse import purge_cache_for_file
+            n = purge_cache_for_file(file.raw_path)
+            if n:
+                logger.info("delete_file %s: purged %d llamaparse cache entries", file_id, n)
+        except Exception as e:
+            logger.warning("delete_file: llamaparse cache purge failed for %s: %s", file_id, e)
         try:
             os.remove(file.raw_path)
         except OSError as e:
@@ -3988,8 +4019,18 @@ async def reset_all(current_user: User = Depends(get_current_user), db: AsyncSes
         "drive_summaries_trashed": 0,
         "drive_cleanup_skipped_picked": 0,  # F5 guard hits
         "vector_index_cleaned": 0,
+        "llamaparse_cache_purged": 0,        # v10.0.8
+        "chat_queries_cleared": 0,           # v10.0.8
+        "context_memories_cleared": 0,       # v10.0.8
+        "canvas_objects_cleared": 0,         # v10.0.8
+        "personality_history_cleared": 0,    # v10.0.8
         "errors": 0,
     }
+
+    # v10.0.8 — Clear chat history first (FK cascade ลบ context_injection_logs ตาม)
+    # เดิม /api/reset ทิ้ง chat_queries ไว้ที่มี stale file_ids/cluster_ids/pack_ids
+    chat_del = await db.execute(sql_delete(ChatQuery).where(ChatQuery.user_id == current_user.id))
+    stats["chat_queries_cleared"] = chat_del.rowcount or 0
 
     # Clear graph data first (FK dependencies)
     await db.execute(sql_delete(SuggestedRelation).where(SuggestedRelation.user_id == current_user.id))
@@ -3998,10 +4039,23 @@ async def reset_all(current_user: User = Depends(get_current_user), db: AsyncSes
     await db.execute(sql_delete(NoteObject).where(NoteObject.user_id == current_user.id))
     await db.execute(sql_delete(GraphLens).where(GraphLens.user_id == current_user.id))
 
+    # v10.0.8 — Clear other user-scoped data tables (เดิมค้างหลัง reset)
+    cm_del = await db.execute(sql_delete(ContextMemory).where(ContextMemory.user_id == current_user.id))
+    stats["context_memories_cleared"] = cm_del.rowcount or 0
+    co_del = await db.execute(sql_delete(CanvasObject).where(CanvasObject.user_id == current_user.id))
+    stats["canvas_objects_cleared"] = co_del.rowcount or 0
+    ph_del = await db.execute(sql_delete(PersonalityHistory).where(PersonalityHistory.user_id == current_user.id))
+    stats["personality_history_cleared"] = ph_del.rowcount or 0
+
     files_result = await db.execute(select(File).where(File.user_id == current_user.id))
     for f in files_result.scalars().all():
-        # 1. Disk
+        # 1. Disk + LlamaParse cache (purge cache ก่อนลบ raw — ต้อง hash bytes)
         if f.raw_path and os.path.exists(f.raw_path):
+            try:
+                from .processors.llamaparse import purge_cache_for_file
+                stats["llamaparse_cache_purged"] += purge_cache_for_file(f.raw_path)
+            except Exception as e:
+                logger.warning(f"reset_all: llamaparse purge failed for {f.id}: {e}")
             try:
                 os.remove(f.raw_path)
             except OSError as e:
@@ -4070,12 +4124,155 @@ async def reset_all(current_user: User = Depends(get_current_user), db: AsyncSes
     return {"status": "ok", "message": "All data cleared", "stats": stats}
 
 
+class DeleteAccountRequest(BaseModel):
+    confirm_email: str  # client must echo back current_user.email — guard against accidental call
+
+
+@app.delete("/api/auth/me")
+async def delete_my_account(
+    req: DeleteAccountRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """v10.0.8 — Full account purge (GDPR-grade). Removes EVERY trace of the user.
+
+    Differs from /api/reset (which keeps user row + profile + tokens):
+    - Deletes user row (cascade clears profile, drive_connection)
+    - Deletes MCP tokens, MCP usage logs, usage_logs, audit_logs
+    - Deletes ALL data /api/reset clears (files, graph, packs, chat, etc.)
+    - Drive raw/extracted/summary trashed (best-effort)
+    - LlamaParse cache purged for every file
+    - Vector index entries removed
+
+    Guards:
+    - Requires `confirm_email` to match current_user.email (prevents accidental UI call)
+    - Returns stats summary
+    """
+    from sqlalchemy import delete as sql_delete
+    from .storage_router import (
+        _should_trash_drive_file,
+        delete_drive_file_if_byos,
+        delete_extracted_text_from_drive_if_byos,
+        delete_summary_from_drive_if_byos,
+    )
+
+    if (req.confirm_email or "").strip().lower() != (current_user.email or "").strip().lower():
+        raise HTTPException(status_code=400, detail={"error": {
+            "code": "EMAIL_MISMATCH",
+            "message": "Confirm email ไม่ตรงกับบัญชีนี้",
+        }})
+
+    user_id = current_user.id
+    stats = {
+        "files_deleted": 0,
+        "drive_files_trashed": 0,
+        "vector_index_cleaned": 0,
+        "llamaparse_cache_purged": 0,
+        "errors": 0,
+    }
+
+    # 1. Chat history (FK cascade → context_injection_logs)
+    await db.execute(sql_delete(ChatQuery).where(ChatQuery.user_id == user_id))
+
+    # 2. Graph + lens + notes + suggestions
+    await db.execute(sql_delete(SuggestedRelation).where(SuggestedRelation.user_id == user_id))
+    await db.execute(sql_delete(GraphEdge).where(GraphEdge.user_id == user_id))
+    await db.execute(sql_delete(GraphNode).where(GraphNode.user_id == user_id))
+    await db.execute(sql_delete(NoteObject).where(NoteObject.user_id == user_id))
+    await db.execute(sql_delete(GraphLens).where(GraphLens.user_id == user_id))
+
+    # 3. Other user-scoped tables
+    await db.execute(sql_delete(ContextMemory).where(ContextMemory.user_id == user_id))
+    await db.execute(sql_delete(CanvasObject).where(CanvasObject.user_id == user_id))
+    await db.execute(sql_delete(PersonalityHistory).where(PersonalityHistory.user_id == user_id))
+
+    # 4. Files (disk + Drive + vector + LlamaParse cache)
+    files_result = await db.execute(select(File).where(File.user_id == user_id))
+    for f in files_result.scalars().all():
+        if f.raw_path and os.path.exists(f.raw_path):
+            try:
+                from .processors.llamaparse import purge_cache_for_file
+                stats["llamaparse_cache_purged"] += purge_cache_for_file(f.raw_path)
+            except Exception as e:
+                logger.warning("delete_account: llamaparse purge failed for %s: %s", f.id, e)
+            try:
+                os.remove(f.raw_path)
+            except OSError as e:
+                logger.warning("delete_account: raw remove %s failed: %s", f.raw_path, e)
+
+        if f.drive_file_id and _should_trash_drive_file(f.storage_source):
+            try:
+                if await delete_drive_file_if_byos(user_id, db, f.drive_file_id):
+                    stats["drive_files_trashed"] += 1
+                await delete_extracted_text_from_drive_if_byos(user_id, db, f.id)
+                await delete_summary_from_drive_if_byos(user_id, db, f.id)
+            except Exception as e:
+                logger.warning("delete_account: drive cleanup failed for %s: %s", f.id, e)
+                stats["errors"] += 1
+
+        try:
+            from . import vector_search as _vs
+            _vs.remove_file(f.id, user_id=user_id)
+            stats["vector_index_cleaned"] += 1
+        except Exception:
+            pass
+
+        await db.delete(f)
+        stats["files_deleted"] += 1
+
+    # 5. Clusters + context packs (md files)
+    clusters_result = await db.execute(select(Cluster).where(Cluster.user_id == user_id))
+    for c in clusters_result.scalars().all():
+        await db.delete(c)
+    packs_result = await db.execute(select(ContextPack).where(ContextPack.user_id == user_id))
+    for p in packs_result.scalars().all():
+        if p.md_path and os.path.exists(p.md_path):
+            try:
+                os.remove(p.md_path)
+            except OSError:
+                pass
+        await db.delete(p)
+
+    # 6. MCP tokens + logs + audit/usage logs
+    await db.execute(sql_delete(MCPUsageLog).where(MCPUsageLog.user_id == user_id))
+    await db.execute(sql_delete(MCPToken).where(MCPToken.user_id == user_id))
+    await db.execute(sql_delete(UsageLog).where(UsageLog.user_id == user_id))
+    await db.execute(sql_delete(AuditLog).where(AuditLog.user_id == user_id))
+
+    # 7. Finally — delete user row (cascade: UserProfile + DriveConnection)
+    user_row = await db.get(User, user_id)
+    if user_row:
+        await db.delete(user_row)
+
+    await db.commit()
+
+    logger.info(
+        "delete_account: user=%s files=%d drive=%d vector=%d cache=%d errors=%d",
+        user_id[:8] + "..", stats["files_deleted"], stats["drive_files_trashed"],
+        stats["vector_index_cleaned"], stats["llamaparse_cache_purged"], stats["errors"],
+    )
+    return {"status": "ok", "message": "Account permanently deleted", "stats": stats}
+
+
 # ═══════════════════════════════════════════
 # MCP / CONNECTOR APIs (v4 — new)
 # ═══════════════════════════════════════════
 
 class MCPTokenRequest(BaseModel):
-    label: str = "Default Token"
+    # v10.0.x — P3-12 · validation · กัน UI layout พังจาก empty/over-long token names
+    label: str = Field("Default Token", min_length=1, max_length=80)
+
+    @field_validator("label")
+    @classmethod
+    def _strip_and_validate_label(cls, v: str) -> str:
+        if v is None:
+            return "Default Token"
+        s = v.strip()
+        if not s:
+            raise ValueError("Token name ห้ามว่าง")
+        if len(s) > 80:
+            raise ValueError(f"Token name ยาวเกิน 80 ตัวอักษร (ปัจจุบัน {len(s)})")
+        return s
 
 class MCPToolCallRequest(BaseModel):
     tool: str
