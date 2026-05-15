@@ -304,7 +304,9 @@ async function submitChangePlan() {
   if (!reason) { showToast('กรุณากรอกเหตุผล', 'error'); return; }
 
   const btn = document.getElementById('modal-change-plan-confirm');
+  const origLabel = btn.textContent;
   btn.disabled = true;
+  btn.innerHTML = '<span class="loading-spinner" style="margin-right:6px"></span>กำลังบันทึก...';
   try {
     const res = await adminFetch(`/api/admin/users/${encodeURIComponent(userId)}/plan`, {
       method: 'PUT',
@@ -323,14 +325,13 @@ async function submitChangePlan() {
     showToast(e.message, 'error');
   } finally {
     btn.disabled = false;
+    btn.textContent = origLabel;
   }
 }
 
 // ── Reset password ──
 function openResetPassword(user) {
   if (!user.email && !user.id) return;
-  // Note: Google-only user check จะถูกบล็อกที่ backend → 409 GOOGLE_ONLY_USER
-  // (ไม่ pre-check ที่ frontend เพราะ list_users ไม่ส่ง has_password)
   const modal = document.getElementById('modal-reset-password');
   modal.dataset.userId = user.id;
   document.getElementById('modal-reset-password-email').textContent = user.email || user.id;

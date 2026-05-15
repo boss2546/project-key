@@ -19,6 +19,7 @@ Conflict scenarios:
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any, Optional, TypedDict
@@ -28,6 +29,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .database import DriveConnection, File
 from .drive_layout import STORAGE_SOURCE_DRIVE_PICKED, STORAGE_SOURCE_DRIVE_UPLOADED
+
+
+# v10.0.0 -- wrap sync google-api-python-client calls to keep the event loop free
+async def _adrive(fn, *args, **kwargs):
+    return await asyncio.to_thread(fn, *args, **kwargs)
 from .drive_oauth import decrypt_refresh_token
 from .drive_storage import DriveClient
 
@@ -143,7 +149,8 @@ class DriveSync:
         self._connection = conn
 
         # Ensure folder layout exists (idempotent)
-        self._folder_layout = self._client.ensure_pdb_folder_structure()
+        # v10.0.0: wrap sync google-api call so event loop stays responsive
+        self._folder_layout = await _adrive(self._client.ensure_pdb_folder_structure)
 
     # ═══════════════════════════════════════════════════════════
     # Main entry point
@@ -250,7 +257,7 @@ class DriveSync:
         # v9.3.5.5 — pre-fetch Drive listing for F24 duplicate detection
         # ถ้า fetch fail → fall-back ไม่มี guard (worst case = same as pre-v9.3.5.5)
         try:
-            existing_drive_files = self._client.list_folder(raw_folder_id, only_files=True)
+            existing_drive_files = await _adrive(self._client.list_folder, raw_folder_id, only_files=True)
             drive_filename_to_file: dict[str, dict[str, Any]] = {
                 f["name"]: f for f in existing_drive_files
             }
@@ -324,7 +331,8 @@ class DriveSync:
                     "application/octet-stream",
                 )
 
-                drive_id = self._client.upload_file(
+                drive_id = await _adrive(
+                    self._client.upload_file,
                     parent_id=raw_folder_id,
                     name=f"{f.id}_{f.filename}",
                     content=content,
@@ -365,7 +373,7 @@ class DriveSync:
         """
         assert self._client is not None
         raw_folder_id = self._folder_layout["raw"]
-        drive_files = self._client.list_folder(raw_folder_id, only_files=True)
+        drive_files = await _adrive(self._client.list_folder, raw_folder_id, only_files=True)
         drive_ids = {f["id"] for f in drive_files}
 
         # Build cache index: drive_file_id -> File row
@@ -415,7 +423,7 @@ class DriveSync:
                             )
                             continue
                         try:
-                            self._client.delete_file(drive_id)
+                            await _adrive(self._client.delete_file, drive_id)
                             stats["orphans_cleaned"] += 1
                             self._orphan_retry_count.pop(drive_id, None)
                             logger.info(

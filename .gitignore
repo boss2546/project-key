@@ -77,3 +77,15 @@ tests/_smoke_shots/
 # Production snapshot — mirror of files actually deployed (manifest in docs/manifest/)
 # NOT a source-of-truth; regenerate from script if needed
 production-active/
+
+# v10 — LlamaParse local cache (binary markdown by file hash, regenerable)
+.llamaparse_cache/
+
+# Ad-hoc screenshots from manual UI checks
+*-after-fix.png
+*-live-progress*.png
+upload-tray-*.png
+organize-live-progress*.png
+
+# Scratch agent memory
+.agent-memory/scratch/

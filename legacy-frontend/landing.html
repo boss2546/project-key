@@ -9,9 +9,9 @@
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
  <script src="https://d3js.org/d3.v7.min.js"></script>
- <link rel="stylesheet" href="/legacy/shared.css?v=9.4.9">
- <link rel="stylesheet" href="/legacy/styles.css?v=9.4.9">
- <link rel="stylesheet" href="/legacy/landing.css?v=9.4.9">
+ <link rel="stylesheet" href="/legacy/shared.css?v=10.0.7">
+ <link rel="stylesheet" href="/legacy/styles.css?v=10.0.7">
+ <link rel="stylesheet" href="/legacy/landing.css?v=10.0.7">
 </head>
 <body>
  <!-- ┌────────────────────────────────────────────────────────────┐
@@ -203,153 +203,8 @@
  </div>
  </section>
 
- <!-- ─── PRICING ─── -->
- <section class="landing-section landing-section-dark" id="pricing-section">
- <div class="section-center">
- <h2 class="section-title">Start with context. Grow into your <span class="hero-gradient">Digital Twin</span></h2>
- <p class="section-desc">เลือกชั้นของผลิตภัณฑ์ตามระดับที่คุณต้องการให้ AI เข้าใจข้อมูล งาน สไตล์ และวิธีคิดของคุณ</p>
- </div>
-
- <!-- Personal AI Context -->
- <div class="pricing-group">
- <div class="pricing-group-label pricing-label-personal"> Personal AI Context</div>
- <p class="pricing-group-desc">สำหรับนักศึกษา ครีเอเตอร์ และคนใช้ AI ที่อยากให้ AI เข้าใจบริบทของตัวเองมากขึ้น โดยไม่ต้องเริ่มใหม่ทุกครั้ง</p>
- <div class="pricing-cards">
- <div class="pricing-card pricing-personal">
- <h3>Free</h3>
- <div class="pricing-price">฿0<span>/เดือน</span></div>
- <p class="pricing-tagline">Try your first AI-ready context.</p>
- <ul class="pricing-features">
- <li>10 Personal Context Packs</li>
- <li>Basic profile summary</li>
- <li>อัปโหลดไฟล์สูงสุด 50 ไฟล์ (500 MB)</li>
- <li>AI Summary 50 ครั้ง / เดือน</li>
- <li>Export Prompt 100 ครั้ง / เดือน</li>
- <li>Basic search</li>
- </ul>
- <button class="btn btn-ghost btn-block" id="btn-pricing-free">Start Free</button>
- </div>
- <div class="pricing-card pricing-personal pricing-starter-highlight">
- <div class="pricing-badge pricing-badge-starter">Best for beginners</div>
- <h3>Starter</h3>
- <div class="pricing-price">฿99<span>/เดือน</span></div>
- <p class="pricing-tagline">For students and everyday AI users.</p>
- <ul class="pricing-features">
- <li>50 Context Packs</li>
- <li>Study / Work / Creator context</li>
- <li>Writing style เบื้องต้น</li>
- <li>อัปโหลดไฟล์สูงสุด 500 ไฟล์ (10 GB)</li>
- <li>AI Summary 1,000 ครั้ง / เดือน</li>
- <li>Export Prompt 3,000 ครั้ง / เดือน</li>
- <li>Context Refresh 100 ครั้ง / เดือน</li>
- <li>Basic + Semantic Search</li>
- <li>Version History 70 วัน</li>
- </ul>
- <button class="btn btn-primary btn-block" id="btn-pricing-starter">Get Starter</button>
- </div>
- </div>
- </div>
-
- <!-- Comparison Table -->
- <div class="pricing-compare" id="pricing-compare">
- <h3 class="pricing-compare-title">เปรียบเทียบ Free vs Starter</h3>
- <div class="pricing-table-wrap">
- <table class="pricing-table">
- <thead>
- <tr><th>Feature</th><th>Free</th><th class="col-starter">Starter</th></tr>
- </thead>
- <tbody>
- <tr><td>ราคา</td><td>0 บาท/เดือน</td><td>99 บาท/เดือน</td></tr>
- <tr><td>Context Packs</td><td>10</td><td>50</td></tr>
- <tr><td>Files</td><td>50 ไฟล์</td><td>500 ไฟล์</td></tr>
- <tr><td>Storage</td><td>500 MB</td><td>10 GB</td></tr>
- <tr><td>Max file size</td><td>100 MB / file</td><td>200 MB / file</td></tr>
- <tr><td>AI Summary</td><td>50 / เดือน</td><td>1,000 / เดือน</td></tr>
- <tr><td>Export Prompt</td><td>100 / เดือน</td><td>3,000 / เดือน</td></tr>
- <tr><td>Context Refresh</td><td>—</td><td>100 / เดือน</td></tr>
- <tr><td>Search</td><td>Basic</td><td>Basic + Semantic</td></tr>
- <tr><td>Version History</td><td>—</td><td>70 วัน</td></tr>
- <tr><td>Support</td><td>FAQ</td><td>Email basic</td></tr>
- </tbody>
- </table>
- </div>
- </div>
-
- <!-- Executive Digital Twin -->
- <div class="pricing-group" style="margin-top:48px">
- <div class="pricing-group-label pricing-label-exec"> Executive Digital Twin</div>
- <p class="pricing-group-desc">สำหรับ Founder ผู้บริหาร และผู้นำที่ต้องการให้ AI ทำงานด้วยวิธีคิด สไตล์ เสียง และบริบทการตัดสินใจของตัวเอง</p>
- <p class="pricing-exec-notice">Executive plans require private onboarding and are available by demo or request only.</p>
- <div class="pricing-cards pricing-cards-exec">
- <div class="pricing-card pricing-exec">
- <h3>Core</h3>
- <div class="pricing-price pricing-price-gold">฿12,000<span>/เดือน</span></div>
- <p class="pricing-tagline">Start your private Digital Twin.</p>
- <ul class="pricing-features">
- <li>Private Identity Vault</li>
- <li>Basic Decision Matrix</li>
- <li>Text-based Digital Twin</li>
- <li>MCP connection</li>
- <li>Context retrieval</li>
- <li>50,000 API calls / month</li>
- </ul>
- <button class="btn btn-gold btn-block">Book Private Demo</button>
- </div>
- <div class="pricing-card pricing-exec pricing-recommended">
- <div class="pricing-badge">Recommended</div>
- <h3>Pro</h3>
- <div class="pricing-price pricing-price-gold">฿25,000<span>/เดือน</span></div>
- <p class="pricing-tagline">Most recommended for leaders.</p>
- <ul class="pricing-features">
- <li>ทุกอย่างใน Core</li>
- <li>Advanced Decision Matrix</li>
- <li>Voice Clone</li>
- <li>Priority Support</li>
- <li>3 Delegated Users</li>
- <li>Monthly Twin Calibration</li>
- <li>200,000 API calls / month</li>
- </ul>
- <button class="btn btn-gold btn-block">Book Private Demo</button>
- </div>
- <div class="pricing-card pricing-exec">
- <h3>Elite</h3>
- <div class="pricing-price pricing-price-gold">฿45,000<span>/เดือน</span></div>
- <p class="pricing-tagline">A private digital twin experience.</p>
- <ul class="pricing-features">
- <li>ทุกอย่างใน Pro</li>
- <li>Avatar UI</li>
- <li>Dedicated CSM</li>
- <li>Deep Decision Calibration</li>
- <li>Annual Deep Review</li>
- <li>Priority Onboarding</li>
- <li>500,000 API calls / month</li>
- </ul>
- <button class="btn btn-gold btn-block">Request Elite Access</button>
- </div>
- <div class="pricing-card pricing-exec pricing-legacy">
- <h3>Legacy</h3>
- <div class="pricing-price pricing-price-gold">฿8,000<span>/เดือน</span></div>
- <p class="pricing-tagline">Preserve wisdom. Pass on judgment.</p>
- <ul class="pricing-features">
- <li>Read-only Digital Twin</li>
- <li>Knowledge Preservation Mode</li>
- <li>Consultation Mode</li>
- <li>Access control สำหรับผู้รับสิทธิ์</li>
- <li>Legacy archive</li>
- <li>Limited support</li>
- </ul>
- <button class="btn btn-gold btn-block">Explore Legacy</button>
- </div>
- </div>
- <p class="pricing-note">แพ็กเกจ Executive ต้องมี private onboarding ก่อนเริ่มใช้งาน และยังไม่เปิดให้ซื้อผ่านหน้าเว็บโดยตรง</p>
- </div>
-
- <!-- Trust Note Under Pricing -->
- <div class="pricing-trust-note">
- <p>Free และ Starter เป็นแผน Personal AI Context สำหรับสร้างบริบทพร้อมใช้กับ AI ยังไม่ใช่ Digital Twin เต็มระบบ</p>
- <p>Executive Digital Twin ต้องมี private onboarding และ consent ที่ชัดเจนก่อนใช้ข้อมูลสำคัญใด ๆ</p>
- </div>
- </section>
+ <!-- Pricing section removed in v9.6.0 (Stripe billing system ถูกลบ).
+      See docs/restoration/billing-restore.md to restore. -->
 
  <!-- ─── TRUST ─── -->
  <section class="landing-section" id="trust-section">
@@ -378,22 +233,7 @@
  <h2 class="section-title">คำถามที่พบบ่อย</h2>
  </div>
  <div class="faq-list">
- <div class="faq-item" onclick="this.classList.toggle('open')">
- <div class="faq-q">Free กับ Starter ต่างกันอย่างไร?</div>
- <div class="faq-a">Free เหมาะสำหรับทดลองสร้าง Context Pack แรก ส่วน Starter เหมาะสำหรับคนที่ต้องการใช้บริบทหลายชุดกับการเรียน งาน หรือการสร้างคอนเทนต์เป็นประจำ</div>
- </div>
- <div class="faq-item" onclick="this.classList.toggle('open')">
- <div class="faq-q">Starter เป็น Digital Twin หรือไม่?</div>
- <div class="faq-a">ไม่ใช่ Starter เป็น Personal AI Context plan สำหรับสร้าง context pack และ AI-ready profile เบื้องต้น ส่วน Digital Twin เริ่มที่แผน Core ขึ้นไปและต้องมี onboarding แยกต่างหาก</div>
- </div>
- <div class="faq-item" onclick="this.classList.toggle('open')">
- <div class="faq-q">Starter จ่ายผ่านอะไร?</div>
- <div class="faq-a">Starter จะใช้ Stripe subscription ในเฟสถัดไป ตอนนี้หน้านี้ใช้เพื่อสื่อสารราคาและรับความสนใจจากผู้ใช้ก่อน</div>
- </div>
- <div class="faq-item" onclick="this.classList.toggle('open')">
- <div class="faq-q">Executive Plans ซื้อผ่านหน้าเว็บได้ไหม?</div>
- <div class="faq-a">ยังไม่ได้ Executive Plans ต้อง Book Private Demo หรือ Request Access เพราะต้องมี private onboarding, consent และการประเมินความเหมาะสมก่อนเริ่มใช้งาน</div>
- </div>
+ <!-- Pricing FAQ items removed in v9.6.0 (billing system ถูกลบ) -->
  <div class="faq-item" onclick="this.classList.toggle('open')">
  <div class="faq-q">อัปโหลดข้อมูลอ่อนไหวได้ไหม?</div>
  <div class="faq-a">ยังไม่ควรอัปโหลดข้อมูลอ่อนไหว เช่น บัตรประชาชน เอกสารการเงิน ข้อมูลสุขภาพ เวอร์ชันแรกเน้นข้อมูลการเรียน งาน ความรู้ส่วนตัว และบริบทที่มีความเสี่ยงต่ำ</div>
@@ -434,47 +274,47 @@
  <!-- Login Form -->
  <div id="login-form">
  <div class="form-group">
- <label>อีเมล</label>
+ <label for="login-email">อีเมล</label>
  <input type="email" id="login-email" placeholder="you@example.com" class="form-input" autocomplete="email">
  </div>
  <div class="form-group">
- <label>รหัสผ่าน</label>
+ <label for="login-password">รหัสผ่าน</label>
+ <div class="pwd-wrap">
  <input type="password" id="login-password" placeholder="••••••" class="form-input" autocomplete="current-password">
- </div>
- <div id="login-error" class="auth-error hidden"></div>
- <button class="btn btn-primary btn-block" id="btn-login">เข้าสู่ระบบ</button>
- <div class="auth-divider"><span>หรือ</span></div>
- <button type="button" class="btn btn-google btn-block" id="btn-google-login-login">
-  <svg class="btn-google-icon" width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-   <path fill="#4285F4" d="M17.64 9.2a10.34 10.34 0 0 0-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92a8.78 8.78 0 0 0 2.68-6.62z"/>
-   <path fill="#34A853" d="M9 18a8.6 8.6 0 0 0 5.96-2.18l-2.92-2.26a5.4 5.4 0 0 1-8.06-2.84H.96v2.32A9 9 0 0 0 9 18z"/>
-   <path fill="#FBBC05" d="M3.96 10.72A5.4 5.4 0 0 1 3.68 9c0-.6.1-1.18.28-1.72V4.96H.96A9 9 0 0 0 0 9c0 1.45.34 2.83.96 4.04l3-2.32z"/>
-   <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.46 3.44 1.36l2.58-2.58A8.6 8.6 0 0 0 9 0 9 9 0 0 0 .96 4.96l3 2.32A5.4 5.4 0 0 1 9 3.58z"/>
-  </svg>
-  <span>Continue with Google</span>
+ <button type="button" class="pwd-toggle" aria-label="แสดงรหัสผ่าน" aria-pressed="false" tabindex="-1">
+ <svg class="pwd-icon-show" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+ <svg class="pwd-icon-hide" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
  </button>
- <p class="auth-switch auth-switch-muted">ใช้ Google ครั้งแรก = สมัครอัตโนมัติ · ครั้งถัดไป = login</p>
+ </div>
+ </div>
+ <div id="login-error" class="auth-error hidden" role="alert" aria-live="assertive"></div>
+ <button class="btn btn-primary btn-block" id="btn-login">เข้าสู่ระบบ</button>
  <p class="auth-switch"><a href="#" id="switch-to-forgot" class="forgot-link">ลืมรหัสผ่าน?</a></p>
  <p class="auth-switch">ยังไม่มีบัญชี? <a href="#" id="switch-to-register">สมัครสมาชิก</a></p>
  </div>
  <!-- Register Form -->
  <div id="register-form" class="hidden">
  <div class="form-group">
- <label>ชื่อ</label>
+ <label for="register-name">ชื่อ</label>
  <input type="text" id="register-name" placeholder="ชื่อของคุณ" class="form-input" autocomplete="name">
  </div>
  <div class="form-group">
- <label>อีเมล</label>
+ <label for="register-email">อีเมล</label>
  <input type="email" id="register-email" placeholder="you@example.com" class="form-input" autocomplete="email">
  </div>
  <div class="form-group">
- <label>รหัสผ่าน (อย่างน้อย 6 ตัว)</label>
+ <label for="register-password">รหัสผ่าน (อย่างน้อย 6 ตัว)</label>
+ <div class="pwd-wrap">
  <input type="password" id="register-password" placeholder="••••••" class="form-input" autocomplete="new-password">
+ <button type="button" class="pwd-toggle" aria-label="แสดงรหัสผ่าน" aria-pressed="false" tabindex="-1">
+ <svg class="pwd-icon-show" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+ <svg class="pwd-icon-hide" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+ </button>
  </div>
- <div id="register-error" class="auth-error hidden"></div>
+ </div>
+ <div id="register-error" class="auth-error hidden" role="alert" aria-live="assertive"></div>
  <button class="btn btn-primary btn-block" id="btn-register">สมัครสมาชิก</button>
  <p class="auth-switch">มีบัญชีอยู่แล้ว? <a href="#" id="switch-to-login">เข้าสู่ระบบ</a></p>
- <p class="auth-switch auth-switch-muted">หรือ <a href="#" id="switch-to-login-google">ใช้ Google เข้าระบบ →</a> (สมัครให้อัตโนมัติถ้ายังไม่มีบัญชี)</p>
  </div>
  <!-- Forgot Password Form (v5.1) -->
  <div id="forgot-form" class="hidden">
@@ -485,10 +325,10 @@
  </div>
  <p class="reset-subtitle">กรอกอีเมลที่ใช้สมัครเพื่อรีเซ็ตรหัสผ่าน</p>
  <div class="form-group">
- <label>อีเมล</label>
+ <label for="forgot-email">อีเมล</label>
  <input type="email" id="forgot-email" placeholder="you@example.com" class="form-input" autocomplete="email">
  </div>
- <div id="forgot-error" class="auth-error hidden"></div>
+ <div id="forgot-error" class="auth-error hidden" role="alert" aria-live="assertive"></div>
  <button class="btn btn-primary btn-block" id="btn-forgot-submit">ยืนยันอีเมล</button>
  <p class="auth-switch"><a href="#" id="switch-forgot-to-login">← กลับเข้าสู่ระบบ</a></p>
  </div>
@@ -501,14 +341,26 @@
  </div>
  <p class="reset-subtitle">ตั้งรหัสผ่านใหม่สำหรับ <strong id="reset-email-display"></strong></p>
  <div class="form-group">
- <label>รหัสผ่านใหม่ (อย่างน้อย 6 ตัว)</label>
+ <label for="reset-new-password">รหัสผ่านใหม่ (อย่างน้อย 6 ตัว)</label>
+ <div class="pwd-wrap">
  <input type="password" id="reset-new-password" placeholder="••••••" class="form-input" autocomplete="new-password">
+ <button type="button" class="pwd-toggle" aria-label="แสดงรหัสผ่าน" aria-pressed="false" tabindex="-1">
+ <svg class="pwd-icon-show" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+ <svg class="pwd-icon-hide" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+ </button>
+ </div>
  </div>
  <div class="form-group">
- <label>ยืนยันรหัสผ่านใหม่</label>
+ <label for="reset-confirm-password">ยืนยันรหัสผ่านใหม่</label>
+ <div class="pwd-wrap">
  <input type="password" id="reset-confirm-password" placeholder="••••••" class="form-input" autocomplete="new-password">
+ <button type="button" class="pwd-toggle" aria-label="แสดงรหัสผ่าน" aria-pressed="false" tabindex="-1">
+ <svg class="pwd-icon-show" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+ <svg class="pwd-icon-hide" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+ </button>
  </div>
- <div id="reset-error" class="auth-error hidden"></div>
+ </div>
+ <div id="reset-error" class="auth-error hidden" role="alert" aria-live="assertive"></div>
  <button class="btn btn-primary btn-block" id="btn-reset-submit">เปลี่ยนรหัสผ่าน</button>
  <p class="auth-switch"><a href="#" id="switch-reset-to-login">← กลับเข้าสู่ระบบ</a></p>
  </div>
@@ -516,8 +368,9 @@
  </div>
  </div>
 
-  <script src="/legacy/storage_mode.js?v=9.4.9"></script>
- <script src="/legacy/app.js?v=9.4.9"></script>
- <script src="/legacy/landing.js?v=9.4.9"></script>
+  <script src="/legacy/dev-logger.js?v=10.0.7"></script>
+  <script src="/legacy/storage_mode.js?v=10.0.7"></script>
+ <script src="/legacy/app.js?v=10.0.7"></script>
+ <script src="/legacy/landing.js?v=10.0.7"></script>
 </body>
 </html>

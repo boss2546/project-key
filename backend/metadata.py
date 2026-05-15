@@ -95,20 +95,46 @@ async def enrich_file_metadata(db: AsyncSession, file_id: str):
         return None
 
 
-async def enrich_all_files(db: AsyncSession, user_id: str):
-    """Enrich metadata for all files of a user."""
+def _is_already_enriched(f: File) -> bool:
+    """A file is considered enriched once it has non-empty LLM-generated tags.
+
+    v10.0.0: previously enrich_all_files() re-ran the LLM on every file every
+    time a single new upload completed -- so a user with 50 existing files
+    paid 50 LLM calls per new upload. Skipping already-enriched files makes
+    the bulk path idempotent and ~Nx cheaper.
+    """
+    tags = (f.tags or "").strip()
+    return bool(tags) and tags not in ("[]", "null")
+
+
+async def enrich_all_files(db: AsyncSession, user_id: str, force: bool = False):
+    """Enrich metadata for all files of a user.
+
+    v10.0.0:
+      - force=False (default) -- skip files that already have tags
+                                 (used by auto-organize after upload)
+      - force=True            -- re-enrich every file
+                                 (used by /api/metadata/enrich explicit refresh)
+    """
     files = (await db.execute(
         select(File).where(File.user_id == user_id)
     )).scalars().all()
 
     enriched = 0
+    skipped = 0
     for f in files:
+        if not force and _is_already_enriched(f):
+            skipped += 1
+            continue
         result = await enrich_file_metadata(db, f.id)
         if result:
             enriched += 1
 
-    logger.info(f"Enriched metadata for {enriched}/{len(files)} files")
-    return {"enriched": enriched, "total": len(files)}
+    logger.info(
+        f"Enriched metadata for {enriched}/{len(files)} files "
+        f"(skipped {skipped} already-enriched · force={force})"
+    )
+    return {"enriched": enriched, "skipped": skipped, "total": len(files)}
 
 
 async def get_file_metadata(db: AsyncSession, file_id: str):

@@ -511,14 +511,15 @@ async def handle_url_upload(pdb_user_id: str, url: str) -> list[BotMessage]:
         db.add(db_file)
         await db.commit()
 
-        # BYOS
+        # BYOS push -- best effort; never raise on Drive failure.
+        # v10.0.0: log so silent Drive issues are still traceable.
         try:
             raw_bytes = html_content.encode("utf-8")
             await push_raw_file_to_drive_if_byos(
                 pdb_user_id, db, file_id, filename, raw_bytes, "text/html"
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("bot URL upload: BYOS push failed (non-fatal): %s", e)
             
     # Need signed URL
     from .signed_urls import sign_download_token

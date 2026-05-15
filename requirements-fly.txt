@@ -35,8 +35,11 @@ pillow-heif>=0.18.0
 # Optional: ทำงานได้ต่อเมื่อ GOOGLE_API_KEY env var ถูก set
 google-genai>=0.3.0
 
-# Stripe Payment (v5.9.2)
-stripe>=8.0.0
+# v10.0.0 — LlamaParse for PDF (optional; off by default via USE_LLAMAPARSE_FOR_PDF)
+# Falls back to Docling/PyPDF2/OCR if not installed or no API key
+llama-parse>=0.5.0
+
+# Stripe Payment removed in v9.6.0
 
 # Google Drive BYOS (v7.0.0)
 google-auth>=2.30.0

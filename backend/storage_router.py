@@ -19,6 +19,7 @@ Why this module exists:
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, Optional
 
@@ -27,6 +28,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import is_byos_configured
 from .database import DriveConnection, File, User
+
+
+# v10.0.0 -- every Google Drive API call is sync (.execute() blocks).
+# Without to_thread the event loop freezes for the duration of every Drive op
+# (50ms folder lookup ~ 30s big-file upload). When a BYOS user is active this
+# means every other user's request stalls. Wrap each blocking client method
+# in this helper so the loop stays free.
+async def _adrive(fn, *args, **kwargs):
+    """Run a sync google-api-python-client call in a worker thread."""
+    return await asyncio.to_thread(fn, *args, **kwargs)
 from .drive_layout import (
     CLUSTERS_JSON,
     CONTEXTS_JSON,
@@ -162,16 +173,16 @@ async def _mark_drive_connection_errored(
 
 async def _get_personal_folder_id(client, root_id: str) -> str:
     """หา (หรือสร้าง) /Personal Data Bank/personal/ — return ID."""
-    return client.ensure_folder("personal", parent_id=root_id)
+    return await _adrive(client.ensure_folder, "personal", parent_id=root_id)
 
 
 async def _get_data_folder_id(client, root_id: str) -> str:
     """หา (หรือสร้าง) /Personal Data Bank/data/ — return ID."""
-    return client.ensure_folder("data", parent_id=root_id)
+    return await _adrive(client.ensure_folder, "data", parent_id=root_id)
 
 
 async def _get_summaries_folder_id(client, root_id: str) -> str:
-    return client.ensure_folder("summaries", parent_id=root_id)
+    return await _adrive(client.ensure_folder, "summaries", parent_id=root_id)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -198,7 +209,7 @@ async def push_profile_to_drive_if_byos(
         personal_id = await _get_personal_folder_id(client, conn.drive_root_folder_id)
         # PROFILE_JSON = "personal/profile.json" — ใช้แค่ filename เพราะระบุ parent แล้ว
         filename = PROFILE_JSON.split("/")[-1]
-        client.upsert_json_file(personal_id, filename, profile_dict)
+        await _adrive(client.upsert_json_file, personal_id, filename, profile_dict)
         logger.info("BYOS: pushed profile.json to Drive for user %s", user_id)
         return True
     except Exception as e:
@@ -232,7 +243,7 @@ async def push_graph_to_drive_if_byos(
         client = await _build_drive_client(conn)
         data_id = await _get_data_folder_id(client, conn.drive_root_folder_id)
         filename = GRAPH_JSON.split("/")[-1]
-        client.upsert_json_file(data_id, filename, graph_dict)
+        await _adrive(client.upsert_json_file, data_id, filename, graph_dict)
         logger.info("BYOS: pushed graph.json to Drive for user %s", user_id)
         return True
     except Exception as e:
@@ -259,7 +270,7 @@ async def push_clusters_to_drive_if_byos(
         client = await _build_drive_client(conn)
         data_id = await _get_data_folder_id(client, conn.drive_root_folder_id)
         filename = CLUSTERS_JSON.split("/")[-1]
-        client.upsert_json_file(data_id, filename, clusters)
+        await _adrive(client.upsert_json_file, data_id, filename, clusters)
         logger.info("BYOS: pushed clusters.json to Drive for user %s", user_id)
         return True
     except Exception as e:
@@ -282,7 +293,7 @@ async def push_relations_to_drive_if_byos(
         client = await _build_drive_client(conn)
         data_id = await _get_data_folder_id(client, conn.drive_root_folder_id)
         filename = RELATIONS_JSON.split("/")[-1]
-        client.upsert_json_file(data_id, filename, relations)
+        await _adrive(client.upsert_json_file, data_id, filename, relations)
         return True
     except Exception as e:
         # v9.3.5 — extend invalid_grant graceful pattern
@@ -304,7 +315,7 @@ async def push_contexts_to_drive_if_byos(
         client = await _build_drive_client(conn)
         personal_id = await _get_personal_folder_id(client, conn.drive_root_folder_id)
         filename = CONTEXTS_JSON.split("/")[-1]
-        client.upsert_json_file(personal_id, filename, contexts)
+        await _adrive(client.upsert_json_file, personal_id, filename, contexts)
         return True
     except Exception as e:
         # v9.3.5 — extend invalid_grant graceful pattern
@@ -336,12 +347,12 @@ async def push_summary_to_drive_if_byos(
         # เพราะระบุ parent_id แล้ว
         filename = summary_path_for(file_id).split("/")[-1]
         # find existing -> update; else create
-        existing = client.find_file_by_name(filename, parent_id=summaries_id)
+        existing = await _adrive(client.find_file_by_name, filename, parent_id=summaries_id)
         from .drive_layout import MIME_MARKDOWN
         if existing:
-            client.update_file_content(existing["id"], markdown, MIME_MARKDOWN)
+            await _adrive(client.update_file_content, existing["id"], markdown, MIME_MARKDOWN)
         else:
-            client.upload_file(summaries_id, filename, markdown, MIME_MARKDOWN)
+            await _adrive(client.upload_file, summaries_id, filename, markdown, MIME_MARKDOWN)
         logger.info("BYOS: pushed summary %s.md to Drive for user %s", file_id, user_id)
         return True
     except Exception as e:
@@ -368,14 +379,14 @@ async def push_extracted_text_to_drive_if_byos(
     _user, conn = pair
     try:
         client = await _build_drive_client(conn)
-        extracted_id = client.ensure_folder("extracted", parent_id=conn.drive_root_folder_id)
+        extracted_id = await _adrive(client.ensure_folder, "extracted", parent_id=conn.drive_root_folder_id)
         filename = extracted_path_for(file_id).split("/")[-1]
         from .drive_layout import MIME_TEXT
-        existing = client.find_file_by_name(filename, parent_id=extracted_id)
+        existing = await _adrive(client.find_file_by_name, filename, parent_id=extracted_id)
         if existing:
-            client.update_file_content(existing["id"], text, MIME_TEXT)
+            await _adrive(client.update_file_content, existing["id"], text, MIME_TEXT)
         else:
-            client.upload_file(extracted_id, filename, text, MIME_TEXT)
+            await _adrive(client.upload_file, extracted_id, filename, text, MIME_TEXT)
         return True
     except Exception as e:
         # v9.3.5 — extend invalid_grant graceful pattern (เป็น path ที่ upload flow ใช้)
@@ -415,10 +426,10 @@ async def push_raw_file_to_drive_if_byos(
 
     try:
         client = await _build_drive_client(conn)
-        raw_id = client.ensure_folder("raw", parent_id=conn.drive_root_folder_id)
+        raw_id = await _adrive(client.ensure_folder, "raw", parent_id=conn.drive_root_folder_id)
         # Format: raw/{file_id}_{original_name} — matches drive_sync expectations
         drive_name = raw_path_for(file_id, filename).split("/", 1)[-1]
-        drive_file_id = client.upload_file(raw_id, drive_name, content, mime_type)
+        drive_file_id = await _adrive(client.upload_file, raw_id, drive_name, content, mime_type)
 
         # Update File row so future reads + UI know it's on Drive
         from datetime import datetime as _dt
@@ -460,9 +471,16 @@ async def fetch_file_bytes(file: File, db: AsyncSession) -> bytes:
     Caller responsibility: user ที่ owns file ต้อง byos + has connection ก่อนเรียก
     """
     if file.storage_source == STORAGE_SOURCE_LOCAL or not file.drive_file_id:
-        # Managed mode (default) — read from disk
-        with open(file.raw_path, "rb") as f:
-            return f.read()
+        # Managed mode (default) -- read from disk.
+        # v10.0.0: offloaded to thread so reading a 200 MB file doesn't block
+        # the event loop while other requests are processed concurrently.
+        import asyncio
+
+        def _read_bytes(path: str) -> bytes:
+            with open(path, "rb") as f:
+                return f.read()
+
+        return await asyncio.to_thread(_read_bytes, file.raw_path)
 
     # BYOS — download from Drive
     pair = await _get_byos_user_with_connection(file.user_id, db)
@@ -473,7 +491,7 @@ async def fetch_file_bytes(file: File, db: AsyncSession) -> bytes:
         )
     _user, conn = pair
     client = await _build_drive_client(conn)
-    return client.download_file(file.drive_file_id, mime_type_hint=file.filetype)
+    return await _adrive(client.download_file, file.drive_file_id, mime_type_hint=file.filetype)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -509,7 +527,7 @@ async def delete_drive_file_if_byos(
     _user, conn = pair
     try:
         client = await _build_drive_client(conn)
-        client.delete_file(drive_file_id)
+        await _adrive(client.delete_file, drive_file_id)
         logger.info(
             "BYOS: trashed Drive file %s for user %s", drive_file_id, user_id
         )
@@ -547,11 +565,11 @@ async def delete_extracted_text_from_drive_if_byos(
 
     try:
         client = await _build_drive_client(conn)
-        extracted_id = client.ensure_folder("extracted", parent_id=conn.drive_root_folder_id)
+        extracted_id = await _adrive(client.ensure_folder, "extracted", parent_id=conn.drive_root_folder_id)
         filename = extracted_path_for(file_id).split("/")[-1]
-        existing = client.find_file_by_name(filename, parent_id=extracted_id)
+        existing = await _adrive(client.find_file_by_name, filename, parent_id=extracted_id)
         if existing:
-            client.delete_file(existing["id"])
+            await _adrive(client.delete_file, existing["id"])
             logger.info("BYOS: trashed extracted/%s for user %s", filename, user_id)
             return True
         return False  # already gone · graceful
@@ -583,9 +601,9 @@ async def delete_summary_from_drive_if_byos(
         client = await _build_drive_client(conn)
         summaries_id = await _get_summaries_folder_id(client, conn.drive_root_folder_id)
         filename = summary_path_for(file_id).split("/")[-1]
-        existing = client.find_file_by_name(filename, parent_id=summaries_id)
+        existing = await _adrive(client.find_file_by_name, filename, parent_id=summaries_id)
         if existing:
-            client.delete_file(existing["id"])
+            await _adrive(client.delete_file, existing["id"])
             logger.info("BYOS: trashed summaries/%s for user %s", filename, user_id)
             return True
         return False
@@ -619,14 +637,14 @@ async def init_drive_folder_layout(
 
     try:
         client = await _build_drive_client(conn)
-        layout = client.ensure_pdb_folder_structure()
+        layout = await _adrive(client.ensure_pdb_folder_structure, )
         # เขียน _meta/version.txt เพื่อ schema versioning ในอนาคต
         from .drive_layout import DRIVE_SCHEMA_VERSION, MIME_TEXT
         meta_id = layout["_meta"]
         filename = META_VERSION_TXT.split("/")[-1]
-        existing = client.find_file_by_name(filename, parent_id=meta_id)
+        existing = await _adrive(client.find_file_by_name, filename, parent_id=meta_id)
         if not existing:
-            client.upload_file(meta_id, filename, DRIVE_SCHEMA_VERSION, MIME_TEXT)
+            await _adrive(client.upload_file, meta_id, filename, DRIVE_SCHEMA_VERSION, MIME_TEXT)
         logger.info("BYOS: folder layout initialized for user %s", user_id)
         return layout
     except Exception as e:

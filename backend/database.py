@@ -133,6 +133,12 @@ class File(Base):
     # INV-4: retry counter — ห้ามเกิน MAX_RETRY_ATTEMPTS (default 3)
     attempt_count = Column(Integer, default=0)
 
+    # v10.0.2 — HANDOFF Pattern G structured warnings.
+    # JSON-encoded list[str] of non-fatal hints collected during extraction
+    # (e.g. ["large-file:12.3MB", "fallback:llamaparse->gemini", "empty-sheet:Sheet2"]).
+    # Empty/NULL on the happy path. Surfaced in admin diagnostics + dev log panel.
+    extract_warnings = Column(Text, nullable=True)
+
     owner = relationship("User", back_populates="files")
     insight = relationship("FileInsight", uselist=False, back_populates="file", cascade="all, delete-orphan")
     summary = relationship("FileSummary", uselist=False, back_populates="file", cascade="all, delete-orphan")
@@ -617,17 +623,28 @@ async def init_db():
         print("✅ DB: Fresh database — no migration needed")
         return
 
-    # Auto-backup before any migration
+    # Auto-backup before any migration.
+    # v10.0.0 -- shutil.copy2 + os.listdir / os.remove run in a thread so the
+    # event loop is not blocked while copying a multi-MB DB file at startup.
+    import asyncio as _asyncio
+
+    def _do_backup(src: str, dst: str, bdir: str) -> str | None:
+        shutil.copy2(src, dst)
+        # Keep only last 5 backups
+        backups = sorted([f for f in os.listdir(bdir) if f.endswith('.db')])
+        for old in backups[:-5]:
+            try:
+                os.remove(os.path.join(bdir, old))
+            except OSError:
+                pass
+        return dst
+
     backup_dir = os.path.join(os.path.dirname(db_path), "backups")
     os.makedirs(backup_dir, exist_ok=True)
     backup_path = os.path.join(backup_dir, f"projectkey_{dt.utcnow().strftime('%Y%m%d_%H%M%S')}.db")
     try:
-        shutil.copy2(db_path, backup_path)
-        # Keep only last 5 backups
-        backups = sorted([f for f in os.listdir(backup_dir) if f.endswith('.db')])
-        for old in backups[:-5]:
-            os.remove(os.path.join(backup_dir, old))
-        print(f"✅ DB Backup: {backup_path}")
+        result_path = await _asyncio.to_thread(_do_backup, db_path, backup_path, backup_dir)
+        print(f"✅ DB Backup: {result_path}")
     except Exception as e:
         print(f"⚠️ DB Backup failed (non-fatal): {e}")
 
@@ -884,6 +901,12 @@ async def init_db():
                     migrated = True
                     print(f"  → Added: files.{col_name} (v9.4.0 — Upload Queue)")
 
+            # v10.0.2 — HANDOFF Pattern G: structured warnings
+            if "extract_warnings" not in file_cols_v940:
+                await db.execute("ALTER TABLE files ADD COLUMN extract_warnings TEXT")
+                migrated = True
+                print("  → Added: files.extract_warnings (v10.0.2 — HANDOFF Pattern G)")
+
             # Indexes สำหรับ worker poll + /api/upload-status
             try:
                 await db.execute(
@@ -988,11 +1011,107 @@ async def init_db():
             except Exception as e:
                 print(f"  ⚠️ ADMIN_EMAILS bootstrap skipped: {e}")
 
+            # v10.0.0 — Performance indexes
+            # WHY: ~20 columns were missing indexes -> every user-scoped query did
+            # a full table scan. With ~500+ users and 10k+ rows, lists/queries grew
+            # noticeably slow. All CREATE INDEX IF NOT EXISTS = idempotent.
+            v10_indexes = [
+                # Users (subscription/plan filters in admin)
+                ("idx_users_plan",                   "users(plan)"),
+                ("idx_users_subscription_status",    "users(subscription_status)"),
+                # Files
+                ("idx_files_filetype",               "files(filetype)"),
+                # Clusters / packs (per-user lists)
+                ("idx_clusters_user_id",             "clusters(user_id)"),
+                ("idx_context_packs_user_id",        "context_packs(user_id)"),
+                # File-Cluster join (critical for organize/graph)
+                ("idx_file_cluster_map_file_id",     "file_cluster_map(file_id)"),
+                ("idx_file_cluster_map_cluster_id",  "file_cluster_map(cluster_id)"),
+                # Graph (heaviest hit -- every chat/graph traversal)
+                ("idx_graph_nodes_user_id",          "graph_nodes(user_id)"),
+                ("idx_graph_nodes_object",           "graph_nodes(user_id, object_type, object_id)"),
+                ("idx_graph_edges_user_id",          "graph_edges(user_id)"),
+                ("idx_graph_edges_source",           "graph_edges(source_node_id)"),
+                ("idx_graph_edges_target",           "graph_edges(target_node_id)"),
+                ("idx_graph_edges_type",             "graph_edges(edge_type)"),
+                # Suggestions
+                ("idx_suggested_relations_user",     "suggested_relations(user_id, status)"),
+                ("idx_suggested_relations_source",   "suggested_relations(source_node_id)"),
+                ("idx_suggested_relations_target",   "suggested_relations(target_node_id)"),
+                # Notes / canvas / lenses (per-user lists)
+                ("idx_note_objects_user_id",         "note_objects(user_id)"),
+                ("idx_graph_lenses_user_id",         "graph_lenses(user_id)"),
+                ("idx_canvas_objects_user_id",       "canvas_objects(user_id)"),
+                # MCP
+                ("idx_mcp_tokens_user_id",           "mcp_tokens(user_id)"),
+                ("idx_mcp_usage_logs_user",          "mcp_usage_logs(user_id, status)"),
+                # Quota counting (called on every upload!)
+                ("idx_usage_logs_user_action",       "usage_logs(user_id, action, created_at)"),
+                # Audit logs
+                ("idx_audit_logs_user",              "audit_logs(user_id)"),
+                ("idx_audit_logs_event",             "audit_logs(event_type)"),
+                ("idx_audit_logs_triggered",         "audit_logs(triggered_by)"),
+                # Webhook idempotency
+                ("idx_webhook_logs_event_type",      "webhook_logs(event_type, status)"),
+                # Context memories
+                ("idx_context_memories_user",        "context_memories(user_id)"),
+                # Chat history
+                ("idx_chat_queries_user_id",         "chat_queries(user_id)"),
+                # Job queue (worker claim ordering)
+                ("idx_job_queue_file_id",            "job_queue(file_id)"),
+            ]
+            indexes_added = 0
+            for name, definition in v10_indexes:
+                try:
+                    await db.execute(f"CREATE INDEX IF NOT EXISTS {name} ON {definition}")
+                    indexes_added += 1
+                except Exception as e:
+                    # Table may not exist (e.g., job_queue if feature off) -- non-fatal
+                    print(f"  ⚠️ v10 index {name} skipped: {e}")
+            if indexes_added:
+                migrated = True
+                print(f"  → v10.0.0: ensured {indexes_added} performance indexes")
+
             if migrated:
                 await db.commit()
                 print("✅ DB Migration: completed successfully")
             else:
                 print("✅ DB: Schema up to date — no migration needed")
+
+            # v10.0.0 -- WAL checkpoint at boot. Without this the WAL file
+            # grows unbounded between writes and gradually slows down readers
+            # (each read must walk the WAL to find the current row version).
+            # TRUNCATE shrinks the WAL back to zero after committing all
+            # pending pages to the main DB. Safe + fast (~10ms).
+            try:
+                cur = await db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                row = await cur.fetchone()
+                if row:
+                    busy, log_pages, checkpointed = row
+                    if log_pages or checkpointed:
+                        print(f"  → WAL checkpoint: {checkpointed}/{log_pages} pages flushed")
+            except Exception as e:
+                print(f"  ⚠️ WAL checkpoint skipped: {e}")
+
+            # v10.0.0 -- vacuum on bloat. SQLite default auto_vacuum=NONE means
+            # deleted rows leave free pages forever. Read after delete then walks
+            # those empty pages and slowly gets slower. We run an incremental
+            # vacuum at boot when waste > 10% of DB size (cheap; no-op normally).
+            try:
+                page_count_row = await (await db.execute("PRAGMA page_count")).fetchone()
+                freelist_row = await (await db.execute("PRAGMA freelist_count")).fetchone()
+                if page_count_row and freelist_row:
+                    page_count = page_count_row[0] or 1
+                    freelist = freelist_row[0] or 0
+                    waste_pct = (freelist / page_count) * 100
+                    if waste_pct > 10:
+                        # Use VACUUM (full rewrite) -- works whether auto_vacuum is set or not.
+                        # ~10-50ms per MB; runs once per restart at most.
+                        await db.execute("VACUUM")
+                        await db.commit()
+                        print(f"  → VACUUM: reclaimed {freelist} pages ({waste_pct:.1f}% waste)")
+            except Exception as e:
+                print(f"  ⚠️ VACUUM check skipped: {e}")
     except Exception as e:
         print(f"❌ DB Migration error: {e}")
 

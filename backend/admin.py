@@ -40,7 +40,7 @@ from .plan_limits import (
     get_file_count, get_storage_used_mb, get_pack_count,
     get_monthly_summary_count, get_monthly_export_count, get_monthly_refresh_count,
 )
-from .auth import hash_password
+from .auth import ahash_password
 
 logger = logging.getLogger(__name__)
 
@@ -61,16 +61,32 @@ async def get_admin_stats(db: AsyncSession) -> dict:
     # Total users
     total_users = (await db.execute(select(func.count(User.id)))).scalar() or 0
 
-    # By effective plan + active count (compute เพราะ effective plan ไม่ใช่แค่ user.plan)
-    all_users = (await db.execute(select(User))).scalars().all()
+    # v10.0.0 -- compute plan + active counts without loading every user row.
+    # Was: select(User) -> N users in memory. Now: targeted aggregates.
+    active_count = (await db.execute(
+        select(func.count(User.id)).where(User.is_active == True)  # noqa: E712
+    )).scalar() or 0
+
+    # _effective_plan() respects is_admin DB flag + ADMIN_EMAILS env override,
+    # both unrelated to subscription_status. So we still need a small scan to
+    # honor the ADMIN_EMAILS legacy fallback -- but only stream the columns we use.
+    admin_rows = (await db.execute(
+        select(User.id, User.email, User.is_admin, User.subscription_status, User.current_period_end)
+    )).all()
     by_plan = {"free": 0, "starter": 0, "admin": 0}
-    active_count = 0
-    for u in all_users:
-        if u.is_active:
-            active_count += 1
-        eff = _effective_plan(u)
+    for u in admin_rows:
+        # Build a minimal duck-typed object for _effective_plan
+        class _U:
+            pass
+        ux = _U()
+        ux.is_admin = u.is_admin
+        ux.email = u.email
+        ux.subscription_status = u.subscription_status
+        ux.current_period_end = u.current_period_end
+        eff = _effective_plan(ux)
         if eff in by_plan:
             by_plan[eff] += 1
+    all_users = admin_rows  # kept for the subscription block below
 
     # Signups (UTC) — today / this week (Mon start) / this month
     now = datetime.utcnow()
@@ -225,12 +241,20 @@ async def list_users(
     if plan_filter in {"free", "starter", "admin"}:
         users = [u for u in users if _effective_plan(u) == plan_filter]
 
-    # Build response (file_count ดึงเร็ว, storage_mb เว้นไว้ — ใน detail จะมี)
+    # v10.0.0: fixed N+1 -- was 1 file-count query per user; now single GROUP BY.
+    user_ids = [u.id for u in users]
+    file_counts: dict[str, int] = {}
+    if user_ids:
+        rows = await db.execute(
+            select(File.user_id, func.count(File.id))
+            .where(File.user_id.in_(user_ids))
+            .group_by(File.user_id)
+        )
+        for uid, cnt in rows.all():
+            file_counts[uid] = cnt
+
     result_list = []
     for u in users:
-        f_count = (await db.execute(
-            select(func.count(File.id)).where(File.user_id == u.id)
-        )).scalar() or 0
         result_list.append({
             "id": u.id,
             "email": u.email,
@@ -245,7 +269,7 @@ async def list_users(
             "stripe_subscription_id": u.stripe_subscription_id,
             "current_period_end": u.current_period_end.isoformat() + "Z" if u.current_period_end else None,
             "created_at": u.created_at.isoformat() + "Z" if u.created_at else None,
-            "file_count": f_count,
+            "file_count": file_counts.get(u.id, 0),
         })
 
     return {
@@ -269,21 +293,22 @@ async def get_user_detail(db: AsyncSession, user_id: str) -> dict:
     period_start = _month_start_for_user(user)
     limits = get_limits(user)
 
-    file_count = await get_file_count(db, user.id)
-    storage_mb = await get_storage_used_mb(db, user.id)
-    pack_count = await get_pack_count(db, user.id)
-    summaries = await get_monthly_summary_count(db, user.id, period_start)
-    exports = await get_monthly_export_count(db, user.id, period_start)
-    refreshes = await get_monthly_refresh_count(db, user.id, period_start)
-
-    # Stripe active = มี subscription_id + status ที่ Stripe ยัง charge ได้
-    # canceled (period ยังไม่หมด) = ยัง active เพราะยังไม่หมดสิทธิ์
-    stripe_active = bool(
-        user.stripe_subscription_id
-        and user.subscription_status in ("starter_active", "starter_past_due")
+    # v10.0.0: gather 6 independent COUNT queries in parallel (latency: sum -> max)
+    import asyncio as _asyncio
+    (file_count, storage_mb, pack_count,
+     summaries, exports, refreshes) = await _asyncio.gather(
+        get_file_count(db, user.id),
+        get_storage_used_mb(db, user.id),
+        get_pack_count(db, user.id),
+        get_monthly_summary_count(db, user.id, period_start),
+        get_monthly_export_count(db, user.id, period_start),
+        get_monthly_refresh_count(db, user.id, period_start),
     )
-    can_admin_downgrade = not stripe_active
-    block_reason = "STRIPE_ACTIVE_SUBSCRIPTION" if stripe_active else None
+
+    # v9.6.0 — Stripe ถูกลบ; admin downgrade ไม่ถูก block แล้ว
+    stripe_active = False
+    can_admin_downgrade = True
+    block_reason = None
 
     return {
         "user": {
@@ -376,30 +401,9 @@ async def change_user_plan(
             }},
         )
 
-    # Stripe collision guard — ห้าม downgrade user ที่มี active subscription
-    stripe_active = bool(
-        target.stripe_subscription_id
-        and target.subscription_status in ("starter_active", "starter_past_due")
-    )
-    target_eff = _effective_plan(target)
-    is_downgrade_to_free = (
-        target_eff in ("starter", "admin")  # demote starter หรือ admin
-        and new_plan == "free"
-    )
-    if stripe_active and is_downgrade_to_free:
-        raise HTTPException(
-            status_code=409,
-            detail={"error": {
-                "code": "STRIPE_ACTIVE_SUBSCRIPTION",
-                "message": (
-                    "ผู้ใช้นี้มี Stripe subscription กำลังใช้งาน — "
-                    "ให้ผู้ใช้ไปกดยกเลิกที่ Stripe Customer Portal ของตัวเองก่อน"
-                ),
-                "hint": "After cancellation, Stripe webhook will downgrade this user to free automatically.",
-            }},
-        )
-
-    old_plan_effective = target_eff
+    # v9.6.0 — Stripe collision guard removed (billing system ถูกลบ).
+    # Admin downgrade ทำได้อิสระ; ไม่มี active Stripe subscription ให้กังวลแล้ว.
+    old_plan_effective = _effective_plan(target)
 
     # Apply changes ตาม decision matrix
     if new_plan == "admin":
@@ -496,20 +500,10 @@ async def reset_user_password(
             detail={"error": {"code": "USER_NOT_FOUND", "message": "User not found"}},
         )
 
-    # Google-only user guard — user ที่สมัครผ่าน Google เท่านั้น (ไม่มี password ในระบบ)
-    if not target.password_hash and target.google_sub:
-        raise HTTPException(
-            status_code=409,
-            detail={"error": {
-                "code": "GOOGLE_ONLY_USER",
-                "message": (
-                    "ผู้ใช้นี้สมัครด้วย Google เท่านั้น — ไม่มีรหัสผ่านในระบบ "
-                    "ให้ผู้ใช้ login ผ่านปุ่ม Sign in with Google"
-                ),
-            }},
-        )
-
-    target.password_hash = hash_password(new_password)
+    # v9.5.0 — Google login removed. Admin reset password กับ Google-only user
+    # (password_hash IS NULL) ได้ตามปกติ — หลัง reset แล้ว user จะ login ด้วย
+    # email/password ปกติ ไม่ต้องผ่าน Google.
+    target.password_hash = await ahash_password(new_password)
     target.updated_at = datetime.utcnow()
     db.add(target)
 
@@ -630,6 +624,7 @@ async def set_user_admin(
         )).scalar() or 0
 
         # นับ env admin ที่มี user row + active + ไม่ใช่ตัว target
+        # v10.0.0: log on unexpected failure -- this affects last-admin guard.
         env_admins_active = 0
         try:
             from .config import ADMIN_EMAILS
@@ -642,8 +637,8 @@ async def set_user_admin(
                 )).scalar_one_or_none()
                 if u and u.id != target_user_id:
                     env_admins_active += 1
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("ADMIN_EMAILS count failed in last-admin guard: %s", e)
 
         if other_db_admins + env_admins_active == 0:
             raise HTTPException(

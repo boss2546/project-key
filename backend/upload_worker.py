@@ -38,6 +38,14 @@ logger = logging.getLogger(__name__)
 
 # ─── Tunable constants (env-overridable) ─────────────────────────────
 POLL_INTERVAL_SEC = float(os.getenv("UPLOAD_WORKER_POLL_SEC", "2.0"))
+# v10.0.3 — parallel worker concurrency. Default 4 parallel extracts so users
+# uploading multiple files (esp. LlamaParse PDFs that block on remote poll) see
+# them all running side-by-side instead of one-at-a-time queue head-of-line.
+# Each worker task independently claims jobs via atomic UPDATE rowcount=1 so
+# no double-claim risk.
+WORKER_CONCURRENCY = int(os.getenv("UPLOAD_WORKER_CONCURRENCY", "4"))
+# v10.0.0 -- transient errors (Gemini 503, network blips) re-queue up to N times
+MAX_AUTO_RETRIES = int(os.getenv("UPLOAD_WORKER_MAX_AUTO_RETRIES", "3"))
 STALE_EXTRACT_TIMEOUT_SEC = int(os.getenv("UPLOAD_STALE_TIMEOUT_SEC", "1800"))  # 30 min
 MAX_RETRY_ATTEMPTS = int(os.getenv("UPLOAD_MAX_RETRY", "3"))
 PROGRESS_DB_THROTTLE_SEC = 1.5  # อย่า update DB ถี่กว่านี้ — กัน lock
@@ -47,6 +55,7 @@ WORKER_DISABLED = os.getenv("UPLOAD_WORKER_DISABLED", "").lower() in ("1", "true
 
 # ─── Module state ─────────────────────────────────────────────────────
 _worker_task: Optional[asyncio.Task] = None
+_worker_tasks: list = []  # v10.0.3 — parallel worker pool
 _heartbeat_task: Optional[asyncio.Task] = None
 _shutdown_event: Optional[asyncio.Event] = None
 _worker_started_at: Optional[datetime] = None
@@ -144,19 +153,35 @@ async def start_worker() -> None:
     # v9.4.6 — capture main loop reference สำหรับ cross-thread progress callbacks
     global _main_loop
     _main_loop = asyncio.get_running_loop()
-    _worker_task = asyncio.create_task(_worker_loop(), name="upload_worker")
+    # v10.0.3 — spawn N parallel worker tasks instead of 1. Each task claims
+    # via atomic UPDATE rowcount=1 so no race on duplicate work. Tasks running
+    # LlamaParse (blocking REST poll inside thread) won't head-of-line other
+    # users' fast uploads anymore.
+    _worker_tasks.clear()
+    for i in range(WORKER_CONCURRENCY):
+        t = asyncio.create_task(_worker_loop(), name=f"upload_worker_{i}")
+        _worker_tasks.append(t)
+    # Backwards-compat alias — old callers reference _worker_task.
+    _worker_task = _worker_tasks[0] if _worker_tasks else None
     # v9.4.5 — separate heartbeat task. เดิม heartbeat write ใน _worker_loop เท่านั้น →
     # job class-3 (video ~90s) ทำให้ heartbeat ค้างเกิน HEARTBEAT_STALE_SEC=30s →
     # /healthz return 503 + frontend show "ระบบประมวลผลหยุด" banner ทั้งที่ worker ยัง busy.
     _heartbeat_task = asyncio.create_task(_heartbeat_loop(), name="upload_heartbeat")
-    logger.info("upload_worker.started")
+    logger.info(
+        "upload_worker.started",
+        extra={"event": "started", "concurrency": WORKER_CONCURRENCY},
+    )
 
 
 async def stop_worker() -> None:
     """เรียกตอน FastAPI shutdown. รอ task เสร็จ (max 5s) แล้วยอมแพ้."""
     if _shutdown_event:
         _shutdown_event.set()
-    for name, task in (("worker", _worker_task), ("heartbeat", _heartbeat_task)):
+    # v10.0.3 — stop all parallel worker tasks + heartbeat
+    tasks: list = [(f"worker_{i}", t) for i, t in enumerate(_worker_tasks)]
+    if _heartbeat_task:
+        tasks.append(("heartbeat", _heartbeat_task))
+    for name, task in tasks:
         if not task:
             continue
         try:
@@ -180,7 +205,7 @@ def get_worker_health() -> dict:
         status = "disabled"
     elif is_alive:
         status = "running"
-    elif _worker_task and _worker_task.done():
+    elif _worker_tasks and all(t.done() for t in _worker_tasks):
         status = "crashed"
     else:
         status = "stopped"
@@ -189,7 +214,8 @@ def get_worker_health() -> dict:
         "status": status,
         "uptime_sec": uptime,
         "last_heartbeat": last_hb.isoformat() + "Z" if last_hb else None,
-        "concurrency": 1,
+        "concurrency": WORKER_CONCURRENCY,
+        "active_workers": sum(1 for t in _worker_tasks if not t.done()),
         "avg_extract_sec_by_class": {str(k): v for k, v in _AVG_EXTRACT_SEC.items()},
     }
 
@@ -430,6 +456,18 @@ async def _process_job(job: dict) -> None:
         content_hash = compute_content_hash(text)
         ext_status = classify_extraction_status(text)
 
+        # v10.0.2 — HANDOFF Pattern G: collect non-fatal warnings emitted
+        # during local-extract path (size, fallback, empty sheet, etc.).
+        warnings_json: Optional[str] = None
+        try:
+            from .extraction import get_last_local_warnings
+            warns = get_last_local_warnings()
+            if warns:
+                import json as _json
+                warnings_json = _json.dumps(warns, ensure_ascii=False)
+        except Exception:
+            pass
+
         await _async_report("บันทึกผลลัพธ์", 95)
 
         # Final commit — success path
@@ -444,6 +482,7 @@ async def _process_job(job: dict) -> None:
                     progress_pct=100,
                     extract_completed_at=datetime.utcnow(),
                     extract_error=None,
+                    extract_warnings=warnings_json,
                 )
             )
             await db.commit()
@@ -469,6 +508,28 @@ async def _process_job(job: dict) -> None:
 
     except Exception as e:
         duration = time.monotonic() - started
+        # v10.0.0 -- auto-retry on transient errors before giving up.
+        # Without this, a single Gemini 503 or network blip permanently
+        # marks the file as error and forces the user to click retry.
+        code = format_user_error(e)
+        TRANSIENT_CODES = {
+            "GEMINI_UNAVAILABLE", "NETWORK", "TIMEOUT",
+            "FILE_NOT_ACTIVE", "CLIENT_ERROR",
+        }
+        attempts = (job.get("attempt_count") or 0) + 1
+        if code in TRANSIENT_CODES and attempts < MAX_AUTO_RETRIES:
+            logger.warning(
+                "upload_worker.transient_retry",
+                extra={
+                    "event": "transient_retry",
+                    "file_id": file_id,
+                    "code": code,
+                    "attempt": attempts,
+                    "max": MAX_AUTO_RETRIES,
+                },
+            )
+            await _requeue_for_retry(file_id, attempts)
+            return
         logger.error(
             "upload_worker.extract_failed",
             extra={
@@ -477,7 +538,8 @@ async def _process_job(job: dict) -> None:
                 "duration_sec": round(duration, 2),
                 "error_class": type(e).__name__,
                 "error_message": str(e)[:200],
-                "attempt_count": job["attempt_count"],
+                "error_code": code,
+                "attempt_count": attempts,
             },
             exc_info=True,
         )
@@ -502,6 +564,32 @@ async def _write_progress(file_id: str, step: str, pct: Optional[int]) -> None:
         # Non-fatal — progress write fail = ไม่ update tray แต่ extract ยังเดินต่อ
         logger.warning(
             "upload_worker.progress_write_failed",
+            extra={"file_id": file_id, "error": str(e)[:100]},
+        )
+
+
+async def _requeue_for_retry(file_id: str, attempts: int) -> None:
+    """v10.0.0 -- put a failed job back into the queue for one more try.
+
+    Used when ``format_user_error`` returns a transient code (Gemini 503,
+    network blip, timeout). The retry attempt is bumped on the row so we
+    eventually give up after ``MAX_AUTO_RETRIES``.
+    """
+    try:
+        async with AsyncSessionLocal() as db:
+            await db.execute(
+                update(File).where(File.id == file_id).values(
+                    processing_status="queued",
+                    attempt_count=attempts,
+                    extract_started_at=None,
+                    progress_step=f"retry {attempts}/{MAX_AUTO_RETRIES}",
+                    progress_pct=None,
+                )
+            )
+            await db.commit()
+    except Exception as e:
+        logger.error(
+            "upload_worker.requeue_failed",
             extra={"file_id": file_id, "error": str(e)[:100]},
         )
 
@@ -608,6 +696,14 @@ async def _recover_stale_jobs() -> None:
     v9.4.5: ที่ startup ไม่มี worker ตัวอื่นแล้ว → ทุก 'extracting' = orphan ของ
     process เก่า → reset ทั้งหมด ไม่เช็คเวลา. Periodic stale sweep (ระหว่างรัน)
     ยังไม่มี — หากต้องการ implement แยก โดยใช้ STALE_EXTRACT_TIMEOUT_SEC.
+
+    v10.0.0 -- also cleans "phantom queued" rows: queued rows whose raw_path
+    is missing on disk.  Such rows can never succeed (worker raises
+    FileNotFoundError forever), so we mark them as ``error`` with code
+    FILE_MISSING up front.  This is the proactive safety net for the
+    upload race fix in main.upload_files -- if a future regression
+    re-introduces the race, the orphans get a clear error code at next
+    startup instead of "queued forever".
     """
     try:
         async with AsyncSessionLocal() as db:
@@ -631,6 +727,59 @@ async def _recover_stale_jobs() -> None:
                         "scope": "all_extracting_at_startup",
                     },
                 )
+
+            # v10.0.4 -- recover stale 'processing' status set by organize-new.
+            # When organize-new crashes mid-pipeline (e.g., LLM timeout or DB
+            # constraint), files get stuck at status='processing'. They're not
+            # in the worker queue but also not browsable. Reset to 'uploaded'
+            # so they show up normally + organize-new can retry.
+            stale_processing = await db.execute(
+                update(File)
+                .where(
+                    File.processing_status == "processing",
+                    File.extracted_text != "",
+                )
+                .values(processing_status="uploaded")
+            )
+            await db.commit()
+            if stale_processing.rowcount:
+                logger.warning(
+                    "upload_worker.recovered_stale_processing",
+                    extra={
+                        "event": "recovered_stale_processing",
+                        "count": stale_processing.rowcount,
+                        "scope": "organize_new_orphans",
+                    },
+                )
+
+            # v10.0.0 -- phantom queued cleanup
+            phantom_rows = (await db.execute(
+                select(File.id, File.raw_path).where(File.processing_status == "queued")
+            )).all()
+            phantoms = [fid for fid, path in phantom_rows
+                        if not path or not os.path.exists(path)]
+            if phantoms:
+                await db.execute(
+                    update(File)
+                    .where(File.id.in_(phantoms))
+                    .values(
+                        processing_status="error",
+                        extraction_status="ocr_failed",
+                        extract_error="FILE_MISSING",
+                        extract_completed_at=datetime.utcnow(),
+                        progress_step=None,
+                        progress_pct=None,
+                    )
+                )
+                await db.commit()
+                logger.warning(
+                    "upload_worker.phantom_queued_cleanup",
+                    extra={
+                        "event": "phantom_queued_cleanup",
+                        "count": len(phantoms),
+                        "scope": "queued_with_missing_raw_path",
+                    },
+                )
     except Exception as e:
         logger.error(
             "upload_worker.recovery_error",
@@ -642,22 +791,37 @@ async def _push_to_drive_if_byos(file_id: str) -> None:
     """Drive push หลัง extract เสร็จ — best-effort (Drive = mirror, DB = truth).
 
     เฉพาะ BYOS user (storage_mode='byos'). non-BYOS = no-op.
+
+    v10.0.0: check user.storage_mode FIRST -- previously we read the whole
+    raw file into memory before checking BYOS, wasting 200MB of I/O for
+    every non-BYOS upload.
     """
     try:
         async with AsyncSessionLocal() as db:
+            # Lazy import to keep startup light + avoid circulars
+            from .storage_router import (
+                _get_byos_user_with_connection,
+                push_extracted_text_to_drive_if_byos,
+                push_raw_file_to_drive_if_byos,
+            )
+
+            # 1) cheap DB lookup of File row
             row = await db.execute(select(File).where(File.id == file_id))
             f = row.scalar_one_or_none()
             if not f or not f.raw_path or not os.path.exists(f.raw_path):
                 return
 
-            # Read raw bytes + guess mime (lazy import เพื่อกัน circular)
-            from .storage_router import (
-                push_extracted_text_to_drive_if_byos,
-                push_raw_file_to_drive_if_byos,
-            )
+            # 2) cheap BYOS check BEFORE expensive file read.
+            #    Non-BYOS users (default) bail here -- no disk I/O wasted.
+            pair = await _get_byos_user_with_connection(f.user_id, db)
+            if not pair:
+                return
 
-            with open(f.raw_path, "rb") as fp:
-                contents = fp.read()
+            # 3) BYOS user: read file + push to Drive
+            def _read_file_bytes(path: str) -> bytes:
+                with open(path, "rb") as fp:
+                    return fp.read()
+            contents = await asyncio.to_thread(_read_file_bytes, f.raw_path)
             mime = _guess_mime_for_drive(f.filetype)
 
             drive_id = await push_raw_file_to_drive_if_byos(

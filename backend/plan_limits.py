@@ -409,17 +409,25 @@ def check_semantic_search_allowed(user) -> dict | None:
 # ═══════════════════════════════════════════
 
 async def get_usage_summary(db: AsyncSession, user) -> dict:
-    """Return full usage summary for dashboard display."""
+    """Return full usage summary for dashboard display.
+
+    v10.0.0: 6 independent count queries now run via asyncio.gather() instead
+    of one-by-one. Latency goes from sum(individual) to max(individual).
+    """
+    import asyncio
     limits = get_limits(user)
     plan = _effective_plan(user)
     period_start = _month_start_for_user(user)
 
-    files_count = await get_file_count(db, user.id)
-    storage_mb = await get_storage_used_mb(db, user.id)
-    packs_count = await get_pack_count(db, user.id)
-    summaries_used = await get_monthly_summary_count(db, user.id, period_start)
-    exports_used = await get_monthly_export_count(db, user.id, period_start)
-    refreshes_used = await get_monthly_refresh_count(db, user.id, period_start)
+    (files_count, storage_mb, packs_count,
+     summaries_used, exports_used, refreshes_used) = await asyncio.gather(
+        get_file_count(db, user.id),
+        get_storage_used_mb(db, user.id),
+        get_pack_count(db, user.id),
+        get_monthly_summary_count(db, user.id, period_start),
+        get_monthly_export_count(db, user.id, period_start),
+        get_monthly_refresh_count(db, user.id, period_start),
+    )
 
     return {
         "plan": plan,

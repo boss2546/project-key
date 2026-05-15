@@ -204,11 +204,12 @@ class LineBotAdapter(BotAdapter):
                 log.warning("LINE push failed: %s %s", resp.status_code, resp.text[:200])
                 return
             # Phase H — track quota usage (best effort)
+            # v10.0.0: log so silent quota tracking failures are still visible.
             try:
                 from . import line_quota
                 line_quota.record_push()
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("line_quota.record_push failed (non-fatal): %s", e)
 
     async def reply_message(
         self, reply_token: str, message: BotMessage, *, fallback_user_id: Optional[str] = None

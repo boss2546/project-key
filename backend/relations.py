@@ -10,16 +10,26 @@ logger = logging.getLogger(__name__)
 
 
 async def get_backlinks(db: AsyncSession, node_id: str):
-    """Get all nodes that link TO this node (incoming edges)."""
+    """Get all nodes that link TO this node (incoming edges).
+
+    v10.0.0: fixed N+1 -- was 1 query per edge for the source node;
+    now a single bulk IN-query then in-memory join.
+    """
     edges = (await db.execute(
         select(GraphEdge).where(GraphEdge.target_node_id == node_id)
     )).scalars().all()
+    if not edges:
+        return []
+
+    source_ids = {e.source_node_id for e in edges}
+    source_rows = (await db.execute(
+        select(GraphNode).where(GraphNode.id.in_(source_ids))
+    )).scalars().all()
+    source_by_id = {n.id: n for n in source_rows}
 
     results = []
     for e in edges:
-        source = (await db.execute(
-            select(GraphNode).where(GraphNode.id == e.source_node_id)
-        )).scalar_one_or_none()
+        source = source_by_id.get(e.source_node_id)
         if source:
             results.append({
                 "edge_id": e.id,
@@ -36,16 +46,25 @@ async def get_backlinks(db: AsyncSession, node_id: str):
 
 
 async def get_outgoing(db: AsyncSession, node_id: str):
-    """Get all nodes that this node links TO (outgoing edges)."""
+    """Get all nodes that this node links TO (outgoing edges).
+
+    v10.0.0: fixed N+1 (same pattern as get_backlinks).
+    """
     edges = (await db.execute(
         select(GraphEdge).where(GraphEdge.source_node_id == node_id)
     )).scalars().all()
+    if not edges:
+        return []
+
+    target_ids = {e.target_node_id for e in edges}
+    target_rows = (await db.execute(
+        select(GraphNode).where(GraphNode.id.in_(target_ids))
+    )).scalars().all()
+    target_by_id = {n.id: n for n in target_rows}
 
     results = []
     for e in edges:
-        target = (await db.execute(
-            select(GraphNode).where(GraphNode.id == e.target_node_id)
-        )).scalar_one_or_none()
+        target = target_by_id.get(e.target_node_id)
         if target:
             results.append({
                 "edge_id": e.id,
@@ -62,23 +81,33 @@ async def get_outgoing(db: AsyncSession, node_id: str):
 
 
 async def get_suggestions(db: AsyncSession, user_id: str, status: str = "pending"):
-    """Get suggested relations awaiting user action."""
+    """Get suggested relations awaiting user action.
+
+    v10.0.0: fixed 2N+1 -- was 2 queries per suggestion (source + target node);
+    now a single IN-query covering both ids.
+    """
     suggestions = (await db.execute(
         select(SuggestedRelation).where(
             SuggestedRelation.user_id == user_id,
             SuggestedRelation.status == status
         )
     )).scalars().all()
+    if not suggestions:
+        return []
+
+    node_ids = set()
+    for s in suggestions:
+        node_ids.add(s.source_node_id)
+        node_ids.add(s.target_node_id)
+    nodes = (await db.execute(
+        select(GraphNode).where(GraphNode.id.in_(node_ids))
+    )).scalars().all()
+    by_id = {n.id: n for n in nodes}
 
     results = []
     for s in suggestions:
-        source = (await db.execute(
-            select(GraphNode).where(GraphNode.id == s.source_node_id)
-        )).scalar_one_or_none()
-        target = (await db.execute(
-            select(GraphNode).where(GraphNode.id == s.target_node_id)
-        )).scalar_one_or_none()
-
+        source = by_id.get(s.source_node_id)
+        target = by_id.get(s.target_node_id)
         if source and target:
             results.append({
                 "id": s.id,
@@ -189,19 +218,20 @@ async def generate_suggestions(db: AsyncSession, user_id: str):
                 db.add(suggestion)
 
     # Heuristic 2: Files sharing many tags might be semantically_related
+    # v10.0.0: fixed N+1 -- previous code ran one SELECT per file_node.
+    # Now single bulk query then group in Python.
     file_nodes = [n for n in nodes if n.object_type == "source_file"]
-    tag_map = {}  # node_id → set of connected tag_ids
-    for fn in file_nodes:
-        tags = set()
-        fn_edges = (await db.execute(
+    file_node_ids = [fn.id for fn in file_nodes]
+    tag_map = {fn.id: set() for fn in file_nodes}
+    if file_node_ids:
+        all_has_tag_edges = (await db.execute(
             select(GraphEdge).where(
-                GraphEdge.source_node_id == fn.id,
+                GraphEdge.source_node_id.in_(file_node_ids),
                 GraphEdge.edge_type == "has_tag"
             )
         )).scalars().all()
-        for e in fn_edges:
-            tags.add(e.target_node_id)
-        tag_map[fn.id] = tags
+        for e in all_has_tag_edges:
+            tag_map.setdefault(e.source_node_id, set()).add(e.target_node_id)
 
     for i, fn1 in enumerate(file_nodes):
         for fn2 in file_nodes[i + 1:]:

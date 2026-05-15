@@ -83,8 +83,15 @@ def _compute_tf(tokens: list[str]) -> dict:
     return {t: c / total for t, c in counts.items()} if total > 0 else {}
 
 
-def index_file(file_id: str, filename: str, text: str, cluster_title: str = "", user_id: str = ""):
-    """Index a file's text for search (per-user isolated)."""
+def index_file(file_id: str, filename: str, text: str, cluster_title: str = "",
+               user_id: str = "", skip_idf_rebuild: bool = False):
+    """Index a file's text for search (per-user isolated).
+
+    v10.0.0: ``skip_idf_rebuild=True`` lets bulk indexers (startup, batch
+    reindex) skip the per-call IDF rebuild and call ``_rebuild_idf(user_id)``
+    once at the end. Without this, indexing N files is O(N^2) because IDF
+    walks every chunk on every call.
+    """
     if not user_id:
         user_id = "__global__"  # fallback for legacy
 
@@ -113,9 +120,22 @@ def index_file(file_id: str, filename: str, text: str, cluster_title: str = "", 
     _user_indexes[user_id][file_id] = chunk_data
     _user_doc_counts[user_id] = sum(len(c) for c in _user_indexes[user_id].values())
 
-    # Rebuild IDF for this user
-    _rebuild_idf(user_id)
+    # Rebuild IDF for this user (skip when caller is bulk-indexing -- they
+    # finalize once at the end via finalize_bulk_index)
+    if not skip_idf_rebuild:
+        _rebuild_idf(user_id)
     logger.info(f"Indexed {len(chunks)} chunks for {filename} (user={user_id[:8]}..)")
+
+
+def finalize_bulk_index(user_id: str = "") -> None:
+    """Call once after a batch of index_file(..., skip_idf_rebuild=True) calls.
+
+    v10.0.0: replaces N redundant rebuilds with 1 final rebuild.
+    """
+    if not user_id:
+        user_id = "__global__"
+    if user_id in _user_indexes:
+        _rebuild_idf(user_id)
 
 
 def _rebuild_idf(user_id: str):

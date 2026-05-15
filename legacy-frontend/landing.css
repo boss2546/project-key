@@ -715,6 +715,47 @@
   text-align: center;
 }
 
+/* v10.0.0 — Password show/hide toggle (UX-03 fix)
+   Wraps <input type="password"> + <button class="pwd-toggle"> · ปุ่มลอยขวาของ input */
+.pwd-wrap {
+  position: relative;
+  display: block;
+}
+.pwd-wrap .form-input {
+  padding-right: 42px;
+  width: 100%;
+}
+.pwd-toggle {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted, #94a3b8);
+  padding: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.pwd-toggle:hover {
+  color: var(--text-primary, #f1f5f9);
+  background: rgba(255, 255, 255, 0.05);
+}
+.pwd-toggle:focus-visible {
+  outline: 2px solid var(--accent, #6366f1);
+  outline-offset: 1px;
+}
+/* default: แสดง icon "show" (ตา) · ซ่อน icon "hide" (ตาขีดทับ) */
+.pwd-toggle .pwd-icon-hide { display: none; }
+.pwd-toggle .pwd-icon-show { display: inline-block; }
+/* เมื่อ password ถูก reveal → สลับ icon */
+.pwd-toggle.is-visible .pwd-icon-show { display: none; }
+.pwd-toggle.is-visible .pwd-icon-hide { display: inline-block; }
+
 /* ─── Landing responsive ─── */
 @media (max-width: 768px) {
   .hero-title { font-size: 36px; }
@@ -736,4 +777,49 @@
   .hero-subtitle { font-size: 14px; }
   .landing-features { grid-template-columns: 1fr; }
   .steps-grid { grid-template-columns: 1fr; }
+}
+
+/* v10.0.0 — BUG-EDGE-03 · Mobile header (< 600px)
+   เดิมปุ่ม "เข้าสู่ระบบ" + "เริ่มต้นฟรี" ไปเบียด logo · Layout พังบนจอ 375px */
+@media (max-width: 600px) {
+  .landing-header {
+    padding: 10px 14px;
+    gap: 8px;
+  }
+  .landing-logo {
+    font-size: 13px;
+    gap: 6px;
+    min-width: 0;
+    flex-shrink: 1;
+    overflow: hidden;
+  }
+  .landing-logo span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .landing-logo svg {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+  }
+  .landing-nav {
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .landing-nav .btn {
+    padding: 8px 12px;
+    font-size: 12.5px;
+  }
+}
+
+/* < 420px · ซ่อน text "Personal Data Bank" ใน logo · เก็บ icon อย่างเดียว */
+@media (max-width: 420px) {
+  .landing-logo span {
+    display: none;
+  }
+  .landing-nav .btn {
+    padding: 7px 10px;
+    font-size: 12px;
+  }
 }

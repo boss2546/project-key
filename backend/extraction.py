@@ -1,11 +1,18 @@
 """
-Text extraction — v5.2.
+Text extraction — v10.0.0.
 
 Pipeline:
 1. Docling (IBM) for structured document understanding (if available)
 2. PyPDF2 basic text extraction for PDF
 3. pytesseract OCR fallback for image-only PDFs (if available)
 4. Thai text post-processing to fix spacing issues
+5. v10.0.0 — LlamaParse for PDF (opt-in via USE_LLAMAPARSE_FOR_PDF env)
+
+Safety (v10.0.0):
+  - PARSE_LOCK (threading.Lock) wraps python-docx + python-pptx calls
+    to serialize lxml's module-level oxml_parser. Without this,
+    concurrent worker jobs intermittently raise XMLSyntaxError
+    (HANDOFF Lesson 2).
 
 Reference: https://github.com/DS4SD/docling
 """
@@ -13,7 +20,17 @@ import os
 import re
 import logging
 
+from .processors.safety import PARSE_LOCK
+
 logger = logging.getLogger(__name__)
+
+
+# v10.0.0 -- pre-compile regex used inside _postprocess_thai. Previously
+# re.compile() ran once per call, recompiling the pattern on every PDF/image
+# extraction. Module-level compile cuts the per-call overhead to ~zero.
+_THAI_COMBINING_RE = re.compile(r'(\S) ([ัิ-ฺ็-๎])')
+_SPACED_LATIN_RE = re.compile(r'(?:[A-Za-z0-9] ){3,}[A-Za-z0-9]')
+_MULTI_SPACE_RE = re.compile(r'[^\S\n]{2,}')
 
 
 # v9.3.3 — Strip lone surrogate code points before passing text to DB / hash / LLM.
@@ -99,18 +116,43 @@ def extract_text(filepath: str, filetype: str, progress_callback=None) -> str:
 def _extract_text_raw(filepath: str, filetype: str, progress_callback=None) -> str:
     """Internal extraction without surrogate sanitization. See extract_text()."""
     try:
-        if filetype in ("pdf", "docx") and _HAS_DOCLING:
+        # v10.0.0 — LlamaParse for PDF (opt-in, falls back to Docling/pypdf/OCR)
+        if filetype == "pdf":
+            llama_text = _try_llamaparse_pdf(filepath, progress_callback)
+            if llama_text:
+                return _postprocess_thai(llama_text)
+            # else: fall through to Docling/pypdf/OCR chain below
+
+        # v10.0.2 — HANDOFF Decision 4: DOCX/PPTX/XLSX → local extract FIRST
+        # (skip Docling — local is 5-6x faster + better Thai accuracy).
+        # Falls back to LlamaParse for DOCX if local fails.
+        if filetype in ("docx", "pptx", "xlsx"):
+            local_text = _try_local_office(filepath, filetype, progress_callback)
+            if local_text and not local_text.startswith("["):
+                return local_text
+            # Local failed or skipped → for docx try LlamaParse as fallback
+            if filetype == "docx" and _try_llamaparse_pdf is not None:
+                try:
+                    from .config import is_llamaparse_configured
+                    if is_llamaparse_configured():
+                        _safe_progress(progress_callback, "LlamaParse DOCX (fallback)", 50)
+                        from .processors.llamaparse import parse_pdf
+                        llama_text = parse_pdf(filepath, language="th")
+                        if llama_text:
+                            return _postprocess_thai(llama_text)
+                except Exception as e:
+                    logger.warning("LlamaParse DOCX fallback failed for %s: %s", filepath, e)
+            # Final: return local result (marker or partial)
+            return local_text or "[No text content found]"
+
+        if filetype == "pdf" and _HAS_DOCLING:
             text = _extract_with_docling(filepath)
             if text and not text.startswith("["):
-                return _postprocess_thai(text) if filetype == "pdf" else text
+                return _postprocess_thai(text)
             # Docling returned nothing, try fallback
-            if filetype == "pdf":
-                return _extract_pdf_with_fallbacks(filepath, progress_callback)
-            return text
+            return _extract_pdf_with_fallbacks(filepath, progress_callback)
         elif filetype == "pdf":
             return _extract_pdf_with_fallbacks(filepath, progress_callback)
-        elif filetype == "docx":
-            return _extract_docx_basic(filepath)
         elif filetype in ("txt", "md", "csv",
                           # v9.0.0 — code files (text-based, encoding fallback ใช้ได้เลย)
                           "py", "js", "ts", "jsx", "tsx",          # Python / JS / TS
@@ -161,6 +203,102 @@ def _extract_text_raw(filepath: str, filetype: str, progress_callback=None) -> s
         except Exception:
             pass
         return f"[Extraction error: {str(e)}]"
+
+
+def _try_local_office(filepath: str, filetype: str, progress_callback=None) -> str:
+    """v10.0.2 — HANDOFF Decision 4: DOCX/PPTX/XLSX → local extract first.
+
+    Returns extracted markdown text, or empty string if local is skipped
+    (feature flag off or file too large) so caller can fall back. Returns
+    a "[bracket-marker]" string if local was tried but produced no usable
+    text — caller can decide whether to fallback further.
+
+    Warnings list is logged + stored on a thread-local for caller to read
+    (see _last_local_warnings).
+    """
+    try:
+        from .processors.local import (
+            should_use_local,
+            read_docx_as_markdown,
+            read_pptx_as_markdown,
+            read_xlsx_as_markdown,
+        )
+    except ImportError:
+        return ""
+
+    try:
+        size_bytes = os.path.getsize(filepath)
+    except OSError:
+        size_bytes = 0
+
+    if not should_use_local(filetype, size_bytes):
+        logger.info("Local extract skipped for %s (flag off or size > LOCAL_EXTRACT_MAX_MB)", filetype)
+        return ""
+
+    logger.info("Local extract START for %s: %s (%.2f MB)", filetype, os.path.basename(filepath), size_bytes / (1024 * 1024))
+    _safe_progress(progress_callback, f"อ่าน {filetype.upper()} (local)", 35)
+    if filetype == "docx":
+        text, warnings = read_docx_as_markdown(filepath)
+    elif filetype == "pptx":
+        text, warnings = read_pptx_as_markdown(filepath)
+    elif filetype == "xlsx":
+        text, warnings = read_xlsx_as_markdown(filepath)
+    else:
+        return ""
+
+    if warnings:
+        logger.info("local %s warnings for %s: %s", filetype, os.path.basename(filepath), warnings)
+        _LAST_LOCAL_WARNINGS.warnings = warnings  # noqa — thread-local stash
+    if text and not text.startswith("["):
+        logger.info("local %s: %d chars from %s", filetype, len(text), os.path.basename(filepath))
+    return text
+
+
+# Thread-local stash for warnings collected during the most recent local
+# extract — read by upload_worker after extract_text returns. Avoids changing
+# the public extract_text() signature (Pattern G partial implementation).
+import threading as _threading
+_LAST_LOCAL_WARNINGS = _threading.local()
+
+
+def get_last_local_warnings() -> list:
+    """Return + clear the warnings collected during the most recent extract_text() call."""
+    w = getattr(_LAST_LOCAL_WARNINGS, "warnings", None) or []
+    _LAST_LOCAL_WARNINGS.warnings = []
+    return list(w)
+
+
+def _try_llamaparse_pdf(filepath: str, progress_callback=None) -> str:
+    """v10.0.0 -- attempt LlamaParse for PDF. Empty string -> caller should fallback.
+
+    Behavior:
+      * Returns extracted markdown text on success.
+      * Returns "" (empty) if LlamaParse is not configured / not installed /
+        raised an error -- caller falls back to Docling/pypdf/OCR.
+      * Never raises -- failure is logged + caller continues.
+    """
+    try:
+        from .config import is_llamaparse_configured
+    except ImportError:
+        return ""
+    if not is_llamaparse_configured():
+        return ""
+
+    _safe_progress(progress_callback, "LlamaParse PDF", 25)
+    try:
+        from .processors.llamaparse import parse_pdf
+        # v10.0.3 — forward progress_callback so poll loop reports "LlamaParse กำลังประมวลผล (Ns)"
+        def _proxy(step: str, pct=None):
+            _safe_progress(progress_callback, step, pct)
+        text = parse_pdf(filepath, language="th", progress_callback=_proxy)
+        if text and text.strip():
+            logger.info("LlamaParse: %d chars from %s", len(text), os.path.basename(filepath))
+            return text
+        logger.warning("LlamaParse returned empty for %s -- will fallback", os.path.basename(filepath))
+        return ""
+    except Exception as e:
+        logger.warning("LlamaParse failed for %s: %s -- will fallback", os.path.basename(filepath), e)
+        return ""
 
 
 def _safe_progress(progress_callback, step: str, pct=None) -> None:
@@ -244,6 +382,22 @@ def _extract_pdf_with_fallbacks(filepath: str, progress_callback=None) -> str:
         ocr_text = _extract_pdf_ocr(filepath, progress_callback)
         if ocr_text and not ocr_text.startswith("["):
             return _postprocess_thai(ocr_text)
+
+    # Step 3: v10.0.1 — Gemini PDF fallback (handles image-only PDFs even
+    # when Tesseract is unavailable; supports up to 1000 pages / 20MB inline).
+    try:
+        from .ai_ingest import is_available as _ai_available, extract_pdf_via_gemini_sync
+        if _ai_available():
+            logger.info(f"OCR unavailable / failed — trying Gemini PDF for {os.path.basename(filepath)}")
+            _safe_progress(progress_callback, "ส่ง Gemini อ่าน PDF", 70)
+            gem_text = extract_pdf_via_gemini_sync(filepath)
+            if gem_text and not gem_text.startswith("["):
+                return _postprocess_thai(gem_text)
+            # If Gemini returned a marker, surface it (more informative than generic)
+            if gem_text:
+                return gem_text
+    except Exception as e:
+        logger.warning("Gemini PDF fallback errored for %s: %s", filepath, e)
 
     return "[No text content found in PDF — file may be image-only and OCR is not available]"
 
@@ -367,8 +521,17 @@ def _extract_pdf_ocr(filepath: str, progress_callback=None) -> str:
 
 
 def _extract_docx_basic(filepath: str) -> str:
-    """Fallback DOCX extraction using python-docx."""
+    """Fallback DOCX extraction using python-docx.
+
+    v10.0.0: serialized via PARSE_LOCK -- python-docx uses lxml's
+    module-level oxml_parser which is NOT thread-safe (HANDOFF Lesson 2).
+    """
     from docx import Document
+    with PARSE_LOCK:
+        return _extract_docx_basic_unlocked(filepath, Document)
+
+
+def _extract_docx_basic_unlocked(filepath: str, Document) -> str:
     doc = Document(filepath)
     paragraphs = []
     for para in doc.paragraphs:
@@ -484,17 +647,16 @@ def _postprocess_thai(text: str) -> str:
     if not text:
         return text
     # Basic: just remove spaces before Thai combining characters
-    combining = re.compile(r'(\S) ([\u0E31\u0E34-\u0E3A\u0E47-\u0E4E])')
     prev = None
     result = text
     while prev != result:
         prev = result
-        result = combining.sub(r'\1\2', result)
+        result = _THAI_COMBINING_RE.sub(r'\1\2', result)
     # Collapse spaced Latin
     def fix_latin(m):
         return m.group(0).replace(' ', '')
-    result = re.compile(r'(?:[A-Za-z0-9] ){3,}[A-Za-z0-9]').sub(fix_latin, result)
-    result = re.sub(r'[^\S\n]{2,}', ' ', result)
+    result = _SPACED_LATIN_RE.sub(fix_latin, result)
+    result = _MULTI_SPACE_RE.sub(' ', result)
     return result
 
 
@@ -536,14 +698,17 @@ def _extract_xlsx(filepath: str) -> str:
 def _extract_pptx(filepath: str) -> str:
     """Extract text + speaker notes from pptx (PowerPoint).
 
-    Each slide → "## Slide N: <title>" section with body bullets + notes.
+    Each slide -> "## Slide N: <title>" section with body bullets + notes.
+
+    v10.0.0: serialized via PARSE_LOCK (python-pptx uses lxml).
     """
     try:
         from pptx import Presentation
     except ImportError:
         return "[pptx extractor unavailable: install python-pptx]"
     try:
-        prs = Presentation(filepath)
+        with PARSE_LOCK:
+            prs = Presentation(filepath)
         sections = []
         for i, slide in enumerate(prs.slides, start=1):
             # Title

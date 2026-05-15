@@ -34,43 +34,43 @@ MAX_CONTEXT_CHARS = 12000
 
 
 async def chat_with_retrieval(db: AsyncSession, user_id: str, question: str) -> dict:
-    """Process a user question with automatic context injection from all layers."""
+    """Process a user question with automatic context injection from all layers.
 
-    # ═══ LAYER 1: Load User Profile ═══
-    profile_data = await get_profile(db, user_id)
+    v10.0.0:
+      - Layers 1-4 fetch in parallel via asyncio.gather (was 4 sequential awaits)
+      - Layer 4 (files) has a 2000 LIMIT (was unbounded -- users with 10k+
+        ready files used to load everything into memory only to show the LLM
+        a small selection)
+    """
+    import asyncio as _asyncio
+
+    # ═══ LAYERS 1-4 fetched in parallel ═══
+    profile_data, packs_rows, clusters_rows, files_rows = await _asyncio.gather(
+        get_profile(db, user_id),
+        db.execute(select(ContextPack).where(ContextPack.user_id == user_id)),
+        db.execute(select(Cluster).where(Cluster.user_id == user_id)),
+        db.execute(
+            select(File).where(
+                File.user_id == user_id,
+                File.processing_status == "ready"
+            ).options(
+                selectinload(File.insight),
+                selectinload(File.summary),
+                selectinload(File.cluster_maps)
+            ).limit(2000)  # v10.0.0: hard cap -- LLM inventory never uses > ~50
+        ),
+    )
     profile_text = get_profile_context_text(profile_data)
     profile_used = is_profile_complete(profile_data)
-
-    # ═══ LAYER 2: Get all context packs ═══
-    packs_result = await db.execute(
-        select(ContextPack).where(ContextPack.user_id == user_id)
-    )
-    all_packs = packs_result.scalars().all()
+    all_packs = packs_rows.scalars().all()
     packs_data = [{
         "id": p.id,
         "type": p.type,
         "title": p.title,
         "summary_text": p.summary_text or ""
     } for p in all_packs]
-
-    # ═══ LAYER 3: Get all clusters ═══
-    clusters_result = await db.execute(
-        select(Cluster).where(Cluster.user_id == user_id)
-    )
-    clusters = clusters_result.scalars().all()
-
-    # ═══ LAYER 4: Get all ready files ═══
-    files_result = await db.execute(
-        select(File).where(
-            File.user_id == user_id,
-            File.processing_status == "ready"
-        ).options(
-            selectinload(File.insight),
-            selectinload(File.summary),
-            selectinload(File.cluster_maps)
-        )
-    )
-    files = files_result.scalars().all()
+    clusters = clusters_rows.scalars().all()
+    files = files_rows.scalars().all()
 
     if not files and not packs_data and not profile_used:
         return {
@@ -170,33 +170,56 @@ async def chat_with_retrieval(db: AsyncSession, user_id: str, question: str) -> 
     graph_context = ""
 
     # Find relevant graph nodes for files used
+    # v10.0.0: fixed (3*N + 5)+1 -- was 3 queries per file plus 1 per edge.
+    # Now: 1 query for all file_nodes, 1 for all edges, 1 for all other-node labels.
     file_ids_used = [f["id"] for f in files_used]
     if file_ids_used:
-        for fid in file_ids_used:
-            # Find the graph node for this file
-            file_node = (await db.execute(
-                select(GraphNode).where(
-                    GraphNode.user_id == user_id,
-                    GraphNode.object_type == "source_file",
-                    GraphNode.object_id == fid
-                )
-            )).scalar_one_or_none()
+        file_nodes = (await db.execute(
+            select(GraphNode).where(
+                GraphNode.user_id == user_id,
+                GraphNode.object_type == "source_file",
+                GraphNode.object_id.in_(file_ids_used),
+            )
+        )).scalars().all()
+        if file_nodes:
+            file_node_ids = [n.id for n in file_nodes]
+            file_node_by_id = {n.id: n for n in file_nodes}
 
-            if file_node:
-                # Get edges from this node
-                outgoing = (await db.execute(
-                    select(GraphEdge).where(GraphEdge.source_node_id == file_node.id)
+            # Single query for all edges touching these file nodes
+            outgoing_all = (await db.execute(
+                select(GraphEdge).where(GraphEdge.source_node_id.in_(file_node_ids))
+            )).scalars().all()
+            incoming_all = (await db.execute(
+                select(GraphEdge).where(GraphEdge.target_node_id.in_(file_node_ids))
+            )).scalars().all()
+
+            # Group edges by file_node + cap at 5 each
+            per_node: dict[str, list] = {nid: [] for nid in file_node_ids}
+            for e in outgoing_all:
+                per_node[e.source_node_id].append(e)
+            for e in incoming_all:
+                per_node[e.target_node_id].append(e)
+
+            # Collect "other" node ids referenced by these edges
+            other_ids = set()
+            for nid, edge_list in per_node.items():
+                for edge in edge_list[:5]:
+                    other_ids.add(
+                        edge.target_node_id if edge.source_node_id == nid else edge.source_node_id
+                    )
+
+            other_nodes = {}
+            if other_ids:
+                rows = (await db.execute(
+                    select(GraphNode).where(GraphNode.id.in_(other_ids))
                 )).scalars().all()
-                incoming = (await db.execute(
-                    select(GraphEdge).where(GraphEdge.target_node_id == file_node.id)
-                )).scalars().all()
+                other_nodes = {n.id: n for n in rows}
 
-                for edge in (outgoing + incoming)[:5]:  # limit per file
-                    other_id = edge.target_node_id if edge.source_node_id == file_node.id else edge.source_node_id
-                    other_node = (await db.execute(
-                        select(GraphNode).where(GraphNode.id == other_id)
-                    )).scalar_one_or_none()
-
+            for nid, edge_list in per_node.items():
+                file_node = file_node_by_id[nid]
+                for edge in edge_list[:5]:
+                    other_id = edge.target_node_id if edge.source_node_id == nid else edge.source_node_id
+                    other_node = other_nodes.get(other_id)
                     if other_node:
                         nodes_used.append({
                             "id": other_node.id,

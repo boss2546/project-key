@@ -408,8 +408,8 @@ async def _handle_text_message(event: dict, pdb_user_id: str) -> None:
     try:
         if line_user_id:
             await adapter.show_typing(line_user_id, duration_sec=10)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug('show_typing(10s) failed (non-fatal): %s', e)
 
     # Dispatch to bot_handlers (platform-agnostic)
     try:
@@ -471,8 +471,8 @@ async def _handle_file_message(event: dict, pdb_user_id: str, msg_type: str) -> 
     # Show loading indicator (best effort)
     try:
         await adapter.show_typing(line_user_id, duration_sec=20)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("show_typing failed (non-fatal): %s", e)
 
     # Download from LINE
     try:
@@ -685,8 +685,8 @@ async def _handle_postback(event: dict) -> None:
             # show typing indicator
             try:
                 await adapter.show_typing(line_user_id, duration_sec=15)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("show_typing failed (non-fatal): %s", e)
 
         from .bot_handlers import handle_url_upload
         messages = await handle_url_upload(row.pdb_user_id, url)
@@ -733,8 +733,8 @@ async def _handle_postback(event: dict) -> None:
         if adapter and reply_token:
             try:
                 await adapter.show_typing(line_user_id, duration_sec=20)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("show_typing failed (non-fatal): %s", e)
 
         try:
             async with AsyncSessionLocal() as db:

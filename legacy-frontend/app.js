@@ -133,10 +133,12 @@ async function authFetch(url, options = {}) {
 }
 
 // ═══════════════════════════════════════════
-// UPGRADE MODAL — v5.9.3 Quota CTA
+// QUOTA LIMIT MODAL — v9.6.0
 // ═══════════════════════════════════════════
+// (เดิมเป็น Upgrade Modal สำหรับ Stripe — billing ถูกลบใน v9.6.0)
+// เก็บชื่อ showUpgradeModal เพราะถูกเรียกหลายที่ — เปลี่ยน body เป็น
+// แค่แจ้งเตือนเมื่อเกินโควต้า ไม่มี pricing CTA แล้ว
 function showUpgradeModal(message) {
- // Remove existing modal if any
  document.getElementById('upgrade-modal-overlay')?.remove();
  const overlay = document.createElement('div');
  overlay.id = 'upgrade-modal-overlay';
@@ -144,14 +146,14 @@ function showUpgradeModal(message) {
  overlay.innerHTML = `
  <div class="upgrade-modal">
  <div class="upgrade-modal-icon"></div>
- <h3 class="upgrade-modal-title">${getLang() === 'th' ? 'อัปเกรดแพลนของคุณ' : 'Upgrade Your Plan'}</h3>
+ <h3 class="upgrade-modal-title">${getLang() === 'th' ? 'เกินโควต้าที่กำหนด' : 'Quota Limit Reached'}</h3>
  <p class="upgrade-modal-message">${message}</p>
+ <p class="upgrade-modal-message" style="font-size:13px;opacity:.7;margin-top:8px">
+ ${getLang() === 'th' ? 'กรุณาติดต่อแอดมินเพื่อขอเพิ่มโควต้า' : 'Please contact admin to request a quota increase.'}
+ </p>
  <div class="upgrade-modal-actions">
- <button class="btn btn-primary upgrade-modal-btn" onclick="window.location.href='/pricing'">
- ${getLang() === 'th' ? 'ดูแพลน Starter — ฿99/เดือน' : 'View Starter Plan — ฿99/mo'}
- </button>
- <button class="btn btn-outline upgrade-modal-dismiss" onclick="this.closest('.upgrade-modal-overlay').remove()">
- ${getLang() === 'th' ? 'ไว้ทีหลัง' : 'Maybe Later'}
+ <button class="btn btn-primary upgrade-modal-dismiss" onclick="this.closest('.upgrade-modal-overlay').remove()">
+ ${getLang() === 'th' ? 'รับทราบ' : 'OK'}
  </button>
  </div>
  </div>
@@ -264,6 +266,7 @@ function showLoadingOverlay(message = 'Loading...', type = 'default') {
  overlay.className = 'loading-overlay';
  overlay.innerHTML = `
  <div class="loading-overlay-card">
+ <button class="loading-overlay-close" type="button" aria-label="ปิด" title="ปิดหน้าจอนี้">✕</button>
  ${icons[type] || icons.default}
  <div class="loading-message">${message.replace(/\\n/g, '<br>')}</div>
  <div class="loading-progress-bar"><div class="loading-progress-fill"></div></div>
@@ -272,6 +275,14 @@ function showLoadingOverlay(message = 'Loading...', type = 'default') {
  `;
  document.body.appendChild(overlay);
  _loadingOverlayEl = overlay;
+
+ // v10.0.5 — manual close button (failsafe if polling stalls)
+ const closeBtn = overlay.querySelector('.loading-overlay-close');
+ if (closeBtn) {
+   closeBtn.addEventListener('click', () => {
+     hideLoadingOverlay();
+   });
+ }
 
  // Animate in
  requestAnimationFrame(() => overlay.classList.add('visible'));
@@ -293,10 +304,235 @@ function showLoadingOverlay(message = 'Loading...', type = 'default') {
 function hideLoadingOverlay() {
  if (_loadingTimer) { clearInterval(_loadingTimer); _loadingTimer = null; }
  if (_loadingSafetyTimeout) { clearTimeout(_loadingSafetyTimeout); _loadingSafetyTimeout = null; }
+ if (_organizeStatusPollHandle) {
+   clearTimeout(_organizeStatusPollHandle);
+   _organizeStatusPollHandle = null;
+ }
  if (_loadingOverlayEl) {
  _loadingOverlayEl.classList.add('fade-out');
  setTimeout(() => { _loadingOverlayEl?.remove(); _loadingOverlayEl = null; }, 300);
  }
+}
+
+// v10.0.3 — live organize-new progress poll
+// v10.0.5 — Live processing timeline (step-by-step list with checkmarks)
+// instead of single-line stuck spinner. Each phase becomes a card; current
+// phase shows spinner, completed phases show ✓ with elapsed time.
+let _organizeStatusPollHandle = null;
+let _organizePhaseHistory = [];   // [{phase, step_th, step_en, started_at_ms, completed_at_ms, current, total}]
+let _organizeStartedAtMs = null;
+
+const PHASE_META = {
+  starting:    {th: 'เริ่มประมวลผล', en: 'Starting', icon: '▶'},
+  scanning:    {th: 'ตรวจหาไฟล์ใหม่', en: 'Scanning files', icon: '🔍'},
+  clustering:  {th: 'AI จัดกลุ่มไฟล์', en: 'Clustering', icon: '🧩'},
+  summary:     {th: 'AI สรุปไฟล์', en: 'Summarizing', icon: '📝'},
+  enrich:      {th: 'เสริม metadata', en: 'Enriching', icon: '✨'},
+  graph:       {th: 'สร้าง Knowledge Graph', en: 'Building Graph', icon: '🕸'},
+  suggest:     {th: 'สร้าง Suggestions', en: 'Suggestions', icon: '💡'},
+  duplicates:  {th: 'ตรวจหาไฟล์ซ้ำ', en: 'Detecting duplicates', icon: '🔁'},
+  done:        {th: 'เสร็จสมบูรณ์', en: 'Complete', icon: '✅'},
+  error:       {th: 'เกิดข้อผิดพลาด', en: 'Error', icon: '❌'},
+};
+
+function _fmtSec(ms) {
+  if (ms == null) return '';
+  const s = ms / 1000;
+  if (s < 10) return s.toFixed(2) + 's';
+  if (s < 60) return s.toFixed(1) + 's';
+  const m = Math.floor(s / 60), r = Math.round(s % 60);
+  return `${m}m${r}s`;
+}
+
+function startOrganizeStatusPoll() {
+  // v10.0.5 — Frontend renders directly from BACKEND history array.
+  // No more polling-race: even if the pipeline finishes between two polls,
+  // the backend history retains every phase with its true start/elapsed time.
+  _organizePhaseHistory = [];
+  _organizeStartedAtMs = Date.now();
+  if (_organizeStatusPollHandle) {
+    clearTimeout(_organizeStatusPollHandle);
+    _organizeStatusPollHandle = null;
+  }
+  // v10.0.5 — Watchdog: if no phase advances for 90s OR overall takes >5min,
+  // force close overlay (server might have crashed mid-run, polling silently
+  // stalled, or stuck on long LLM call). Better to give user control than
+  // freeze forever.
+  let _lastPhaseSeen = null;
+  let _lastPhaseChangedAt = Date.now();
+  const WATCHDOG_PHASE_STALL_MS = 90 * 1000;
+  const WATCHDOG_HARD_LIMIT_MS = 5 * 60 * 1000;
+
+  const tick = async () => {
+    try {
+      if (typeof document !== 'undefined' && document.hidden) {
+        _organizeStatusPollHandle = setTimeout(tick, 5000);
+        return;
+      }
+      const res = await authFetch('/api/organize-status');
+      if (!res.ok) {
+        _organizeStatusPollHandle = setTimeout(tick, 2000);
+        return;
+      }
+      const data = await res.json();
+      const snap = data.snapshot;
+      // v10.0.6 — Reject stale snapshot from a PREVIOUS organize run.
+      // Backend keeps state for ~60s after done, so the first poll right after
+      // we click "organize" may see the PREVIOUS run's snapshot before the
+      // new POST handler reaches _pt.start(). Without this check, the auto-close
+      // path triggers immediately and shows stale badge counts mid-flight.
+      if (snap && snap.started_at) {
+        const snapStartMs = new Date(snap.started_at).getTime();
+        if (!isNaN(snapStartMs) && snapStartMs < _organizeStartedAtMs - 500) {
+          // Previous run's snapshot. Wait for backend to call start() for THIS run.
+          _organizeStatusPollHandle = setTimeout(tick, 500);
+          return;
+        }
+      }
+      // Watchdog: detect stalled phase
+      if (snap && snap.phase) {
+        if (snap.phase !== _lastPhaseSeen) {
+          _lastPhaseSeen = snap.phase;
+          _lastPhaseChangedAt = Date.now();
+        }
+      }
+      const overallElapsed = Date.now() - _organizeStartedAtMs;
+      const phaseStalled = (Date.now() - _lastPhaseChangedAt) > WATCHDOG_PHASE_STALL_MS;
+      if (phaseStalled || overallElapsed > WATCHDOG_HARD_LIMIT_MS) {
+        console.warn('Organize watchdog tripped — force closing overlay', {phase: _lastPhaseSeen, overallElapsed, phaseStalled});
+        try { if (typeof showToast === 'function') showToast(getLang() === 'th' ? 'การจัดระเบียบใช้เวลานานเกิน — ปิดอัตโนมัติ' : 'Organize timed out — auto-closed', 'warning'); } catch (_) {}
+        if (typeof hideLoadingOverlay === 'function') hideLoadingOverlay();
+        if (typeof loadFiles === 'function') loadFiles();
+        if (typeof loadStats === 'function') loadStats();
+        if (typeof loadUnprocessedCount === 'function') loadUnprocessedCount();
+        const btn = document.getElementById('btn-organize-new');
+        if (btn) btn.disabled = false;
+        _organizeStatusPollHandle = null;
+        return;
+      }
+      if (snap && Array.isArray(snap.history) && snap.history.length > 0) {
+        // Replace local cache with the authoritative backend history.
+        _organizePhaseHistory = snap.history.map(h => ({
+          phase: h.phase,
+          step_th: h.step_th,
+          step_en: h.step_en,
+          current: h.current,
+          total: h.total,
+          is_completed: !!h.is_completed,
+          elapsed_sec: h.elapsed_sec || 0,
+        }));
+        renderOrganizeTimeline();
+      } else if (snap) {
+        // Fallback for old payload without history
+        renderOrganizeTimeline();
+      }
+      if (!data.running) {
+        // v10.0.5 — Backend says pipeline done. Auto-close overlay after a
+        // short grace period (2.5s) so user can read the final "✅ Complete"
+        // state. Don't wait for the POST/loadFiles chain — those might be
+        // slow or stuck, but the work is genuinely done at this point.
+        _organizeStatusPollHandle = setTimeout(() => {
+          // Final refresh of timeline (in case state moved between polls)
+          authFetch('/api/organize-status').then(r => r.json()).then(d => {
+            if (d.snapshot && Array.isArray(d.snapshot.history)) {
+              _organizePhaseHistory = d.snapshot.history.map(h => ({
+                phase: h.phase,
+                step_th: h.step_th,
+                step_en: h.step_en,
+                current: h.current,
+                total: h.total,
+                is_completed: !!h.is_completed,
+                elapsed_sec: h.elapsed_sec || 0,
+              }));
+              renderOrganizeTimeline();
+            }
+          }).catch(() => {});
+          // Auto-close overlay after 2.5s grace + always refresh badge/files
+          setTimeout(() => {
+            if (typeof hideLoadingOverlay === 'function') hideLoadingOverlay();
+            if (typeof loadFiles === 'function') loadFiles();
+            if (typeof loadStats === 'function') loadStats();
+            if (typeof loadUnprocessedCount === 'function') loadUnprocessedCount();
+            // Reset organize-new button so it's clickable again
+            const btn = document.getElementById('btn-organize-new');
+            if (btn && btn.disabled) {
+              btn.disabled = false;
+              btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> <span data-i18n="myData.organizeNew">${typeof t === 'function' ? t('myData.organizeNew') : 'จัดระเบียบไฟล์ใหม่'}</span><span class="badge-count" id="unprocessed-badge" style="display:none;">0</span>`;
+              if (typeof loadUnprocessedCount === 'function') loadUnprocessedCount();
+            }
+          }, 2500);
+          _organizeStatusPollHandle = null;
+        }, 600);
+        return;
+      }
+      _organizeStatusPollHandle = setTimeout(tick, 800);  // faster poll, more responsive
+    } catch (e) {
+      console.warn('organize-status poll error:', e);
+      _organizeStatusPollHandle = setTimeout(tick, 2000);
+    }
+  };
+  tick();
+}
+
+function renderOrganizeTimeline() {
+  if (!_loadingOverlayEl) return;
+  const isTH = getLang() === 'th';
+  let body = _loadingOverlayEl.querySelector('.organize-timeline');
+  if (!body) {
+    // Upgrade the overlay: hide default message, inject timeline
+    const card = _loadingOverlayEl.querySelector('.loading-overlay-card');
+    if (!card) return;
+    const msgEl = card.querySelector('.loading-message');
+    if (msgEl) msgEl.classList.add('hidden');
+    const bar = card.querySelector('.loading-progress-bar');
+    if (bar) bar.classList.add('hidden');
+    body = document.createElement('div');
+    body.className = 'organize-timeline';
+    card.insertBefore(body, card.querySelector('.loading-elapsed') || null);
+    card.classList.add('loading-overlay-card-wide');
+  }
+
+  const title = isTH ? 'กำลังจัดระเบียบ — Live Timeline' : 'Organizing — Live Timeline';
+  const rows = _organizePhaseHistory.map((h, i) => {
+    const meta = PHASE_META[h.phase] || {th: h.phase, en: h.phase, icon: '•'};
+    const isError = h.phase === 'error';
+    const isDone = h.is_completed && !isError;
+    const isCurrent = !h.is_completed && !isError;
+    // Backend gives seconds directly
+    const elapsedSec = h.elapsed_sec || 0;
+    const elapsedMs = elapsedSec * 1000;
+
+    const stateClass = isError ? 'is-error'
+                     : isDone ? 'is-done'
+                     : isCurrent ? 'is-current'
+                     : 'is-pending';
+    const stateIcon = isError ? '✕'
+                    : isDone ? '✓'
+                    : isCurrent ? '<span class="ot-spinner"></span>'
+                    : '○';
+    const titleTxt = isTH ? meta.th : meta.en;
+    const detailTxt = isTH ? (h.step_th || '') : (h.step_en || '');
+    const showDetail = detailTxt && detailTxt !== titleTxt;
+    return `
+      <div class="ot-row ${stateClass}">
+        <div class="ot-state">${stateIcon}</div>
+        <div class="ot-body">
+          <div class="ot-title">${titleTxt}</div>
+          ${showDetail ? `<div class="ot-detail">${detailTxt.replace(/</g,'&lt;')}</div>` : ''}
+        </div>
+        <div class="ot-time">${_fmtSec(elapsedMs)}</div>
+      </div>
+    `;
+  }).join('');
+
+  const totalElapsed = _organizeStartedAtMs ? Date.now() - _organizeStartedAtMs : 0;
+  body.innerHTML = `
+    <div class="ot-header">
+      <span class="ot-header-title">${title}</span>
+      <span class="ot-header-time">รวม ${_fmtSec(totalElapsed)}</span>
+    </div>
+    <div class="ot-rows">${rows || '<div class="ot-pending">รอเริ่ม...</div>'}</div>
+  `;
 }
 
 // ═══════════════════════════════════════════
@@ -319,13 +555,9 @@ function initAppData() {
  // ทุก function ด้านล่างใช้ authFetch — fire-and-forget, ไม่ logout ถ้า fail
  loadStats();
  loadFiles();
- loadBillingInfo();
  loadUsageInfo();
- initGuideSystem();
- initBilling();
- // Phase 1.6 — `detectOnboardingProgress` is referenced but never defined,
- // so this setTimeout fired a ReferenceError 3s after every login. Remove
- // until the onboarding feature is actually built.
+ // initGuideSystem();  // DISABLED 2026-05-15 · ปุ่ม FAB ทับ dev-logger button · เปิดกลับโดย uncomment + uncomment HTML block ใน app.html
+ // v9.6.0 — loadBillingInfo() + initBilling() removed (Stripe ถูกลบ)
  maybeShowRebrandNotice();
  // v7.0 — BYOS Storage Mode (loads Drive status for profile modal)
  if (typeof initStorageMode === 'function') initStorageMode();
@@ -455,140 +687,8 @@ function updateSidebarStats(data) {
  if (el('stat-packs')) el('stat-packs').textContent = `${u.context_packs.used}/${u.context_packs.limit}`;
 }
 
-// ═══════════════════════════════════════════
-// BILLING — v5.9.2
-// ═══════════════════════════════════════════
-
-function initBilling() {
- document.getElementById('btn-upgrade-starter')?.addEventListener('click', () => window.location.href = '/pricing');
- document.getElementById('btn-manage-billing')?.addEventListener('click', doOpenPortal);
- // Plan modal buttons
- document.getElementById('close-plan-modal')?.addEventListener('click', closePlanModal);
- document.getElementById('btn-plan-free')?.addEventListener('click', closePlanModal);
- document.getElementById('btn-plan-starter')?.addEventListener('click', () => { closePlanModal(); doStarterCheckout(); });
- // Close on overlay click
- document.getElementById('plan-modal')?.addEventListener('click', (e) => {
- if (e.target.id === 'plan-modal') closePlanModal();
- });
-}
-
-function showPlanModal() {
- document.getElementById('plan-modal')?.classList.remove('hidden');
-}
-
-function closePlanModal() {
- document.getElementById('plan-modal')?.classList.add('hidden');
-}
-
-async function loadBillingInfo() {
- try {
- const res = await authFetch('/api/billing/info', { _background: true });
- if (!res.ok) return;
- const info = await res.json();
- updateBillingUI(info);
- } catch (e) {
- // Silently fail — billing info is non-critical
- }
-}
-
-function updateBillingUI(info) {
- const badge = document.getElementById('billing-plan-badge');
- const name = document.getElementById('billing-plan-name');
- const detail = document.getElementById('billing-plan-detail');
- const upgradeBtn = document.getElementById('btn-upgrade-starter');
- const manageBtn = document.getElementById('btn-manage-billing');
- if (!badge) return;
-
- const isFree = info.plan === 'free';
- const isStarter = info.subscription_status === 'starter_active';
- const isPastDue = info.subscription_status === 'starter_past_due';
- const isCanceled = info.cancel_at_period_end;
-
- // Badge
- badge.textContent = isFree ? 'Free' : 'Starter';
- badge.className = 'billing-plan-badge ' + (isFree ? 'badge-free' : 'badge-starter');
- name.textContent = 'Personal AI Context';
-
- // Detail text
- if (isFree) {
- detail.textContent = getLang() === 'th' ? 'แพลนปัจจุบัน: Free — อัปเกรดเพื่อปลดล็อกฟีเจอร์เพิ่ม' : 'Current plan: Free — Upgrade to unlock more features';
- } else if (isPastDue) {
- detail.textContent = getLang() === 'th' ? ' การชำระเงินมีปัญหา — กรุณาอัปเดตวิธีการชำระเงิน' : ' Payment issue — please update your payment method';
- detail.style.color = '#f59e0b';
- } else if (isCanceled) {
- const endDate = info.current_period_end ? new Date(info.current_period_end).toLocaleDateString('th-TH') : '';
- detail.textContent = getLang() === 'th' ? ' Starter (ยกเลิกแล้ว — ใช้ได้ถึง ' + endDate + ')' : ' Starter (cancelled — active until ' + endDate + ')';
- detail.style.color = '#f59e0b';
- } else if (isStarter) {
- const endDate = info.current_period_end ? new Date(info.current_period_end).toLocaleDateString('th-TH') : '';
- detail.textContent = getLang() === 'th' ? ' Starter — ต่ออายุ: ' + endDate : ' Starter — renews: ' + endDate;
- detail.style.color = '#818cf8';
- }
-
- // Buttons
- if (isFree) {
- upgradeBtn.style.display = 'inline-flex';
- manageBtn.style.display = info.has_stripe_customer ? 'inline-flex' : 'none';
- } else {
- upgradeBtn.style.display = 'none';
- manageBtn.style.display = 'inline-flex';
- manageBtn.textContent = getLang() === 'th' ? 'จัดการการชำระเงิน' : 'Manage Billing';
- }
-}
-
-async function doStarterCheckout() {
- try {
- showLoadingOverlay(getLang() === 'th' ? 'กำลังเปิด Stripe Checkout...' : 'Opening Stripe Checkout...', 'default');
- const res = await authFetch('/api/billing/create-checkout-session', {
- method: 'POST',
- headers: { 'Content-Type': 'application/json' },
- body: JSON.stringify({ plan: 'starter' }),
- });
- const data = await res.json();
- hideLoadingOverlay();
- if (!res.ok) {
- showToast(data.detail || 'Checkout failed', 'error');
- return;
- }
- // Redirect to Stripe Checkout
- window.location.href = data.checkout_url;
- } catch (e) {
- hideLoadingOverlay();
- showToast(getLang() === 'th' ? ' ไม่สามารถเปิดหน้าชำระเงินได้' : ' Could not open checkout', 'error');
- }
-}
-
-async function doOpenPortal() {
- try {
- showLoadingOverlay(getLang() === 'th' ? 'กำลังเปิดหน้าจัดการ...' : 'Opening billing portal...', 'default');
- const res = await authFetch('/api/billing/create-portal-session', { method: 'POST' });
- const data = await res.json();
- hideLoadingOverlay();
- if (!res.ok) {
- showToast(data.detail || 'Portal failed', 'error');
- return;
- }
- window.location.href = data.portal_url;
- } catch (e) {
- hideLoadingOverlay();
- showToast(getLang() === 'th' ? ' ไม่สามารถเปิดหน้าจัดการได้' : ' Could not open portal', 'error');
- }
-}
-
-// Check for billing success/cancelled on page load
-function checkBillingRedirect() {
- const path = window.location.pathname;
- if (path === '/billing/success') {
- showToast(getLang() === 'th' ? ' อัปเกรดสำเร็จ! ยินดีต้อนรับสู่ Starter plan' : ' Upgrade successful! Welcome to Starter plan', 'success');
- // Clean URL
- window.history.replaceState({}, '', '/');
- // Reload billing info
- setTimeout(loadBillingInfo, 1000);
- } else if (path === '/billing/cancelled') {
- showToast(getLang() === 'th' ? 'ยกเลิกการชำระเงิน — คุณยังอยู่แพลน Free' : 'Payment cancelled — you are still on Free plan', 'info');
- window.history.replaceState({}, '', '/');
- }
-}
+// Billing (Stripe) removed in v9.6.0.
+// See docs/restoration/billing-restore.md for full restore guide.
 
 // Node family color map
 const NODE_COLORS = {
@@ -633,7 +733,8 @@ const I18N = {
  'upload.tray.summary_failed':   '{n} ล้มเหลว',
  'upload.tray.system_degraded':  'ระบบประมวลผลล่าช้ากว่าปกติ — เรากำลังตรวจสอบ',
  'upload.tray.system_stopped':   'ระบบประมวลผลหยุด — กรุณาติดต่อแอดมิน',
- 'upload.tray.empty_done':       'ทุกไฟล์เสร็จเรียบร้อย',
+ 'upload.tray.empty_done':       'อัปโหลด + สกัดข้อความเสร็จแล้ว · ขั้นต่อไป: ให้ AI วิเคราะห์',
+ 'upload.tray.organize_now':     'จัดระเบียบทันที',
  'upload.tray.see_details':      'รายละเอียด',
  'upload.tray.stage_queued':     'เข้าคิว',
  'upload.tray.stage_started':    'เริ่มประมวลผล',
@@ -946,7 +1047,8 @@ const I18N = {
  'upload.tray.summary_failed':   '{n} failed',
  'upload.tray.system_degraded':  'Processing slower than usual — investigating',
  'upload.tray.system_stopped':   'Processing system stopped — please contact admin',
- 'upload.tray.empty_done':       'All files done',
+ 'upload.tray.empty_done':       'Uploaded + text extracted · Next: let AI analyze',
+ 'upload.tray.organize_now':     'Organize now',
  'upload.tray.see_details':      'Details',
  'upload.tray.stage_queued':     'Queued',
  'upload.tray.stage_started':    'Started',
@@ -1415,14 +1517,11 @@ function initGlobalModalUX() {
 // INIT
 // ═══════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
- // Auth system — MUST run FIRST. landing.js _handleGoogleLoginFragment() reads
- // window.location.hash (#token=...), saves JWT to state.authToken + localStorage,
- // and sets _isInitVerified=true — all synchronously before anything else fires
- // authFetch. Putting applyLanguage() first triggered a race: loadLineStatus()
- // sent /api/line/status with no Authorization header (state.authToken still null),
- // by the time 401 came back initAuth had set _isInitVerified=true + state.authToken,
- // and authFetch's 401 handler at line 112 mistook anonymous-401 for session-expired
- // and called doLogout() — wiping the JWT that was just saved.
+ // Auth system MUST run before applyLanguage() — initAuth() synchronously
+ // hydrates state.authToken from localStorage. If applyLanguage() runs first,
+ // loadLineStatus() fires /api/line/status without an Authorization header;
+ // the resulting 401 races initAuth setting _isInitVerified=true, which makes
+ // authFetch's 401 handler call doLogout() and wipe the just-loaded token.
  initAuth?.();
 
  // Apply saved language immediately (now safe — state.authToken set if fragment present)
@@ -1462,9 +1561,6 @@ document.addEventListener('DOMContentLoaded', () => {
   try { initKnowledgeTabs(); } catch (e) { console.warn('[init] initKnowledgeTabs:', e); }
   try { initMCP(); } catch (e) { console.warn('[init] initMCP:', e); }
  }
-
- // Check for billing redirect (success/cancelled)
- try { checkBillingRedirect?.(); } catch {}
 });
 
 // ═══════════════════════════════════════════
@@ -1974,6 +2070,15 @@ const UploadTray = (() => {
    if (_pollHandle) return;
    _pollAttempts = 0;
    const tick = async () => {
+     // v10.0.0 -- if the user is on another tab, skip the actual DB hit and
+     // re-schedule for a longer interval. Without this, idle background tabs
+     // pummel /api/upload-status every 2s forever -- wasted server/DB CPU
+     // and user-device battery.
+     if (typeof document !== 'undefined' && document.hidden) {
+       _pollHandle = setTimeout(tick, POLL_BACKOFF_MS);
+       return;
+     }
+
      const data = await _fetchStatus();
      _render(data);
      _pollAttempts++;
@@ -1989,13 +2094,43 @@ const UploadTray = (() => {
          if (typeof loadStats === 'function') loadStats();
          if (typeof loadUnprocessedCount === 'function') loadUnprocessedCount();
        } catch (e) { console.warn('UploadTray refresh error:', e); }
+
+       // v10.0.x — Context-aware banner + CTA "จัดระเบียบทันที"
+       // เดิม: "ทุกไฟล์เสร็จเรียบร้อย" → user งงเพราะ AI ยังไม่ organize · ไฟล์ดู "ค้าง"
+       // ใหม่: บอกชัดว่า "อัปโหลด+สกัดข้อความเสร็จ" + ปุ่มคลิก organize ทันที (ไม่ต้องไปหาปุ่ม)
        const banner = $('.upload-tray-banner');
        if (banner) {
          banner.hidden = false;
-         banner.textContent = t('upload.tray.empty_done');
          banner.className = 'upload-tray-banner is-success';
+         banner.innerHTML = `<div>${_esc(t('upload.tray.empty_done'))}</div>
+           <button type="button" class="banner-cta" data-action="organize-now">
+             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="13 2 13 9 20 9"/><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/></svg>
+             <span>${_esc(t('upload.tray.organize_now'))}</span>
+           </button>`;
+         const ctaBtn = banner.querySelector('[data-action="organize-now"]');
+         if (ctaBtn) {
+           ctaBtn.addEventListener('click', () => {
+             // เรียก runOrganizeNew (defined ใน global scope) + ปิด tray
+             try {
+               if (typeof runOrganizeNew === 'function') runOrganizeNew();
+               else if (typeof window.runOrganizeNew === 'function') window.runOrganizeNew();
+             } catch (e) { console.warn('UploadTray banner CTA → runOrganizeNew failed:', e); }
+             close();
+           });
+         }
        }
-       setTimeout(() => close(), 2000);
+       // v10.0.x — Pulse animation on #btn-organize-new for 8 วินาที
+       // "หางตา" user หา CTA ในหน้า /app · auto-remove class ออกหลัง 8s
+       try {
+         const orgBtn = document.getElementById('btn-organize-new');
+         if (orgBtn) {
+           orgBtn.classList.add('pulse-attention');
+           setTimeout(() => orgBtn.classList.remove('pulse-attention'), 8000);
+         }
+       } catch (_) {}
+
+       // v10.0.x — auto-close timer 2s → 5s (ให้ user มีเวลาเห็น/กด CTA)
+       setTimeout(() => close(), 5000);
        return;
      }
 
@@ -2003,6 +2138,19 @@ const UploadTray = (() => {
      _pollHandle = setTimeout(tick, interval);
    };
    tick();
+
+   // v10.0.0 -- when the tab becomes visible again after being hidden,
+   // refresh immediately so the user sees current state without waiting
+   // for the next backoff tick.
+   if (typeof document !== 'undefined' && !UploadTray._visListenerAdded) {
+     document.addEventListener('visibilitychange', () => {
+       if (!document.hidden && _pollHandle) {
+         clearTimeout(_pollHandle);
+         _pollHandle = setTimeout(tick, 100);
+       }
+     });
+     UploadTray._visListenerAdded = true;
+   }
  }
 
  function _stopPolling() {
@@ -2648,17 +2796,45 @@ function renderFileList(files) {
  }).join('');
 }
 
-// v7.5.0 — Retry extraction handler
+// v7.5.0 — Retry extraction handler · v10.0.5 — polls /api/upload-status
+// for live progress (POST returns ~200ms but worker takes 30-60s for big PDFs)
 async function retryExtraction(id) {
  const isTH = getLang() === 'th';
  try {
-   showLoadingOverlay(isTH ? 'กำลังอ่านไฟล์ใหม่...' : 'Re-extracting...', 'default');
+   showLoadingOverlay(isTH ? 'กำลังส่งคำขออ่านไฟล์ใหม่...' : 'Submitting retry request...', 'default');
    const res = await authFetch(`/api/files/${id}/reprocess?mode=reextract`, { method: 'POST' });
    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+   const t0 = Date.now();
+   const POLL_MS = 1200;
+   const TIMEOUT_MS = 5 * 60 * 1000;
+   let lastMsg = null;
+   while (Date.now() - t0 < TIMEOUT_MS) {
+     await new Promise(r => setTimeout(r, POLL_MS));
+     const sres = await authFetch('/api/upload-status');
+     if (!sres.ok) continue;
+     const sj = await sres.json();
+     const active = (sj.active || []).find(f => f.id === id);
+     const failed = (sj.failed || []).find(f => f.id === id);
+     if (failed) throw new Error(failed.extract_error || 'Retry failed');
+     if (!active) break;
+     const step = active.progress_step || (isTH ? 'กำลังประมวลผล...' : 'Processing...');
+     const pct = active.progress_pct;
+     const pctStr = (pct != null && pct >= 0 && pct <= 100) ? ` (${pct}%)` : '';
+     const msg = step + pctStr;
+     if (msg !== lastMsg && _loadingOverlayEl) {
+       const msgEl = _loadingOverlayEl.querySelector('.loading-message');
+       if (msgEl) msgEl.textContent = msg;
+       const fill = _loadingOverlayEl.querySelector('.loading-progress-fill');
+       if (fill && pct != null) fill.style.width = pct + '%';
+       lastMsg = msg;
+     }
+   }
    showToast(isTH ? 'อ่านไฟล์ใหม่เรียบร้อย' : 'Re-extracted successfully', 'success');
    loadFiles();
+   if (typeof loadStats === 'function') loadStats();
+   if (typeof loadUnprocessedCount === 'function') loadUnprocessedCount();
  } catch (e) {
-   showToast(isTH ? 'อ่านไฟล์ใหม่ไม่สำเร็จ' : 'Retry failed', 'error');
+   showToast((isTH ? 'อ่านไฟล์ใหม่ไม่สำเร็จ: ' : 'Retry failed: ') + (e.message || ''), 'error');
  } finally {
    hideLoadingOverlay();
  }
@@ -2680,6 +2856,17 @@ async function deleteFile(id) {
  closeFileDetail();
  loadFiles();
  loadStats();
+ // v10.0.x — ลบไฟล์ → graph/knowledge/packs ก็ต้องถูก refresh
+ // เดิม load เฉพาะ files+stats ทำให้ user เปลี่ยน tab ไปกราฟยังเห็น node ผีของไฟล์ที่ลบ
+ // (backend แก้ orphan ใน DELETE handler แล้ว · frontend ต้อง re-fetch ถึงเห็นจริง)
+ try { if (typeof loadKnowledge === 'function') loadKnowledge(); } catch (_) {}
+ try {
+   // invalidate graph cache + reload ถ้าตอนนี้อยู่หน้ากราฟ
+   if (state) state.graphData = null;
+   if (typeof loadGraph === 'function' && state && state.currentPage === 'graph') loadGraph();
+ } catch (_) {}
+ try { if (typeof loadContextPacks === 'function') loadContextPacks(); } catch (_) {}
+ try { if (typeof loadUnprocessedCount === 'function') loadUnprocessedCount(); } catch (_) {}
  } catch (e) { showToast(t('toast.error'), 'error'); }
 }
 
@@ -2709,8 +2896,19 @@ async function openFileDetail(fileId) {
  _fdBackdrop.classList.add('visible');
  });
 
- // Set loading state
- document.getElementById('fd-filename').textContent = 'Loading...';
+ // v10.0.x — เติม filename + icon จาก DOM ที่มี data อยู่แล้ว · กัน "Loading..." ค้าง
+ // เมื่อ summary 404 (ไฟล์ที่ยังไม่ organize) header เคยค้าง "Loading..." จนกว่า content fetch จะกลับมา
+ // ใหม่: ดึงจาก .file-item[data-id=X] ที่เห็นใน list ตอนนี้แล้ว → header เต็มทันที
+ const rowEl = document.querySelector(`.file-item[data-id="${fileId}"]`);
+ const rowName = rowEl?.querySelector('.file-name')?.textContent?.trim() || '';
+ const rowIconEl = rowEl?.querySelector('.file-icon');
+ const rowIcon = rowIconEl?.textContent?.trim().replace(/\s+/g, '').slice(0, 6) || '';
+ // strip "Locked" suffix ถ้ามี (ติดมาจาก line 2566 .locked-label)
+ const cleanName = rowName.replace(/\s*(Locked|ล็อค)\s*$/, '').trim();
+
+ // Set loading state · ใช้ filename จริงถ้ามี · ไม่ใช้ "Loading..."
+ document.getElementById('fd-filename').textContent = cleanName || 'Loading...';
+ document.getElementById('fd-icon').textContent = rowIcon || '?';
  document.getElementById('fd-summary').textContent = '...';
  document.getElementById('fd-topics').innerHTML = '';
  document.getElementById('fd-facts').innerHTML = '';
@@ -2722,8 +2920,8 @@ async function openFileDetail(fileId) {
  const res = await authFetch(`/api/summary/${fileId}`);
  if (res.ok) {
  const d = await res.json();
- document.getElementById('fd-icon').textContent = d.filetype?.toUpperCase() || '?';
- document.getElementById('fd-filename').textContent = d.filename;
+ document.getElementById('fd-icon').textContent = d.filetype?.toUpperCase() || rowIcon || '?';
+ document.getElementById('fd-filename').textContent = d.filename || cleanName;
  document.getElementById('fd-cluster').textContent = d.cluster || '—';
  const stars = ''.repeat(Math.min(5, Math.round(d.importance_score / 20)));
  document.getElementById('fd-importance').textContent = `${stars} ${d.importance_label}`;
@@ -2732,9 +2930,13 @@ async function openFileDetail(fileId) {
  document.getElementById('fd-facts').innerHTML = (d.key_facts || []).map(f => `<li>${f}</li>`).join('');
  document.getElementById('fd-why').textContent = d.why_important || '—';
  } else {
+ // v10.0.x — Summary 404 = ยังไม่ organize · ใช้ DOM data ที่ pre-fill แล้ว + ข้อความที่บอกชัด
+ document.getElementById('fd-cluster').textContent = '—';
+ document.getElementById('fd-importance').textContent = '—';
  document.getElementById('fd-summary').textContent = getLang() === 'th'
- ? 'ยังไม่มี Summary — กด "จัดระเบียบด้วย AI" ก่อน'
- : 'No summary yet — click "Organize with AI" first';
+ ? 'ยังไม่มี Summary — กด "จัดระเบียบไฟล์ใหม่" เพื่อให้ AI วิเคราะห์'
+ : 'No summary yet — click "Organize new files" to let AI analyze';
+ document.getElementById('fd-why').textContent = '—';
  }
 
  // Fetch file content for preview
@@ -2864,21 +3066,111 @@ async function saveSummaryEdit() {
  saveBtn.textContent = ' Save';
 }
 
+// v10.0.4 — cache last response so badge click can render dropdown without re-fetch
+let _unprocessedFilesCache = [];
+let _unprocessedTruncated = false;
+
 async function loadUnprocessedCount() {
  try {
- const res = await authFetch('/api/unprocessed-count');
+ // v10.0.5 — cache-buster query so browser doesn't serve stale count
+ const res = await authFetch('/api/unprocessed-count?_=' + Date.now(), {
+   cache: 'no-store',
+ });
  if (!res.ok) return;
  const data = await res.json();
  const badge = document.getElementById('unprocessed-badge');
+ _unprocessedFilesCache = data.files || [];
+ _unprocessedTruncated = !!data.files_truncated;
  if (badge) {
- if (data.unprocessed > 0) {
- badge.textContent = data.unprocessed;
- badge.style.display = 'inline-flex';
- } else {
- badge.style.display = 'none';
+   if (data.unprocessed > 0) {
+     badge.textContent = data.unprocessed;
+     badge.style.display = 'inline-flex';
+     // ensure click handler attached once
+     if (!badge.dataset.clickWired) {
+       badge.addEventListener('click', (e) => {
+         e.stopPropagation();
+         toggleUnprocessedDropdown();
+       });
+       badge.dataset.clickWired = '1';
+     }
+   } else {
+     badge.style.display = 'none';
+     hideUnprocessedDropdown();
+   }
  }
- }
+ // If dropdown is open, re-render so it reflects latest list
+ const dd = document.getElementById('unprocessed-dropdown');
+ if (dd && !dd.classList.contains('hidden')) renderUnprocessedDropdown();
  } catch (e) { /* silent */ }
+}
+
+function toggleUnprocessedDropdown() {
+  const dd = document.getElementById('unprocessed-dropdown');
+  if (!dd) return;
+  if (dd.classList.contains('hidden')) {
+    renderUnprocessedDropdown();
+    dd.classList.remove('hidden');
+    // Click outside → close
+    setTimeout(() => {
+      const handler = (ev) => {
+        if (!dd.contains(ev.target) && ev.target.id !== 'unprocessed-badge') {
+          hideUnprocessedDropdown();
+          document.removeEventListener('click', handler);
+        }
+      };
+      document.addEventListener('click', handler);
+    }, 0);
+  } else {
+    hideUnprocessedDropdown();
+  }
+}
+
+function hideUnprocessedDropdown() {
+  const dd = document.getElementById('unprocessed-dropdown');
+  if (dd) dd.classList.add('hidden');
+}
+
+function renderUnprocessedDropdown() {
+  const dd = document.getElementById('unprocessed-dropdown');
+  if (!dd) return;
+  const isTH = getLang() === 'th';
+  const heading = isTH ? `ไฟล์ที่ยังไม่จัดระเบียบ (${_unprocessedFilesCache.length}${_unprocessedTruncated ? '+' : ''})` : `Unorganized files (${_unprocessedFilesCache.length}${_unprocessedTruncated ? '+' : ''})`;
+  const emptyMsg = isTH ? 'ไม่มีไฟล์ที่ค้างจัดระเบียบ' : 'No unorganized files';
+  const truncatedNote = isTH ? '... และอื่นๆ (กดจัดระเบียบเพื่อทำให้ครบ)' : '... and more (click organize to process all)';
+
+  if (_unprocessedFilesCache.length === 0) {
+    dd.innerHTML = `<div class="unprocessed-dropdown-empty">${emptyMsg}</div>`;
+    return;
+  }
+
+  const rows = _unprocessedFilesCache.map(f => {
+    const safeName = (f.filename || '').replace(/</g, '&lt;');
+    const ftype = (f.filetype || '').toUpperCase();
+    return `<li class="unprocessed-row" data-id="${f.id}">
+      <span class="unprocessed-row-icon">${ftype}</span>
+      <span class="unprocessed-row-name" title="${safeName}">${safeName}</span>
+    </li>`;
+  }).join('');
+
+  dd.innerHTML = `
+    <div class="unprocessed-dropdown-header">${heading}</div>
+    <ul class="unprocessed-dropdown-list">${rows}</ul>
+    ${_unprocessedTruncated ? `<div class="unprocessed-dropdown-footer">${truncatedNote}</div>` : ''}
+  `;
+
+  // Click row → scroll to + flash that file in the main list
+  dd.querySelectorAll('.unprocessed-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const id = row.dataset.id;
+      hideUnprocessedDropdown();
+      const target = document.querySelector(`.file-item[data-id="${id}"]`);
+      if (target) {
+        target.scrollIntoView({behavior: 'smooth', block: 'center'});
+        target.classList.add('flash-highlight');
+        setTimeout(() => target.classList.remove('flash-highlight'), 2000);
+      }
+    });
+  });
 }
 
 async function runOrganizeAll() {
@@ -2886,6 +3178,8 @@ async function runOrganizeAll() {
  btn.disabled = true;
  btn.innerHTML = `<span class="loading-spinner"></span> ${getLang() === 'th' ? 'กำลังจัดระเบียบ...' : 'Organizing...'}`;
  showLoadingOverlay(getLang() === 'th' ? ' AI กำลังวิเคราะห์และจัดกลุ่มไฟล์ทั้งหมด...\nอาจใช้เวลา 30-60 วินาที' : ' AI is analyzing and organizing ALL files...\nThis may take 30-60 seconds', 'ai');
+ // v10.0.3 — live phase poll (same mechanism as runOrganizeNew)
+ startOrganizeStatusPoll();
  try {
  const res = await authFetch('/api/organize', { method: 'POST' });
  if (res.status === 403) {
@@ -2913,6 +3207,11 @@ async function runOrganizeNew() {
  btn.disabled = true;
  btn.innerHTML = `<span class="loading-spinner"></span> ${getLang() === 'th' ? 'กำลังจัดระเบียบไฟล์ใหม่...' : 'Organizing new files...'}`;
  showLoadingOverlay(getLang() === 'th' ? ' AI กำลังจัดระเบียบไฟล์ที่อัปโหลดใหม่...' : ' AI is organizing new files...', 'ai');
+ // v10.0.3 — start live status poll alongside the blocking POST so the
+ // overlay reflects current pipeline phase (scanning → clustering →
+ // summary N/M → enrich → graph → duplicates → done) instead of staying
+ // on the static "AI กำลังจัดระเบียบ..." text for 30-120s.
+ startOrganizeStatusPoll();
  try {
  const res = await authFetch('/api/organize-new', { method: 'POST' });
  if (res.status === 403) {
@@ -2928,17 +3227,26 @@ async function runOrganizeNew() {
  showToast(t('toast.noNewFiles'), 'info');
  } else {
  showToast(`${t('toast.organizedNew')} (${data.new_files} ไฟล์)`, 'success');
+ }
+ // v10.0.5 — refresh UI ทุกครั้ง (เดิม refresh เฉพาะตอนมีไฟล์ใหม่ → badge ไม่อัปเดตถ้า
+ // partial-fail: organize อ้าง new_files=N แต่จริงๆ summary fail บางตัว → unprocessed คงค้าง)
  loadFiles();
  loadStats();
- }
- // v7.1 — เปิด popup ถ้า backend เจอไฟล์ซ้ำหลัง organize
- // ⚠️ data.duplicates_found อาจไม่มี (response เก่าก่อน v7.1) → optional chaining
- if (data.duplicates_found && data.duplicates_found.length > 0) {
- _pendingDuplicates = data.duplicates_found;
- showDuplicateModal();
- }
  loadUnprocessedCount();
  loadUsageInfo();
+ // v7.1 — เปิด popup ถ้า backend เจอไฟล์ซ้ำหลัง organize
+ // v10.0.5 — ถ้า overlay ยังเปิดอยู่ delay duplicate modal ไม่ให้ stack ทับ
+ if (data.duplicates_found && data.duplicates_found.length > 0) {
+ _pendingDuplicates = data.duplicates_found;
+ const showAfterOverlay = () => {
+   if (_loadingOverlayEl) {
+     setTimeout(showAfterOverlay, 500);
+   } else {
+     showDuplicateModal();
+   }
+ };
+ showAfterOverlay();
+ }
  } catch (e) { showToast(t('toast.error'), 'error'); }
  hideLoadingOverlay();
  btn.disabled = false;
@@ -4222,8 +4530,16 @@ async function sendMessage() {
  // Add user message
  addMessage(question, 'user');
 
- // Show loading
- const loadingId = addMessage(`<span class="loading-spinner"></span> ${getLang() === 'th' ? 'กำลังคิด...' : 'Thinking...'}`, 'assistant', true);
+ // v10.0.5 — Show loading with elapsed counter so user knows it's still alive
+ // (chat is blocking POST 5-30s; static spinner appears stuck)
+ const loadingId = addMessage(`<span class="loading-spinner"></span> <span class="chat-thinking-label">${getLang() === 'th' ? 'กำลังคิด...' : 'Thinking...'}</span> <span class="chat-elapsed" style="color:var(--text-muted);font-size:11px;margin-left:6px;">0s</span>`, 'assistant', true);
+ const chatT0 = Date.now();
+ const elapsedTimer = setInterval(() => {
+   const el = document.querySelector(`#${loadingId} .chat-elapsed`);
+   if (!el) { clearInterval(elapsedTimer); return; }
+   const s = Math.floor((Date.now() - chatT0) / 1000);
+   el.textContent = s + 's';
+ }, 1000);
 
  try {
  const res = await authFetch('/api/chat', {
@@ -4233,6 +4549,7 @@ async function sendMessage() {
  });
  const data = await res.json();
 
+ clearInterval(elapsedTimer);
  // Replace loading with answer
  removeMessage(loadingId);
  const msgHtml = `${data.answer}
@@ -4242,6 +4559,7 @@ async function sendMessage() {
  // Update sources panel
  updateSourcesPanel(data);
  } catch (e) {
+ clearInterval(elapsedTimer);
  removeMessage(loadingId);
  addMessage(getLang() === 'th' ? 'เกิดข้อผิดพลาดในการเชื่อมต่อ AI' : 'Error connecting to AI', 'assistant', true);
  } finally {

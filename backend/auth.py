@@ -1,7 +1,12 @@
 """Authentication module for Personal Data Bank (PDB) — v5.0 Multi-User.
 
 Provides JWT-based authentication with bcrypt password hashing.
+
+v10.0.0: bcrypt hashing is CPU-bound (~50-200ms per call). The async
+register/login endpoints now wrap hash/verify in asyncio.to_thread so the
+event loop stays responsive to other users while one login is in flight.
 """
+import asyncio
 import os
 import logging
 from datetime import datetime, timedelta
@@ -23,13 +28,23 @@ security = HTTPBearer(auto_error=False)
 
 
 def hash_password(password: str) -> str:
-    """Hash a password using bcrypt."""
+    """Hash a password using bcrypt (sync -- call ahash_password from async)."""
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a password against its hash."""
+    """Verify a password against its hash (sync)."""
     return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+
+
+# v10.0.0 -- async wrappers so async endpoints don't block the event loop
+# for ~50-200ms while bcrypt runs. Call these from async paths.
+async def ahash_password(password: str) -> str:
+    return await asyncio.to_thread(hash_password, password)
+
+
+async def averify_password(plain_password: str, hashed_password: str) -> bool:
+    return await asyncio.to_thread(verify_password, plain_password, hashed_password)
 
 
 def create_access_token(user_id: str, email: str, name: str) -> str:
@@ -81,11 +96,12 @@ async def register_user(db: AsyncSession, email: str, password: str, name: str) 
     # Create user
     from .database import gen_id
     import secrets as _secrets
+    pw_hash = await ahash_password(password)  # v10.0.0 -- offload bcrypt
     user = User(
         id=gen_id(),
         name=name or "User",
         email=email.lower().strip(),
-        password_hash=hash_password(password),
+        password_hash=pw_hash,
         is_active=True,
         mcp_secret=_secrets.token_urlsafe(32),
     )
@@ -121,21 +137,10 @@ async def login_user(db: AsyncSession, email: str, password: str) -> dict:
             detail="Invalid email or password"
         )
 
-    # v8.1.0 — Google-only user (สมัครผ่าน Google, ไม่มี password) → แนะนำให้ใช้ Google login
-    # Trade-off: ตอบ specific code ดีกว่า generic 401 เพราะ user งงว่าทำไม login ไม่ได้
-    # (enumeration risk เล็กน้อย — attacker บอกได้ว่า email นี้เป็น Google account → ยอมรับเพื่อ UX)
-    if not user.password_hash:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={
-                "error": {
-                    "code": "USE_GOOGLE_LOGIN",
-                    "message": "บัญชีนี้สมัครด้วย Google — กรุณาคลิก 'Sign in with Google'",
-                }
-            },
-        )
-
-    if not verify_password(password, user.password_hash):
+    # v9.5.0 — Google login removed. Google-only users (password_hash IS NULL) ต้องใช้
+    # /api/auth/request-reset เพื่อ set password ใหม่ก่อน. เราคืน generic 401 ที่นี่
+    # (ไม่บอกว่าเป็น Google account) เพื่อกัน enumeration.
+    if not user.password_hash or not await averify_password(password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password"
@@ -362,8 +367,8 @@ async def reset_password(db: AsyncSession, token: str, new_password: str) -> dic
             detail="ไม่พบบัญชีผู้ใช้"
         )
 
-    # Update password
-    user.password_hash = hash_password(new_password)
+    # Update password (v10.0.0 -- offload bcrypt)
+    user.password_hash = await ahash_password(new_password)
     await db.commit()
 
     logger.info(f"Password reset completed for: {user.email}")
@@ -382,94 +387,5 @@ async def reset_password(db: AsyncSession, token: str, new_password: str) -> dic
     }
 
 
-# ═══════════════════════════════════════════
-# GOOGLE SIGN-IN — v8.1.0
-# ═══════════════════════════════════════════
-
-async def login_or_create_google_user(
-    db: AsyncSession,
-    google_sub: str,
-    email: str,
-    name: str,
-) -> dict:
-    """Find user by google_sub → fallback email → create if not found. Returns JWT.
-
-    Lookup priority:
-      1. google_sub (stable, ไม่เปลี่ยน) — ถ้าเจอ + email เปลี่ยนใน Google → sync DB
-      2. email (lower) — ถ้าเจอ user เดิมที่สมัคร email/password มาก่อน → link Google
-      3. ไม่เจอ → INSERT user ใหม่ (password_hash=NULL = Google-only account)
-
-    Race condition handling:
-      - UNIQUE constraint บน google_sub + email ใน DB จะ throw IntegrityError
-        ตอน 2 callbacks เข้ามาพร้อมกัน → caller (endpoint) catch + retry lookup ได้
-      - แต่ในทางปฏิบัติ user คลิก 2 ครั้งเร็ว → 2 OAuth flow แยก → state ต่างกัน
-        ดังนั้น race เกิดยากมาก — ไม่ทำ retry ใน function นี้
-
-    Returns same shape as login_user(): {"user": {...}, "token": jwt}
-    """
-    email_lower = (email or "").lower().strip()
-    if not email_lower or not google_sub:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "error": {"code": "INVALID_GOOGLE_PAYLOAD",
-                          "message": "Google response missing email or sub"}
-            },
-        )
-
-    # 1) Lookup by google_sub (most stable)
-    result = await db.execute(select(User).where(User.google_sub == google_sub))
-    user = result.scalar_one_or_none()
-
-    if user:
-        # Email อาจเปลี่ยนใน Google (rare แต่เกิดได้) → sync DB
-        if user.email != email_lower:
-            logger.info(
-                f"Google email changed for user {user.id}: {user.email} → {email_lower}"
-            )
-            user.email = email_lower
-            await db.commit()
-    else:
-        # 2) Lookup by email (link existing email/password account)
-        result = await db.execute(select(User).where(User.email == email_lower))
-        user = result.scalar_one_or_none()
-
-        if user:
-            # Existing user — link Google (อาจมี password ด้วยอยู่แล้ว, เก็บไว้ทั้งคู่)
-            user.google_sub = google_sub
-            await db.commit()
-            logger.info(f"Linked Google to existing user: {user.email} ({user.id})")
-        else:
-            # 3) Create new (Google-only — no password)
-            import secrets as _secrets
-            from .database import gen_id
-            user = User(
-                id=gen_id(),
-                name=name or "User",
-                email=email_lower,
-                password_hash=None,
-                google_sub=google_sub,
-                is_active=True,
-                mcp_secret=_secrets.token_urlsafe(32),
-            )
-            db.add(user)
-            await db.commit()
-            await db.refresh(user)
-            logger.info(f"New Google user created: {user.email} ({user.id})")
-
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Account is deactivated",
-        )
-
-    token = create_access_token(user.id, user.email, user.name)
-    return {
-        "user": {
-            "id": user.id,
-            "name": user.name,
-            "email": user.email,
-            "mcp_secret": user.mcp_secret,
-        },
-        "token": token,
-    }
+# Google Sign-In removed in v9.5.0.
+# See docs/restoration/google-login-restore.md for the full code + restore guide.

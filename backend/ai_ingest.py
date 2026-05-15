@@ -57,6 +57,7 @@ except ImportError:
 
 # ─── Format groups ───────────────────────────────────────────────────
 
+DOCUMENT_FORMATS = {"pdf"}  # v10.0.1 — Gemini PDF fallback (1000 pages, 20MB inline)
 AUDIO_FORMATS = {"mp3", "wav", "m4a", "flac", "aac", "ogg", "opus", "wma"}
 VIDEO_FORMATS = {"mp4", "mov", "mkv", "webm", "avi", "wmv", "flv", "m4v", "3gp"}
 # v9.4.2 — Vision formats: Gemini 2.5 Flash อ่านข้อความในรูป + อธิบายภาพได้แม่นกว่า
@@ -134,18 +135,178 @@ async def ingest_via_ai(filepath: str, filetype: str, progress_callback=None) ->
 # ─── Internal: Gemini Files API workflow ─────────────────────────────
 
 
+def extract_pdf_via_gemini_sync(filepath: str) -> str:
+    """v10.0.1 — Sync Gemini PDF fallback (called from extraction.py).
+
+    ใช้เป็น tier-3 fallback หลัง PyPDF2 + OCR ล้มเหลว. Gemini รองรับ PDF ถึง
+    1,000 หน้า / 20MB inline → ครอบคลุม scanned PDF ทั่วไป (Thai handwriting,
+    image-only, encrypted-removed) ได้ดีกว่า Tesseract.
+
+    Returns:
+        Extracted markdown text on success.
+        "[AI PDF error: ...]" marker on failure (compatible กับ classify_extraction_status).
+    """
+    if not _HAS_GEMINI:
+        return "[AI ingest not configured: GOOGLE_API_KEY env var required]"
+
+    import hashlib
+    import shutil
+    import tempfile
+
+    try:
+        size_mb = os.path.getsize(filepath) / (1024 * 1024)
+    except OSError as e:
+        return f"[AI PDF error: cannot stat file: {e}]"
+
+    # Inline mode for small files (< 20MB) — faster, no Files API roundtrip.
+    if size_mb < 20:
+        try:
+            from google.genai import types
+            with open(filepath, "rb") as f:
+                pdf_bytes = f.read()
+            response = _genai_client.models.generate_content(
+                model=GEMINI_FILE_MODEL,
+                contents=[
+                    types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
+                    (
+                        "Extract ALL text from this PDF preserving the original "
+                        "structure (headings, paragraphs, tables, lists). "
+                        "Output as clean markdown. "
+                        "Preserve original language (Thai/English) exactly — "
+                        "do not translate. If the PDF is image-only or scanned, "
+                        "OCR the content. If a page has no readable text, write "
+                        "[Page N: no readable content]."
+                    ),
+                ],
+            )
+            text = response.text or ""
+            from .extraction import strip_surrogates
+            text = strip_surrogates(text)
+            if text.strip():
+                logger.info("Gemini PDF inline: %d chars from %s", len(text), os.path.basename(filepath))
+                return text
+            return "[AI PDF: no content extracted]"
+        except Exception as e:
+            logger.error("Gemini PDF inline failed for %s: %s", filepath, e, exc_info=True)
+            # fall through to Files API path
+
+    # Files API mode (>= 20MB or inline failed) — ASCII-safe upload guard.
+    tmp_path = None
+    upload_path = filepath
+    base = os.path.basename(filepath)
+    if not _is_ascii_safe(base):
+        ext = os.path.splitext(base)[1] or ".pdf"
+        safe_name = hashlib.sha1(base.encode("utf-8", errors="replace")).hexdigest()[:16] + ext
+        tmp_path = os.path.join(tempfile.gettempdir(), f"gemini-upload-{safe_name}")
+        try:
+            shutil.copyfile(filepath, tmp_path)
+            upload_path = tmp_path
+        except OSError as e:
+            return f"[AI PDF error: temp copy failed: {e}]"
+
+    try:
+        file_obj = _genai_client.files.upload(file=upload_path)
+        # Poll until ACTIVE (sync)
+        import time
+        elapsed = 0
+        timeout = 300
+        while elapsed < timeout:
+            state = getattr(file_obj, "state", None)
+            state_name = getattr(state, "name", str(state)) if state is not None else "UNKNOWN"
+            if state_name == "ACTIVE":
+                break
+            if state_name == "FAILED":
+                return "[AI PDF error: Gemini file processing FAILED]"
+            time.sleep(2)
+            elapsed += 2
+            file_obj = _genai_client.files.get(name=file_obj.name)
+        else:
+            return f"[AI PDF error: Gemini file not ACTIVE after {timeout}s]"
+
+        response = _genai_client.models.generate_content(
+            model=GEMINI_FILE_MODEL,
+            contents=[
+                file_obj,
+                (
+                    "Extract ALL text from this PDF preserving the original "
+                    "structure (headings, paragraphs, tables, lists). "
+                    "Output as clean markdown. "
+                    "Preserve original language (Thai/English) exactly — "
+                    "do not translate. If the PDF is image-only or scanned, "
+                    "OCR the content."
+                ),
+            ],
+        )
+        text = response.text or ""
+        from .extraction import strip_surrogates
+        text = strip_surrogates(text)
+        if text.strip():
+            logger.info("Gemini PDF Files-API: %d chars from %s", len(text), os.path.basename(filepath))
+            return text
+        return "[AI PDF: no content extracted]"
+    except Exception as e:
+        logger.error("Gemini PDF Files-API failed for %s: %s", filepath, e, exc_info=True)
+        return f"[AI PDF error: {type(e).__name__}: {str(e)[:200]}]"
+    finally:
+        if tmp_path:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+
+
+def _is_ascii_safe(s: str) -> bool:
+    try:
+        s.encode("ascii")
+        return True
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return False
+
+
 async def _upload_to_gemini(filepath: str) -> object:
     """Upload file to Gemini Files API → returns File object (id valid 48hr).
 
     Sync upload — Gemini SDK ไม่มี true async file upload as of late 2026.
     Wrapped in async function for caller convenience.
+
+    v10.0.1 — ASCII-safe filename guard: Gemini SDK ส่งชื่อไฟล์เข้า HTTP
+    multipart filename= ซึ่งบาง path (httpx/urllib3) encode ASCII → ชื่อไทย
+    ทำให้ UnicodeEncodeError. แก้โดย copy ไป temp file ที่ชื่อเป็น hash ASCII
+    ก่อน upload (เก็บ extension เดิมเพื่อให้ Gemini infer mime ได้ถูก).
     """
     import asyncio
+    import hashlib
+    import shutil
+    import tempfile
+
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(
-        None,
-        lambda: _genai_client.files.upload(file=filepath),
-    )
+
+    upload_path = filepath
+    tmp_path: Optional[str] = None
+    base = os.path.basename(filepath)
+    if not _is_ascii_safe(base):
+        ext = os.path.splitext(base)[1] or ""
+        safe_name = hashlib.sha1(base.encode("utf-8", errors="replace")).hexdigest()[:16] + ext
+        tmp_dir = tempfile.gettempdir()
+        tmp_path = os.path.join(tmp_dir, f"gemini-upload-{safe_name}")
+        await loop.run_in_executor(None, shutil.copyfile, filepath, tmp_path)
+        upload_path = tmp_path
+        logger.info(
+            "Gemini upload: non-ASCII filename → temp ASCII path "
+            "(orig=%r → tmp=%r)", base, os.path.basename(tmp_path)
+        )
+
+    try:
+        return await loop.run_in_executor(
+            None,
+            lambda: _genai_client.files.upload(file=upload_path),
+        )
+    finally:
+        if tmp_path:
+            try:
+                await loop.run_in_executor(None, os.remove, tmp_path)
+            except OSError:
+                pass
 
 
 async def _wait_for_file_active(file_obj, progress_callback=None, timeout: int = 300) -> object:

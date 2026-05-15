@@ -1,4 +1,5 @@
 """Organization engine — clustering, importance scoring, summary generation via LLM."""
+import asyncio as _asyncio
 import json
 import logging
 from sqlalchemy import select, delete
@@ -13,17 +14,24 @@ from . import vector_search
 logger = logging.getLogger(__name__)
 
 
-async def organize_files(db: AsyncSession, user_id: str):
-    """Run the full organization pipeline: cluster → score → summarize."""
+async def organize_files(db: AsyncSession, user_id: str, force: bool = False):
+    """Run the full organization pipeline: cluster -> score -> summarize.
+
+    v10.0.0:
+      - force=False (default) -- skip files that already have a FileSummary
+                                 (idempotent re-runs are now cheap)
+      - force=True            -- regenerate summary for every file
+                                 (used when user explicitly wants a refresh)
+    """
 
     # 1. Get all files with extracted text (eagerly load relationships for async)
-    # v9.1.0: exclude vault files (file_kind="vault_only") — vault ไม่ join cluster
+    # v9.1.0: exclude vault files (file_kind="vault_only") -- vault doesn't join cluster
     result = await db.execute(
         select(File).where(
             File.user_id == user_id,
             File.extracted_text != "",
             File.file_kind == "processed",  # v9.1.0 vault exclusion
-            File.extraction_status == "ok",  # v9.4.2: ห้าม organize error-text files
+            File.extraction_status == "ok",  # v9.4.2: do not organize error-text files
         )
         .options(selectinload(File.insight), selectinload(File.summary), selectinload(File.cluster_maps))
     )
@@ -32,6 +40,18 @@ async def organize_files(db: AsyncSession, user_id: str):
     if not files:
         logger.warning("No files to organize")
         return
+
+    # v10.0.0 -- when force=False, skip files that already have a summary
+    # cluster is recomputed only when at least one file lacks a summary
+    if not force:
+        files_needing_summary = [f for f in files if not f.summary]
+        if not files_needing_summary:
+            logger.info(f"organize_files: all {len(files)} files already summarized -- skipping (force=True to refresh)")
+            return
+        logger.info(
+            f"organize_files: {len(files_needing_summary)}/{len(files)} files need summary "
+            f"(force=False, skipping {len(files) - len(files_needing_summary)} already-done)"
+        )
 
     # Update all to processing
     for f in files:
@@ -108,19 +128,45 @@ async def organize_files(db: AsyncSession, user_id: str):
             f.processing_status = "organized"
         await db.commit()
 
-        # 6. Generate summaries for each file
+        # 6. Generate summaries for each file (v10.0.0: skip already-summarized + run LLM in parallel)
+        # Parallelize the LLM calls (independent per file) with a semaphore
+        # to respect provider rate limits. DB writes stay sequential because
+        # SQLAlchemy AsyncSession is not safe to use from concurrent coroutines.
+        import asyncio as _asyncio
+        _SUMMARY_CONCURRENCY = 5
+        _sum_sem = _asyncio.Semaphore(_SUMMARY_CONCURRENCY)
+
+        files_to_summarize = []
         for f in files:
-            try:
-                # Find which cluster this file belongs to
+            if not force and f.summary and f.summary.summary_text:
+                f.processing_status = "ready"
+                continue
+            files_to_summarize.append(f)
+
+        async def _fetch_summary(file):
+            async with _sum_sem:
                 cluster_title = "Unclustered"
                 for c_data in clusters_data.get("clusters", []):
                     for file_ref in c_data.get("files", []):
-                        if file_ref.get("file_id") == f.id:
+                        if file_ref.get("file_id") == file.id:
                             cluster_title = c_data.get("title", "Unclustered")
                             break
+                importance_data = _find_importance(clusters_data, file.id)
+                try:
+                    summary_data = await _generate_summary(file, cluster_title, importance_data)
+                    return (file, cluster_title, importance_data, summary_data, None)
+                except Exception as e:
+                    return (file, cluster_title, importance_data, None, e)
 
-                importance_data = _find_importance(clusters_data, f.id)
-                summary_data = await _generate_summary(f, cluster_title, importance_data)
+        summary_results = await _asyncio.gather(*(_fetch_summary(f) for f in files_to_summarize))
+
+        # Sequential DB writes -- safe vs. concurrent session use
+        for f, cluster_title, importance_data, summary_data, exc in summary_results:
+            if exc is not None or summary_data is None:
+                logger.error(f"Summary generation failed for {f.filename}: {exc}")
+                f.processing_status = "error"
+                continue
+            try:
 
                 # Upsert: update existing summary or create new
                 existing_summary = (await db.execute(
@@ -429,10 +475,16 @@ def _find_importance(clusters_data: dict, file_id: str) -> dict:
 
 
 async def organize_new_files(db: AsyncSession, user_id: str) -> dict:
-    """Organize only NEW files that don't have summaries yet. Much faster than full organize."""
+    """Organize only NEW files that don't have summaries yet. Much faster than full organize.
+
+    v10.0.3 — emits progress_tracker.report() at every natural breakpoint so
+    /api/organize-status returns a live phase + count for the loading overlay.
+    """
+    from . import progress_tracker as _pt
 
     # Find files without summaries
     from sqlalchemy import not_, exists
+    _pt.report(user_id, phase="scanning", step_th="กำลังตรวจหาไฟล์ใหม่", step_en="Scanning new files")
     result = await db.execute(
         select(File).where(
             File.user_id == user_id,
@@ -449,6 +501,12 @@ async def organize_new_files(db: AsyncSession, user_id: str) -> dict:
         return {"skipped": True, "count": 0}
 
     logger.info(f"Processing {len(new_files)} new files for user {user_id}")
+    _pt.report(
+        user_id, phase="clustering",
+        step_th=f"AI จัดกลุ่ม {len(new_files)} ไฟล์",
+        step_en=f"Clustering {len(new_files)} files",
+        total=len(new_files),
+    )
 
     # Mark as processing
     for f in new_files:
@@ -482,35 +540,94 @@ async def organize_new_files(db: AsyncSession, user_id: str) -> dict:
 
         await db.commit()
 
-        # 3. Create insights for new files
+        # 3. Create insights for new files (or update if a prior failed run
+        # already inserted a partial insight -- v10.0.4 idempotency fix)
+        existing_insight_ids = set()
+        if new_files:
+            rows = await db.execute(
+                select(FileInsight.file_id).where(
+                    FileInsight.file_id.in_([f.id for f in new_files])
+                )
+            )
+            existing_insight_ids = {r[0] for r in rows.fetchall()}
         for f in new_files:
             importance = _find_importance(clusters_data, f.id)
-            insight = FileInsight(
-                file_id=f.id,
-                importance_score=importance.get("score", 50),
-                importance_label=importance.get("label", "medium"),
-                is_primary_candidate=importance.get("is_primary", False),
-                why_important=importance.get("why", "")
-            )
-            db.add(insight)
+            if f.id in existing_insight_ids:
+                # Update in place — avoid UNIQUE constraint
+                await db.execute(
+                    FileInsight.__table__.update()
+                    .where(FileInsight.file_id == f.id)
+                    .values(
+                        importance_score=importance.get("score", 50),
+                        importance_label=importance.get("label", "medium"),
+                        is_primary_candidate=importance.get("is_primary", False),
+                        why_important=importance.get("why", ""),
+                    )
+                )
+            else:
+                db.add(FileInsight(
+                    file_id=f.id,
+                    importance_score=importance.get("score", 50),
+                    importance_label=importance.get("label", "medium"),
+                    is_primary_candidate=importance.get("is_primary", False),
+                    why_important=importance.get("why", ""),
+                ))
 
         for f in new_files:
             f.processing_status = "organized"
         await db.commit()
 
         # 4. Generate summaries for new files
-        for f in new_files:
+        # v10.0.4 — PARALLEL summaries (was serial = 50s for 10 files)
+        # Semaphore caps concurrent LLM calls so we don't blow Gemini rate
+        # limit (10 RPM free tier / 1000 RPM paid). Lab tested 5 parallel = sweet spot.
+        SUMMARY_CONCURRENCY = 5
+        sem = _asyncio.Semaphore(SUMMARY_CONCURRENCY)
+        _completed = 0
+        _completed_lock = _asyncio.Lock()
+
+        # Pre-compute cluster title per file (no LLM, just dict lookup)
+        cluster_title_by_id: dict[str, str] = {}
+        for c_data in clusters_data.get("clusters", []):
+            ct = c_data.get("title", "Unclustered")
+            for fr in c_data.get("files", []):
+                cluster_title_by_id[fr.get("file_id", "")] = ct
+
+        async def _do_one(f):
+            nonlocal _completed
+            cluster_title = cluster_title_by_id.get(f.id, "Unclustered")
+            importance_data = _find_importance(clusters_data, f.id)
+            async with sem:
+                try:
+                    summary_data = await _generate_summary(f, cluster_title, importance_data)
+                    return (f, cluster_title, importance_data, summary_data, None)
+                except Exception as e:
+                    return (f, cluster_title, importance_data, None, e)
+                finally:
+                    async with _completed_lock:
+                        _completed += 1
+                        _pt.report(
+                            user_id, phase="summary",
+                            step_th=f"AI สรุปไฟล์ {_completed}/{len(new_files)} (ขนาน {SUMMARY_CONCURRENCY})",
+                            step_en=f"Summarizing {_completed}/{len(new_files)} (parallel {SUMMARY_CONCURRENCY})",
+                            current=_completed, total=len(new_files),
+                        )
+
+        _pt.report(
+            user_id, phase="summary",
+            step_th=f"AI สรุปไฟล์ 0/{len(new_files)} (ขนาน {SUMMARY_CONCURRENCY})",
+            step_en=f"Summarizing 0/{len(new_files)} (parallel {SUMMARY_CONCURRENCY})",
+            current=0, total=len(new_files),
+        )
+        results = await _asyncio.gather(*(_do_one(f) for f in new_files))
+
+        # Sequential DB writes (SQLAlchemy session = single-threaded)
+        for (f, cluster_title, importance_data, summary_data, err) in results:
+            if err is not None:
+                logger.error(f"Summary generation failed for {f.filename}: {err}")
+                f.processing_status = "error"
+                continue
             try:
-                cluster_title = "Unclustered"
-                for c_data in clusters_data.get("clusters", []):
-                    for file_ref in c_data.get("files", []):
-                        if file_ref.get("file_id") == f.id:
-                            cluster_title = c_data.get("title", "Unclustered")
-                            break
-
-                importance_data = _find_importance(clusters_data, f.id)
-                summary_data = await _generate_summary(f, cluster_title, importance_data)
-
                 file_summary = FileSummary(
                     file_id=f.id,
                     summary_text=summary_data.get("summary", ""),
@@ -546,7 +663,6 @@ async def organize_new_files(db: AsyncSession, user_id: str) -> dict:
                     user_id=user_id,
                 )
 
-                # v7.0 BYOS: push summary to Drive (best-effort, no-op for managed)
                 try:
                     from .storage_router import push_summary_to_drive_if_byos
                     await push_summary_to_drive_if_byos(
@@ -557,7 +673,7 @@ async def organize_new_files(db: AsyncSession, user_id: str) -> dict:
 
                 f.processing_status = "ready"
             except Exception as e:
-                logger.error(f"Summary generation failed for {f.filename}: {e}")
+                logger.error(f"Summary DB write failed for {f.filename}: {e}")
                 f.processing_status = "error"
 
         await db.commit()
@@ -572,8 +688,25 @@ async def organize_new_files(db: AsyncSession, user_id: str) -> dict:
 
     except Exception as e:
         logger.error(f"Organize new files failed: {e}")
-        for f in new_files:
-            f.processing_status = "error"
-        await db.commit()
+        # v10.0.4 — IntegrityError mid-pipeline rolls back session; can't write
+        # status update on same session. Use a fresh session to mark files
+        # back to 'uploaded' so they're still queryable / deletable / retriable
+        # (previously they stuck at 'processing' until manual DB intervention).
+        try:
+            await db.rollback()
+        except Exception:
+            pass
+        try:
+            from .database import AsyncSessionLocal
+            from sqlalchemy import update as _sql_update
+            async with AsyncSessionLocal() as fresh:
+                await fresh.execute(
+                    _sql_update(File)
+                    .where(File.id.in_([f.id for f in new_files]))
+                    .values(processing_status="uploaded")
+                )
+                await fresh.commit()
+        except Exception as recover_err:
+            logger.warning(f"organize-new state recovery failed: {recover_err}")
         raise
 

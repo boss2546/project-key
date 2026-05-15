@@ -9,7 +9,7 @@ load_dotenv()
 # ─── App Version (single source of truth) ───
 # Bump this when releasing. All version strings exposed to clients
 # (Swagger /docs, /api/mcp/info, MCP serverInfo) read from here.
-APP_VERSION = "9.4.9"
+APP_VERSION = "10.0.0"
 
 # OpenRouter API
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
@@ -123,11 +123,8 @@ def _load_or_create_mcp_secret() -> str:
 
 MCP_SECRET = os.getenv("MCP_SECRET", _load_or_create_mcp_secret())
 
-# ─── Stripe Payment (v5.9.2) ───
-STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
-STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
-STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
-STRIPE_STARTER_PRICE_ID = os.getenv("STRIPE_STARTER_PRICE_ID", "")
+# Stripe Payment removed in v9.6.0 — see docs/restoration/billing-restore.md
+# APP_BASE_URL ยังใช้สำหรับ Drive BYOS redirect URI
 APP_BASE_URL = os.getenv("APP_BASE_URL", "http://localhost:8000")
 
 # ─── Google Drive BYOS (v7.0.0) ───
@@ -199,21 +196,46 @@ def is_line_login_configured() -> bool:
     return bool(LINE_LOGIN_CHANNEL_ID and LINE_LOGIN_CHANNEL_SECRET)
 
 
-# ─── Google Sign-In (v8.1.0) ───
-# Reuse GOOGLE_OAUTH_CLIENT_ID + GOOGLE_OAUTH_CLIENT_SECRET ตัวเดียวกับ Drive BYOS —
-# แค่ใช้ scope ต่างกัน (login = openid+email+profile, ไม่ขอ drive.file). Login ไม่เก็บ
-# refresh_token จึงไม่ต้องการ DRIVE_TOKEN_ENCRYPTION_KEY (ไม่ผูกกับ is_byos_configured).
-GOOGLE_LOGIN_REDIRECT_URI = os.getenv(
-    "GOOGLE_LOGIN_REDIRECT_URI",
-    f"{APP_BASE_URL}/api/auth/google/callback",
-)
+# Google Sign-In removed in v9.5.0.
+# GOOGLE_OAUTH_CLIENT_ID + GOOGLE_OAUTH_CLIENT_SECRET ด้านบนยังเก็บไว้สำหรับ
+# Drive BYOS (drive_oauth.py). See docs/restoration/google-login-restore.md
+# เพื่อ restore Google Sign-In.
 
 
-def is_google_login_configured() -> bool:
-    """True ถ้า Google Sign-In พร้อม (Client ID + Secret).
+# ─── Ingestion Pipeline 2.0 (v10.0.0+) ───
+# LlamaParse for PDF: เปิดอัตโนมัติเมื่อมี key + package. ถ้าขาดอย่างใดอย่างหนึ่ง
+# → fallback ไป Docling / pypdf / OCR / Gemini PDF เดิม. ดู docs/upgrades/ingestion-2.0.md
+# v10.0.1: default เปลี่ยนเป็น "true" — ผู้ใช้ที่ไม่มี key จะถูก gate ที่
+# is_llamaparse_configured() ตามปกติ (ไม่พัง), แต่ผู้ใช้ที่ตั้ง key จะได้ใช้ทันที.
+LLAMA_CLOUD_API_KEY = os.getenv("LLAMA_CLOUD_API_KEY", "")
+LLAMA_PARSE_MODE = os.getenv("LLAMA_PARSE_MODE", "balanced")  # fast/balanced/premium/accurate
+USE_LLAMAPARSE_FOR_PDF = os.getenv("USE_LLAMAPARSE_FOR_PDF", "true").lower() == "true"
 
-    Login flow ไม่ต้องการ Fernet key เพราะไม่เก็บ refresh_token (ID token verify ครั้งเดียว
-    ก็พอ — ออก JWT ฝั่งเราเอง). ดังนั้นเงื่อนไข is_google_login_configured() จึงสั้นกว่า
-    is_byos_configured() ที่ต้องมี DRIVE_TOKEN_ENCRYPTION_KEY ด้วย.
+# Local-extract safety thresholds (size + concurrency)
+LOCAL_EXTRACT_MAX_MB = int(os.getenv("LOCAL_EXTRACT_MAX_MB", "10"))
+LOCAL_EXTRACT_TIMEOUT_S = int(os.getenv("LOCAL_EXTRACT_TIMEOUT_S", "30"))
+LOCAL_EXTRACT_CONCURRENCY = int(os.getenv("LOCAL_EXTRACT_CONCURRENCY", "4"))
+
+# v10.0.2 — HANDOFF Decision 4: DOCX/PPTX/XLSX → local extract (python-docx,
+# python-pptx, openpyxl). Lab-validated 40-76x cheaper + 5-6x faster + better
+# Thai accuracy vs LlamaParse. Toggle to "false" to force LlamaParse instead.
+USE_LOCAL_EXTRACT_DOCX = os.getenv("USE_LOCAL_EXTRACT_DOCX", "true").lower() == "true"
+USE_LOCAL_EXTRACT_PPTX = os.getenv("USE_LOCAL_EXTRACT_PPTX", "true").lower() == "true"
+USE_LOCAL_EXTRACT_XLSX = os.getenv("USE_LOCAL_EXTRACT_XLSX", "true").lower() == "true"
+
+# Hard cap on LlamaParse spending per calendar month (cents). 0 = unlimited.
+# Worker checks `extraction_metadata.cost_cents_30d_total` before each call.
+LLAMAPARSE_BUDGET_CENTS = int(os.getenv("LLAMAPARSE_BUDGET_CENTS", "0"))
+
+
+def is_llamaparse_configured() -> bool:
+    """True if LlamaParse usable: feature flag ON + key present.
+
+    v10.0.1: switched from `llama_parse` SDK to direct REST API (httpx),
+    so SDK install is no longer required — only the API key + flag.
     """
-    return bool(GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET)
+    if not USE_LLAMAPARSE_FOR_PDF:
+        return False
+    if not LLAMA_CLOUD_API_KEY:
+        return False
+    return True

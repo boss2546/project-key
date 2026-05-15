@@ -6,7 +6,7 @@ graph nodes and typed edges representing knowledge relationships.
 import json
 import logging
 from datetime import datetime
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .database import (
@@ -18,8 +18,37 @@ from .llm import call_llm_pro
 logger = logging.getLogger(__name__)
 
 
-async def build_full_graph(db: AsyncSession, user_id: str):
-    """Build the complete knowledge graph from all existing data."""
+async def build_full_graph(db: AsyncSession, user_id: str, force: bool = False):
+    """Build the complete knowledge graph from all existing data.
+
+    v10.0.0:
+      - force=False (default) -- skip rebuild if graph already covers every file
+                                 and was built recently (cheap re-runs)
+      - force=True            -- always tear down and rebuild
+    """
+    # Cheap idempotency check: if every source_file has a graph node already
+    # and the node count matches the file count, skip the expensive rebuild.
+    if not force:
+        file_count = (await db.execute(
+            select(func.count(File.id)).where(File.user_id == user_id)
+        )).scalar() or 0
+        node_count = (await db.execute(
+            select(func.count(GraphNode.id)).where(
+                GraphNode.user_id == user_id,
+                GraphNode.object_type == "source_file",
+            )
+        )).scalar() or 0
+        if file_count > 0 and node_count == file_count:
+            edge_count = (await db.execute(
+                select(func.count(GraphEdge.id)).where(GraphEdge.user_id == user_id)
+            )).scalar() or 0
+            logger.info(
+                f"build_full_graph: graph already up to date "
+                f"({node_count} file nodes == {file_count} files, {edge_count} edges) -- "
+                f"skipping rebuild (force=True to refresh)"
+            )
+            return {"nodes": node_count, "edges": edge_count, "skipped": True}
+
     logger.info("Building full knowledge graph...")
 
     # Clear existing graph data
@@ -122,6 +151,15 @@ async def build_full_graph(db: AsyncSession, user_id: str):
 
     logger.info(f"Tags: {len(tag_file_map)} total → {len(useful_tags)} useful (min {min_connections} connections)")
 
+    # v10.0.4 — sub-progress report (graph phase has multiple LLM calls)
+    try:
+        from . import progress_tracker as _pt
+        _pt.report(user_id, phase="graph",
+                   step_th=f"สร้าง Knowledge Graph (กำลังอธิบาย {len(useful_tags)} tags)",
+                   step_en=f"Building Graph (describing {len(useful_tags)} tags)")
+    except Exception:
+        pass
+
     # Generate AI descriptions for all useful tags in one batch call
     tag_descriptions = {}
     if useful_tags:
@@ -171,15 +209,25 @@ Tags: {tag_list_str}
     await db.commit()
 
     # Phase 3: Extract entities via LLM
-    all_summaries_text = ""
+    # v10.0.0: list.append + join avoids O(N^2) string immutability cost
+    # for users with many summaries (1000 files -> 1M+ allocations before).
+    summary_parts: list[str] = []
     file_summary_map = {}
     for s in summaries:
         if s.summary_text:
-            all_summaries_text += f"\n[{s.file_id}] {s.summary_text[:300]}"
+            summary_parts.append(f"\n[{s.file_id}] {s.summary_text[:300]}")
             file_summary_map[s.file_id] = s.summary_text
+    all_summaries_text = "".join(summary_parts)
 
     if all_summaries_text.strip():
         try:
+            try:
+                from . import progress_tracker as _pt
+                _pt.report(user_id, phase="graph",
+                           step_th="สร้าง Knowledge Graph (กำลังหา entities)",
+                           step_en="Building Graph (extracting entities)")
+            except Exception:
+                pass
             entity_prompt = f"""จากข้อมูลสรุปไฟล์ต่อไปนี้ ให้แยก entities สำคัญออกมาในรูปแบบ JSON array
 
 ข้อมูล:
@@ -471,14 +519,14 @@ async def get_node_detail(db: AsyncSession, node_id: str):
     for e in incoming:
         connected_ids.add(e.source_node_id)
 
+    # v10.0.0: fixed N+1 -- single IN-query for all connected node labels.
     connected_nodes = {}
     if connected_ids:
-        for cid in connected_ids:
-            cn = (await db.execute(
-                select(GraphNode).where(GraphNode.id == cid)
-            )).scalar_one_or_none()
-            if cn:
-                connected_nodes[cn.id] = {"label": cn.label, "type": cn.object_type, "family": cn.node_family}
+        rows = (await db.execute(
+            select(GraphNode).where(GraphNode.id.in_(connected_ids))
+        )).scalars().all()
+        for cn in rows:
+            connected_nodes[cn.id] = {"label": cn.label, "type": cn.object_type, "family": cn.node_family}
 
     return {
         "id": node.id,
@@ -551,13 +599,13 @@ async def get_neighborhood(db: AsyncSession, node_id: str, depth: int = 1, user_
     # Also include the last frontier nodes (they're neighbors we haven't expanded)
     visited_nodes.update(frontier)
 
-    # Fetch node data
+    # v10.0.0: fixed 2x N+1 -- bulk fetch nodes and edges in one query each.
     nodes = []
-    for nid in visited_nodes:
-        n = (await db.execute(
-            select(GraphNode).where(GraphNode.id == nid)
-        )).scalar_one_or_none()
-        if n:
+    if visited_nodes:
+        node_rows = (await db.execute(
+            select(GraphNode).where(GraphNode.id.in_(visited_nodes))
+        )).scalars().all()
+        for n in node_rows:
             nodes.append({
                 "id": n.id,
                 "object_type": n.object_type,
@@ -569,22 +617,22 @@ async def get_neighborhood(db: AsyncSession, node_id: str, depth: int = 1, user_
                 "metadata": json.loads(n.metadata_json or "{}"),
             })
 
-    # Fetch edge data (only edges between visited nodes)
     edges = []
-    for eid in visited_edges:
-        e = (await db.execute(
-            select(GraphEdge).where(GraphEdge.id == eid)
-        )).scalar_one_or_none()
-        if e and e.source_node_id in visited_nodes and e.target_node_id in visited_nodes:
-            edges.append({
-                "id": e.id,
-                "source": e.source_node_id,
-                "target": e.target_node_id,
-                "edge_type": e.edge_type,
-                "weight": e.weight,
-                "confidence": e.confidence,
-                "evidence": e.evidence_text,
-            })
+    if visited_edges:
+        edge_rows = (await db.execute(
+            select(GraphEdge).where(GraphEdge.id.in_(visited_edges))
+        )).scalars().all()
+        for e in edge_rows:
+            if e.source_node_id in visited_nodes and e.target_node_id in visited_nodes:
+                edges.append({
+                    "id": e.id,
+                    "source": e.source_node_id,
+                    "target": e.target_node_id,
+                    "edge_type": e.edge_type,
+                    "weight": e.weight,
+                    "confidence": e.confidence,
+                    "evidence": e.evidence_text,
+                })
 
     return {
         "center_node_id": node_id,

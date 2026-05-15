@@ -36,9 +36,9 @@ from .metadata import enrich_file_metadata, enrich_all_files, get_file_metadata,
 from .config import UPLOAD_DIR, BASE_DIR, ADMIN_PASSWORD, APP_VERSION
 from .mcp_tokens import generate_token, validate_token, list_tokens, revoke_token, get_active_token_count
 from .mcp_tools import call_tool, get_usage_logs, TOOL_REGISTRY
-from .auth import register_user, login_user, get_current_user, get_optional_user, request_password_reset, reset_password, login_or_create_google_user, require_admin
+from .auth import register_user, login_user, get_current_user, get_optional_user, request_password_reset, reset_password, require_admin
 from . import admin as _admin_mod
-from .billing import create_checkout_session, create_portal_session, process_webhook, get_billing_info
+# Billing (Stripe) removed in v9.6.0 — see docs/restoration/billing-restore.md
 from .plan_limits import (
     check_upload_allowed, check_pack_create_allowed, check_summary_allowed,
     check_refresh_allowed, check_export_allowed, get_usage_summary, log_usage, get_limits, PLAN_LIMITS,
@@ -68,7 +68,13 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup():
     await init_db()
-    # Rebuild TF-IDF search index from existing data (survives restart)
+    # Rebuild TF-IDF search index from existing data (survives restart).
+    # v10.0.0 -- previously this was O(N^2) for two reasons:
+    #   1) per-file cluster lookup did 2 separate SELECTs (N+1)
+    #   2) vector_search.index_file rebuilt IDF on every call (walks all
+    #      chunks each time)
+    # Now: bulk-fetch cluster titles in 2 queries, skip per-call IDF rebuild,
+    # finalize IDF once per user at the end.
     async for db in get_db():
         try:
             from . import vector_search
@@ -76,34 +82,60 @@ async def startup():
                 select(File).where(File.processing_status == "ready")
             )
             ready_files = files_res.scalars().all()
+
+            # Bulk cluster-title lookup (1 query for maps, 1 for clusters)
+            file_ids = [f.id for f in ready_files if f.extracted_text]
+            cluster_title_by_file: dict[str, str] = {}
+            if file_ids:
+                cm_rows = (await db.execute(
+                    select(FileClusterMap.file_id, FileClusterMap.cluster_id)
+                    .where(FileClusterMap.file_id.in_(file_ids))
+                )).all()
+                file_to_cluster = {fid: cid for fid, cid in cm_rows}
+                cluster_ids = list({cid for cid in file_to_cluster.values()})
+                cluster_titles = {}
+                if cluster_ids:
+                    cl_rows = (await db.execute(
+                        select(Cluster.id, Cluster.title).where(Cluster.id.in_(cluster_ids))
+                    )).all()
+                    cluster_titles = {cid: (title or "") for cid, title in cl_rows}
+                for fid, cid in file_to_cluster.items():
+                    cluster_title_by_file[fid] = cluster_titles.get(cid, "")
+
             indexed = 0
+            users_touched: set[str] = set()
             for f in ready_files:
-                if f.extracted_text:
-                    cluster_title = ""
-                    cm_res = await db.execute(
-                        select(FileClusterMap).where(FileClusterMap.file_id == f.id)
-                    )
-                    cm = cm_res.scalar_one_or_none()
-                    if cm:
-                        cl_res = await db.execute(
-                            select(Cluster).where(Cluster.id == cm.cluster_id)
-                        )
-                        cl = cl_res.scalar_one_or_none()
-                        if cl:
-                            cluster_title = cl.title or ""
-                    vector_search.index_file(
-                        file_id=f.id,
-                        filename=f.filename,
-                        text=f.extracted_text,
-                        cluster_title=cluster_title,
-                        user_id=f.user_id,  # v5.1 — per-user index
-                    )
-                    indexed += 1
+                if not f.extracted_text:
+                    continue
+                vector_search.index_file(
+                    file_id=f.id,
+                    filename=f.filename,
+                    text=f.extracted_text,
+                    cluster_title=cluster_title_by_file.get(f.id, ""),
+                    user_id=f.user_id,           # v5.1 — per-user index
+                    skip_idf_rebuild=True,        # v10.0.0 — finalize once
+                )
+                users_touched.add(f.user_id)
+                indexed += 1
+            for uid in users_touched:
+                vector_search.finalize_bulk_index(uid)
             if indexed:
-                logger.info(f"Startup: rebuilt search index for {indexed} files")
+                logger.info(
+                    f"Startup: rebuilt search index for {indexed} files "
+                    f"({len(users_touched)} users, bulk-IDF)"
+                )
         except Exception as e:
             logger.warning(f"Startup: search index rebuild failed: {e}")
         break
+
+    # v10.0.2 — HANDOFF Pattern: startup probe for ingestion deps.
+    # Logs warnings (not errors — fallbacks cover all paths) so admin
+    # can see at boot which paths are degraded.
+    try:
+        from .processors.startup_probe import run_startup_probe
+        run_startup_probe(logger)
+    except Exception as e:
+        logger.warning(f"Startup probe failed (non-fatal): {e}")
 
     # v9.4.0 — start upload_worker (background async task)
     # ทำหน้าที่ poll DB queue + extract files ที่ status='queued'
@@ -177,99 +209,8 @@ async def api_reset_password(req: ResetPasswordModel, db: AsyncSession = Depends
     return await reset_password(db, req.token, req.new_password)
 
 
-# ═══════════════════════════════════════════
-# v8.1.0 — Google Sign-In endpoints
-# ═══════════════════════════════════════════
-
-@app.get("/api/auth/google/init")
-async def api_google_login_init():
-    """เริ่ม Google Sign-In flow — return auth_url ให้ frontend redirect.
-
-    Public endpoint (ผู้ใช้ยังไม่ login). State + PKCE คุ้ม CSRF/replay.
-    """
-    from .config import is_google_login_configured
-    if not is_google_login_configured():
-        return JSONResponse(
-            {"error": {"code": "GOOGLE_LOGIN_NOT_CONFIGURED",
-                       "message": "Google login not configured on this server"}},
-            status_code=503,
-        )
-    from . import google_login
-    try:
-        return google_login.init_google_login()
-    except RuntimeError as e:
-        raise HTTPException(
-            status_code=500,
-            detail={"error": {"code": "GLOGIN_INIT_FAILED", "message": str(e)}},
-        )
-
-
-@app.get("/api/auth/google/callback")
-async def api_google_login_callback(
-    code: str = "",
-    state: str = "",
-    error: str = "",
-    db: AsyncSession = Depends(get_db),
-):
-    """Google redirect กลับมาที่นี่หลัง user grant consent.
-
-    Public endpoint (ผู้ใช้กำลังจะ login). ตรวจ state CSRF + verify ID token signature
-    หลัง process เสร็จ → 302 ไป /app#token=<jwt> (fragment กัน Referer leak)
-    หรือ 302 ไป /?google_error=<reason> ถ้า error.
-
-    Note: ห้าม raise HTTPException ใน success path — ต้อง redirect ทุกกรณี
-    เพื่อ UX สม่ำเสมอ (user เห็น URL change → เข้าใจว่ากระบวนการจบ).
-    """
-    from . import google_login
-
-    # User canceled at Google consent screen
-    if error:
-        return RedirectResponse(f"/?google_error={error}", status_code=302)
-
-    if not code or not state:
-        return RedirectResponse("/?google_error=missing_params", status_code=302)
-
-    # Exchange + verify ID token
-    try:
-        result = await google_login.handle_google_callback(code, state)
-    except ValueError as e:
-        # Invalid / expired state CSRF token
-        logger.warning("Google callback invalid_state: %s", e)
-        return RedirectResponse("/?google_error=invalid_state", status_code=302)
-    except RuntimeError as e:
-        # Token exchange fail / ID token verify fail (signature/audience/clock)
-        logger.error("Google callback invalid_id_token: %s", e)
-        return RedirectResponse("/?google_error=invalid_id_token", status_code=302)
-    except Exception as e:
-        logger.exception("Google callback unexpected error: %s", e)
-        return RedirectResponse("/?google_error=google_api_error", status_code=302)
-
-    # Reject unverified email (rare — Workspace custom domains)
-    if not result.get("email_verified"):
-        return RedirectResponse("/?google_error=email_not_verified", status_code=302)
-
-    # Upsert user + issue JWT
-    try:
-        login_result = await login_or_create_google_user(
-            db,
-            google_sub=result["google_sub"],
-            email=result["email"],
-            name=result["name"] or "User",
-        )
-    except HTTPException as e:
-        # is_active=False → 403 inside login_or_create_google_user
-        # INVALID_GOOGLE_PAYLOAD → 400
-        logger.warning("Google login user creation rejected: %s", e.detail)
-        return RedirectResponse("/?google_error=account_disabled", status_code=302)
-    except Exception as e:
-        logger.exception("Google upsert unexpected error: %s", e)
-        return RedirectResponse("/?google_error=internal_error", status_code=302)
-
-    jwt_token = login_result["token"]
-
-    # ⭐ Token ใน URL fragment (#) ไม่ใช่ query (?) — กัน Referer leak + ไม่เข้า server logs
-    # Frontend (landing.js initAuth) จะ parse #token= → save localStorage → showApp()
-    return RedirectResponse(f"/app#token={jwt_token}", status_code=302)
+# Google Sign-In endpoints removed in v9.5.0.
+# See docs/restoration/google-login-restore.md to re-enable.
 
 
 # ─── REQUEST MODELS ───
@@ -498,6 +439,31 @@ async def _get_user_quota_lock(user_id: str) -> asyncio.Lock:
         return lock
 
 
+# v10.0.0 -- Per-user organize "in-progress" sentinel set.
+# Plain asyncio.Lock has TOCTOU race when used as "fast-fail" (check + acquire
+# are not atomic). We use a set protected by a guard lock so adding the user
+# id and checking "already in" are one critical section -> rapid double-click
+# gets a clean 409 instead of waiting + duplicating LLM spend.
+_ORGANIZE_IN_PROGRESS: set[str] = set()
+_ORGANIZE_GUARD = asyncio.Lock()
+
+
+async def _try_start_organize(user_id: str) -> bool:
+    """Return True if no organize is running -> caller may proceed.
+    Return False if one is in progress -> caller should 409."""
+    async with _ORGANIZE_GUARD:
+        if user_id in _ORGANIZE_IN_PROGRESS:
+            return False
+        _ORGANIZE_IN_PROGRESS.add(user_id)
+        return True
+
+
+async def _end_organize(user_id: str) -> None:
+    """Clear the in-progress sentinel. Always call from a finally block."""
+    async with _ORGANIZE_GUARD:
+        _ORGANIZE_IN_PROGRESS.discard(user_id)
+
+
 @app.post("/api/upload")
 async def upload_files(
     files: list[UploadFile],
@@ -542,14 +508,23 @@ async def upload_files(
         # v9.1.0 — Raw File Vault: ext ที่ไม่อยู่ใน allowed_types
         is_vault = ext not in allowed_types
 
+        # v10.0.0 -- cheap pre-checks BEFORE loading bytes into memory.
+        # Trust upload_file.size when present (FastAPI fills from Content-Length).
+        declared_size = getattr(upload_file, "size", None)
+        if declared_size is not None:
+            if declared_size == 0:
+                skipped.append(_make_skip("EMPTY_FILE", original_name))
+                continue
+            if declared_size > max_bytes:
+                skipped.append(_make_skip("FILE_TOO_LARGE", original_name, limit=_limits["max_file_size_mb"]))
+                continue
+
         contents = await upload_file.read()
 
-        # v7.5.0 — empty file detection (ก่อน save — ทั้ง processed + vault)
+        # Fallback validation (when size header was missing / unreliable)
         if len(contents) == 0:
             skipped.append(_make_skip("EMPTY_FILE", original_name))
             continue
-
-        # Validate size (vault ใช้ limit เดียวกัน — Q1 user decision)
         if len(contents) > max_bytes:
             skipped.append(_make_skip("FILE_TOO_LARGE", original_name, limit=_limits["max_file_size_mb"]))
             continue
@@ -599,6 +574,24 @@ async def upload_files(
 
             now = datetime.utcnow()
 
+            # v10.0.0 -- ORDER REVERSED to fix the upload race condition.
+            # Old order: commit DB row -> release lock -> write file.
+            # That left a window where the worker (polls every 2s) could claim
+            # a 'queued' row whose raw_path didn't exist on disk yet, marking
+            # the file as FILE_MISSING even though the upload was valid.
+            # New order: write file first -> commit DB.  Worker can only see
+            # rows AFTER the file is on disk.  Lock is held during the write
+            # but it is *per-user*, so other users are unaffected.
+            def _write_bytes(path: str, data: bytes) -> None:
+                with open(path, "wb") as f:
+                    f.write(data)
+            try:
+                await asyncio.to_thread(_write_bytes, raw_path, contents)
+            except OSError as e:
+                logger.error("upload_files: disk write failed for %s: %s", raw_path, e)
+                skipped.append(_make_skip("DISK_ERROR", original_name))
+                continue
+
             if is_vault:
                 # Vault path — ไม่เข้า queue, extract = name-based, ทำตรงๆ
                 from .vault import build_vault_searchable_text
@@ -627,7 +620,7 @@ async def upload_files(
                     filetype=ext,
                     raw_path=raw_path,
                     extracted_text="",
-                    processing_status="queued",   # ← v9.4.0: queued (was "processing")
+                    processing_status="queued",
                     content_hash=None,
                     extraction_status="pending",
                     file_kind="processed",
@@ -635,10 +628,6 @@ async def upload_files(
                 )
             db.add(placeholder)
             await db.commit()
-
-        # Save raw bytes (outside lock — IO doesn't need to block other users)
-        with open(raw_path, "wb") as f:
-            f.write(contents)
 
         # คำนวณ queue_position + estimated_wait_sec (TC-4 truthful)
         if is_vault:
@@ -793,6 +782,185 @@ async def _cleanup_drive_for_deleted_file(
             await delete_summary_from_drive_if_byos(user_id, bg_db, file_id)
         except Exception as e:
             logger.warning("_cleanup_drive summary failed for %s: %s", file_id, e)
+
+
+async def _cleanup_file_references(
+    db: AsyncSession,
+    user_id: str,
+    file_id: str,
+    md_path: str | None = None,
+) -> dict:
+    """v10.0.x — รวบ orphan cleanup ที่ FK cascade ไม่ครอบคลุม.
+
+    หลัง delete file row, references หลายที่ค้างเป็น orphan:
+      - GraphNode (object_type='source_file', object_id=file_id) + edges/suggestions
+      - FileSummary.md_path บน disk (DB row cascade · ไฟล์ค้าง)
+      - JSON arrays: ContextPack.source_file_ids / ChatQuery.selected_file_ids / ContextInjectionLog.file_ids
+
+    เรียก BEFORE `db.delete(file)` · ไม่รวม empty-cluster cleanup (ต้องรอ FK cascade fire = หลัง commit)
+
+    Returns stats dict สำหรับ logging + test verification.
+    """
+    from sqlalchemy import delete as sql_delete, or_
+    from .database import ChatQuery, ContextInjectionLog
+
+    stats = {
+        "graph_nodes_removed": 0,
+        "graph_edges_removed": 0,
+        "suggestions_removed": 0,
+        "summary_md_removed": False,
+        "packs_updated": 0,
+        "chats_updated": 0,
+        "injection_logs_updated": 0,
+    }
+
+    # ─── 1. Graph nodes ของไฟล์นี้ + edges/suggestions ที่ touch ───
+    node_ids_res = await db.execute(
+        select(GraphNode.id).where(
+            GraphNode.user_id == user_id,
+            GraphNode.object_type == "source_file",
+            GraphNode.object_id == file_id,
+        )
+    )
+    node_ids = [r[0] for r in node_ids_res.all()]
+    if node_ids:
+        # edges (both directions)
+        edge_del = await db.execute(
+            sql_delete(GraphEdge).where(
+                GraphEdge.user_id == user_id,
+                or_(
+                    GraphEdge.source_node_id.in_(node_ids),
+                    GraphEdge.target_node_id.in_(node_ids),
+                )
+            )
+        )
+        stats["graph_edges_removed"] = edge_del.rowcount or 0
+        # suggestions
+        sug_del = await db.execute(
+            sql_delete(SuggestedRelation).where(
+                SuggestedRelation.user_id == user_id,
+                or_(
+                    SuggestedRelation.source_node_id.in_(node_ids),
+                    SuggestedRelation.target_node_id.in_(node_ids),
+                )
+            )
+        )
+        stats["suggestions_removed"] = sug_del.rowcount or 0
+        # nodes themselves
+        node_del = await db.execute(
+            sql_delete(GraphNode).where(GraphNode.id.in_(node_ids))
+        )
+        stats["graph_nodes_removed"] = node_del.rowcount or 0
+
+    # ─── 2. Summary .md บน local disk ───
+    # FileSummary.md_path cascade ลบ DB row แต่ไฟล์ .md ค้าง
+    if md_path and os.path.exists(md_path):
+        try:
+            os.remove(md_path)
+            stats["summary_md_removed"] = True
+        except OSError as e:
+            logger.warning("cleanup_file_refs: remove md_path %s failed: %s", md_path, e)
+
+    # ─── 3. ContextPack.source_file_ids JSON (ตัด file_id ออก) ───
+    pack_res = await db.execute(
+        select(ContextPack).where(ContextPack.user_id == user_id)
+    )
+    for p in pack_res.scalars().all():
+        try:
+            ids = json.loads(p.source_file_ids or "[]")
+            if file_id in ids:
+                p.source_file_ids = json.dumps([i for i in ids if i != file_id])
+                stats["packs_updated"] += 1
+        except (ValueError, TypeError):
+            pass
+
+    # ─── 4. ChatQuery.selected_file_ids JSON ───
+    # pre-filter ด้วย LIKE %file_id% เพื่อไม่ scan ทุก row
+    chat_res = await db.execute(
+        select(ChatQuery).where(
+            ChatQuery.user_id == user_id,
+            ChatQuery.selected_file_ids.like(f"%{file_id}%"),
+        )
+    )
+    for c in chat_res.scalars().all():
+        try:
+            ids = json.loads(c.selected_file_ids or "[]")
+            if file_id in ids:
+                c.selected_file_ids = json.dumps([i for i in ids if i != file_id])
+                stats["chats_updated"] += 1
+        except (ValueError, TypeError):
+            pass
+
+    # ─── 5. ContextInjectionLog.file_ids JSON (filter via chat_query.user_id JOIN) ───
+    log_res = await db.execute(
+        select(ContextInjectionLog).join(
+            ChatQuery, ChatQuery.id == ContextInjectionLog.chat_query_id
+        ).where(
+            ChatQuery.user_id == user_id,
+            ContextInjectionLog.file_ids.like(f"%{file_id}%"),
+        )
+    )
+    for l in log_res.scalars().all():
+        try:
+            ids = json.loads(l.file_ids or "[]")
+            if file_id in ids:
+                l.file_ids = json.dumps([i for i in ids if i != file_id])
+                stats["injection_logs_updated"] += 1
+        except (ValueError, TypeError):
+            pass
+
+    return stats
+
+
+async def _cleanup_empty_clusters(db: AsyncSession, user_id: str) -> int:
+    """ลบ Cluster ที่ไม่เหลือ file_cluster_map (orphan หลัง file delete + FK cascade fire).
+
+    เรียก AFTER `await db.commit()` ของ db.delete(file) · ตอนนั้น FileClusterMap cascade fired แล้ว
+    คืนจำนวน clusters ที่ลบ (รวมถึง cleanup graph_node+edges สำหรับ cluster ที่ลบ).
+    """
+    from sqlalchemy import delete as sql_delete, or_, text
+
+    # find empty clusters (no file_cluster_map entries left)
+    empty_res = await db.execute(text("""
+        SELECT c.id FROM clusters c
+        WHERE c.user_id = :uid
+        AND NOT EXISTS (SELECT 1 FROM file_cluster_map fcm WHERE fcm.cluster_id = c.id)
+    """), {"uid": user_id})
+    empty_ids = [r[0] for r in empty_res.all()]
+    if not empty_ids:
+        return 0
+
+    # also clean cluster graph nodes + their edges
+    cl_node_res = await db.execute(
+        select(GraphNode.id).where(
+            GraphNode.user_id == user_id,
+            GraphNode.object_type == "cluster",
+            GraphNode.object_id.in_(empty_ids),
+        )
+    )
+    cl_node_ids = [r[0] for r in cl_node_res.all()]
+    if cl_node_ids:
+        await db.execute(sql_delete(GraphEdge).where(
+            GraphEdge.user_id == user_id,
+            or_(
+                GraphEdge.source_node_id.in_(cl_node_ids),
+                GraphEdge.target_node_id.in_(cl_node_ids),
+            )
+        ))
+        await db.execute(sql_delete(SuggestedRelation).where(
+            SuggestedRelation.user_id == user_id,
+            or_(
+                SuggestedRelation.source_node_id.in_(cl_node_ids),
+                SuggestedRelation.target_node_id.in_(cl_node_ids),
+            )
+        ))
+        await db.execute(sql_delete(GraphNode).where(GraphNode.id.in_(cl_node_ids)))
+
+    # finally delete the clusters
+    del_res = await db.execute(
+        sql_delete(Cluster).where(Cluster.id.in_(empty_ids))
+    )
+    return del_res.rowcount or 0
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1093,31 +1261,36 @@ async def healthz_queue(db: AsyncSession = Depends(get_db)):
     from sqlalchemy import func
     from datetime import timedelta
     from .upload_worker import get_worker_health
+    import asyncio
 
     worker = get_worker_health()
-    queued = await db.scalar(
-        select(func.count()).select_from(File).where(File.processing_status == "queued")
-    )
-    extracting = await db.scalar(
-        select(func.count()).select_from(File).where(File.processing_status == "extracting")
-    )
-
     cutoff_24h = datetime.utcnow() - timedelta(hours=24)
-    error_24h = await db.scalar(
-        select(func.count()).select_from(File).where(
-            File.processing_status == "error",
-            File.extract_completed_at >= cutoff_24h,
-        )
-    )
-    success_24h = await db.scalar(
-        select(func.count()).select_from(File).where(
-            File.processing_status == "uploaded",
-            File.extract_completed_at >= cutoff_24h,
-        )
-    )
 
-    oldest_queued = await db.scalar(
-        select(func.min(File.queued_at)).where(File.processing_status == "queued")
+    # v10.0.0: gather 5 health-stat queries (kept sequential previously, so
+    # the probe cost = 5x serial round-trips). Hit every 10s by Fly probe,
+    # so even small savings compound.
+    queued, extracting, error_24h, success_24h, oldest_queued = await asyncio.gather(
+        db.scalar(
+            select(func.count()).select_from(File).where(File.processing_status == "queued")
+        ),
+        db.scalar(
+            select(func.count()).select_from(File).where(File.processing_status == "extracting")
+        ),
+        db.scalar(
+            select(func.count()).select_from(File).where(
+                File.processing_status == "error",
+                File.extract_completed_at >= cutoff_24h,
+            )
+        ),
+        db.scalar(
+            select(func.count()).select_from(File).where(
+                File.processing_status == "uploaded",
+                File.extract_completed_at >= cutoff_24h,
+            )
+        ),
+        db.scalar(
+            select(func.min(File.queued_at)).where(File.processing_status == "queued")
+        ),
     )
     oldest_age = int((datetime.utcnow() - oldest_queued).total_seconds()) if oldest_queued else 0
 
@@ -1152,46 +1325,135 @@ async def healthz_queue(db: AsyncSession = Depends(get_db)):
 
 
 @app.post("/api/organize")
-async def organize(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    """Run the organization pipeline on all uploaded files, then build graph."""
+async def organize(
+    force: bool = Query(False, description="Re-summarize all files even if summary exists"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Run the organization pipeline on all uploaded files, then build graph.
+
+    v10.0.0:
+      - default: skip files that already have a summary (cheap re-runs)
+      - ?force=true: re-summarize everything (refresh)
+      - Per-user organize lock prevents double-LLM-spend from rapid double clicks
+    """
     # v5.9.3 — check summary quota
     limit_err = await check_summary_allowed(db, current_user)
     if limit_err:
         raise HTTPException(status_code=403, detail=limit_err["error"])
+
+    # v10.0.0 -- atomic check-and-set: only one organize per user at a time.
+    if not await _try_start_organize(current_user.id):
+        raise HTTPException(
+            status_code=409,
+            detail={"error": {
+                "code": "ORGANIZE_IN_PROGRESS",
+                "message": "Organization already running for this user — please wait",
+            }},
+        )
+    from . import progress_tracker as _pt
+    _pt.start(current_user.id, phase="starting",
+              step_th="กำลังเริ่มจัดระเบียบทั้งหมด", step_en="Starting full organize")
     try:
-        await organize_files(db, current_user.id)
+        _pt.report(current_user.id, phase="clustering",
+                   step_th="AI จัดกลุ่มไฟล์ทั้งหมด", step_en="Clustering all files")
+        await organize_files(db, current_user.id, force=force)
         await log_usage(db, current_user.id, "ai_summary")
         await db.commit()
 
         # v3: Auto-build knowledge graph after organizing
         logger.info("Auto-building knowledge graph...")
-        await enrich_all_files(db, current_user.id)
+        _pt.report(current_user.id, phase="enrich",
+                   step_th="กำลังเสริม metadata", step_en="Enriching metadata")
+        await enrich_all_files(db, current_user.id, force=force)
+        _pt.report(current_user.id, phase="graph",
+                   step_th="สร้าง Knowledge Graph", step_en="Building knowledge graph")
         graph_result = await build_full_graph(db, current_user.id)
+        _pt.report(current_user.id, phase="suggest",
+                   step_th="สร้าง Suggestions", step_en="Generating suggestions")
         await generate_suggestions(db, current_user.id)
         logger.info(f"Graph built: {graph_result}")
 
+        _pt.done(current_user.id, step_th="จัดระเบียบเสร็จสมบูรณ์", step_en="Organize complete")
         return {"status": "ok", "message": "Organization + graph build complete", "graph": graph_result}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Organization failed: {e}")
+        _pt.error(current_user.id, f"จัดระเบียบล้มเหลว: {str(e)[:200]}")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        await _end_organize(current_user.id)
 
 
 @app.get("/api/unprocessed-count")
-async def unprocessed_count(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    """Count files that haven't been organized yet (no summary)."""
-    from sqlalchemy import func, and_
-    # Files that have extracted_text but no summary record
-    all_files = await db.execute(
-        select(func.count(File.id)).where(File.user_id == current_user.id, File.extracted_text != "")
-    )
-    total = all_files.scalar() or 0
+async def unprocessed_count(
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Count + list files that haven't been organized yet (no summary).
 
-    summarized = await db.execute(
-        select(func.count(FileSummary.file_id)).join(File, File.id == FileSummary.file_id).where(File.user_id == current_user.id)
-    )
-    done = summarized.scalar() or 0
+    v10.0.4: return up to 50 unprocessed filenames so the badge can show
+    a hover/click dropdown — user can see WHICH files are pending instead
+    of a mystery "17". no-cache header ensures the badge refresh after
+    delete/upload always reads fresh DB state (no stale browser cache).
+    """
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+    from sqlalchemy import func, exists
 
-    return {"unprocessed": total - done, "total": total, "processed": done}
+    # Same single-query approach: files with extracted_text but no FileSummary row.
+    # Single round-trip + accurate (vs. two count queries which can race if a
+    # summary lands between them).
+    summary_exists = exists(
+        select(FileSummary.file_id).where(FileSummary.file_id == File.id)
+    )
+    unprocessed_files = (await db.execute(
+        select(File.id, File.filename, File.filetype, File.uploaded_at,
+               File.processing_status, File.extraction_status)
+        .where(
+            File.user_id == current_user.id,
+            File.extracted_text != "",
+            File.file_kind == "processed",
+            ~summary_exists,
+        )
+        .order_by(File.uploaded_at.desc())
+        .limit(50)
+    )).all()
+
+    # Count total — same condition, faster than .all() for big result sets
+    total_unprocessed = (await db.execute(
+        select(func.count(File.id)).where(
+            File.user_id == current_user.id,
+            File.extracted_text != "",
+            File.file_kind == "processed",
+            ~summary_exists,
+        )
+    )).scalar() or 0
+
+    total_with_text = (await db.execute(
+        select(func.count(File.id)).where(
+            File.user_id == current_user.id, File.extracted_text != ""
+        )
+    )).scalar() or 0
+
+    return {
+        "unprocessed": total_unprocessed,
+        "total": total_with_text,
+        "processed": total_with_text - total_unprocessed,
+        "files": [
+            {
+                "id": f.id,
+                "filename": f.filename,
+                "filetype": f.filetype,
+                "uploaded_at": (f.uploaded_at.isoformat() + "Z") if f.uploaded_at else None,
+                "processing_status": f.processing_status,
+                "extraction_status": f.extraction_status,
+            }
+            for f in unprocessed_files
+        ],
+        "files_truncated": total_unprocessed > 50,
+    }
 
 
 @app.post("/api/organize-new")
@@ -1207,52 +1469,92 @@ async def organize_new(current_user: User = Depends(get_current_user), db: Async
     limit_err = await check_summary_allowed(db, current_user)
     if limit_err:
         raise HTTPException(status_code=403, detail=limit_err["error"])
+    # v10.0.0 -- atomic check-and-set shared with /api/organize.
+    if not await _try_start_organize(current_user.id):
+        raise HTTPException(
+            status_code=409,
+            detail={"error": {
+                "code": "ORGANIZE_IN_PROGRESS",
+                "message": "Organization already running for this user — please wait",
+            }},
+        )
     from .organizer import organize_new_files
+    from . import progress_tracker as _pt
+    _pt.start(current_user.id, phase="starting",
+              step_th="กำลังเริ่มจัดระเบียบ", step_en="Starting organize")
     try:
-        result = await organize_new_files(db, current_user.id)
-        if result.get("skipped"):
+        try:
+            result = await organize_new_files(db, current_user.id)
+            if result.get("skipped"):
+                _pt.done(current_user.id, step_th="ไม่มีไฟล์ใหม่", step_en="No new files")
+                return {
+                    "status": "ok",
+                    "message": "ไม่มีไฟล์ใหม่ที่ต้องจัดระเบียบ",
+                    "new_files": 0,
+                    "duplicates_found": [],
+                }
+
+            await log_usage(db, current_user.id, "ai_summary")
+            await db.commit()
+
+            # Enrich + graph for new files
+            _pt.report(current_user.id, phase="enrich",
+                       step_th="กำลังเสริม metadata", step_en="Enriching metadata")
+            await enrich_all_files(db, current_user.id)
+            _pt.report(current_user.id, phase="graph",
+                       step_th="สร้าง Knowledge Graph", step_en="Building knowledge graph")
+            graph_result = await build_full_graph(db, current_user.id)
+            _pt.report(current_user.id, phase="suggest",
+                       step_th="สร้าง Suggestions", step_en="Generating suggestions")
+            await generate_suggestions(db, current_user.id)
+
+            # v7.1 — Duplicate detection หลัง organize เสร็จ
+            duplicates_found: list = []
+            new_file_ids = result.get("file_ids") or []
+            if new_file_ids:
+                _pt.report(current_user.id, phase="duplicates",
+                           step_th="ตรวจหาไฟล์ซ้ำ", step_en="Detecting duplicates")
+                try:
+                    duplicates_found = await detect_duplicates_for_batch(
+                        db, current_user.id, new_file_ids,
+                    )
+                except Exception as e:
+                    logger.warning(f"Duplicate detection failed post-organize: {e}")
+
+            _pt.done(current_user.id,
+                     step_th=f"จัดระเบียบสำเร็จ {result.get('count', 0)} ไฟล์",
+                     step_en=f"Organized {result.get('count', 0)} files")
             return {
                 "status": "ok",
-                "message": "ไม่มีไฟล์ใหม่ที่ต้องจัดระเบียบ",
-                "new_files": 0,
-                "duplicates_found": [],  # v7.1 — empty array เพื่อ contract consistency
+                "message": f"จัดระเบียบไฟล์ใหม่ {result.get('count', 0)} ไฟล์เรียบร้อย",
+                "new_files": result.get("count", 0),
+                "graph": graph_result,
+                "duplicates_found": duplicates_found,
             }
+        except Exception as e:
+            logger.error(f"Organize new files failed: {e}")
+            _pt.error(current_user.id, f"จัดระเบียบล้มเหลว: {str(e)[:200]}")
+            raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        await _end_organize(current_user.id)
 
-        await log_usage(db, current_user.id, "ai_summary")
-        await db.commit()
 
-        # Enrich + graph for new files
-        await enrich_all_files(db, current_user.id)
-        graph_result = await build_full_graph(db, current_user.id)
-        await generate_suggestions(db, current_user.id)
+@app.get("/api/organize-status")
+async def organize_status(current_user: User = Depends(get_current_user)):
+    """v10.0.3 — live status of /api/organize-new pipeline for current user.
 
-        # v7.1 — Duplicate detection หลัง organize เสร็จ
-        # ตอนนี้ทุกไฟล์ใหม่ถูก index เข้า vector_search แล้ว (ใน organize_new_files
-        # → vector_search.index_file ทุก file ที่ summary สำเร็จ) → semantic detection
-        # ทำงานเต็ม + intra-batch SEMANTIC = match ได้ (Risk #9 ของ v7.1 round แรก
-        # หายไปแล้วเพราะ detect หลัง index)
-        # Best-effort: ห้าม raise — organize สำเร็จไปแล้ว ถ้า detection พังต้องไม่
-        # กระทบ user (return empty array แทน)
-        duplicates_found: list = []
-        new_file_ids = result.get("file_ids") or []
-        if new_file_ids:
-            try:
-                duplicates_found = await detect_duplicates_for_batch(
-                    db, current_user.id, new_file_ids,
-                )
-            except Exception as e:
-                logger.warning(f"Duplicate detection failed post-organize: {e}")
+    Frontend polls this every 2s while loading overlay is visible. Returns
+    `running: false` when pipeline finished (frontend stops polling).
+    """
+    from . import progress_tracker as _pt
+    snapshot = _pt.get(current_user.id)
+    if snapshot is None:
+        return {"running": False, "snapshot": None}
+    return {
+        "running": snapshot.get("phase") not in ("done", "error"),
+        "snapshot": snapshot,
+    }
 
-        return {
-            "status": "ok",
-            "message": f"จัดระเบียบไฟล์ใหม่ {result.get('count', 0)} ไฟล์เรียบร้อย",
-            "new_files": result.get("count", 0),
-            "graph": graph_result,
-            "duplicates_found": duplicates_found,  # v7.1
-        }
-    except Exception as e:
-        logger.error(f"Organize new files failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/files")
 async def list_files(
@@ -1432,9 +1734,9 @@ async def get_file_content(
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
     
-    # v5.9.3 — locked file check
+    # v5.9.3 — locked file check (locked = เกิน quota ของ plan)
     if getattr(file, "is_locked", False):
-        raise HTTPException(status_code=403, detail="ไฟล์นี้ถูกล็อค — อัปเกรดเป็น Starter เพื่อเข้าถึงไฟล์ที่ล็อค")
+        raise HTTPException(status_code=403, detail="ไฟล์นี้ถูกล็อค (เกินโควต้าแพลน) — ติดต่อแอดมินเพื่อปลดล็อก")
     
     text = file.extracted_text or ""
     total = len(text)
@@ -1835,6 +2137,305 @@ async def api_admin_audit_logs(
     return await _admin_mod.list_audit_logs(db, event_type, user_id, triggered_by, limit, offset)
 
 
+@app.get("/api/admin/extraction-stats")
+async def api_admin_extraction_stats(
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """v10.0.0 — Ingestion pipeline health/config readout.
+
+    Shows which processors are configured + per-format counts of files
+    currently in the system. Used by the admin panel to verify
+    LlamaParse rollout + monitor extraction status distribution.
+    """
+    from .config import (
+        is_llamaparse_configured, USE_LLAMAPARSE_FOR_PDF,
+        LLAMA_PARSE_MODE, LOCAL_EXTRACT_MAX_MB,
+        LOCAL_EXTRACT_CONCURRENCY, is_byos_configured,
+    )
+    from sqlalchemy import func as _func
+
+    # File counts per filetype + extraction_status
+    rows = (await db.execute(
+        select(File.filetype, File.extraction_status, _func.count(File.id))
+        .group_by(File.filetype, File.extraction_status)
+    )).all()
+    by_type: dict[str, dict[str, int]] = {}
+    for ft, status, count in rows:
+        ft = ft or "unknown"
+        by_type.setdefault(ft, {})[status or "unknown"] = count
+
+    return {
+        "config": {
+            "llamaparse_enabled": is_llamaparse_configured(),
+            "llamaparse_flag": USE_LLAMAPARSE_FOR_PDF,
+            "llamaparse_mode": LLAMA_PARSE_MODE,
+            "local_extract_max_mb": LOCAL_EXTRACT_MAX_MB,
+            "local_extract_concurrency": LOCAL_EXTRACT_CONCURRENCY,
+            "byos_configured": is_byos_configured(),
+        },
+        "files_by_type": by_type,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════
+# v10.0.x — Orphan cleanup admin endpoint
+# ═══════════════════════════════════════════════════════════════
+# Sweeps orphan records ที่เกิดก่อนมี cleanup helpers (v10.0.x ก่อนหน้านี้).
+# หลังจาก v10.0.x ทุก DELETE/skip-duplicates clean ครบ → endpoint นี้ไว้ใช้ครั้งเดียวเพื่อ
+# ล้างของเก่า (หรือใช้กู้สถานการณ์ถ้ามี orphan โผล่จาก code path ที่เราไม่เห็น)
+
+
+async def _sweep_orphans_for_user(
+    db: AsyncSession,
+    user_id: str,
+    dry_run: bool = False,
+) -> dict:
+    """Bulk orphan cleanup สำหรับ user เดียว.
+
+    ต่าง _cleanup_file_references ตรงที่ตัวนั้นทำงาน PER-FILE ระหว่าง DELETE (มี file_id).
+    ตัวนี้สแกนหา orphan ที่ค้างอยู่แล้ว (file row หายไปนานแล้ว · cleanup ตอน DELETE ไม่ทำ).
+
+    dry_run=True → return counts โดยไม่ลบจริง · ใช้ตรวจก่อน execute
+    """
+    from sqlalchemy import delete as sql_delete, or_, text
+    from .database import ChatQuery, ContextInjectionLog
+
+    stats = {
+        "orphan_source_file_nodes_removed": 0,
+        "orphan_graph_edges_removed": 0,
+        "orphan_suggestions_removed": 0,
+        "empty_clusters_removed": 0,
+        "empty_cluster_nodes_removed": 0,
+        "packs_updated": 0,
+        "chats_updated": 0,
+        "logs_updated": 0,
+    }
+
+    # ─── 1. Orphan source_file graph nodes (file row หายแล้ว) ───
+    orphan_node_res = await db.execute(text("""
+        SELECT gn.id FROM graph_nodes gn
+        LEFT JOIN files f ON f.id = gn.object_id
+        WHERE gn.user_id = :uid
+        AND gn.object_type = 'source_file'
+        AND f.id IS NULL
+    """), {"uid": user_id})
+    orphan_node_ids = [r[0] for r in orphan_node_res.all()]
+    stats["orphan_source_file_nodes_removed"] = len(orphan_node_ids)
+
+    if orphan_node_ids and not dry_run:
+        e_del = await db.execute(sql_delete(GraphEdge).where(
+            GraphEdge.user_id == user_id,
+            or_(
+                GraphEdge.source_node_id.in_(orphan_node_ids),
+                GraphEdge.target_node_id.in_(orphan_node_ids),
+            )
+        ))
+        stats["orphan_graph_edges_removed"] = e_del.rowcount or 0
+        s_del = await db.execute(sql_delete(SuggestedRelation).where(
+            SuggestedRelation.user_id == user_id,
+            or_(
+                SuggestedRelation.source_node_id.in_(orphan_node_ids),
+                SuggestedRelation.target_node_id.in_(orphan_node_ids),
+            )
+        ))
+        stats["orphan_suggestions_removed"] = s_del.rowcount or 0
+        await db.execute(sql_delete(GraphNode).where(GraphNode.id.in_(orphan_node_ids)))
+
+    # ─── 2. Empty clusters + their graph nodes ───
+    empty_res = await db.execute(text("""
+        SELECT c.id FROM clusters c
+        WHERE c.user_id = :uid
+        AND NOT EXISTS (SELECT 1 FROM file_cluster_map fcm WHERE fcm.cluster_id = c.id)
+    """), {"uid": user_id})
+    empty_ids = [r[0] for r in empty_res.all()]
+    stats["empty_clusters_removed"] = len(empty_ids)
+
+    if empty_ids and not dry_run:
+        # cluster graph nodes + their edges/suggestions
+        cl_node_res = await db.execute(
+            select(GraphNode.id).where(
+                GraphNode.user_id == user_id,
+                GraphNode.object_type == "cluster",
+                GraphNode.object_id.in_(empty_ids),
+            )
+        )
+        cl_node_ids = [r[0] for r in cl_node_res.all()]
+        stats["empty_cluster_nodes_removed"] = len(cl_node_ids)
+        if cl_node_ids:
+            await db.execute(sql_delete(GraphEdge).where(
+                GraphEdge.user_id == user_id,
+                or_(
+                    GraphEdge.source_node_id.in_(cl_node_ids),
+                    GraphEdge.target_node_id.in_(cl_node_ids),
+                )
+            ))
+            await db.execute(sql_delete(SuggestedRelation).where(
+                SuggestedRelation.user_id == user_id,
+                or_(
+                    SuggestedRelation.source_node_id.in_(cl_node_ids),
+                    SuggestedRelation.target_node_id.in_(cl_node_ids),
+                )
+            ))
+            await db.execute(sql_delete(GraphNode).where(GraphNode.id.in_(cl_node_ids)))
+        await db.execute(sql_delete(Cluster).where(Cluster.id.in_(empty_ids)))
+
+    # ─── 3. Stale file_id ใน JSON arrays (ContextPack / ChatQuery / ContextInjectionLog) ───
+    valid_ids_res = await db.execute(
+        select(File.id).where(File.user_id == user_id)
+    )
+    valid_ids = {r[0] for r in valid_ids_res.all()}
+
+    # ContextPack.source_file_ids
+    packs = await db.execute(
+        select(ContextPack).where(ContextPack.user_id == user_id)
+    )
+    for p in packs.scalars().all():
+        try:
+            ids = json.loads(p.source_file_ids or "[]")
+            clean = [i for i in ids if i in valid_ids]
+            if len(clean) != len(ids):
+                stats["packs_updated"] += 1
+                if not dry_run:
+                    p.source_file_ids = json.dumps(clean)
+        except (ValueError, TypeError):
+            pass
+
+    # ChatQuery.selected_file_ids
+    chats = await db.execute(
+        select(ChatQuery).where(ChatQuery.user_id == user_id)
+    )
+    for c in chats.scalars().all():
+        try:
+            ids = json.loads(c.selected_file_ids or "[]")
+            clean = [i for i in ids if i in valid_ids]
+            if len(clean) != len(ids):
+                stats["chats_updated"] += 1
+                if not dry_run:
+                    c.selected_file_ids = json.dumps(clean)
+        except (ValueError, TypeError):
+            pass
+
+    # ContextInjectionLog.file_ids (JOIN กับ chat_queries เพื่อ filter by user)
+    logs_res = await db.execute(
+        select(ContextInjectionLog).join(
+            ChatQuery, ChatQuery.id == ContextInjectionLog.chat_query_id
+        ).where(ChatQuery.user_id == user_id)
+    )
+    for l in logs_res.scalars().all():
+        try:
+            ids = json.loads(l.file_ids or "[]")
+            clean = [i for i in ids if i in valid_ids]
+            if len(clean) != len(ids):
+                stats["logs_updated"] += 1
+                if not dry_run:
+                    l.file_ids = json.dumps(clean)
+        except (ValueError, TypeError):
+            pass
+
+    return stats
+
+
+def _sweep_orphan_md_files(valid_md_paths: set[str], dry_run: bool = False) -> dict:
+    """ลบไฟล์ .md ใน SUMMARIES_DIR ที่ไม่มี DB row reference.
+
+    valid_md_paths: set ของ md_path values ใน file_summaries (preload จาก caller)
+    dry_run: ตรวจอย่างเดียว ไม่ลบ
+    """
+    from .config import SUMMARIES_DIR
+    stats = {"orphan_md_found": 0, "orphan_md_removed": 0, "remove_errors": 0}
+    if not os.path.isdir(SUMMARIES_DIR):
+        return stats
+    valid_basenames = {os.path.basename(p) for p in valid_md_paths if p}
+    for fn in os.listdir(SUMMARIES_DIR):
+        if not fn.endswith(".md"):
+            continue
+        if fn in valid_basenames:
+            continue
+        stats["orphan_md_found"] += 1
+        if not dry_run:
+            try:
+                os.remove(os.path.join(SUMMARIES_DIR, fn))
+                stats["orphan_md_removed"] += 1
+            except OSError as e:
+                logger.warning("sweep_orphan_md: remove %s failed: %s", fn, e)
+                stats["remove_errors"] += 1
+    return stats
+
+
+@app.post("/api/admin/cleanup-orphans")
+async def api_admin_cleanup_orphans(
+    dry_run: bool = Query(True, description="If true, count only · false = actually delete"),
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """v10.0.x — Admin sweep ของ orphan records ที่ค้างจาก pre-v10.0.x deletes.
+
+    Scans ทุก user · ลบ:
+      - GraphNode (object_type='source_file', object_id ไม่มีใน files) + edges/suggestions
+      - Empty Cluster (ไม่มี file_cluster_map เหลือ) + cluster graph nodes/edges
+      - file_id ใน JSON arrays ของ ContextPack/ChatQuery/ContextInjectionLog
+      - orphan .md files ใน SUMMARIES_DIR (ไม่มี file_summaries row)
+
+    **Default dry_run=true** — เรียกครั้งแรกได้สถิติว่าจะลบเท่าไหร่ · ไม่กระทบ data
+    ส่ง `?dry_run=false` เมื่อพร้อมจะลบจริง
+
+    Idempotent: รัน 2 รอบ → ครั้งที่ 2 ทุก count = 0
+    """
+    import time as _time
+    start = _time.monotonic()
+
+    # ทุก user
+    users_res = await db.execute(select(User.id))
+    user_ids = [r[0] for r in users_res.all()]
+
+    per_user_with_findings = 0
+    totals = {
+        "orphan_source_file_nodes_removed": 0,
+        "orphan_graph_edges_removed": 0,
+        "orphan_suggestions_removed": 0,
+        "empty_clusters_removed": 0,
+        "empty_cluster_nodes_removed": 0,
+        "packs_updated": 0,
+        "chats_updated": 0,
+        "logs_updated": 0,
+    }
+
+    for uid in user_ids:
+        try:
+            stats = await _sweep_orphans_for_user(db, uid, dry_run=dry_run)
+        except Exception as e:
+            logger.warning("cleanup_orphans: user %s sweep failed: %s", uid[:8], e)
+            continue
+        if any(v > 0 for v in stats.values()):
+            per_user_with_findings += 1
+        for k, v in stats.items():
+            if k in totals:
+                totals[k] += v
+
+    # Disk sweep (global · ไม่ผ่าน user)
+    md_paths_res = await db.execute(
+        select(FileSummary.md_path).where(FileSummary.md_path != "")
+    )
+    valid_md_paths = {r[0] for r in md_paths_res.all() if r[0]}
+    disk_stats = _sweep_orphan_md_files(valid_md_paths, dry_run=dry_run)
+
+    if not dry_run:
+        await db.commit()
+
+    duration_ms = int((_time.monotonic() - start) * 1000)
+
+    return {
+        "status": "ok",
+        "dry_run": dry_run,
+        "users_scanned": len(user_ids),
+        "users_with_orphans": per_user_with_findings,
+        "totals": totals,
+        "disk": disk_stats,
+        "duration_ms": duration_ms,
+    }
+
+
 # ─── v8.0.0 — LINE Bot UI endpoints (Profile section) ───
 @app.get("/api/line/status")
 async def line_status(
@@ -2102,6 +2703,16 @@ async def reprocess_file(
     if getattr(file, "is_locked", False):
         raise HTTPException(status_code=403, detail="ไฟล์นี้ถูกล็อค — อัปเกรดเพื่อประมวลผลใหม่")
 
+    # v10.0.0 -- reject reprocess while worker is mid-flight on this file.
+    # Without this, user can race the worker: reprocess sets status='queued'
+    # while worker still has it as 'extracting' -> when worker finishes,
+    # it writes status='uploaded' which overwrites our re-queue request.
+    if file.processing_status in ("queued", "extracting"):
+        raise HTTPException(409, detail={"error": {
+            "code": "FILE_IN_QUEUE",
+            "message": "ไฟล์กำลังประมวลผลอยู่ — กดยกเลิกก่อนหรือรอให้เสร็จก่อน",
+        }})
+
     if not file.raw_path or not os.path.exists(file.raw_path):
         raise HTTPException(status_code=404, detail="Original file not available — cannot reprocess")
 
@@ -2229,6 +2840,14 @@ async def delete_file(
     file_drive_file_id = file.drive_file_id
     file_id_for_bg = file.id
 
+    # ── v10.0.x — capture FileSummary.md_path BEFORE cascade ลบ DB row ──
+    # ต้องใช้ก่อน db.delete(file) เพื่อให้ helper รู้ว่าต้องลบไฟล์ .md ตัวไหนบน disk
+    # ใช้ explicit select แทน file.summary lazy access (lazy ไม่ทำงานใน async session)
+    summary_row = (await db.execute(
+        select(FileSummary.md_path).where(FileSummary.file_id == file.id)
+    )).scalar_one_or_none()
+    summary_md_path = summary_row or None
+
     # 1. Disk: best-effort ลบ raw file
     if file.raw_path and os.path.exists(file.raw_path):
         try:
@@ -2245,9 +2864,38 @@ async def delete_file(
             f"delete_file: vector_search remove failed for {file_id}: {e}"
         )
 
-    # 3. DB cascade (FK ลบ FileInsight + FileSummary + FileClusterMap อัตโนมัติ)
+    # 3. v10.0.x — Cleanup orphan references ที่ FK cascade ไม่ครอบคลุม
+    #    (graph nodes/edges/suggestions, summary .md disk, JSON arrays)
+    #    เรียก BEFORE db.delete(file) เพื่อให้ file.id ยัง resolve ได้
+    try:
+        cleanup_stats = await _cleanup_file_references(
+            db, current_user.id, file.id, summary_md_path
+        )
+        logger.info(
+            "delete_file %s: orphan cleanup stats=%s", file_id, cleanup_stats
+        )
+    except Exception as e:
+        # Best-effort · ห้าม raise · DELETE primary success criterion = file row gone
+        logger.warning(
+            "delete_file: orphan cleanup failed for %s: %s", file_id, e
+        )
+
+    # 4. DB cascade (FK ลบ FileInsight + FileSummary + FileClusterMap อัตโนมัติ)
     await db.delete(file)
     await db.commit()
+
+    # 5. v10.0.x — Empty cluster cleanup (หลัง commit · เพราะ FileClusterMap cascade fired แล้ว)
+    try:
+        empty_cluster_count = await _cleanup_empty_clusters(db, current_user.id)
+        if empty_cluster_count:
+            await db.commit()
+            logger.info(
+                "delete_file %s: removed %d empty clusters", file_id, empty_cluster_count
+            )
+    except Exception as e:
+        logger.warning(
+            "delete_file: empty cluster cleanup failed for %s: %s", file_id, e
+        )
 
     # 4. Drive cleanup (async background · ไม่ block response)
     from .storage_router import _should_trash_drive_file
@@ -2412,6 +3060,12 @@ async def skip_duplicates(
             skipped_ids.append(file_id)
             continue
 
+        # ── v10.0.x — capture summary.md_path BEFORE cascade ──
+        summary_row = (await db.execute(
+            select(FileSummary.md_path).where(FileSummary.file_id == f.id)
+        )).scalar_one_or_none()
+        summary_md_path = summary_row or None
+
         # 1. Best-effort: ลบ raw file จาก disk
         if f.raw_path and os.path.exists(f.raw_path):
             try:
@@ -2442,11 +3096,30 @@ async def skip_duplicates(
                 f"skip-duplicates: vector_search remove failed for {file_id}: {e}"
             )
 
-        # 4. ลบ DB row → cascade ลบ FileInsight + FileSummary + FileClusterMap
+        # 4. v10.0.x — Cleanup orphan references (graph/JSON/summary .md)
+        try:
+            await _cleanup_file_references(db, current_user.id, f.id, summary_md_path)
+        except Exception as e:
+            logger.warning(
+                f"skip-duplicates: orphan cleanup failed for {file_id}: {e}"
+            )
+
+        # 5. ลบ DB row → cascade ลบ FileInsight + FileSummary + FileClusterMap
         await db.delete(f)
         deleted.append(file_id)
 
     await db.commit()
+
+    # 6. v10.0.x — Empty cluster cleanup (one pass หลัง loop เสร็จ · ประหยัด query)
+    try:
+        empty_cluster_count = await _cleanup_empty_clusters(db, current_user.id)
+        if empty_cluster_count:
+            await db.commit()
+            logger.info(
+                "skip-duplicates: removed %d empty clusters", empty_cluster_count
+            )
+    except Exception as e:
+        logger.warning(f"skip-duplicates: empty cluster cleanup failed: {e}")
 
     logger.info(
         f"skip-duplicates: user {current_user.id[:8]}.. deleted {len(deleted)} "
@@ -3009,10 +3682,17 @@ async def api_get_context(context_id: str, current_user: User = Depends(get_curr
 # ═══════════════════════════════════════════
 
 @app.post("/api/graph/build")
-async def api_build_graph(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    """Build/rebuild the knowledge graph from all data."""
+async def api_build_graph(
+    force: bool = Query(False, description="Force full rebuild · skip idempotent count check"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Build/rebuild the knowledge graph from all data.
+
+    ?force=true → tear down + rebuild even ถ้า node_count == file_count (กัน orphan ค้าง)
+    """
     try:
-        result = await build_full_graph(db, current_user.id)
+        result = await build_full_graph(db, current_user.id, force=force)
         await generate_suggestions(db, current_user.id)
         return {"status": "ok", **result}
     except Exception as e:
@@ -3031,12 +3711,20 @@ async def api_global_graph(current_user: User = Depends(get_current_user), db: A
 async def api_list_nodes(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    family: str | None = None
+    family: str | None = None,
+    limit: int = Query(5000, ge=1, le=20000),  # v10.0.0 -- hard cap
+    offset: int = Query(0, ge=0),
 ):
-    """List all graph nodes, optionally filtered by family."""
+    """List all graph nodes, optionally filtered by family.
+
+    v10.0.0 pagination: ``limit`` default 5000 (well above any realistic user),
+    hard ceiling 20000 to prevent runaway responses. Frontend doesn't need
+    to pass these for the common case.
+    """
     query = select(GraphNode).where(GraphNode.user_id == current_user.id)
     if family:
         query = query.where(GraphNode.node_family == family)
+    query = query.limit(limit).offset(offset)
     nodes = (await db.execute(query)).scalars().all()
     return {"nodes": [
         {
@@ -3077,12 +3765,18 @@ async def api_neighborhood(
 async def api_list_edges(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    edge_type: str | None = None
+    edge_type: str | None = None,
+    limit: int = Query(10000, ge=1, le=50000),  # v10.0.0 -- hard cap
+    offset: int = Query(0, ge=0),
 ):
-    """List all graph edges, optionally filtered by type."""
+    """List all graph edges, optionally filtered by type.
+
+    v10.0.0: hard cap 50000 prevents pathological responses.
+    """
     query = select(GraphEdge).where(GraphEdge.user_id == current_user.id)
     if edge_type:
         query = query.where(GraphEdge.edge_type == edge_type)
+    query = query.limit(limit).offset(offset)
     edges = (await db.execute(query)).scalars().all()
     return {"edges": [
         {
@@ -3163,10 +3857,18 @@ async def api_update_metadata(file_id: str, req: MetadataUpdateRequest, current_
 
 
 @app.post("/api/metadata/enrich")
-async def api_enrich_metadata(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    """Enrich metadata for all files using LLM."""
+async def api_enrich_metadata(
+    force: bool = Query(False, description="Re-enrich files that already have tags"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Enrich metadata for all files using LLM.
+
+    v10.0.0: by default skips files that are already enriched (have tags).
+    Pass ?force=true to re-run on every file (refresh).
+    """
     try:
-        result = await enrich_all_files(db, current_user.id)
+        result = await enrich_all_files(db, current_user.id, force=force)
         return result
     except Exception as e:
         logger.error(f"Metadata enrichment failed: {e}")
@@ -3755,46 +4457,9 @@ async def mcp_streamable_http(secret: str, request: Request, db: AsyncSession = 
         })
 
 
-# ─── BILLING API (v5.9.2) ───
-
-class CheckoutRequest(BaseModel):
-    plan: str = "starter"
-
-@app.post("/api/billing/create-checkout-session")
-async def api_create_checkout(body: CheckoutRequest, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    """Create a Stripe Checkout Session for upgrading to Starter."""
-    if body.plan != "starter":
-        raise HTTPException(status_code=400, detail="Only Starter plan is available for checkout.")
-    try:
-        url = await create_checkout_session(user, db)
-        return {"checkout_url": url}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Checkout creation failed: {e}")
-        raise HTTPException(status_code=500, detail="We could not start checkout right now. Please try again in a moment.")
-
-@app.post("/api/billing/create-portal-session")
-async def api_create_portal(user: User = Depends(get_current_user)):
-    """Create a Stripe Customer Portal session."""
-    try:
-        url = await create_portal_session(user)
-        return {"portal_url": url}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Portal creation failed: {e}")
-        raise HTTPException(status_code=500, detail="Could not open billing portal.")
-
-@app.post("/api/stripe/webhook")
-async def api_stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
-    """Handle Stripe webhook events. No auth — verified by signature."""
-    return await process_webhook(request, db)
-
-@app.get("/api/billing/info")
-async def api_billing_info(user: User = Depends(get_current_user)):
-    """Get current user billing/subscription info."""
-    return get_billing_info(user)
+# Billing (Stripe) endpoints removed in v9.6.0.
+# Quota / plan system ยังทำงานอยู่ผ่าน plan_limits.py — admin upgrade ผ่าน
+# /api/admin/users/.../plan ได้. See docs/restoration/billing-restore.md.
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -4134,28 +4799,8 @@ async def api_drive_sync(
     return {"status": sync_status, "stats": stats}
 
 
-# Billing redirects → land on /app where the success/cancelled toast is shown.
-@app.get("/billing/success")
-async def serve_billing_success():
-    """Stripe redirects here on success → forward to /app."""
-    return RedirectResponse(url="/app?billing=success", status_code=302)
-
-
-@app.get("/pricing")
-async def serve_pricing():
-    """Serve the pricing/plan selection page."""
-    pricing_path = os.path.join(BASE_DIR, "legacy-frontend", "pricing.html")
-    if os.path.exists(pricing_path):
-        resp = FileResponse(pricing_path, media_type="text/html")
-        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-        return resp
-    raise HTTPException(status_code=404)
-
-
-@app.get("/billing/cancelled")
-async def serve_billing_cancelled():
-    """Stripe redirects here on cancel → forward to /app."""
-    return RedirectResponse(url="/app?billing=cancelled", status_code=302)
+# Billing redirect routes (/billing/success, /pricing, /billing/cancelled)
+# removed in v9.6.0. See docs/restoration/billing-restore.md.
 
 
 # ─── SERVE FRONTEND (legacy-frontend/) ───
