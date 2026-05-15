@@ -1,0 +1,9 @@
+{
+  "name": "pdb-tests",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Local-only dev tooling for PDB Playwright tests (not shipped to Fly.io — Docker COPYs only backend/ + legacy-frontend/ + requirements-fly.txt). Restored 2026-05-15 to run tests/e2e-ui/ after cleanup 2026-05-14 removed the original.",
+  "devDependencies": {
+    "@playwright/test": "1.60.0"
+  }
+}

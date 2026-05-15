@@ -9,6 +9,359 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
+### MSG-LANDING-UI-FIX-001 🔴 [READY FOR REVIEW] Landing Page bugs ครบ 12 จุด · Playwright 11/11 PASS
+**From:** เขียว (Khiao)
+**Date:** 2026-05-15
+**Re:** [MSG-UI-TEST-001..004] ใน [`inbox/for-เขียว.md`](for-เขียว.md) (4 MSGs · 12 bugs)
+**Pipeline state:** `built_pending_review` · รอฟ้า review รอบสุดท้าย
+
+สวัสดีฟ้า 🔵
+
+ผมแก้บัค + UX ที่ฟ้าแจ้งครบทั้ง 4 MSGs (12 ข้อ) ครับ และรัน Playwright spec ที่ฟ้าเขียนไว้แล้ว — **PASS 11/11 ตามที่ฟ้าระบุ "ถ้าแก้ครบ ต้องเขียวทั้ง 10 ข้อ"** (test file มี 11 cases รวม UI-elements baseline)
+
+═══════════════════════════════════════════════════════════════
+📋 Bug → Fix mapping (ไล่ทีละข้อให้ฟ้า cross-check ง่าย)
+═══════════════════════════════════════════════════════════════
+
+**MSG-UI-TEST-001 (🔴 HIGH · Form bugs):**
+
+| Bug | Fix location | สรุปการแก้ |
+|---|---|---|
+| BUG-UI-01 (Register 422 → `[object Object]`) | `landing.js:doRegister()` | ใช้ helper `_extractDetailMessage(data.detail, fallback)` ใหม่ → parse FastAPI 422 array (`{type, loc, msg}[]`) → join `msg` ทุกตัว · เป็น string เสมอ |
+| BUG-UI-02 (Login 422 ถูกกลบด้วย "Login failed") | `landing.js:doLogin()` | เปลี่ยน `typeof msg === 'string' ? msg : 'Login failed'` → `nested \|\| _extractDetailMessage(...)` · รักษา nested `data.detail.error.message` (custom error format) เป็น priority สูง |
+| BUG-UI-03 (ไม่มี frontend validation) | `landing.js:doLogin/doRegister` | เช็ค `!email \|\| !password` (login) · `!name \|\| !email \|\| !password` (register) ก่อนยิง API · ขึ้น "กรุณากรอกอีเมลและรหัสผ่าน" / "กรุณากรอกข้อมูลให้ครบถ้วน" |
+
+**MSG-UI-TEST-002 (🟡 MEDIUM · UX + a11y):**
+
+| Bug | Fix location | สรุปการแก้ |
+|---|---|---|
+| UX-01 (ไม่มี loading state) | `landing.js` helper `_setBtnLoading(btn, isLoading, text)` | ทุก submit (login/register/forgot) เรียก `_setBtnLoading(btn, true, '...')` ก่อน fetch · `_setBtnLoading(btn, false)` ตอน error · re-enable ถูกเก็บ original text ใน `dataset.originalText` |
+| UX-02 (Enter key เฉพาะ password) | `landing.js:initAuth()` | ขยาย keydown listener ไปครอบทุก auth input (8 fields): `login-email/password`, `register-name/email/password`, `forgot-email`, `reset-new/confirm-password` |
+| UX-03 (Show/hide password) | `landing.html` + `landing.css` + `landing.js` | เพิ่ม `.pwd-wrap` รอบ `<input type="password">` 4 ตัว · ปุ่ม `.pwd-toggle` มี eye/eye-off SVG · JS toggle `input.type` ระหว่าง password ↔ text · `aria-pressed` + `aria-label` อัปเดต · CSS positioning ลอยขวาของ input |
+| a11y-01 (Screen reader ข้าม error) | `landing.html` | 4 `.auth-error` divs (login/register/forgot/reset) ติด `role="alert" aria-live="assertive"` |
+
+**MSG-UI-TEST-003 (🟡 MEDIUM · Edge-case):**
+
+| Bug | Fix location | สรุปการแก้ |
+|---|---|---|
+| BUG-EDGE-01 (Modal state leak) | `landing.js:showAuthModal()` | เคลียร์ `value` ของทุก input ใน `#auth-modal` ทุกครั้งที่เปิด modal · reset password toggle กลับเป็น type=password · reset button loading state |
+| BUG-EDGE-02 (Backdrop click ไม่ปิด) | `landing.js:initAuth()` | เพิ่ม click listener ที่ `#auth-modal` (overlay element) · เช็ค `e.target === e.currentTarget` แล้ว `classList.add('hidden')` |
+| BUG-EDGE-03 (Mobile header พัง <600px) | `landing.css` | เพิ่ม 2 media queries: `(max-width: 600px)` ลด padding/font-size · `(max-width: 420px)` ซ่อน text "Personal Data Bank" ใน logo · เหลือแค่ icon · `flex-shrink: 0` กันปุ่ม nav โดน squash |
+
+**MSG-UI-TEST-004 (🔴 HIGH · Logic):**
+
+| Bug | Fix location | สรุปการแก้ |
+|---|---|---|
+| BUG-LOGIC-01 (Color leak — forgot password) | `landing.js:doForgotPassword()` + helper `_resetAuthError()` | สร้าง `_resetAuthError(el)` ที่ล้าง `textContent + classList.add('hidden') + style.color = ''` · เรียกเป็นบรรทัดแรกของ `doForgotPassword` · กันสีเขียวจาก success state รั่วไป validation error รอบถัดไป |
+| BUG-LOGIC-02 (ไม่มี loading ตอน /api/admin/me probe) | `landing.js:doLogin/doRegister` | หลัง 200 OK → เรียก `_setBtnLoading(btn, true, 'กำลังพาเข้าสู่ระบบ...')` อีกครั้ง (text เปลี่ยน · ยัง disabled) · ปุ่มคง state นี้จนกว่า `window.location.href` จะ navigate เสร็จ |
+
+═══════════════════════════════════════════════════════════════
+📁 ไฟล์ที่เปลี่ยน (4 ไฟล์)
+═══════════════════════════════════════════════════════════════
+
+```
+M legacy-frontend/landing.js    (+~120 บรรทัด · helpers + 4 functions แก้ + initAuth ขยาย)
+M legacy-frontend/landing.html  (+~30 บรรทัด · pwd-wrap × 4 + aria-live × 4 + label for × 6)
+M legacy-frontend/landing.css   (+~70 บรรทัด · .pwd-wrap + .pwd-toggle + 2 media queries)
++ package.json                  (NEW · 9 บรรทัด · minimal devDependency @playwright/test 1.60.0)
+```
+
+**ทำไม `package.json` ใหม่:** Cleanup 2026-05-14 ลบ `package.json` เดิมไป · `playwright.config.js` (untracked) `require('@playwright/test')` → ถ้าไม่มี package ตัวนี้ในโปรเจกต์ Playwright runner หา module ไม่เจอ. ผม restore ขั้นต่ำพอให้ test runnable (single devDep · ไม่ส่งผลต่อ production Docker เพราะ `Dockerfile` COPY แค่ `backend/` + `legacy-frontend/` + `requirements-fly.txt`). ถ้าฟ้าเห็นว่าควรย้ายไปอยู่ใน `tools/` หรือไม่ commit เลย — บอกได้
+
+═══════════════════════════════════════════════════════════════
+🧪 ผล Playwright run (self-test ก่อนส่งให้ฟ้า)
+═══════════════════════════════════════════════════════════════
+
+```
+Running 11 tests using 1 worker
+
+  ok  1 UI elements should be visible on landing page (5.4s)
+  ok  2 Clicking Login buttons should open Auth Modal in Login mode (3.6s)
+  ok  3 Clicking Register buttons should open Auth Modal in Register mode (2.3s)
+  ok  4 Modal switching between Login, Register, and Forgot Password should work (1.6s)
+  ok  5 Login with empty credentials should show error (1.1s)
+  ok  6 Register with invalid password length should show error (1.2s)
+  ok  7 Forgot password with empty email should show error (1.5s)
+  ok  8 Input data should be cleared when modal is closed and reopened (1.5s)
+  ok  9 Clicking outside the modal should close it (1.2s)
+  ok 10 Forgot password error state color should not leak across attempts (1.8s)
+  ok 11 Login should have loading state and disable button to prevent double-click (1.5s)
+
+  11 passed (24.9s)
+```
+
+═══════════════════════════════════════════════════════════════
+📤 วิธี verify (ฟ้าใช้ browser_subagent ของตัวเอง — ไม่ต้องรัน Playwright)
+═══════════════════════════════════════════════════════════════
+
+User สั่งว่าให้ฟ้าใช้เครื่องมือของฟ้าเอง (browser_subagent ใน Antigravity) · **ไม่ต้องรัน `npx playwright`**
+ผมรัน Playwright spec ของฟ้าเองในฝั่งผมแล้ว (Claude Code) ผ่าน 11/11 · ฟ้าทำหน้าที่ verify behavior จริงผ่าน browser ของฟ้า
+
+**Pre-condition:**
+- Local server รันอยู่ที่ `http://127.0.0.1:8000` (ผม verify แล้ว · process active)
+  ถ้าหาย: `python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000` แล้วรอ ~10 วินาที
+
+**Test checklist — 8 ข้อ · ครอบคลุม bugs ทั้ง 12 จุด:**
+
+```
+[ ] 1. เปิด http://127.0.0.1:8000/ → กด "เข้าสู่ระบบ" → submit ทันที (ฟอร์มว่าง)
+       ✅ ขึ้น "กรุณากรอกอีเมลและรหัสผ่าน" (ไม่ยิง API)   [BUG-UI-03]
+
+[ ] 2. กรอก email + password อะไรก็ได้ (เช่น "test@a.com" / "123") → submit
+       ✅ ปุ่มเปลี่ยนเป็น "กำลังเข้าสู่ระบบ..." + disable ทันที
+       ✅ ตอน error กลับมา · ปุ่มคืนเป็น "เข้าสู่ระบบ"
+       ✅ error message อ่านเข้าใจได้ (ไม่ใช่ "[object Object]" หรือ "Login failed")   [BUG-UI-02 + UX-01 + BUG-LOGIC-02]
+
+[ ] 3. ปิด modal (กด X) · พิมพ์ email ทิ้งไว้ก่อนปิด · เปิดใหม่
+       ✅ ช่อง email ว่างเปล่า (state ไม่ leak · ป้องกัน privacy บนเครื่อง public)   [BUG-EDGE-01]
+
+[ ] 4. เปิด modal · คลิกพื้นที่มืดๆ รอบนอก modal box
+       ✅ Modal ปิด (ไม่ต้องกดปุ่ม X)   [BUG-EDGE-02]
+
+[ ] 5. สลับเป็นหน้า "ลืมรหัสผ่าน" · พิมพ์ email · submit
+       → ขึ้น success message สีเขียว ("ถ้าอีเมลนี้มีบัญชี...")
+       ลบ email ทิ้ง · submit อีกครั้ง
+       ✅ ข้อความ "กรุณากรอกอีเมล" เป็น **สีแดง** (ไม่ใช่สีเขียวค้างจากรอบก่อน)   [BUG-LOGIC-01]
+
+[ ] 6. ย่อ DevTools เป็นโหมด iPhone SE (375 × 667) หรือ resize window < 600px
+       ✅ Header logo + ปุ่ม nav ไม่ทับกัน · ไม่มี horizontal scroll
+       ✅ ที่ < 420px text "Personal Data Bank" ใน logo ซ่อน · เหลือแค่ icon   [BUG-EDGE-03]
+
+[ ] 7. หน้า register · กรอก password ที่ยาว (เห็นเป็นจุด) · กดปุ่มรูปตาท้าย input
+       ✅ Password กลายเป็น plain text · ไอคอนเปลี่ยนเป็น "ตาขีดทับ"
+       ✅ กดอีกที · กลับเป็นจุดเหมือนเดิม   [UX-03]
+
+[ ] 8. หน้า register · กรอก name + email · กด Enter ที่ช่อง email (ไม่ใช่ช่อง password)
+       ✅ ฟอร์มถูก submit · เดิม Enter ใช้ได้แค่ช่อง password   [UX-02]
+
+[ ] 9. (a11y check — ใช้ DevTools Inspect)
+       ✅ ทุก div#login-error / #register-error / #forgot-error / #reset-error มี
+          `role="alert"` + `aria-live="assertive"` ใน HTML attributes   [a11y-01]
+
+[ ] 10. ลอง register ด้วย password "12" (สั้นเกิน) · กด submit
+        ✅ error message โชว์ข้อความจริงจาก backend (Pydantic 422 detail · parsed เป็น string)
+        ✅ ไม่ใช่ "[object Object]"   [BUG-UI-01]
+```
+
+ถ้าเจอข้อไหนไม่ผ่าน — ส่งกลับ MSG ใน `inbox/for-เขียว.md` พร้อม screenshot + steps to reproduce ผมจะแก้ทันที
+
+═══════════════════════════════════════════════════════════════
+⚠️ จุดที่อยากให้ฟ้าดูเป็นพิเศษ
+═══════════════════════════════════════════════════════════════
+
+1. **`_extractDetailMessage` (landing.js:24)** — เป็น parser หลักของ 422 detail. รองรับ 3 shapes: `string`, `Array<{msg,message}>`, `Object{message,msg,error.message}`. ถ้า backend เปลี่ยน contract ในอนาคต fallback string จะถูกแสดงแทน (ไม่ leak structure)
+
+2. **`showAuthModal()` เคลียร์ input ทุกครั้ง** — รวมถึงตอน switch ภายใน modal (login → register). ถ้าฟ้าเห็นว่า UX แย่ (user สลับ form แล้วเสีย input ที่พิมพ์ไว้) ให้บอก — ผมเปลี่ยนเป็นเคลียร์เฉพาะตอนเปิดจาก close ได้
+
+3. **Inline `style.color = '#10b981'` ใน forgot success** — ผมเก็บไว้ตามเดิม (ไม่ refactor เป็น `.is-success` class) เพราะ scope แค่แก้ bug · ถ้าฟ้าอยาก hardening เพิ่ม (token-only ตาม UI Foundation §1) flag มาเป็น polish round 2
+
+4. **Show/hide password ใช้ 2 SVG ใน toggle button** — สลับด้วย CSS class `.is-visible` · ไม่ใช่ replace innerHTML · ลด layout shift + เร็วกว่า · เช็คดูว่า icon swap smooth ไหม
+
+5. **`package.json` ใหม่** — restored แค่ devDep เดียว (1 dep · ไม่กระทบ Docker · gitignored node_modules). ฟ้าตัดสินใจได้ว่าให้ commit หรือไม่
+
+═══════════════════════════════════════════════════════════════
+📌 หมายเหตุเรื่อง commit
+═══════════════════════════════════════════════════════════════
+
+**ยังไม่ commit** — เพราะ working tree ตอนนี้มี changes ของ v10.0.0 prep ค้างอยู่ 35+ ไฟล์ (ลบ billing.py / google_login.py · เพิ่ม backend/processors/ · อื่นๆ). ถ้าผม `git add legacy-frontend/landing.*` แล้ว commit ก็จะแยก fix ของผมออกจาก v10.0.0 ใหญ่ได้ — แต่ user ยังไม่สั่ง commit ในรอบนี้ · ผมเลยทิ้งไว้ใน working tree ให้ user decide
+
+ถ้า user สั่งให้ commit · proposed commit message:
+```
+fix(landing): auth modal bugs + UX + a11y + mobile [12 bugs from ฟ้า]
+
+แก้ MSG-UI-TEST-001..004 ครบ 12 จุด · Playwright 11/11 PASS
+
+- BUG-UI-01/02: parse FastAPI 422 detail array → readable string (was "[object Object]")
+- BUG-UI-03: client-side empty-field validation ก่อนยิง API
+- UX-01/BUG-LOGIC-02: loading state + disable button ตลอด login/register flow
+- UX-02: Enter key submit ใน email field (เดิมแค่ password)
+- UX-03: show/hide password toggle (eye icon) บน 4 password fields
+- a11y-01: role=alert + aria-live=assertive บน 4 .auth-error divs
+- BUG-EDGE-01: clear input values ตอนเปิด modal · กัน state leak
+- BUG-EDGE-02: backdrop click ปิด modal (e.target === e.currentTarget)
+- BUG-EDGE-03: mobile header < 600px / < 420px · hide logo text · prevent button squash
+- BUG-LOGIC-01: _resetAuthError helper ล้าง inline color · กันสีเขียว leak ไป error state
+
+Files: legacy-frontend/{landing.js, landing.html, landing.css} + package.json (restore minimal devDep)
+Verified: npx playwright test tests/e2e-ui/landing_page_detailed.spec.js → 11/11 PASS
+
+Refs: MSG-UI-TEST-001/002/003/004 from ฟ้า in for-เขียว.md
+Author-Agent: เขียว (Khiao)
+```
+
+— เขียว (Khiao)
+
+### MSG-OAUTH-LOCALHOST 🔴 [OPS-TASK] Verify Google login บน local dev (http://127.0.0.1:8000)
+**From:** User (via Claude Code helper · cleanup session 2026-05-14)
+**Date:** 2026-05-14
+**Priority:** 🟡 MEDIUM (ops/dev convenience · production ไม่กระทบ)
+**Status:** 🔴 New — รอ user setup ก่อน + ฟ้า verify หลัง
+**Type:** Ad-hoc ops task (ไม่ผ่าน pipeline-state — task ไม่ใช่ feature)
+
+═══════════════════════════════════════════════════════════════
+🎯 สรุปปัญหา
+═══════════════════════════════════════════════════════════════
+
+User รัน server บน local (`http://127.0.0.1:8000` หรือ `http://localhost:8000`)
+→ กด "Sign in with Google" → Google ปฏิเสธ redirect
+
+**Root cause:** [`backend/config.py:206`](../../../backend/config.py#L206) สร้าง `GOOGLE_LOGIN_REDIRECT_URI` จาก `APP_BASE_URL` ใน `.env` (= `http://localhost:8000`) → Google Cloud Console มีแค่ `https://personaldatabank.fly.dev/api/auth/google/callback` ใน Authorized redirect URIs → URL mismatch
+
+**ไม่ใช่ bug ของ code** — เป็น OAuth security feature (pre-registered URIs only).
+**ไม่เกี่ยวกับ cleanup session 2026-05-14** — config นี้ตั้งมาก่อน cleanup; .env mtime = 2026-05-09 ก่อน cleanup commits
+
+═══════════════════════════════════════════════════════════════
+📋 Step 1 — User ทำเอง (manual, ฟ้าทำแทนไม่ได้)
+═══════════════════════════════════════════════════════════════
+
+ส่วนนี้ต้องเข้า Google Cloud Console ด้วย account ที่เป็นเจ้าของ OAuth client — Playwright/ฟ้า ทำไม่ได้ (Google มี anti-bot).
+
+**1.1 เพิ่ม Authorized redirect URIs:**
+- ไป https://console.cloud.google.com/apis/credentials
+- เลือก project number `637911875362` (จาก `GOOGLE_PICKER_APP_ID`)
+- คลิก OAuth 2.0 Client ID (Web app)
+- ใต้ "Authorized redirect URIs" เพิ่ม **4 URLs**:
+  ```
+  http://localhost:8000/api/auth/google/callback
+  http://127.0.0.1:8000/api/auth/google/callback
+  http://localhost:8000/api/drive/oauth/callback
+  http://127.0.0.1:8000/api/drive/oauth/callback
+  ```
+- กด Save
+
+**1.2 เพิ่ม Test User (เพราะ `GOOGLE_OAUTH_MODE=testing`):**
+- ไป https://console.cloud.google.com/apis/credentials/consent
+- Section "Test users" → "+ ADD USERS"
+- เพิ่ม email ที่จะ test (เช่น `axis.solutions.team@gmail.com`)
+- Save
+
+**1.3 รอ Google propagation:** 1-2 นาที (max 5 นาที)
+
+User signal "เสร็จแล้ว" → ฟ้าเริ่ม Step 2
+
+═══════════════════════════════════════════════════════════════
+🧪 Step 2 — ฟ้า verify with Playwright
+═══════════════════════════════════════════════════════════════
+
+**Pre-condition:**
+- Server รันอยู่ที่ `http://127.0.0.1:8000` (cleanup session boot ไว้ — verify with `netstat -ano | grep ":8000"`)
+- ถ้า server ไม่รัน: `cd d:\PDB && python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000` (รอ ~10 วินาที index rebuild)
+
+**Test cases (เขียนใน `tests/e2e-ui/oauth-localhost.spec.js` ใหม่):**
+
+**T-OAUTH-1: Auth init returns Google URL ที่มี localhost redirect**
+```js
+test('auth init returns google URL with localhost callback', async ({ request }) => {
+  const r = await request.get('http://127.0.0.1:8000/api/auth/google/init');
+  expect(r.status()).toBe(200);
+  const body = await r.json();
+  expect(body.auth_url).toContain('accounts.google.com');
+  const url = new URL(body.auth_url);
+  const redirect = url.searchParams.get('redirect_uri');
+  expect(redirect).toMatch(/127\.0\.0\.1:8000|localhost:8000/);
+  expect(redirect).toContain('/api/auth/google/callback');
+});
+```
+
+**T-OAUTH-2: Full Google login flow (E2E with real account)**
+```js
+test('google login completes and lands on /app with token', async ({ page, context }) => {
+  // 1. เปิด landing
+  await page.goto('http://127.0.0.1:8000/');
+  // 2. กด "Sign in with Google" (ตรวจ selector ใน landing.html)
+  await page.click('text=/sign.in.*google/i');
+  // 3. รอ redirect ไป Google
+  await page.waitForURL(/accounts\.google\.com/, { timeout: 10000 });
+  // 4. **MANUAL STOP** — Playwright login ผ่าน Google ไม่ได้ (Google detects automation)
+  //    ใช้ context.storageState() ที่ pre-authenticated ของ test user (ถ้ามี),
+  //    หรือ skip ขั้นนี้ + verify callback handler ด้วย mock state แทน
+  test.skip(true, 'Google login automation blocked — verify manually or with pre-auth context');
+});
+```
+
+**T-OAUTH-3: Callback rejects invalid state CSRF token**
+```js
+test('callback rejects forged state', async ({ request }) => {
+  const r = await request.get(
+    'http://127.0.0.1:8000/api/auth/google/callback?code=fake&state=invalid',
+    { maxRedirects: 0 }
+  );
+  // ต้อง redirect ไป /?google_error=invalid_state (ดู main.py:236-238)
+  expect(r.status()).toBe(302);
+  const location = r.headers()['location'];
+  expect(location).toContain('google_error=invalid_state');
+});
+```
+
+**T-OAUTH-4: Missing params handled gracefully**
+```js
+test('callback redirects with error on missing params', async ({ request }) => {
+  const r = await request.get(
+    'http://127.0.0.1:8000/api/auth/google/callback',
+    { maxRedirects: 0 }
+  );
+  expect(r.status()).toBe(302);
+  expect(r.headers()['location']).toContain('google_error=missing_params');
+});
+```
+
+**T-OAUTH-5: User-cancelled flow (Google sent ?error=)**
+```js
+test('callback handles user cancelling consent', async ({ request }) => {
+  const r = await request.get(
+    'http://127.0.0.1:8000/api/auth/google/callback?error=access_denied',
+    { maxRedirects: 0 }
+  );
+  expect(r.status()).toBe(302);
+  expect(r.headers()['location']).toContain('google_error=access_denied');
+});
+```
+
+═══════════════════════════════════════════════════════════════
+⚠️ ข้อจำกัด Playwright + Google
+═══════════════════════════════════════════════════════════════
+
+Google ตรวจจับ headless browser → block automated login. ทางออก:
+1. **Skip T-OAUTH-2** (full E2E) — verify callback contract via T-OAUTH-3/4/5 + manual smoke
+2. **Pre-recorded auth state** — user login จริงครั้งเดียวที่ headed browser, save `storageState`, reuse ใน test
+3. **Mock callback handler** — patch `google_login.handle_google_callback` ใน test เพื่อ skip Google round trip
+
+แนะนำ (1) — ครอบคลุม security boundaries (state/CSRF, error redirects, missing params) ที่ไม่ต้องผ่าน Google จริง
+
+═══════════════════════════════════════════════════════════════
+📤 Verdict + Report
+═══════════════════════════════════════════════════════════════
+
+เขียน review report ใน `inbox/for-User.md`:
+
+**APPROVE conditions (ครบหมด):**
+- ✅ T-OAUTH-1 pass (init URL ถูก)
+- ✅ T-OAUTH-3 pass (CSRF state defended)
+- ✅ T-OAUTH-4 pass (missing params)
+- ✅ T-OAUTH-5 pass (user cancel)
+- ✅ Manual smoke (T-OAUTH-2): user รายงานว่า login ผ่าน → ส่งผลกลับมา + แนบ screenshot `/app#token=...` ใน URL bar
+
+**NEEDS_CHANGES conditions:**
+- ❌ T-OAUTH-1 fail: init URL ยังเป็น production → user setup ผิด (ส่ง MSG กลับ user · ไม่ใช่เขียว เพราะ code ไม่ผิด)
+- ❌ T-OAUTH-3 fail: CSRF defense พัง → security bug → escalate User priority HIGH
+
+═══════════════════════════════════════════════════════════════
+📚 Reference
+═══════════════════════════════════════════════════════════════
+
+- Code: [`backend/google_login.py`](../../../backend/google_login.py) (12K, ~300 lines)
+- Routes: [`backend/main.py`](../../../backend/main.py) lines 184-272 (init + callback)
+- Config: [`backend/config.py`](../../../backend/config.py) lines 202-219 (Google Sign-In section)
+- Test mode policy: `GOOGLE_OAUTH_MODE=testing` → 100 user cap, 7-day token expiry
+
+═══════════════════════════════════════════════════════════════
+🚨 Note on pipeline-state
+═══════════════════════════════════════════════════════════════
+
+Task นี้**ไม่ใช่ feature pipeline** (ไม่มี plan จากแดง · ไม่มี code change จากเขียว) — pipeline-state ยังคง `idle`. ฟ้าทำงานแบบ ops verify ตรงๆ. หลังจบ task อย่าเปลี่ยน pipeline-state.
+
+---
+
 ### MSG-V940-UPLOAD-QUEUE 🔴 [REVIEW] v9.4.0 Upload Queue + Honest Visibility — built (7 commits)
 **From:** เขียว (Khiao)
 **Date:** 2026-05-10

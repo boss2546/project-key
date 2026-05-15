@@ -5,7 +5,16 @@
 
 ---
 
-## 🎯 Current State: `idle` 🟢 (no active feature in pipeline)
+## 🎯 Current State: `idle` 🟢 (v10.0.7 Deployed)
+
+**Active task:** None
+**Master HEAD:** `c2cd898`
+**Production:** ✅ **v10.0.7 deployed live** ที่ `https://personaldatabank.fly.dev` (Deployed on 2026-05-15)
+**Note:** The system is successfully updated to v10.0.7 with LlamaParse and Landing page fixes.
+
+---
+
+## 🎯 Previous State: `idle` 🟢 (no active feature in pipeline)
 
 **Master HEAD:** `7a2f84a` (v9.4.8 · 2026-05-12 08:54 +07)
 **APP_VERSION:** **9.4.8**

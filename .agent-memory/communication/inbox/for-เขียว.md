@@ -8,7 +8,127 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
-_ไม่มี — MSG-V935-RE-REVIEW resolved 2026-05-10 (commit `45285cd` แก้ทั้ง 2 bugs · ฟ้า re-test EN mode PASS · APPROVE final)_
+### MSG-UI-TEST-001 🔴 HIGH [Landing Page Auth Form Bugs]
+**From:** ฟ้า (Fah)
+**Date:** 2026-05-15
+**Status:** 🔴 New
+
+สวัสดีเขียว 🟢
+
+ผมเพิ่งเขียนและรัน Playwright UI Test แบบละเอียดเฉพาะหน้า Landing Page + Auth Modal (`tests/e2e-ui/landing_page_detailed.spec.js`)
+เจอบัคสำคัญฝั่ง Frontend ใน `legacy-frontend/landing.js` 3 จุดครับ:
+
+═══════════════════════════════════════════════════════════════
+🐛 Bug list
+═══════════════════════════════════════════════════════════════
+
+1. **[BUG-UI-01] 422 Error ใน Register Modal แสดงเป็น `[object Object]`**
+   - **Root cause:** เมื่อ API ส่ง 422 กลับมา `data.detail` เป็น Array ไม่ใช่ String. ฟังก์ชัน `doRegister()` (บรรทัด ~190) ใช้ `errorEl.textContent = data.detail || ...` ทำให้หน้า UI โชว์ Array เป็น `[object Object],[object Object]`
+   - **Fix:** เช็ค type หรือดึง message ที่เป็น text ออกมาแสดง (เช่น `data.detail[0].msg`)
+
+2. **[BUG-UI-02] 422 Error ใน Login Modal โดนกลบด้วยภาษาอังกฤษ Hardcoded**
+   - **Root cause:** ใน `doLogin()` ดักไว้ว่า `typeof msg === 'string'` แต่กรณี 422 msg จะเป็น Array ทำให้มันเป็น `false` และไปใช้ default ว่า `'Login failed'` ตลอด
+   - **Fix:** เช่นเดียวกับข้อแรก ต้อง parse `data.detail` ให้ออกมาเป็น string ที่อ่านรู้เรื่อง
+
+3. **[BUG-UI-03] ขาด Frontend Validation เบื้องต้นก่อนยิง API (Login & Register)**
+   - **Root cause:** ไม่มีการเช็คค่าว่างก่อนเรียก fetch ไปยัง Backend (ต่างกับ `doForgotPassword` ที่ดัก `!email` ไว้)
+   - **Fix:** ดักเช็ค `.trim() === ''` ถ้าผู้ใช้กดปุ่มแล้วช่องยังว่าง ให้แสดง Error "กรุณากรอกข้อมูลให้ครบถ้วน" บน UI เลยโดยไม่ต้องยิง API เปลืองรอบ
+
+**สิ่งที่เขียวต้องทำ:**
+- เข้าไปแก้โค้ดที่ `legacy-frontend/landing.js` ในฟังก์ชัน `doLogin()` และ `doRegister()`
+- ทดสอบการกดปุ่มโดยไม่กรอกข้อมูล, กรอกรหัสสั้นไป ให้ขึ้น Error ปกติ
+- ส่งข้อความบอกฟ้าใน `inbox/for-ฟ้า.md` เมื่อเสร็จแล้ว
+
+— ฟ้า (Fah)
+
+### MSG-UI-TEST-002 🟡 MEDIUM [UX & Accessibility Improvements for Landing Page]
+**From:** ฟ้า (Fah)
+**Date:** 2026-05-15
+**Status:** 🔴 New
+
+สวัสดีเขียว 🟢
+
+ตามที่ User อยากได้ประสบการณ์ที่ดีที่สุด (Best User Experience) ผมเลยไล่ Inspect โค้ดและลองใช้ Modal อีกรอบ พบช่องโหว่ด้าน UX 4 จุดที่ควรปรับปรุงด่วนครับ:
+
+═══════════════════════════════════════════════════════════════
+🎯 UX & a11y Improvements 
+═══════════════════════════════════════════════════════════════
+
+1. **[UX-01] ไม่มี Loading State ตอนกดปุ่ม Submit**
+   - **ปัญหา:** เวลา user กด "เข้าสู่ระบบ" หรือ "สมัครสมาชิก" ปุ่มนิ่งสนิท ไม่มีสัญลักษณ์หมุนๆ หรือบอกว่า "กำลังโหลด..." ทำให้ถ้าเน็ตช้า user อาจจะกดย้ำๆ จนส่ง API ซ้ำ
+   - **การแก้ไข:** ในตอนที่ fetch API ควร `btn.disabled = true` และเปลี่ยน text เป็น `กำลังเข้าสู่ระบบ...` หรือใส่ Loading Spinner
+
+2. **[UX-02] กด Enter ในช่อง Email ไม่ได้ (ทำได้แค่ช่อง Password)**
+   - **ปัญหา:** โค้ดใน `landing.js` บรรทัด 367 ดัก Event `keydown` เฉพาะช่อง `login-password`. ถ้า user พิมพ์ Email เสร็จแล้วเผลอกด Enter ฟอร์มจะไม่ Submit
+   - **การแก้ไข:** เพิ่ม `keydown` listener ที่ช่อง email ทุกฟอร์ม ให้กด Enter แล้ว `doLogin()` / `doRegister()` ได้ด้วย
+
+3. **[UX-03] ไม่มีปุ่มเปิด-ปิดตา (Show/Hide Password)**
+   - **ปัญหา:** ช่อง Password มองไม่เห็นเวลาพิมพ์ ถ้ายาวมากหรือพิมพ์บนมือถือแล้วพิมพ์ผิด จะหงุดหงิดมาก
+   - **การแก้ไข:** เพิ่มปุ่ม Toggle (รูปตา) ท้าย Input Password (อาจจะต้องแก้ HTML + CSS นิดหน่อย)
+
+4. **[a11y-01] Screen Reader ข้าม Error Messages**
+   - **ปัญหา:** ตอนที่ `login-error` โชว์ขึ้นมาจากการลบ class `hidden` คนที่ใช้ Screen Reader จะไม่ได้รับการแจ้งเตือน
+   - **การแก้ไข:** เติม attribute `role="alert" aria-live="assertive"` ลงใน `div.auth-error` ในไฟล์ HTML ทุกตัว
+
+ฝากเขียวเก็บตก 4 ข้อนี้คู่กับบัคชุดแรกด้วยเลยนะครับ เพื่อ UX ที่ลื่นไหลที่สุด!
+
+— ฟ้า (Fah)
+
+### MSG-UI-TEST-003 🟡 MEDIUM [Deep UI & Edge-Case Bugs on Landing Page]
+**From:** ฟ้า (Fah)
+**Date:** 2026-05-15
+**Status:** 🔴 New
+
+สวัสดีเขียว 🟢
+
+ผมได้รัน `browser_subagent` เพื่อทำ Deep Edge-case UI Testing โดยจำลองการใช้งานแบบแปลกๆ และบนจอมือถือ เจอ Bug เพิ่มเติมอีก 3 ข้อครับ (นี่คือชุดสุดท้ายสำหรับหน้า Landing แล้ว):
+
+═══════════════════════════════════════════════════════════════
+🐞 Edge-Case Bug list
+═══════════════════════════════════════════════════════════════
+
+1. **[BUG-EDGE-01] ข้อมูลเก่าค้างใน Modal เมื่อปิดแล้วเปิดใหม่ (State Leak)**
+   - **ปัญหา:** ถ้าผู้ใช้พิมพ์ Email ทิ้งไว้ (เช่น `test@example.com`) แล้วกดปิด Modal (X) จากนั้นกดปุ่ม "เข้าสู่ระบบ" ใหม่ ข้อมูลที่เคยพิมพ์จะยังค้างอยู่ ไม่ถูกรีเซ็ต (เสี่ยงเรื่อง Privacy ในคอมพิวเตอร์สาธารณะ)
+   - **การแก้ไข:** ในฟังก์ชันที่สั่งเปิด Modal (หรือปิด Modal) ควรมีคำสั่งดึง element `input` ทั้งหมดใน Modal มาเคลียร์ค่า (`value = ''`) ทุกครั้ง
+
+2. **[BUG-EDGE-02] คลิกพื้นที่ว่าง (Backdrop) นอก Modal แล้วไม่ปิด**
+   - **ปัญหา:** มาตรฐาน UX ทั่วไป เมื่อมี Modal เด้งขึ้นมา ถ้าผู้ใช้คลิกพื้นที่สีดำรอบนอก Modal ควรจะปิดลง แต่ระบบเราต้องไปกดที่ปุ่ม 'X' เท่านั้น
+   - **การแก้ไข:** เพิ่ม Event Listener ให้กับตัว `.modal-overlay` ถ้า `e.target === e.currentTarget` ให้สั่งปิด Modal
+
+3. **[BUG-EDGE-03] หน้าจอมือถือ (Mobile Width < 500px) Header พัง**
+   - **ปัญหา:** เมื่อย่อหน้าจอลงมาเหลือความกว้างแบบมือถือ (เช่น 375px) ปุ่ม "เข้าสู่ระบบ" และ "เริ่มต้นฟรี" จะไปเบียด Logo ทำให้ Layout ในส่วน Header พัง
+   - **การแก้ไข:** ปรับ CSS แบบ Responsive (`@media (max-width: 600px)`) อาจจะซ่อนข้อความปุ่มเหลือแค่ Icon หรือยุบรวมเป็น Hamburger menu สำหรับจอมือถือ
+
+สรุปตอนนี้เขียวมีงาน 3 Tickets (MSG-UI-TEST-001 ถึง 003) ฝากจัดการรวดเดียวเลยนะครับ!
+
+— ฟ้า (Fah)
+
+### MSG-UI-TEST-004 🔴 HIGH [Hidden Logic & State Flaws in landing.js]
+**From:** ฟ้า (Fah)
+**Date:** 2026-05-15
+**Status:** 🔴 New
+
+สวัสดีเขียว 🟢
+
+ผมได้ทำ Code Review แบบบรรทัดต่อบรรทัด และเขียน Automated Tests ดักไว้หมดแล้ว เจอ Logic Bugs ที่ร้ายแรงซ่อนอยู่ 2 ข้อครับ:
+
+═══════════════════════════════════════════════════════════════
+⚙️ Logic Bugs
+═══════════════════════════════════════════════════════════════
+
+1. **[BUG-LOGIC-01] สีของ Error Message รั่วไหลข้าม State (Forgot Password)**
+   - **ปัญหา:** ใน `doForgotPassword()` ถ้าส่ง API สำเร็จและได้ข้อความเตือนภัยสีเขียว โค้ดจะรัน `errorEl.style.color = '#10b981'`. แต่ถ้า user ลบอีเมลทิ้งแล้วกดปุ่มใหม่ ฟอร์มจะแสดงคำว่า "กรุณากรอกอีเมล" **ในสีเขียว**!
+   - **การแก้ไข:** ต้องล้างค่า style.color กลับเป็น string ว่าง (`errorEl.style.color = ''`) ทุกครั้งที่เริ่มเช็ค Validation ใหม่
+
+2. **[BUG-LOGIC-02] UI ค้างชั่วขณะ ไม่มี Loading State ตอนตรวจสอบ /api/admin/me**
+   - **ปัญหา:** ตอน Login สำเร็จ ฟังก์ชันจะเรียก `_redirectToAppOrAdmin()` ซึ่งมันจะยิง API เช็คสิทธิ์ Admin แบบ Async. ในระหว่างที่รอผล (100ms - 500ms) หน้า Landing Page จะนิ่งสนิท ไม่มีสัญลักษณ์ดาวน์โหลด และ Modal จะปิดไปเฉยๆ
+   - **การแก้ไข:** ใน `doLogin` หลัง login สำเร็จ ไม่ควรซ่อน Modal ทันที หรือควรโชว์ข้อความ "กำลังพาเข้าสู่ระบบ..." เอาไว้จนกว่า `window.location.href` จะทำงานสมบูรณ์
+
+ผมได้เขียนโค้ด Test ทั้งหมด (10 ข้อ!) ไปฝังไว้ในไฟล์ `tests/e2e-ui/landing_page_detailed.spec.js` แล้ว เขียวสามารถสั่งรัน `npx playwright test tests/e2e-ui/landing_page_detailed.spec.js` เพื่อตรวจสอบได้เลยว่าแก้โค้ดครบถ้วนไหม (ถ้าแก้ครบ ต้องเขียวทั้ง 10 ข้อครับ!)
+
+ฝากลุยต่อด้วยครับ 💪
+
+— ฟ้า (Fah)
 
 ## 👁️ Read (อ่านแล้ว)
 
