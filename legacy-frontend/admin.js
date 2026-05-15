@@ -207,6 +207,7 @@ function renderUsersTable(users) {
       <button class="btn btn-sm" data-action="password" data-uid="${escapeHtml(u.id)}">รหัสผ่าน</button>
       <button class="btn btn-sm" data-action="active" data-uid="${escapeHtml(u.id)}" data-value="${u.is_active ? '0' : '1'}">${u.is_active ? 'Deactivate' : 'Reactivate'}</button>
       <button class="btn btn-sm" data-action="admin" data-uid="${escapeHtml(u.id)}" data-value="${u.is_admin ? '0' : '1'}">${u.is_admin ? 'Demote' : 'Promote'}</button>
+      <button class="btn btn-sm btn-danger" data-action="delete" data-uid="${escapeHtml(u.id)}" title="ลบบัญชี (irreversible)">ลบ</button>
      </td>
     </tr>
   `).join('');
@@ -229,6 +230,7 @@ function handleUserAction(action, userId, value) {
   if (action === 'password') return openResetPassword(user);
   if (action === 'active') return openConfirmActive(user, value === '1');
   if (action === 'admin') return openConfirmAdmin(user, value === '1');
+  if (action === 'delete') return openDeleteUser(user);  // v10.0.x · hard delete
 }
 
 // ═══════════════════════════════════════════
@@ -236,14 +238,16 @@ function handleUserAction(action, userId, value) {
 // ═══════════════════════════════════════════
 
 function setupModals() {
-  // Close handlers (X button + Cancel)
-  ['modal-change-plan', 'modal-reset-password', 'modal-confirm-action'].forEach(id => {
+  // Close handlers (X button + Cancel) · v10.0.x · เพิ่ม modal-delete-user
+  ['modal-change-plan', 'modal-reset-password', 'modal-confirm-action', 'modal-delete-user'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
     const closeBtn = document.getElementById(`${id}-close`);
     const cancelBtn = document.getElementById(`${id}-cancel`);
     if (closeBtn) closeBtn.onclick = () => closeModal(id);
     if (cancelBtn) cancelBtn.onclick = () => closeModal(id);
     // Backdrop click — close
-    document.getElementById(id).addEventListener('click', (e) => {
+    el.addEventListener('click', (e) => {
       if (e.target.id === id) closeModal(id);
     });
   });
@@ -260,6 +264,8 @@ function setupModals() {
   document.getElementById('modal-password-shown-close').onclick = () => closeModal('modal-password-shown');
   // Confirm action OK
   document.getElementById('modal-confirm-ok').onclick = submitConfirmAction;
+  // v10.0.x · Delete user confirm
+  document.getElementById('modal-delete-confirm-btn')?.addEventListener('click', submitDeleteUser);
 
   // ESC key closes any open modal
   document.addEventListener('keydown', (e) => {
@@ -446,6 +452,77 @@ async function submitConfirmAction() {
     showToast(e.message, 'error');
   } finally {
     btn.disabled = false;
+  }
+}
+
+// ═══════════════════════════════════════════
+// §E.5 — Delete user (v10.0.x · hard delete + cascade)
+// ═══════════════════════════════════════════
+
+function openDeleteUser(user) {
+  const modal = document.getElementById('modal-delete-user');
+  if (!modal) {
+    showToast('Delete modal ไม่พร้อม', 'error');
+    return;
+  }
+  modal.dataset.userId = user.id;
+  modal.dataset.userEmail = (user.email || '').toLowerCase();
+  document.getElementById('modal-delete-target-email').textContent = user.email || '(no email)';
+  document.getElementById('modal-delete-target-name').textContent = user.name || '—';
+  document.getElementById('modal-delete-target-files').textContent = user.file_count || 0;
+  // แสดง email ที่ user ต้องพิมพ์ใน confirm field (ไม่ใช่ placeholder "email" generic)
+  const expectedEmailEl = document.getElementById('modal-delete-expected-email');
+  if (expectedEmailEl) expectedEmailEl.textContent = user.email || '(no email)';
+  document.getElementById('modal-delete-confirm-input').value = '';
+  document.getElementById('modal-delete-reason').value = '';
+  openModal('modal-delete-user');
+}
+
+async function submitDeleteUser() {
+  const modal = document.getElementById('modal-delete-user');
+  const userId = modal.dataset.userId;
+  const expectedEmail = modal.dataset.userEmail;
+  const confirmEmail = document.getElementById('modal-delete-confirm-input').value.trim().toLowerCase();
+  const reason = document.getElementById('modal-delete-reason').value.trim();
+
+  if (confirmEmail !== expectedEmail) {
+    showToast('Email ที่กรอกไม่ตรงกับบัญชีที่จะลบ', 'error');
+    return;
+  }
+  if (!reason) {
+    showToast('กรุณากรอกเหตุผล', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('modal-delete-confirm-btn');
+  btn.disabled = true;
+  btn.textContent = 'กำลังลบ...';
+  try {
+    const res = await adminFetch(`/api/admin/users/${encodeURIComponent(userId)}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ confirm_email: confirmEmail, reason }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      const msg = data?.detail?.error?.message || data?.detail || `HTTP ${res.status}`;
+      throw new Error(msg);
+    }
+    const stats = data.stats || {};
+    const detail = [
+      `files=${stats.files_deleted || 0}`,
+      `disk=${(stats.files_disk_removed || 0) + (stats.summaries_disk_removed || 0)}`,
+      `tables=${(stats.tables_purged || []).length}`,
+    ].join(' · ');
+    showToast(`ลบบัญชี ${data.deleted_user_email} แล้ว · ${detail}`, 'success');
+    closeModal('modal-delete-user');
+    loadUsers();
+    loadDashboard();
+  } catch (e) {
+    showToast(e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'ลบถาวร';
   }
 }
 

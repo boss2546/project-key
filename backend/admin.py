@@ -681,6 +681,222 @@ async def set_user_admin(
 
 
 # ═══════════════════════════════════════════
+# 3.5 Delete user (v10.0.x)
+# ═══════════════════════════════════════════
+
+async def delete_user(
+    db: AsyncSession,
+    admin_user: User,
+    target_user_id: str,
+    reason: str,
+) -> dict:
+    """Hard-delete user + cascade ทุก data ของเขา (irreversible).
+
+    Guards:
+      - CANNOT_DELETE_SELF — admin ลบตัวเองไม่ได้
+      - LAST_ADMIN_GUARD — ถ้า target เป็น admin คนสุดท้าย active → block
+
+    Cascade deletes (อ้างจาก decisions.md + database.py FK map):
+      - files (+ raw_path/md_path on disk · cascade FileInsight/FileSummary/FileClusterMap)
+      - clusters · graph_nodes/edges · suggested_relations · note_objects
+      - context_packs · context_memories · canvas_objects · chat_queries (+ injection_logs cascade)
+      - personality_history · usage_logs · mcp_tokens · mcp_usage_logs
+      - drive_connections (encrypted refresh_token) · user_profiles · line_users
+    Audit logs: **KEEP** (historical trail · references deleted user is OK · `user_id` not FK to users)
+    """
+    from sqlalchemy import delete as sql_delete
+    from .database import (
+        Cluster, FileInsight, FileSummary, FileClusterMap,
+        ChatQuery, ContextInjectionLog, NoteObject,
+        GraphNode, GraphEdge, SuggestedRelation, GraphLens, CanvasObject,
+        UserProfile, PersonalityHistory, UsageLog, MCPToken, MCPUsageLog,
+        DriveConnection, WebhookLog,
+    )
+
+    # ─── Guard 1: cannot delete self ───
+    if target_user_id == admin_user.id:
+        raise HTTPException(
+            status_code=409,
+            detail={"error": {
+                "code": "CANNOT_DELETE_SELF",
+                "message": "ห้ามลบบัญชีตัวเอง — ให้แอดมินอื่นทำ",
+            }},
+        )
+
+    target = (await db.execute(select(User).where(User.id == target_user_id))).scalar_one_or_none()
+    if not target:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": {"code": "USER_NOT_FOUND", "message": "User not found"}},
+        )
+
+    # ─── Guard 2: last-admin guard (เหมือน set_user_admin) ───
+    if target.is_admin:
+        other_db_admins = (await db.execute(
+            select(func.count(User.id)).where(
+                User.is_admin == True,  # noqa: E712
+                User.is_active == True,  # noqa: E712
+                User.id != target_user_id,
+            )
+        )).scalar() or 0
+        env_admins_active = 0
+        try:
+            from .config import ADMIN_EMAILS
+            for env_email in ADMIN_EMAILS:
+                u = (await db.execute(
+                    select(User).where(
+                        User.email == env_email.lower(),
+                        User.is_active == True,  # noqa: E712
+                    )
+                )).scalar_one_or_none()
+                if u and u.id != target_user_id:
+                    env_admins_active += 1
+        except Exception as e:
+            logger.warning("ADMIN_EMAILS count failed in delete_user guard: %s", e)
+        if other_db_admins + env_admins_active == 0:
+            raise HTTPException(
+                status_code=409,
+                detail={"error": {
+                    "code": "LAST_ADMIN_GUARD",
+                    "message": "ไม่สามารถลบ — จะไม่มี admin ที่ active เหลือเลย ตั้งคนใหม่ก่อน",
+                }},
+            )
+
+    target_email = target.email or "(no-email)"
+    stats = {
+        "files_deleted": 0,
+        "files_disk_removed": 0,
+        "summaries_disk_removed": 0,
+        "tables_purged": [],
+    }
+
+    # ─── Step 1: Disk cleanup (files + summaries .md ก่อน DB cascade) ───
+    files_res = await db.execute(
+        select(File.id, File.raw_path).where(File.user_id == target_user_id)
+    )
+    files_to_remove = list(files_res.all())
+    stats["files_deleted"] = len(files_to_remove)
+    for fid, raw_path in files_to_remove:
+        if raw_path and os.path.exists(raw_path):
+            try:
+                os.remove(raw_path)
+                stats["files_disk_removed"] += 1
+            except OSError as e:
+                logger.warning("delete_user: remove raw_path %s failed: %s", raw_path, e)
+
+    summary_res = await db.execute(
+        select(FileSummary.md_path).where(
+            FileSummary.file_id.in_(select(File.id).where(File.user_id == target_user_id))
+        )
+    )
+    for (md_path,) in summary_res.all():
+        if md_path and os.path.exists(md_path):
+            try:
+                os.remove(md_path)
+                stats["summaries_disk_removed"] += 1
+            except OSError as e:
+                logger.warning("delete_user: remove md_path %s failed: %s", md_path, e)
+
+    # ─── Step 2: Bulk SQL DELETE (order matters · FK respect) ───
+    # Graph layer first (ไม่มี FK ondelete CASCADE)
+    purge_order = [
+        # (table_class, scope_filter)
+        (SuggestedRelation, SuggestedRelation.user_id == target_user_id),
+        (GraphEdge,         GraphEdge.user_id == target_user_id),
+        (GraphNode,         GraphNode.user_id == target_user_id),
+        (GraphLens,         GraphLens.user_id == target_user_id),
+        (NoteObject,        NoteObject.user_id == target_user_id),
+        (CanvasObject,      CanvasObject.user_id == target_user_id),
+        (ContextPack,       ContextPack.user_id == target_user_id),
+        (ChatQuery,         ChatQuery.user_id == target_user_id),  # cascade ContextInjectionLog
+        (PersonalityHistory, PersonalityHistory.user_id == target_user_id),
+        (UsageLog,          UsageLog.user_id == target_user_id),
+        (MCPUsageLog,       MCPUsageLog.user_id == target_user_id),
+        (MCPToken,          MCPToken.user_id == target_user_id),
+        (DriveConnection,   DriveConnection.user_id == target_user_id),
+        (UserProfile,       UserProfile.user_id == target_user_id),
+        (LineUser,          LineUser.user_id == target_user_id),
+        # context_memories / line_quota_logs / รายการอื่นที่ optional
+    ]
+    # Optional tables (ไม่มีในทุก deployment · skip ถ้า import error)
+    try:
+        from .database import ContextMemory  # type: ignore
+        purge_order.insert(-3, (ContextMemory, ContextMemory.user_id == target_user_id))
+    except (ImportError, AttributeError):
+        pass
+
+    for cls, scope in purge_order:
+        try:
+            r = await db.execute(sql_delete(cls).where(scope))
+            n = r.rowcount or 0
+            if n:
+                stats["tables_purged"].append(f"{cls.__tablename__}={n}")
+        except Exception as e:
+            logger.warning("delete_user: purge %s failed: %s", cls.__tablename__, e)
+
+    # Files + cascade (FileInsight/FileSummary/FileClusterMap via ORM cascade · ใช้ SQL delete + manual children)
+    # SQL-level delete won't trigger ORM cascade · ลบ children explicit ก่อน
+    file_ids_subq = select(File.id).where(File.user_id == target_user_id)
+    for cls in (FileInsight, FileSummary, FileClusterMap):
+        try:
+            r = await db.execute(sql_delete(cls).where(cls.file_id.in_(file_ids_subq)))
+            n = r.rowcount or 0
+            if n:
+                stats["tables_purged"].append(f"{cls.__tablename__}={n}")
+        except Exception as e:
+            logger.warning("delete_user: child purge %s failed: %s", cls.__tablename__, e)
+
+    # Then files themselves
+    try:
+        r = await db.execute(sql_delete(File).where(File.user_id == target_user_id))
+        stats["tables_purged"].append(f"files={r.rowcount or 0}")
+    except Exception as e:
+        logger.warning("delete_user: files purge failed: %s", e)
+
+    # Empty clusters (file_cluster_map ถูกลบไปแล้ว · cluster ที่เคย map อาจเหลือว่าง)
+    try:
+        r = await db.execute(sql_delete(Cluster).where(Cluster.user_id == target_user_id))
+        if r.rowcount:
+            stats["tables_purged"].append(f"clusters={r.rowcount}")
+    except Exception as e:
+        logger.warning("delete_user: clusters purge failed: %s", e)
+
+    # ─── Step 3: Audit log (BEFORE deleting user · trigger_by ยังอยู่) ───
+    await log_audit(
+        db, target_user_id, "admin_deleted_user",
+        old_value=reason or "(no reason given)",
+        new_value=target_email,
+        triggered_by=admin_user.email or "admin",
+    )
+
+    # ─── Step 4: Finally delete User row ───
+    try:
+        r = await db.execute(sql_delete(User).where(User.id == target_user_id))
+        stats["tables_purged"].append(f"users={r.rowcount or 0}")
+    except Exception as e:
+        logger.error("delete_user: FINAL user delete failed: %s", e)
+        await db.rollback()
+        raise HTTPException(status_code=500, detail={"error": {
+            "code": "USER_DELETE_FAILED",
+            "message": f"ลบ user row ไม่สำเร็จ: {str(e)[:200]}",
+        }})
+
+    await db.commit()
+
+    logger.warning(
+        "Admin %s DELETED user %s (id=%s · reason: %s) · stats=%s",
+        admin_user.email, target_email, target_user_id, reason[:80], stats,
+    )
+
+    return {
+        "status": "ok",
+        "deleted_user_id": target_user_id,
+        "deleted_user_email": target_email,
+        "stats": stats,
+    }
+
+
+# ═══════════════════════════════════════════
 # 4. Audit log viewer
 # ═══════════════════════════════════════════
 

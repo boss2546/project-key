@@ -376,6 +376,30 @@ class AdminToggleRequest(BaseModel):
         return v.strip()
 
 
+class AdminDeleteUserRequest(BaseModel):
+    """DELETE /api/admin/users/{user_id} body · v10.0.x.
+
+    `confirm_email` ต้องตรงกับ email ของ target เพื่อ double-confirm (กัน misclick).
+    `reason` คำอธิบายว่าทำไมลบ · เข้า audit log ถาวร.
+    """
+    confirm_email: str
+    reason: str
+
+    @field_validator("confirm_email")
+    @classmethod
+    def _check_email(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("EMPTY_CONFIRM_EMAIL")
+        return v.strip().lower()
+
+    @field_validator("reason")
+    @classmethod
+    def _check_reason(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("EMPTY_REASON")
+        return v.strip()
+
+
 # ═══════════════════════════════════════════
 # FILE APIs (v1 — preserved)
 # ═══════════════════════════════════════════
@@ -2122,6 +2146,36 @@ async def api_admin_toggle_admin(
 ):
     """Toggle is_admin flag (promote/demote)."""
     return await _admin_mod.set_user_admin(db, current_admin, user_id, body.value, body.reason)
+
+
+@app.delete("/api/admin/users/{user_id}")
+async def api_admin_delete_user(
+    user_id: str,
+    body: AdminDeleteUserRequest,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """v10.0.x — Hard-delete user + cascade ทุก data ของเขา (irreversible).
+
+    Body params:
+      - `confirm_email`: ต้องตรงกับ email ของ target user (double-confirm)
+      - `reason`: เหตุผลที่ลบ (audit log ถาวร)
+
+    Guards: CANNOT_DELETE_SELF · LAST_ADMIN_GUARD · CONFIRM_EMAIL_MISMATCH
+    Cascade: files (+ disk) · clusters · graph nodes/edges · packs · chats ·
+             contexts · personality history · tokens · Drive · profile · etc.
+    Audit logs: KEEP (historical trail)
+    """
+    # Pre-fetch target เพื่อ verify confirm_email
+    target = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    if not target:
+        raise HTTPException(404, detail={"error": {"code": "USER_NOT_FOUND", "message": "User not found"}})
+    if (target.email or "").lower() != body.confirm_email:
+        raise HTTPException(400, detail={"error": {
+            "code": "CONFIRM_EMAIL_MISMATCH",
+            "message": "confirm_email ไม่ตรงกับ email ของ user ที่จะลบ — ยกเลิกการลบเพื่อความปลอดภัย",
+        }})
+    return await _admin_mod.delete_user(db, current_admin, user_id, body.reason)
 
 
 @app.get("/api/admin/audit-logs")

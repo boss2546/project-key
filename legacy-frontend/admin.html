@@ -269,6 +269,49 @@
   </div>
  </div>
 
+ <!-- v10.0.x — Modal: Delete user (HARD DELETE · cascade · irreversible) -->
+ <div class="modal-overlay hidden" id="modal-delete-user">
+  <div class="modal">
+   <div class="modal-header" style="border-bottom-color:rgba(239,68,68,0.3);">
+    <h2 style="color:#ef4444;">⚠️ ลบบัญชีผู้ใช้ถาวร</h2>
+    <button class="btn-close" id="modal-delete-user-close" type="button">&times;</button>
+   </div>
+   <div class="modal-body">
+    <div style="padding:12px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:8px;margin-bottom:16px;font-size:13px;line-height:1.6;">
+     <strong style="color:#fca5a5;">⚠️ การดำเนินการนี้จะลบ:</strong>
+     <ul style="margin:8px 0 0 18px;padding:0;color:var(--text-secondary);">
+      <li>ไฟล์ทั้งหมด (รวมไฟล์ดิบบนดิสก์ + summaries)</li>
+      <li>Collections / Knowledge Graph / Context Packs / Chat history</li>
+      <li>MCP Tokens / Drive connection / Personality data</li>
+      <li>ข้อมูลส่วนตัวอื่นๆ ของ user</li>
+     </ul>
+     <p style="margin:8px 0 0 0;color:#fca5a5;font-weight:600;">ลบแล้วกู้ไม่ได้ · audit log จะเก็บประวัติการลบไว้</p>
+    </div>
+    <p style="font-size:13px;margin:0 0 12px 0;">
+     <span style="color:var(--text-muted);">User:</span>
+     <strong id="modal-delete-target-name">—</strong>
+     <span style="color:var(--text-muted);">·</span>
+     <code id="modal-delete-target-email" style="color:#fca5a5;">—</code>
+    </p>
+    <p style="font-size:13px;margin:0 0 16px 0;color:var(--text-muted);">
+     จะลบไฟล์ทั้งหมด <strong id="modal-delete-target-files">0</strong> รายการ
+    </p>
+    <div class="form-group">
+     <label>พิมพ์ <code style="color:#fca5a5;font-weight:600;" id="modal-delete-expected-email">email</code> เพื่อยืนยัน:</label>
+     <input type="text" id="modal-delete-confirm-input" class="form-input" placeholder="กรอก email ของ user ที่จะลบ" autocomplete="off">
+    </div>
+    <div class="form-group">
+     <label>เหตุผล (บันทึกใน audit log · จำเป็น)</label>
+     <textarea id="modal-delete-reason" rows="2" placeholder="เช่น user request · violated TOS · test account"></textarea>
+    </div>
+   </div>
+   <div class="modal-footer">
+    <button class="btn btn-outline" id="modal-delete-user-cancel" type="button">ยกเลิก</button>
+    <button class="btn btn-danger" id="modal-delete-confirm-btn" type="button" style="background:#ef4444;color:white;">ลบถาวร</button>
+   </div>
+  </div>
+ </div>
+
  <!-- Toast container — reuse #toast-container + .toast classes จาก shared.css -->
  <div id="toast-container"></div>
 
