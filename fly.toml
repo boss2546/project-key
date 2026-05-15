@@ -14,6 +14,17 @@ primary_region = "sin"
   min_machines_running = 1
   processes = ["app"]
 
+# v10.0.8 — keep VM warm + reject traffic until Uvicorn is ready.
+# Fixes "instance refused connection" 502s during cold start (proxy was
+# forwarding requests before app bind). With this probe, Fly waits for
+# /health to respond 200 before routing real traffic.
+[[http_service.checks]]
+  grace_period = "10s"
+  interval = "30s"
+  method = "get"
+  timeout = "5s"
+  path = "/health"
+
 [[vm]]
   memory = "2048mb"
   cpu_kind = "shared"
