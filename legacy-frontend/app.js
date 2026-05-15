@@ -3421,7 +3421,21 @@ async function runOrganizeNew() {
  btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> <span data-i18n="myData.organizeNew">${t('myData.organizeNew')}</span><span class="badge-count" id="unprocessed-badge" style="display:none;">0</span>`;
  return;
  }
- const data = await res.json();
+ const data = await res.json().catch(() => ({}));
+ // v10.0.8 — ตรวจ status ก่อน parse · เดิม: 500 + {detail:...} → showToast(`(${undefined} ไฟล์)`)
+ // ตอนนี้: ถ้า response ไม่ใช่ 2xx · หรือ new_files ไม่ใช่ number → แสดง error จริง
+ if (!res.ok || typeof data.new_files !== 'number') {
+  hideLoadingOverlay();
+  const errMsg = (data.detail && typeof data.detail === 'string' ? data.detail :
+                  data.detail?.error?.message || data.message ||
+                  (getLang() === 'th' ? `จัดระเบียบล้มเหลว (HTTP ${res.status})` : `Organize failed (HTTP ${res.status})`));
+  showToast(errMsg, 'error');
+  console.error('[organize-new] failed:', res.status, data);
+  btn.disabled = false;
+  btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> <span data-i18n="myData.organizeNew">${t('myData.organizeNew')}</span><span class="badge-count" id="unprocessed-badge" style="display:none;">0</span>`;
+  loadUnprocessedCount();  // refresh badge ในกรณี backend mark file เป็น error
+  return;
+ }
  if (data.new_files === 0) {
  showToast(t('toast.noNewFiles'), 'info');
  } else {

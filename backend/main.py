@@ -1567,10 +1567,17 @@ async def organize_new(current_user: User = Depends(get_current_user), db: Async
                 "graph": graph_result,
                 "duplicates_found": duplicates_found,
             }
+        except HTTPException:
+            raise  # quota/auth ที่ raise ภายในไม่ควรเปลี่ยน status code
         except Exception as e:
-            logger.error(f"Organize new files failed: {e}")
+            # v10.0.8 — log full traceback + return structured error ที่ frontend อ่านได้
+            # เดิม: detail=str(e) → frontend หา .new_files ไม่เจอ → toast "(undefined ไฟล์)"
+            logger.exception("Organize new files failed for user %s: %s", current_user.id[:8], e)
             _pt.error(current_user.id, f"จัดระเบียบล้มเหลว: {str(e)[:200]}")
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail={"error": {
+                "code": "ORGANIZE_FAILED",
+                "message": f"จัดระเบียบล้มเหลว: {type(e).__name__}: {str(e)[:200]}",
+            }})
     finally:
         await _end_organize(current_user.id)
 
