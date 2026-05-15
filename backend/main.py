@@ -4799,56 +4799,75 @@ async def api_drive_oauth_callback(
         )
 
     if not code or not state:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": {
-                    "code": "MISSING_OAUTH_PARAMS",
-                    "message": "code หรือ state หายไปจาก callback URL",
-                }
-            },
+        return RedirectResponse(
+            url="/app?drive_connected=false&error=missing_params",
+            status_code=302,
         )
 
+    # v10.0.8 — wrap ALL non-ValueError ใน redirect ไม่ raw-500 หน้าจอ.
+    # เดิม: googleapiclient.HttpError / RuntimeError / network exception จาก
+    # _drive_oauth.handle_callback() bubble เป็น Internal Server Error
     try:
         result = await _drive_oauth.handle_callback(code, state)
     except ValueError as e:
-        raise HTTPException(
-            status_code=400,
-            detail={"error": {"code": "INVALID_OAUTH_STATE", "message": str(e)}},
+        # state หมดอายุ / ถูกใช้แล้ว — มักเกิดหลัง server restart ระหว่าง OAuth flow
+        logger.warning("drive_oauth callback: invalid state — %s", e)
+        return RedirectResponse(
+            url="/app?drive_connected=false&error=invalid_state",
+            status_code=302,
+        )
+    except Exception as e:
+        # PKCE mismatch / Google API error / network — log full + friendly redirect
+        logger.exception("drive_oauth callback: handle_callback failed: %s", e)
+        return RedirectResponse(
+            url="/app?drive_connected=false&error=oauth_callback_failed",
+            status_code=302,
         )
 
-    # Save connection to DB (encrypted refresh_token)
-    encrypted = _drive_oauth.encrypt_refresh_token(result["refresh_token"])
-    new_conn = DriveConnection(
-        user_id=result["user_id"],
-        drive_email=result["drive_email"],
-        refresh_token_encrypted=encrypted,
-        drive_root_folder_id=result["drive_root_folder_id"],
-        last_sync_status="pending",
-    )
+    # v10.0.8 — DB-write phase ก็ wrap เผื่อ encrypt_refresh_token / DB commit fail
+    try:
+        # Save connection to DB (encrypted refresh_token)
+        encrypted = _drive_oauth.encrypt_refresh_token(result["refresh_token"])
+        new_conn = DriveConnection(
+            user_id=result["user_id"],
+            drive_email=result["drive_email"],
+            refresh_token_encrypted=encrypted,
+            drive_root_folder_id=result["drive_root_folder_id"],
+            last_sync_status="pending",
+        )
 
-    # Upsert: ถ้า user re-connect (เดิมมี connection อยู่) → update แทน insert
-    existing_q = await db.execute(
-        select(DriveConnection).where(DriveConnection.user_id == result["user_id"])
-    )
-    existing = existing_q.scalar_one_or_none()
-    if existing:
-        existing.drive_email = new_conn.drive_email
-        existing.refresh_token_encrypted = new_conn.refresh_token_encrypted
-        existing.drive_root_folder_id = new_conn.drive_root_folder_id
-        existing.last_sync_status = "pending"
-        existing.last_sync_error = None
-        existing.revoked_at = None
-    else:
-        db.add(new_conn)
+        # Upsert: ถ้า user re-connect (เดิมมี connection อยู่) → update แทน insert
+        existing_q = await db.execute(
+            select(DriveConnection).where(DriveConnection.user_id == result["user_id"])
+        )
+        existing = existing_q.scalar_one_or_none()
+        if existing:
+            existing.drive_email = new_conn.drive_email
+            existing.refresh_token_encrypted = new_conn.refresh_token_encrypted
+            existing.drive_root_folder_id = new_conn.drive_root_folder_id
+            existing.last_sync_status = "pending"
+            existing.last_sync_error = None
+            existing.revoked_at = None
+        else:
+            db.add(new_conn)
 
-    # Auto-flip user เป็น byos mode (ถ้ายังไม่ใช่) — convenience: connect = opt in
-    user_q = await db.execute(select(User).where(User.id == result["user_id"]))
-    user_obj = user_q.scalar_one_or_none()
-    if user_obj and user_obj.storage_mode != STORAGE_MODE_BYOS:
-        user_obj.storage_mode = STORAGE_MODE_BYOS
+        # Auto-flip user เป็น byos mode (ถ้ายังไม่ใช่) — convenience: connect = opt in
+        user_q = await db.execute(select(User).where(User.id == result["user_id"]))
+        user_obj = user_q.scalar_one_or_none()
+        if user_obj and user_obj.storage_mode != STORAGE_MODE_BYOS:
+            user_obj.storage_mode = STORAGE_MODE_BYOS
 
-    await db.commit()
+        await db.commit()
+    except Exception as e:
+        logger.exception("drive_oauth callback: DB save failed: %s", e)
+        try:
+            await db.rollback()
+        except Exception:
+            pass
+        return RedirectResponse(
+            url="/app?drive_connected=false&error=db_save_failed",
+            status_code=302,
+        )
 
     logger.info(
         "BYOS: user %s connected Drive (email=%s, folder_id=%s)",
