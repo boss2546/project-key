@@ -1,16 +1,16 @@
 # 🔑 Personal Data Bank (PDB)
 
 > พื้นที่ข้อมูลส่วนตัวที่ใช้ AI จัดระเบียบ วิเคราะห์ และเชื่อมโยงข้อมูลของคุณ
-> **Master: v7.5.0** — Upload Resilience (image OCR / big file map-reduce / xlsx-pptx-html / encrypted PDF detect / retry) + Mobile Responsive + Dedupe UX
-> **Live: v7.1.0** — Google Drive BYOS + Duplicate Detection — see [docs/BYOS_SETUP.md](docs/BYOS_SETUP.md)
+> **Current: v10.0.7** — Ingestion Pipeline 2.0 (LlamaParse + Local DOCX/PPTX/XLSX + Gemini PDF fallback) + Parallel Worker (4 concurrent) + Live Processing Timeline
+> **Previous milestone: v9.4.9** — Upload Queue + Visible Progress, Stripe/Google Login removed (see [docs/restoration/](docs/restoration/) to restore)
 >
-> Personality Profile (MBTI / Enneagram / CliftonStrengths / VIA) + History + Stripe Billing + Plan Limits + Audit Log
+> Personality Profile (MBTI / Enneagram / CliftonStrengths / VIA) + History + Plan Limits + BYOS
 
 [![Production](https://img.shields.io/badge/Production-personaldatabank.fly.dev-blue)](https://personaldatabank.fly.dev/)
-[![Version](https://img.shields.io/badge/version-7.5.0-green)]()
-[![MCP Tools](https://img.shields.io/badge/MCP_Tools-30-purple)]()
-[![BYOS](https://img.shields.io/badge/BYOS-deployed_v7.0.1-brightgreen)]()
-[![Tests](https://img.shields.io/badge/tests-367%2F367_PASS-success)]()
+[![Version](https://img.shields.io/badge/version-10.0.7-green)]()
+[![MCP Tools](https://img.shields.io/badge/MCP_Tools-22-purple)]()
+[![BYOS](https://img.shields.io/badge/BYOS-v7.0.1-brightgreen)]()
+[![Pipeline](https://img.shields.io/badge/Ingestion-Pipeline%202.0-blue)]()
 
 ---
 
@@ -389,6 +389,22 @@ flyctl deploy
 | **v7.3** | **UX Edge-Cases — mobile sidebar / form validation / z-index hierarchy** |
 | **v7.4** | **SaaS Responsive — touch targets 44px / Page FAB / file card view / context kebab** |
 | **v7.5** | **Upload Resilience — image OCR (png/jpg) / big-file map-reduce / xlsx/pptx/html/json/rtf / encrypted PDF detect / retry button / structured skip schema + per-file modal / 200MB limit / 367/367 tests** |
+| **v8.x** | **Multi-User Admin (lock/unlock/plan change), Google Sign-In, MCP 22 tools, plan_limits refactor** |
+| **v9.0** | **AI multimodal ingest (audio/video/HEIC) via Gemini Files API direct (`google-genai`), Phase B v2** |
+| **v9.3** | **Surrogate strip boundary fix, parallel queries via asyncio.gather (47 fixes consolidated)** |
+| **v9.4** | **Upload Queue + Visible Progress (truthful TC-1..TC-7), worker heartbeat, retry endpoint, cancel button, async reprocess** |
+| **v9.5** | **Google Sign-In REMOVED — see docs/restoration/google-login-restore.md** |
+| **v9.6** | **Stripe Billing REMOVED — see docs/restoration/billing-restore.md** |
+| **v9.4.9** | **Race-condition logout fix on first Google login (legacy cleanup)** |
+| **v10.0.x** | **Ingestion Pipeline 2.0** |
+| v10.0.0 | LlamaParse + processors module + opt-in PDF |
+| v10.0.1 | ASCII-safe filename (Gemini Thai bug fix) + Gemini PDF inline/Files-API fallback + REST API switch + MODE_ALIASES |
+| v10.0.2 | Local DOCX/PPTX/XLSX (python-docx/pptx/openpyxl) per HANDOFF Decision 4 + structured warnings + startup probe |
+| v10.0.3 | LlamaParse progress reporting + parallel worker pool (4 concurrent) + progress_tracker for organize-new |
+| v10.0.4 | Parallel summary (asyncio.gather + Semaphore 5) + idempotent insight upsert + unprocessed-files dropdown + cache-bust |
+| v10.0.5 | Live Processing Timeline UI + retry-extraction polling + chat elapsed counter + admin button spinner + manual X close + watchdog 90s/5min |
+| v10.0.6 | Stale-snapshot guard (no premature auto-close) |
+| **v10.0.7** | **Version sync release** |
 
 ---
 
