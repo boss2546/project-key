@@ -1277,6 +1277,17 @@ async def cancel_upload(
     return {"cancelled": True}
 
 
+@app.get("/health")
+async def health():
+    """v10.0.8 — ultra-light health probe สำหรับ Fly.io http_checks.
+
+    No DB query · ไม่แตะ filesystem · ไม่ต้อง auth · ตอบทันที.
+    เป้าหมาย: ให้ Fly probe ทุก 30s เพื่อกัน VM idle → cold start หลัง login.
+    หลัง deploy ให้ตั้ง [[http_service.checks]] ใน fly.toml ชี้ที่ /health.
+    """
+    return {"ok": True, "version": APP_VERSION}
+
+
 @app.get("/api/healthz/queue")
 async def healthz_queue(db: AsyncSession = Depends(get_db)):
     """v9.4.0 — public health endpoint สำหรับ Fly.io probe + frontend banner.
@@ -2146,6 +2157,27 @@ async def api_admin_toggle_admin(
 ):
     """Toggle is_admin flag (promote/demote)."""
     return await _admin_mod.set_user_admin(db, current_admin, user_id, body.value, body.reason)
+
+
+@app.post("/api/admin/users/{user_id}/view-password")
+async def api_admin_view_password(
+    user_id: str,
+    body: AdminToggleRequest,
+    current_admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """⚠️ v10.0.x · TEST PHASE ONLY · View user plaintext password.
+
+    Body: `{ value: false (ignored), reason: str }` · reused AdminToggleRequest schema
+    เพื่อความ consistent · `value` ไม่ใช้ แต่ schema เดิม require · ใส่ false ได้
+
+    Returns: `{ status, user_id, email, password_available, password, hint }`
+    - password_available=false → user สมัครก่อน feature นี้ · ต้อง reset ก่อน
+    - audit log ทุก view (event_type='admin_viewed_password')
+
+    Gated: env ALLOW_ADMIN_VIEW_PASSWORD=true · 403 ถ้า disabled
+    """
+    return await _admin_mod.get_user_password(db, current_admin, user_id, body.reason)
 
 
 @app.delete("/api/admin/users/{user_id}")
