@@ -294,11 +294,15 @@ function showLoadingOverlay(message = 'Loading...', type = 'default') {
  if (elapsedEl) elapsedEl.textContent = `${elapsed}s`;
  }, 1000);
 
- // Safety timeout — auto-dismiss after 3 minutes to prevent stuck overlay
+ // v10.0.10 — Safety timeout extended 3min → 16min (covers watchdog's
+ // 15-min hard limit + 1-min grace). This is the absolute hard fallback
+ // when the polling loop itself stops firing (rare — e.g. tab killed and
+ // restored without bfcache, or _organizeStatusPollHandle was lost). The
+ // watchdog inside startOrganizeStatusPoll() is the primary timeout.
  _loadingSafetyTimeout = setTimeout(() => {
  hideLoadingOverlay();
  showToast(getLang() === 'th' ? '⏱ หมดเวลา — กรุณาลองใหม่' : '⏱ Timed out — please try again', 'error');
- }, 180000);
+ }, 16 * 60 * 1000);
 }
 
 function hideLoadingOverlay() {
@@ -354,14 +358,23 @@ function startOrganizeStatusPoll() {
     clearTimeout(_organizeStatusPollHandle);
     _organizeStatusPollHandle = null;
   }
-  // v10.0.5 — Watchdog: if no phase advances for 90s OR overall takes >5min,
-  // force close overlay (server might have crashed mid-run, polling silently
-  // stalled, or stuck on long LLM call). Better to give user control than
-  // freeze forever.
-  let _lastPhaseSeen = null;
+  // v10.0.5 — Watchdog: detect genuinely stalled organize and force-close.
+  //
+  // v10.0.10 — fix false-positive trips on long Gemini summary calls:
+  // - Track `phase + current/total` (not just `phase`) so "summary 0/3"
+  //   advancing to "summary 1/3" counts as activity. Previously only the
+  //   phase string was compared, so a phase that internally progressed
+  //   (e.g. summary 0/3 → 1/3 → 2/3) looked stalled because the string
+  //   stayed "summary" the whole time.
+  // - Extend phase-stall 90s → 240s. Gemini regularly takes 60-140s on a
+  //   50k-char PDF — 90s tripped before the first file finished.
+  // - Extend hard limit 5min → 15min. A 10-file batch can legitimately
+  //   take 8-12 minutes (sequential clustering + parallel-5 summary +
+  //   enrich + graph + suggest + duplicate detect).
+  let _lastActivitySignature = null;
   let _lastPhaseChangedAt = Date.now();
-  const WATCHDOG_PHASE_STALL_MS = 90 * 1000;
-  const WATCHDOG_HARD_LIMIT_MS = 5 * 60 * 1000;
+  const WATCHDOG_PHASE_STALL_MS = 240 * 1000;
+  const WATCHDOG_HARD_LIMIT_MS = 15 * 60 * 1000;
 
   const tick = async () => {
     try {
@@ -397,17 +410,20 @@ function startOrganizeStatusPoll() {
         _organizeStatusPollHandle = setTimeout(tick, 500);
         return;
       }
-      // Watchdog: detect stalled phase
+      // Watchdog: detect stalled phase via composite activity signature
+      // (phase:current/total + history length). Any of those advancing means
+      // the backend is still alive.
       if (snap && snap.phase) {
-        if (snap.phase !== _lastPhaseSeen) {
-          _lastPhaseSeen = snap.phase;
+        const sig = `${snap.phase}:${snap.current || 0}/${snap.total || 0}:${(snap.history || []).length}`;
+        if (sig !== _lastActivitySignature) {
+          _lastActivitySignature = sig;
           _lastPhaseChangedAt = Date.now();
         }
       }
       const overallElapsed = Date.now() - _organizeStartedAtMs;
       const phaseStalled = (Date.now() - _lastPhaseChangedAt) > WATCHDOG_PHASE_STALL_MS;
       if (phaseStalled || overallElapsed > WATCHDOG_HARD_LIMIT_MS) {
-        console.warn('Organize watchdog tripped — force closing overlay', {phase: _lastPhaseSeen, overallElapsed, phaseStalled});
+        console.warn('Organize watchdog tripped — force closing overlay', {signature: _lastActivitySignature, overallElapsed, phaseStalled});
         try { if (typeof showToast === 'function') showToast(getLang() === 'th' ? 'การจัดระเบียบใช้เวลานานเกิน — ปิดอัตโนมัติ' : 'Organize timed out — auto-closed', 'warning'); } catch (_) {}
         if (typeof hideLoadingOverlay === 'function') hideLoadingOverlay();
         if (typeof loadFiles === 'function') loadFiles();
@@ -3428,6 +3444,24 @@ async function runOrganizeNew() {
  btn.disabled = false;
  btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> <span data-i18n="myData.organizeNew">${t('myData.organizeNew')}</span><span class="badge-count" id="unprocessed-badge" style="display:none;">0</span>`;
  return;
+ }
+ // v10.0.10 — 409 ORGANIZE_IN_PROGRESS = previous run still working
+ // (e.g. watchdog auto-closed prematurely, user clicks again). Don't
+ // bail with an error toast — keep the overlay open, let the existing
+ // poll keep tracking the in-flight run. Info toast tells user it's
+ // already running.
+ if (res.status === 409) {
+  showToast(
+    getLang() === 'th'
+      ? 'กำลังจัดระเบียบไฟล์ใหม่อยู่แล้ว — รอสักครู่ ระบบจะแสดงผลเมื่อเสร็จ'
+      : 'Organize already running — please wait for the current run to finish',
+    'info'
+  );
+  // Keep overlay open + polling alive; the watchdog/poll will close it
+  // when the existing run completes. Reset button so user can see badge.
+  btn.disabled = false;
+  btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> <span data-i18n="myData.organizeNew">${t('myData.organizeNew')}</span><span class="badge-count" id="unprocessed-badge" style="display:none;">0</span>`;
+  return;
  }
  const data = await res.json().catch(() => ({}));
  // v10.0.8 — ตรวจ status ก่อน parse · เดิม: 500 + {detail:...} → showToast(`(${undefined} ไฟล์)`)
