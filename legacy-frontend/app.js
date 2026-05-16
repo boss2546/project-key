@@ -381,13 +381,21 @@ function startOrganizeStatusPoll() {
       // we click "organize" may see the PREVIOUS run's snapshot before the
       // new POST handler reaches _pt.start(). Without this check, the auto-close
       // path triggers immediately and shows stale badge counts mid-flight.
-      if (snap && snap.started_at) {
-        const snapStartMs = new Date(snap.started_at).getTime();
-        if (!isNaN(snapStartMs) && snapStartMs < _organizeStartedAtMs - 500) {
-          // Previous run's snapshot. Wait for backend to call start() for THIS run.
-          _organizeStatusPollHandle = setTimeout(tick, 500);
-          return;
-        }
+      //
+      // v10.0.9 — also handle `snap === null` (first organize after server
+      // restart, or after gc_stale clears state). Without this branch, GET
+      // /api/organize-status races ahead of the in-flight POST: backend has
+      // no snapshot yet → returns running:false → auto-close fires → overlay
+      // disappears while backend is still queueing the real work.
+      // Watchdog (90s phase stall) catches the case where backend genuinely
+      // never starts.
+      const _snapStale = snap && snap.started_at &&
+        !isNaN(new Date(snap.started_at).getTime()) &&
+        new Date(snap.started_at).getTime() < _organizeStartedAtMs - 500;
+      if (!snap || _snapStale) {
+        // Backend hasn't called _pt.start() for THIS run yet. Keep polling.
+        _organizeStatusPollHandle = setTimeout(tick, 500);
+        return;
       }
       // Watchdog: detect stalled phase
       if (snap && snap.phase) {
