@@ -1578,6 +1578,11 @@ function initGlobalModalUX() {
 // INIT
 // ═══════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
+ // v10.0.19 — sync version badge จาก backend (HTML hardcoded ค่าเริ่มต้น แต่
+ // browser cache HTML นาน → badge stale หลัง deploy. /health unauth + เร็ว
+ // → fetch ทุก page load + update DOM ครอบคลุม cached HTML drift)
+ _syncVersionBadge();
+
  // Auth system MUST run before applyLanguage() — initAuth() synchronously
  // hydrates state.authToken from localStorage. If applyLanguage() runs first,
  // loadLineStatus() fires /api/line/status without an Authorization header;
@@ -4450,6 +4455,12 @@ function initGraphControls() {
  if (state.graphMode === 'local' && state.localNodeId) loadGraph();
  });
 
+ // v10.0.19 — Batch 2 bonus: relation-sidebar ปุ่มปิดเดิมไม่มี handler (existing bug
+ // ที่ ฟ้า audit เจอ · นอก scope MSG-UX-BATCH1 แต่ง่าย · fix ในรอบนี้พร้อมกัน)
+ document.getElementById('close-relation-sidebar')?.addEventListener('click', () => {
+ document.getElementById('relation-sidebar')?.classList.add('hidden');
+ });
+
  document.getElementById('close-detail')?.addEventListener('click', () => {
  document.getElementById('detail-panel').classList.add('hidden');
  state.selectedNodeId = null;
@@ -5660,6 +5671,24 @@ function switchMcpTab(platform) {
  // Toggle panels
  document.querySelectorAll('.mcp-tab-content').forEach(p => p.classList.remove('active'));
  document.getElementById(`panel-${platform}`)?.classList.add('active');
+}
+
+// v10.0.19 — fetch backend APP_VERSION + update sidebar badge text. ใช้แทน
+// hardcoded version ใน HTML ที่ browser cache นานทำให้ stale หลัง deploy.
+// /health = public/unauth/lightweight (ไม่กระทบ performance + ไม่ต้อง JWT)
+async function _syncVersionBadge() {
+ try {
+  const res = await fetch('/health', { cache: 'no-store' });
+  if (!res.ok) return;
+  const data = await res.json();
+  const v = data && data.version;
+  if (!v) return;
+  // app.html ใช้ id="logo-version" · admin.html ใช้ id="admin-logo-pill"
+  const appBadge = document.getElementById('logo-version');
+  if (appBadge) appBadge.textContent = 'v' + v;
+  const adminBadge = document.getElementById('admin-logo-pill');
+  if (adminBadge) adminBadge.textContent = 'Admin · v' + v;
+ } catch (_) { /* network blip ok · keep hardcoded fallback */ }
 }
 
 // v10.0.18 — MCP-002 helper: mask middle ของ MCP connector URL

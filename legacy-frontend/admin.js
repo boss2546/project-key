@@ -40,15 +40,41 @@ async function adminFetch(url, opts = {}) {
     throw new Error('Unauthorized');
   }
   if (res.status === 403) {
-    document.getElementById('admin-loading').innerHTML =
-      '<p>คุณไม่ใช่ admin — กำลังพากลับหน้าผู้ใช้...</p>';
-    setTimeout(() => { window.location.href = '/app'; }, 1500);
+    // v10.0.19 — LP-004 fix: silent redirect + self-correct stale cache.
+    // เดิม: แสดงข้อความ "คุณไม่ใช่ admin — กำลังพากลับ" 1.5s บน background ดำ →
+    //   user เห็นกระพริบน่าตกใจ. สาเหตุที่ landed ที่ /admin คือ pdb_admin_probe
+    //   cache='1' (stale) ใน landing.js _redirectToAppOrAdmin
+    // ใหม่: clear cache (ถ้า user เคยเป็น admin แล้วถูกถอด, cache จะถูก correct
+    //   ครั้งนี้ → ครั้งถัดไป go to root จะไป /app ตรงๆ ไม่ bounce อีก) +
+    //   replace() แทน href (ไม่เก็บ /admin ใน history → กดย้อนกลับไม่กลับมาที่นี่)
+    try {
+      localStorage.setItem('pdb_admin_probe', '0');
+      localStorage.setItem('pdb_admin_probe_ts', String(Date.now()));
+    } catch (_) {}
+    const loadingEl = document.getElementById('admin-loading');
+    if (loadingEl) loadingEl.innerHTML = '';
+    window.location.replace('/app');
     throw new Error('NOT_ADMIN');
   }
   return res;
 }
 
+// v10.0.19 — sync version badge จาก backend /health (HTML hardcoded ค่าเริ่มต้น
+// แต่ browser cache HTML นาน → badge stale หลัง deploy)
+async function _syncAdminVersionBadge() {
+  try {
+    const res = await fetch('/health', { cache: 'no-store' });
+    if (!res.ok) return;
+    const data = await res.json();
+    const v = data && data.version;
+    if (!v) return;
+    const badge = document.getElementById('admin-logo-pill');
+    if (badge) badge.textContent = 'Admin · v' + v;
+  } catch (_) { /* network blip ok · keep hardcoded fallback */ }
+}
+
 async function init() {
+  _syncAdminVersionBadge();
   if (!ADMIN.token) {
     window.location.href = '/';
     return;
