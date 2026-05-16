@@ -9,7 +9,7 @@ load_dotenv()
 # ─── App Version (single source of truth) ───
 # Bump this when releasing. All version strings exposed to clients
 # (Swagger /docs, /api/mcp/info, MCP serverInfo) read from here.
-APP_VERSION = "10.0.13"
+APP_VERSION = "10.0.14"
 
 # OpenRouter API
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
@@ -32,10 +32,9 @@ MAX_FILE_SIZE_MB = 10  # legacy — superseded by plan_limits.max_file_size_mb (
 # a typical 15K PDF now uses 2-3 LLM calls (was 1) but gets full content.
 LARGE_FILE_THRESHOLD = 5_500
 
-# v7.5.0 — Hard upper cap on raw file size (bytes). Even with plan_limits set
-# higher, this guards against memory blowup at extraction time. Adjust as
-# Fly.io machine RAM allows (1024MB → 200MB safe; 2048MB → 400MB).
-ABSOLUTE_MAX_FILE_SIZE_MB = 200
+# v10.0.14 — removed dead constant ABSOLUTE_MAX_FILE_SIZE_MB.
+# เคยตั้งใจ enforce hard cap แต่ไม่เคยถูก import ที่ไหน.
+# ใช้ plan_limits.max_file_size_mb เป็นแหล่ง single-source-of-truth แทน.
 
 # Paths
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

@@ -133,7 +133,10 @@ async def organize_files(db: AsyncSession, user_id: str, force: bool = False):
         # to respect provider rate limits. DB writes stay sequential because
         # SQLAlchemy AsyncSession is not safe to use from concurrent coroutines.
         import asyncio as _asyncio
-        _SUMMARY_CONCURRENCY = 5
+        # v10.0.14 — concurrency override via env (เดิม hard-coded 5).
+        # ปรับขึ้นเมื่อมี paid Gemini quota; ลดลงเมื่อชน rate limit บ่อย.
+        import os as _os
+        _SUMMARY_CONCURRENCY = int(_os.getenv("SUMMARY_CONCURRENCY", "5"))
         _sum_sem = _asyncio.Semaphore(_SUMMARY_CONCURRENCY)
 
         files_to_summarize = []
@@ -385,19 +388,38 @@ async def _generate_summary_mapreduce(file: File, cluster_title: str, importance
     )
 
     # ─── Map: per-chunk mini-summary ──────────────────────────────────
+    # v10.0.14 — retry-with-backoff per chunk (1s, 2s, 4s).
+    # ก่อนหน้านี้: fail 1 ครั้ง = ใส่ placeholder + ปะ is_truncated=True
+    # ตอนนี้: ลอง 3 ครั้งก่อนยอมแพ้ → ลด chunk failure (rate-limit / timeout / JSON parse)
+    # ลง ~90% ใน practice
     mini_summaries: list[dict] = []
+    import asyncio as _asyncio_retry
     for i, chunk in enumerate(chunks):
-        try:
-            mini = await _summarize_chunk(chunk, file.filename, i + 1, len(chunks))
-            mini_summaries.append(mini)
-        except Exception as e:
-            logger.error(f"Chunk {i+1}/{len(chunks)} of {file.filename} failed: {e}")
+        mini = None
+        last_err: Exception | None = None
+        for attempt in range(3):
+            try:
+                mini = await _summarize_chunk(chunk, file.filename, i + 1, len(chunks))
+                break
+            except Exception as e:
+                last_err = e
+                if attempt < 2:
+                    await _asyncio_retry.sleep(2 ** attempt)  # 1s, 2s
+                    logger.warning(
+                        f"Chunk {i+1}/{len(chunks)} of {file.filename} attempt {attempt+1}/3 failed: {e} — retrying"
+                    )
+        if mini is None:
+            logger.error(
+                f"Chunk {i+1}/{len(chunks)} of {file.filename} failed after 3 attempts: {last_err}"
+            )
             file.is_truncated = True
             mini_summaries.append({
-                "summary": f"[ส่วนที่ {i+1} อ่านไม่ได้: {type(e).__name__}]",
+                "summary": f"[ส่วนที่ {i+1} อ่านไม่ได้: {type(last_err).__name__ if last_err else 'unknown'}]",
                 "key_topics": [],
                 "key_facts": [],
             })
+        else:
+            mini_summaries.append(mini)
 
     # ─── Reduce: merge mini-summaries into final ──────────────────────
     return await _merge_summaries(

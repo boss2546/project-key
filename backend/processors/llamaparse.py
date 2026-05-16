@@ -179,43 +179,47 @@ def _parse_via_llamaparse(
     filename = os.path.basename(filepath)
     api_mode = _resolve_mode(mode)
 
-    # Step 1: upload
-    _emit("ส่งไฟล์ไป LlamaParse", 10)
-    with open(filepath, "rb") as f:
-        files = {"file": (filename, f, "application/pdf")}
-        data = {"parse_mode": api_mode, "language": language}
-        r = httpx.post(
-            f"{_LLAMAPARSE_BASE}/upload",
-            headers=headers, files=files, data=data, timeout=120,
-        )
-    r.raise_for_status()
-    job_id = r.json()["id"]
-    logger.info("LlamaParse job=%s (mode=%s, file=%s)", job_id, mode, filename)
-
-    # Step 2: poll — emit progress per attempt so UI sees forward motion.
-    # pct=None per TC-1 (don't fake progress when LlamaParse doesn't tell us %).
-    elapsed = 0
-    _emit(f"LlamaParse กำลังประมวลผล (0s)", None)
-    while elapsed < _POLL_TIMEOUT:
-        time.sleep(_POLL_INTERVAL)
-        elapsed += _POLL_INTERVAL
-        r = httpx.get(f"{_LLAMAPARSE_BASE}/job/{job_id}", headers=headers, timeout=30)
+    # v10.0.14 — wrap httpx calls ใน Client() context manager
+    # share connection pool ระหว่าง upload + poll + fetch (3 HTTP calls ไป host เดียวกัน)
+    # → ใช้ TCP connection เดิม, auto-close ตอนออกจาก block, ไม่มี resource leak.
+    with httpx.Client(timeout=120) as client:
+        # Step 1: upload
+        _emit("ส่งไฟล์ไป LlamaParse", 10)
+        with open(filepath, "rb") as f:
+            files = {"file": (filename, f, "application/pdf")}
+            data = {"parse_mode": api_mode, "language": language}
+            r = client.post(
+                f"{_LLAMAPARSE_BASE}/upload",
+                headers=headers, files=files, data=data,
+            )
         r.raise_for_status()
-        status = r.json().get("status", "").upper()
-        _emit(f"LlamaParse กำลังประมวลผล ({elapsed}s, status={status.lower() or 'pending'})", None)
-        if status == "SUCCESS":
-            break
-        if status in ("ERROR", "FAILED", "CANCELLED"):
-            raise RuntimeError(f"LlamaParse job {job_id} {status}: {r.json()}")
-    else:
-        raise TimeoutError(f"LlamaParse job {job_id} not done after {_POLL_TIMEOUT}s")
+        job_id = r.json()["id"]
+        logger.info("LlamaParse job=%s (mode=%s, file=%s)", job_id, mode, filename)
 
-    # Step 3: fetch markdown
-    _emit("ดาวน์โหลด markdown", 90)
-    r = httpx.get(f"{_LLAMAPARSE_BASE}/job/{job_id}/result/markdown", headers=headers, timeout=60)
-    r.raise_for_status()
-    md = r.json().get("markdown", "")
-    return md.strip()
+        # Step 2: poll — emit progress per attempt so UI sees forward motion.
+        # pct=None per TC-1 (don't fake progress when LlamaParse doesn't tell us %).
+        elapsed = 0
+        _emit(f"LlamaParse กำลังประมวลผล (0s)", None)
+        while elapsed < _POLL_TIMEOUT:
+            time.sleep(_POLL_INTERVAL)
+            elapsed += _POLL_INTERVAL
+            r = client.get(f"{_LLAMAPARSE_BASE}/job/{job_id}", headers=headers, timeout=30)
+            r.raise_for_status()
+            status = r.json().get("status", "").upper()
+            _emit(f"LlamaParse กำลังประมวลผล ({elapsed}s, status={status.lower() or 'pending'})", None)
+            if status == "SUCCESS":
+                break
+            if status in ("ERROR", "FAILED", "CANCELLED"):
+                raise RuntimeError(f"LlamaParse job {job_id} {status}: {r.json()}")
+        else:
+            raise TimeoutError(f"LlamaParse job {job_id} not done after {_POLL_TIMEOUT}s")
+
+        # Step 3: fetch markdown
+        _emit("ดาวน์โหลด markdown", 90)
+        r = client.get(f"{_LLAMAPARSE_BASE}/job/{job_id}/result/markdown", headers=headers, timeout=60)
+        r.raise_for_status()
+        md = r.json().get("markdown", "")
+        return md.strip()
 
 
 def parse_pdf(filepath: str, language: str = "th", progress_callback=None) -> str:

@@ -67,6 +67,51 @@ app.add_middleware(
 )
 
 
+# v10.0.14 — Unified HTTPException response shape.
+# เดิม: code ในโปรเจกต์ raise สองรูปแบบสลับกัน:
+#   - HTTPException(detail="message")            → {"detail": "message"}
+#   - HTTPException(detail={"error": {"code":...,"message":...}})  → {"detail": {"error":...}}
+# Frontend ต้อง fallback parsing สองชั้น → fragile.
+#
+# Handler นี้ normalize ทุก HTTPException ให้ response shape เดียวกัน:
+#   {
+#     "detail": "<human-readable message>",     ← legacy field (frontend เก่าอ่าน)
+#     "error":  { "code": "<CODE>", "message": "<msg>" }  ← new field
+#   }
+# ไม่ต้องแก้ raise site → backward-compat 100%
+# (HTTPException + JSONResponse import แล้วด้านบน)
+@app.exception_handler(HTTPException)
+async def _unified_http_exception_handler(_request: Request, exc: HTTPException):
+    detail = exc.detail
+    code = "HTTP_" + str(exc.status_code)
+    message = ""
+
+    if isinstance(detail, str):
+        message = detail
+    elif isinstance(detail, dict):
+        # Already structured: {"error": {"code":..., "message":...}}
+        if "error" in detail and isinstance(detail["error"], dict):
+            code = detail["error"].get("code", code)
+            message = detail["error"].get("message", "")
+        # หรือ flat: {"code":..., "message":...}
+        elif "code" in detail or "message" in detail:
+            code = detail.get("code", code)
+            message = detail.get("message", "")
+        else:
+            message = str(detail)
+    else:
+        message = str(detail)
+
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "detail": message,                     # legacy compatibility
+            "error": {"code": code, "message": message},
+        },
+        headers=exc.headers,
+    )
+
+
 @app.on_event("startup")
 async def startup():
     await init_db()
@@ -184,10 +229,56 @@ async def api_register(req: RegisterRequest, db: AsyncSession = Depends(get_db))
     """Register a new user account."""
     return await register_user(db, req.email, req.password, req.name)
 
+# v10.0.14 — In-memory login rate limiter (5 fails / 15 min per IP).
+# Prevents brute-force. Sliding window via timestamp list. Single-machine only;
+# multi-machine deploy ต้องย้ายเป็น Redis (Fly app ปัจจุบัน 2 machines แต่ load
+# กระจายกันแบบ stateless → rate-limit ไม่ฝั่งเดียวก็ acceptable trade-off).
+import time as _time
+_LOGIN_FAIL_WINDOW_SEC = 15 * 60
+_LOGIN_FAIL_MAX = 5
+_login_fail_history: dict[str, list[float]] = {}
+
+
+def _check_login_rate_limit(ip: str) -> None:
+    """Raise 429 if IP exceeded fail threshold in the sliding window."""
+    now = _time.time()
+    history = _login_fail_history.get(ip, [])
+    # Drop old entries outside window
+    history = [t for t in history if now - t < _LOGIN_FAIL_WINDOW_SEC]
+    _login_fail_history[ip] = history
+    if len(history) >= _LOGIN_FAIL_MAX:
+        retry_after = int(_LOGIN_FAIL_WINDOW_SEC - (now - history[0]))
+        raise HTTPException(
+            status_code=429,
+            detail=f"พยายาม login ผิดเกิน {_LOGIN_FAIL_MAX} ครั้ง — ลองใหม่ในอีก {retry_after // 60 + 1} นาที",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+
+def _record_login_fail(ip: str) -> None:
+    """Append a failure timestamp for the IP."""
+    _login_fail_history.setdefault(ip, []).append(_time.time())
+
+
+def _clear_login_fails(ip: str) -> None:
+    """Clear all failures after successful login."""
+    _login_fail_history.pop(ip, None)
+
+
 @app.post("/api/auth/login")
-async def api_login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
-    """Login with email and password."""
-    return await login_user(db, req.email, req.password)
+async def api_login(req: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    """Login with email and password. Rate-limited 5 fails / 15 min per IP."""
+    # Behind Fly proxy → real client IP ใน Fly-Client-IP header; fallback ไป request.client
+    ip = request.headers.get("fly-client-ip") or request.headers.get("x-forwarded-for", "").split(",")[0].strip() or (request.client.host if request.client else "unknown")
+    _check_login_rate_limit(ip)
+    try:
+        result = await login_user(db, req.email, req.password)
+    except HTTPException as e:
+        if e.status_code == 401:
+            _record_login_fail(ip)
+        raise
+    _clear_login_fails(ip)
+    return result
 
 @app.get("/api/auth/me")
 async def api_me(current_user: User = Depends(get_current_user)):
