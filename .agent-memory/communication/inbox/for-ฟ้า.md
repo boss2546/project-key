@@ -9,78 +9,694 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
-### MSG-V11-PHASE0-HANDOFF — Phase 0 (Foundation) build complete, awaiting ฟ้า review
+### MSG-V11-PHASE0-REVIEW-REQUEST — Phase 0 (Foundation) Detailed Test Guide
 
 **From:** 🟢 เขียว (Khiao)
 **Date:** 2026-05-17
 **Priority:** 🟠 HIGH — first phase of major refactor, sets pattern for Phase 1-4
-**Plan:** [`plans/organize-refactor-v11.md`](../../plans/organize-refactor-v11.md)
+**Plan:** [`plans/organize-refactor-v11.md`](../../plans/organize-refactor-v11.md) (2354 lines)
+**Self-test report:** [`reports/v11-phase0-frontend-test-2026-05-17.md`](../../../reports/v11-phase0-frontend-test-2026-05-17.md)
 **Pipeline state:** `built_pending_review · phase_0`
 
-#### สรุปสิ่งที่ทำ (5 steps · 6 commits)
+---
 
-| Step | Commit | Files | Verify gate |
+## 📋 สรุปสิ่งที่เขียวทำ (Phase 0 = 5 steps · 8 commits)
+
+| Step | Commit | Files | เขียว self-test ✅ |
 |---|---|---|---|
-| 0.1 | `559ddd9` | requirements-fly.txt + Dockerfile | ✅ 6 deps install + import in venv |
-| 0.2 | `bde0715` | backend/embeddings.py (NEW, 364 lines) | ✅ Partial (API-deferred) |
-| 0.3 | `48b4d95` | backend/database.py (+11 cols, 4 tables) | ✅ 3 scenarios (fresh/ALTER/rerun) |
-| 0.4 | `545c006` | backend/config.py (feature flags) | ✅ 5 tests (defaults/parse/env/numeric) |
-| 0.5 | `ca63115` | scripts/test_organize_quality.py (NEW, 382 lines) | ✅ CLI help + paths |
-| (plan) | `ddd61c0` | plans/organize-refactor-v11.md (NEW, 2354 lines) | — |
+| Plan | `ddd61c0` | plans/organize-refactor-v11.md (NEW, 2354 lines) | — |
+| 0.1 | `559ddd9` | requirements-fly.txt + Dockerfile | 6 deps install + 6 imports in venv |
+| 0.2 | `bde0715` | backend/embeddings.py (NEW, 364 lines) | 5 manual tests (syntax/encode/decode/sha256/degrade) |
+| 0.3 | `48b4d95` | backend/database.py (+11 cols, 4 tables) | 3 scenarios (fresh/ALTER/rerun) |
+| 0.4 | `545c006` | backend/config.py (8 feature flags + 4 numerics) | 5 tests (defaults/truthy/falsy/numeric/override) |
+| 0.5 | `ca63115` | scripts/test_organize_quality.py (NEW, 382 lines) | CLI help verify |
+| Memory | `3c853ff` | pipeline-state + active-tasks + last-session + inbox handoff | — |
+| Test | `04afaf3` | reports/v11-phase0-frontend-test-2026-05-17.md (NEW) | Full e2e test report |
 
-**Key invariants:**
+**Key invariants (ฟ้ายืนยันได้):**
 - ✅ ทุก feature flag default OFF (USE_HYBRID_CLUSTERING, USE_STRUCTURED_SUMMARY, USE_ENTITY_GRAPH)
-- ✅ Schema migration additive (NO drops, NO renames) — pattern v7.5.0
-- ✅ Backward compat 100% — legacy v10 rows ใช้งานได้ผ่าน defaults
-- ✅ Production v10.0.14 ที่ deploy อยู่ ไม่ถูกแตะระหว่าง Phase 0 (code path inactive)
+- ✅ Schema migration additive only (NO drops, NO renames) — pattern v7.5.0 ([database.py:807-832])
+- ✅ Backward compat 100% — legacy v10 rows มี defaults ถูกต้อง
+- ✅ Production v10.0.14 ไม่ถูกแตะระหว่าง Phase 0 (code path inactive)
 
-#### จุดที่อยากให้ฟ้าดูเป็นพิเศษ (Risk areas)
+---
 
-**1. backend/embeddings.py — graceful degrade pattern**
-- ทดสอบว่า `is_available() = False` ตอนไม่มี `GOOGLE_API_KEY`
-- ลอง embed_files([]) → return {} ไม่ crash
-- Cache logic: content_hash check — ดูว่า cache miss ตอน content_hash เปลี่ยน
+# 🧪 Test Guide สำหรับ ฟ้า — Step-by-Step
 
-**2. backend/database.py — migration ALTER path**
-- ทดสอบ idempotency: รัน init_db() 2 ครั้ง → ครั้งที่ 2 ไม่มี "Added: ..." message
-- ทดสอบ legacy data: row ที่อยู่ก่อน migration ต้องเข้าถึงได้ + default applied
-- Index `idx_files_embedding_hash` สร้าง
+## 0️⃣ Pre-test setup (ทำครั้งเดียว)
 
-**3. backend/config.py — flag parsing**
-- Boolean parsing: "true"/"1"/"yes" → True · อย่างอื่นทั้งหมด → False
-- Numeric env override: HDBSCAN_MIN_CLUSTER_SIZE=3 → 3 (default 2)
+```bash
+# 1. เช็คว่าอยู่ที่ HEAD ถูก
+cd d:\PDB
+git log --oneline -10
+# ควรเห็น 04afaf3 (test report) ที่ top, ตามด้วย 3c853ff, ca63115, 545c006, 48b4d95, bde0715, 559ddd9, ddd61c0
 
-**4. UMAP edge case finding (MSG-V11-UMAP-EDGE-CASE in inbox/for-แดง.md)**
-- พบระหว่าง smoke test ที่ UMAP n_components=30 ต้องการ samples >32
-- ไม่ block Phase 0 (Step 0.1 verify gate = imports only)
-- จะแก้ใน Step 1.1 implementation (เขียวจะรอ Daeng confirm fix approach)
+# 2. เช็ค pipeline state
+cat .agent-memory/current/pipeline-state.md | head -50
+# ควรเป็น "built_pending_review · phase_0"
 
-#### Test Scenarios สำหรับ ฟ้า (Phase 0)
+# 3. อ่าน plan + self-test report ก่อน
+cat .agent-memory/plans/organize-refactor-v11.md          # full plan
+cat reports/v11-phase0-frontend-test-2026-05-17.md        # self-test
+```
 
-Per plan Master Test Matrix (line 1593+):
-- [ ] Unit: `backend/_test_embeddings.py` (ฟ้าเขียน) — 4 cases
-   - embed_text shape, batch cache hit, content_hash invalidation, error handling
-- [ ] Unit: `backend/_test_database_v11_migration.py` (ฟ้าเขียน) — migration idempotency
-- [ ] Smoke (manual): build Docker image บน Fly (ผมไม่มี Docker local → skip ตาม workflow B)
-- [ ] Regression: production deploy ของ v10.0.14 ไม่ถูกกระทบ (flag default OFF)
+---
 
-#### Risks for ฟ้า to validate
+## 1️⃣ Step 0.1 — Dependencies + Dockerfile
 
-1. ⚠️ **Docker image size** — ผมเพิ่ม build-essential + gfortran ใน Dockerfile, purge หลัง pip install
-   ฟ้าควรตรวจ image size หลัง Fly build (เทียบ v10.0.14 = ?MB vs v11.0.0 = ?MB)
+### วิธีเทส
 
-2. ⚠️ **Embedding API key dependency** — embeddings.py degrade ถ้าไม่มี GOOGLE_API_KEY
-   Fly secret มี GOOGLE_API_KEY แล้ว ✓ ผลของ graceful degrade คือ USE_HYBRID_CLUSTERING fail soft → fallback to legacy
+```bash
+# Test A: deps อยู่ใน requirements-fly.txt ครบ 6 ตัว
+grep -E "^(numpy|scikit-learn|hdbscan|umap-learn|networkx|python-louvain)" requirements-fly.txt
+# Expected: 6 บรรทัด
 
-3. ⚠️ **schema_version=1 default** — existing FileSummary rows = legacy
-   ตรวจว่า frontend อ่าน schema_version แล้วเลือก render path ถูก (จะเช็คใน Phase 2)
+# Test B: Dockerfile มี build tools (build-essential + gfortran) + purge หลัง install
+grep -E "build-essential|gfortran|apt-get purge" Dockerfile
+# Expected: install + purge (image stays lean)
 
-#### Next: ผมไม่ commit Phase 1 จนกว่า ฟ้า approve Phase 0
+# Test C: ลอง install ใน venv ใหม่ (ถ้ามี Python + pip)
+python -m venv .venv_review_test
+.venv_review_test/Scripts/python.exe -m pip install --quiet \
+    numpy scikit-learn hdbscan umap-learn networkx python-louvain
+.venv_review_test/Scripts/python.exe -c "
+import numpy, sklearn, hdbscan, umap, networkx, community
+print('ALL 6 IMPORTS OK')
+"
+rm -rf .venv_review_test
+# Expected: 'ALL 6 IMPORTS OK'
+```
 
-ฟ้าตอบใน inbox/for-เขียว.md:
-- ✅ APPROVE → ผม update state → ทำ Phase 1
-- ⚠️ NEEDS_CHANGES → ผมแก้ตาม feedback, re-commit, re-review
-- ❌ BLOCK → ผมหยุด, แจ้ง user
+### เกณฑ์ Pass / Fail
+
+| Check | Pass criteria | Fail = |
+|---|---|---|
+| requirements-fly.txt | มี 6 deps ใหม่ + comment อธิบาย v11.0.0 | ❌ missing dep |
+| Dockerfile | build-essential + gfortran installed + purged | ❌ image bloat or build fail |
+| venv install | 6 packages install ผ่าน + import ครบ | ❌ install error → Phase 0 BLOCK |
+
+### Red flags
+- 🚩 Docker build บน Fly ล้มเหลว (hdbscan compile fail) → ตรวจว่า build-essential ติดตั้งทันก่อน pip install
+- 🚩 Image size +> 200MB → check apt-get purge ทำงาน
+
+---
+
+## 2️⃣ Step 0.2 — backend/embeddings.py
+
+### วิธีเทส
+
+#### Test A: Static analysis
+```bash
+# Syntax + structure
+python -c "
+import ast
+tree = ast.parse(open('backend/embeddings.py', encoding='utf-8').read())
+funcs = [n.name for n in ast.walk(tree) if isinstance(n, ast.AsyncFunctionDef) or isinstance(n, ast.FunctionDef)]
+print('Functions:', funcs)
+# Expected: ['_init_genai', 'is_available', 'encode_vector', 'decode_vector',
+#            'embed_text', 'embed_texts_batch', 'embed_files', '_sha256_text', 'smoke_test']
+"
+
+# Documentation
+head -30 backend/embeddings.py
+# Expected: docstring มี Plan ref + ใช้โดย + ทำไมแยก service
+```
+
+#### Test B: Unit tests (**ฟ้าต้องเขียน** `backend/_test_embeddings.py`)
+
+```python
+"""ฟ้าเขียนไฟล์นี้ — Unit tests สำหรับ embeddings.py"""
+import os
+import pytest
+import numpy as np
+from backend import embeddings
+
+
+class TestEncodeDecode:
+    """Test vector ↔ bytes serialization"""
+    
+    def test_float32_roundtrip(self):
+        v = np.array([0.1, -0.5, 0.3, 1.0, -1.0], dtype=np.float32)
+        b = embeddings.encode_vector(v)
+        v2 = embeddings.decode_vector(b)
+        assert np.allclose(v, v2)
+        assert v2.dtype == np.float32
+    
+    def test_float64_coerced_to_float32(self):
+        v64 = np.array([0.5, 0.25], dtype=np.float64)
+        b = embeddings.encode_vector(v64)
+        v32 = embeddings.decode_vector(b)
+        assert v32.dtype == np.float32
+    
+    def test_serialized_size(self):
+        v = np.zeros(768, dtype=np.float32)
+        b = embeddings.encode_vector(v)
+        assert len(b) == 768 * 4  # 4 bytes per float32
+
+
+class TestSha256Helper:
+    def test_known_hash(self):
+        import hashlib
+        assert embeddings._sha256_text("test") == hashlib.sha256(b"test").hexdigest()
+    
+    def test_unicode_handled(self):
+        # Thai text → safe encoding
+        h = embeddings._sha256_text("ทดสอบภาษาไทย")
+        assert len(h) == 64
+
+
+class TestGracefulDegrade:
+    def test_no_api_key_returns_false(self, monkeypatch):
+        monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+        # Reset cached state
+        embeddings._init_attempted = False
+        embeddings._HAS_GEMINI = False
+        embeddings._genai_client = None
+        assert embeddings.is_available() == False
+    
+    @pytest.mark.asyncio
+    async def test_embed_text_returns_none_no_key(self, monkeypatch):
+        monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+        embeddings._init_attempted = False
+        embeddings._HAS_GEMINI = False
+        result = await embeddings.embed_text("hello")
+        assert result is None
+    
+    @pytest.mark.asyncio
+    async def test_empty_files_list(self, monkeypatch):
+        monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+        embeddings._init_attempted = False
+        embeddings._HAS_GEMINI = False
+        result = await embeddings.embed_files([])
+        assert result == {}
+
+
+@pytest.mark.skipif(not os.getenv("GOOGLE_API_KEY"), reason="needs real API key")
+class TestRealAPI:
+    """Run only with GOOGLE_API_KEY set (manual / CI integration)"""
+    
+    @pytest.mark.asyncio
+    async def test_embed_text_returns_vector(self):
+        v = await embeddings.embed_text("Hello world")
+        assert v is not None
+        assert v.dtype == np.float32
+        assert v.shape == (768,)  # text-embedding-004 dim
+    
+    @pytest.mark.asyncio
+    async def test_smoke_test(self):
+        info = await embeddings.smoke_test()
+        assert info["available"] == True
+        assert info["sample_dim"] == 768
+        # L2 norm should be ~1.0 (Gemini normalizes by default)
+        assert 0.95 < info["sample_norm"] < 1.05
+```
+
+วิธีรัน:
+```bash
+# Run without API (graceful degrade tests)
+python -m pytest backend/_test_embeddings.py -v -k "not TestRealAPI"
+
+# Run with API (needs .env GOOGLE_API_KEY)
+python -m pytest backend/_test_embeddings.py -v
+```
+
+### เกณฑ์ Pass / Fail
+
+| Check | Pass criteria | Fail = |
+|---|---|---|
+| Static (functions exist) | 9 functions ใน module | ❌ missing function |
+| Encode/decode roundtrip | values preserved + dtype=float32 | ❌ data corruption |
+| Float64 coercion | float64 input → float32 output | ❌ dtype mismatch |
+| Sha256 helper | matches hashlib output | ❌ wrong hash |
+| Graceful degrade (no API key) | is_available() = False, embed_text → None, embed_files([]) → {} | ❌ crash |
+| API integration (with key) | embed_text returns (768,) float32 array, norm ≈ 1.0 | ❌ wrong dim or shape |
+
+### Red flags
+- 🚩 ถ้า `embed_text` ตอบ `np.float64` หรือ shape ≠ (768,) → Gemini model หรือ SDK เปลี่ยน
+- 🚩 ถ้า import `from google import genai` crash → SDK ไม่ลง
+- 🚩 ถ้า `is_available()` คืน True ตอน key ว่าง → graceful degrade พัง
+
+---
+
+## 3️⃣ Step 0.3 — Schema Migration
+
+### วิธีเทส
+
+#### Test A: Verify columns added on existing prod-like DB
+```bash
+# ผม (เขียว) ทำผ่านมาแล้ว — ฟ้ายืนยันโดยรัน:
+python -c "
+import sqlite3
+db = 'data/projectkey.db' if __import__('os').path.exists('data/projectkey.db') else 'projectkey.db'
+conn = sqlite3.connect(db)
+cur = conn.cursor()
+for table, expected_cols in [
+    ('files', ['embedding_vector', 'embedding_model', 'embedding_hash']),
+    ('file_summaries', ['entities', 'relationships', 'schema_version']),
+    ('clusters', ['method', 'centroid', 'member_count']),
+    ('graph_nodes', ['community_id', 'embedding_centrality']),
+]:
+    cur.execute(f'PRAGMA table_info({table})')
+    actual = {row[1] for row in cur.fetchall()}
+    missing = [c for c in expected_cols if c not in actual]
+    print(f'{table}: {\"OK\" if not missing else f\"MISSING {missing}\"}')
+"
+# Expected: all "OK"
+```
+
+#### Test B: Idempotency
+```bash
+# รัน init_db อีกครั้ง → ต้องไม่มี "Added: ..." message
+python -c "
+import asyncio
+from backend.database import init_db
+asyncio.run(init_db())
+" 2>&1 | grep -c "Added:"
+# Expected: 0
+```
+
+#### Test C: Legacy data integrity
+```bash
+python -c "
+import sqlite3
+db = 'data/projectkey.db' if __import__('os').path.exists('data/projectkey.db') else 'projectkey.db'
+conn = sqlite3.connect(db)
+cur = conn.cursor()
+# Counts ต้องเหมือนก่อน migration
+for t in ['users', 'files', 'file_summaries', 'clusters', 'graph_nodes', 'graph_edges']:
+    cur.execute(f'SELECT COUNT(*) FROM {t}')
+    print(f'{t}: {cur.fetchone()[0]}')
+
+# Defaults applied to legacy rows
+cur.execute('SELECT COUNT(*) FROM files WHERE embedding_vector IS NULL')
+total = cur.execute('SELECT COUNT(*) FROM files').fetchone()
+# ใช้ recursion ไม่ได้ใน same execute — restructure
+cur.execute('SELECT COUNT(*) FROM files WHERE embedding_vector IS NULL')
+nulls = cur.fetchone()[0]
+cur.execute('SELECT COUNT(*) FROM files')
+all_count = cur.fetchone()[0]
+assert nulls == all_count, 'legacy rows should have NULL embedding'
+print(f'PASS: {nulls}/{all_count} files have NULL embedding (legacy)')
+"
+```
+
+#### Test D: Unit test (**ฟ้าเขียน** `backend/_test_v11_migration.py`)
+
+```python
+"""ฟ้าเขียนไฟล์นี้ — Migration unit tests"""
+import asyncio
+import os
+import sqlite3
+import tempfile
+
+import pytest
+from sqlalchemy import create_engine, text
+
+
+class TestV11Migration:
+    """Test additive ALTER ADD migration"""
+    
+    def _create_legacy_schema(self, db_path):
+        """Create v10.0.14-like schema (no v11 columns)"""
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+        cur.execute('''CREATE TABLE files (
+            id TEXT PRIMARY KEY,
+            user_id TEXT,
+            filename TEXT,
+            extracted_text TEXT,
+            content_hash TEXT
+        )''')
+        cur.execute('''CREATE TABLE file_summaries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_id TEXT UNIQUE,
+            summary_text TEXT
+        )''')
+        cur.execute('''CREATE TABLE clusters (
+            id TEXT PRIMARY KEY,
+            user_id TEXT,
+            title TEXT
+        )''')
+        cur.execute('''CREATE TABLE graph_nodes (
+            id TEXT PRIMARY KEY,
+            user_id TEXT,
+            object_type TEXT,
+            label TEXT
+        )''')
+        # Insert legacy row
+        cur.execute("INSERT INTO files (id, user_id, filename) VALUES ('test', 'u1', 'old.pdf')")
+        conn.commit()
+        conn.close()
+    
+    @pytest.mark.asyncio
+    async def test_alter_adds_all_v11_cols(self, tmp_path, monkeypatch):
+        db_path = str(tmp_path / "test_v11.db")
+        self._create_legacy_schema(db_path)
+        
+        monkeypatch.setenv("DATABASE_URL", f"sqlite+aiosqlite:///{db_path}")
+        monkeypatch.setenv("DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("ADMIN_PASSWORD", "test")
+        
+        # Reload backend.database with new env
+        import importlib
+        from backend import database
+        database.DATABASE_URL = f"sqlite+aiosqlite:///{db_path}"
+        database.engine = database.create_async_engine(database.DATABASE_URL, echo=False)
+        database.AsyncSessionLocal = database.async_sessionmaker(
+            database.engine, class_=database.AsyncSession, expire_on_commit=False
+        )
+        
+        await database.init_db()
+        
+        # Verify v11 cols
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+        for table, cols in [
+            ("files", ["embedding_vector", "embedding_model", "embedding_hash"]),
+            ("file_summaries", ["entities", "relationships", "schema_version"]),
+            ("clusters", ["method", "centroid", "member_count"]),
+            ("graph_nodes", ["community_id", "embedding_centrality"]),
+        ]:
+            cur.execute(f"PRAGMA table_info({table})")
+            actual = {row[1] for row in cur.fetchall()}
+            for col in cols:
+                assert col in actual, f"{table}.{col} not added"
+        
+        # Verify legacy row intact
+        cur.execute("SELECT id, filename FROM files WHERE id = ?", ("test",))
+        row = cur.fetchone()
+        assert row == ("test", "old.pdf")
+        
+        # Verify defaults
+        cur.execute("SELECT embedding_vector, embedding_model FROM files WHERE id = ?", ("test",))
+        v = cur.fetchone()
+        assert v[0] is None  # BLOB default NULL
+        assert v[1] == ""    # TEXT default ""
+        conn.close()
+    
+    @pytest.mark.asyncio
+    async def test_idempotent_rerun(self, tmp_path, monkeypatch, capsys):
+        """Run init_db twice → 2nd run no 'Added:' messages"""
+        db_path = str(tmp_path / "idempotent.db")
+        self._create_legacy_schema(db_path)
+        
+        monkeypatch.setenv("DATABASE_URL", f"sqlite+aiosqlite:///{db_path}")
+        monkeypatch.setenv("DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("ADMIN_PASSWORD", "test")
+        
+        from backend import database
+        database.DATABASE_URL = f"sqlite+aiosqlite:///{db_path}"
+        database.engine = database.create_async_engine(database.DATABASE_URL, echo=False)
+        database.AsyncSessionLocal = database.async_sessionmaker(
+            database.engine, class_=database.AsyncSession, expire_on_commit=False
+        )
+        
+        # First run — should see Added messages
+        await database.init_db()
+        first = capsys.readouterr().out
+        assert "v11.0.0" in first
+        
+        # Second run — should NOT see Added messages
+        await database.init_db()
+        second = capsys.readouterr().out
+        assert "Added: files.embedding" not in second
+```
+
+### เกณฑ์ Pass / Fail
+
+| Check | Pass criteria | Fail = |
+|---|---|---|
+| Cols exist | 11 v11 cols across 4 tables | ❌ schema incomplete |
+| Idempotent | 2nd init_db() no "Added:" | ❌ migration not safe to rerun |
+| Legacy intact | row counts match pre-migration | ❌ data corruption |
+| Defaults | NULL BLOB, "" TEXT, 'llm' method, schema_version=1 | ❌ wrong defaults |
+
+### Red flags
+- 🚩 ถ้า ALTER fail หรือ throw → migration เขียนผิด
+- 🚩 ถ้า legacy row หาย → migration ไม่ใช่ additive (ห้าม!)
+- 🚩 ถ้า rerun เห็น "Added:" 2 รอบ → idempotency พัง
+
+---
+
+## 4️⃣ Step 0.4 — Feature Flags
+
+### วิธีเทส
+
+```python
+"""ฟ้าเขียน backend/_test_v11_flags.py"""
+import os
+import pytest
+
+
+def reload_config():
+    import sys, importlib
+    for mod in list(sys.modules.keys()):
+        if mod.startswith("backend.config"):
+            del sys.modules[mod]
+    from backend import config
+    return config
+
+
+class TestFeatureFlags:
+    def test_defaults_off_for_phase1_2_3(self, monkeypatch):
+        for f in ['USE_HYBRID_CLUSTERING', 'USE_STRUCTURED_SUMMARY', 'USE_ENTITY_GRAPH']:
+            monkeypatch.delenv(f, raising=False)
+        monkeypatch.setenv('ADMIN_PASSWORD', 'test')
+        config = reload_config()
+        assert config.USE_HYBRID_CLUSTERING == False
+        assert config.USE_STRUCTURED_SUMMARY == False
+        assert config.USE_ENTITY_GRAPH == False
+    
+    def test_defaults_on_for_safe_features(self, monkeypatch):
+        for f in ['USE_SUMMARY_CACHE', 'USE_ORGANIZE_CHECKPOINT']:
+            monkeypatch.delenv(f, raising=False)
+        monkeypatch.setenv('ADMIN_PASSWORD', 'test')
+        config = reload_config()
+        assert config.USE_SUMMARY_CACHE == True
+        assert config.USE_ORGANIZE_CHECKPOINT == True
+    
+    @pytest.mark.parametrize("val", ['true', 'True', 'TRUE', '1', 'yes', 'YES'])
+    def test_truthy_parsing(self, val, monkeypatch):
+        monkeypatch.setenv('USE_HYBRID_CLUSTERING', val)
+        monkeypatch.setenv('ADMIN_PASSWORD', 'test')
+        config = reload_config()
+        assert config.USE_HYBRID_CLUSTERING == True
+    
+    @pytest.mark.parametrize("val", ['false', '0', 'no', '', 'random', 'on', '2'])
+    def test_falsy_parsing(self, val, monkeypatch):
+        monkeypatch.setenv('USE_HYBRID_CLUSTERING', val)
+        monkeypatch.setenv('ADMIN_PASSWORD', 'test')
+        config = reload_config()
+        assert config.USE_HYBRID_CLUSTERING == False
+    
+    def test_numeric_defaults(self, monkeypatch):
+        for f in ['EMBEDDING_BATCH_SIZE', 'HDBSCAN_MIN_CLUSTER_SIZE', 'UMAP_N_COMPONENTS', 'SUMMARY_CONCURRENCY']:
+            monkeypatch.delenv(f, raising=False)
+        monkeypatch.setenv('ADMIN_PASSWORD', 'test')
+        config = reload_config()
+        assert config.EMBEDDING_BATCH_SIZE == 50
+        assert config.HDBSCAN_MIN_CLUSTER_SIZE == 2
+        assert config.UMAP_N_COMPONENTS == 30
+        assert config.SUMMARY_CONCURRENCY == 5
+    
+    def test_numeric_env_override(self, monkeypatch):
+        monkeypatch.setenv('HDBSCAN_MIN_CLUSTER_SIZE', '3')
+        monkeypatch.setenv('ADMIN_PASSWORD', 'test')
+        config = reload_config()
+        assert config.HDBSCAN_MIN_CLUSTER_SIZE == 3
+    
+    def test_embedding_model_env_override(self, monkeypatch):
+        monkeypatch.setenv('EMBEDDING_MODEL', 'gemini-embedding-001')
+        monkeypatch.setenv('ADMIN_PASSWORD', 'test')
+        config = reload_config()
+        assert config.EMBEDDING_MODEL == 'gemini-embedding-001'
+```
+
+### เกณฑ์ Pass / Fail
+
+| Check | Pass criteria | Fail = |
+|---|---|---|
+| 3 Phase flags default OFF | USE_HYBRID_CLUSTERING/STRUCTURED/ENTITY = False | ❌ accidental enable |
+| 2 safety flags default ON | USE_SUMMARY_CACHE/CHECKPOINT = True | ❌ inconsistency |
+| Truthy parsing | 6 truthy values → True | ❌ env parse broken |
+| Falsy parsing | 7 falsy values (incl. 'on', '2') → False | ❌ false positive |
+| Numeric override | env vars respected | ❌ hardcoded |
+
+### Red flags
+- 🚩 ถ้า USE_HYBRID_CLUSTERING default = True → **อย่า approve!** จะกระทบ prod ทันที deploy
+- 🚩 ถ้า 'on' หรือ '2' ถูก parse เป็น True → boolean logic ผิด
+
+---
+
+## 5️⃣ Step 0.5 — Test harness
+
+### วิธีเทส
+
+```bash
+# Test A: CLI help
+python scripts/test_organize_quality.py --help
+# Expected: usage with --baseline / --v11 / --compare / --user-id / --limit / --output-dir
+
+# Test B: No args → degrade to help
+python scripts/test_organize_quality.py
+# Expected: same help output, exit 1
+
+# Test C: Static — Metrics class structure
+python -c "
+import sys; sys.path.insert(0, '.')
+from scripts.test_organize_quality import Metrics, LLMCallTracker
+m = Metrics('test')
+m.start()
+import time; time.sleep(0.1)
+m.stop()
+assert m.duration_sec > 0.05
+d = m.to_dict()
+assert 'duration_sec' in d
+assert 'llm_call_count' in d
+print('Metrics class: OK')
+"
+```
+
+### เกณฑ์ Pass / Fail
+- ✅ CLI args parse + help render
+- ✅ Metrics class works (start/stop/to_dict)
+- ✅ No real DB run yet (deferred to Phase 1 when actual hybrid pipeline ready)
+
+---
+
+## 6️⃣ End-to-end regression (เขียวทำแล้ว — ฟ้ายืนยัน)
+
+อ้างอิง: [`reports/v11-phase0-frontend-test-2026-05-17.md`](../../../reports/v11-phase0-frontend-test-2026-05-17.md)
+
+ฟ้ารัน end-to-end อีกครั้ง:
+
+```bash
+# 1. Start backend
+python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+
+# 2. ตรวจ /health
+curl http://127.0.0.1:8000/health
+# Expected: {"ok":true,"version":"10.0.17"}
+
+# 3. Login + 10 API check + rate-limit test
+#    (ใช้ Playwright spec ใน tests/v11-regression.spec.js — ฟ้าเขียน)
+```
+
+ฟ้าเขียน Playwright spec ใน `tests/v11-phase0-regression.spec.js`:
+
+```javascript
+import { test, expect } from '@playwright/test';
+
+const BASE = 'http://127.0.0.1:8000';
+
+test.describe('v11 Phase 0 Regression', () => {
+  test('landing page loads', async ({ page }) => {
+    await page.goto(`${BASE}/`);
+    await expect(page).toHaveTitle(/Personal Data Bank/);
+  });
+
+  test('login → admin redirect', async ({ page }) => {
+    await page.goto(`${BASE}/`);
+    await page.click('#btn-show-login');
+    await page.fill('#login-email', 'bossok2546@gmail.com');
+    await page.fill('#login-password', '0898661896za');
+    await page.click('#btn-login');
+    await expect(page).toHaveURL(/\/admin/);
+  });
+
+  test('rate-limit: 6th login attempt = 429', async ({ request }) => {
+    for (let i = 0; i < 5; i++) {
+      const r = await request.post(`${BASE}/api/auth/login`, {
+        data: { email: 'fake@nowhere.local', password: 'wrong' + i }
+      });
+      expect(r.status()).toBe(401);
+    }
+    const r6 = await request.post(`${BASE}/api/auth/login`, {
+      data: { email: 'fake@nowhere.local', password: 'wrong6' }
+    });
+    expect(r6.status()).toBe(429);
+    expect(r6.headers()['retry-after']).toBeTruthy();
+  });
+
+  test('no "บางส่วนถูกตัด" badge in file list (v10.0.13)', async ({ page }) => {
+    // Login first
+    await page.goto(`${BASE}/`);
+    await page.click('#btn-show-login');
+    await page.fill('#login-email', 'bossok2546@gmail.com');
+    await page.fill('#login-password', '0898661896za');
+    await page.click('#btn-login');
+    
+    // Navigate /app + check
+    await page.goto(`${BASE}/app`);
+    await page.waitForSelector('.file-item');
+    const badgeText = await page.locator('.extraction-badge.extraction-partial').count();
+    expect(badgeText).toBe(0);
+  });
+});
+```
+
+---
+
+## 📋 Sign-off Checklist (ฟ้าเช็คก่อน APPROVE)
+
+### Code quality
+- [ ] backend/embeddings.py: docstring ครบ + type hints + thai comments อธิบาย WHY
+- [ ] backend/database.py: migration block follows v7.5.0 pattern
+- [ ] backend/config.py: flag naming consistent (USE_X) + comments อธิบาย rollout
+- [ ] scripts/test_organize_quality.py: argparse + clear output paths
+
+### Tests written (ฟ้าเขียน)
+- [ ] `backend/_test_embeddings.py` (encode/decode + graceful degrade + real API skip-if)
+- [ ] `backend/_test_v11_migration.py` (ALTER ADD + idempotency + legacy intact)
+- [ ] `backend/_test_v11_flags.py` (defaults + parsing + numeric override)
+- [ ] `tests/v11-phase0-regression.spec.js` (Playwright e2e)
+
+### Behavior verification
+- [ ] All 5 feature flags default OFF (3 phase flags) / ON (2 safety flags)
+- [ ] Schema migration runs cleanly on production-like DB
+- [ ] Idempotent (rerun safe)
+- [ ] Legacy data integrity (counts match)
+- [ ] embeddings.py graceful degrade (no API key)
+- [ ] End-to-end regression (login, /app, API endpoints, rate-limit, no "ถูกตัด" badge)
+
+### Production safety
+- [ ] Production v10.0.14 not deployed (unchanged)
+- [ ] Phase 0 commits ready to push (after ฟ้า approve)
+- [ ] Image size impact acceptable (< +100MB after Dockerfile changes)
+
+---
+
+## 🎯 Verdict guide
+
+- ✅ **APPROVE** = ทุก checklist ผ่าน → ส่งกลับ inbox/for-เขียว.md "APPROVE Phase 0" → เขียวเริ่ม Phase 1
+- ⚠️ **NEEDS_CHANGES** = ระบุ bug + reproduce steps ใน inbox/for-เขียว.md priority HIGH/MEDIUM
+- ❌ **BLOCK** = plan ผิด — แจ้ง User + Daeng พร้อมกัน, หยุด pipeline
+
+---
+
+## 📌 Outstanding from Phase 0 (ไม่ใช่ blocker สำหรับ Phase 0 sign-off)
+
+1. **MSG-V11-UMAP-EDGE-CASE** (inbox/for-แดง.md) — Daeng confirm fix ก่อน Phase 1
+2. **API integration tests** (Test #2 Real API class) — defer ตอน Phase 1 หรือ Fly deploy
+3. **Docker build verification** — ทำได้บน Fly remote build (skip local Docker per workflow B)
+
+---
+
+## 🚩 ถ้า ฟ้าเจอ bug
+
+- ห้ามแก้ source code เอง (เขียวทำ)
+- เขียน reproduce steps + expected vs actual ใน inbox/for-เขียว.md
+- Priority:
+  - 🔴 CRITICAL: regression v10 features (login, upload, organize) พัง
+  - 🟠 HIGH: v11 feature ไม่ทำงานตาม plan
+  - 🟡 MEDIUM: doc inconsistency, minor edge case
+  - 🟢 LOW: cosmetic
+
+---
+
+**Sign-off contact:** ส่งผลใน `inbox/for-เขียว.md` (เขียวรับทราบทุก commit) หรือ `inbox/for-User.md` (ถ้าต้องการ user decision)
+
+— 🟢 เขียว (Khiao)
 
 ---
 
