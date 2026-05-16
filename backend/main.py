@@ -3225,18 +3225,36 @@ async def cleanup_ghost_files(
         except Exception as e:
             logger.warning("cleanup_ghosts: empty cluster cleanup failed: %s", e)
 
-    # ─── Phase 2 (v10.0.16): orphan derived GraphNodes + their NoteObject rows ───
+    # ─── Phase 2 (v10.0.17): orphan derived GraphNodes + their NoteObject rows ───
     # Run AFTER ghost cleanup so this also catches orphans freed by phase 1.
+    #
+    # v10.0.17 refinement (after QA TC-5 finding by ฟ้า):
+    #   Old rule "no edges at all" missed entities that were still inter-connected
+    #   to OTHER orphan entities (entity↔entity edges from organize phase). Those
+    #   entities had no anchoring file but each other held them up.
+    #   New rule: orphan = no edge connects to a `source_file` OR `context_pack`
+    #   node. Entity-entity edges no longer save a node — only file/pack edges do.
+    #   Matches user intent: "ถ้าไม่มีไฟล์ไหนอ้างถึงแล้ว ให้ลบ".
+    #   Shared-node safety preserved: if entity has edge to ANY remaining
+    #   source_file (e.g. used by another file), it's kept (TC-6 still PASS).
     try:
         orphan_q = await db.execute(text("""
             SELECT n.id, n.object_type, n.object_id
             FROM graph_nodes n
             WHERE n.user_id = :uid
-            AND n.object_type NOT IN ('cluster', 'context_pack')
+            AND n.object_type NOT IN ('cluster', 'context_pack', 'source_file')
             AND NOT EXISTS (
                 SELECT 1 FROM graph_edges e
+                INNER JOIN graph_nodes other ON other.id = (
+                    CASE
+                        WHEN e.source_node_id = n.id THEN e.target_node_id
+                        ELSE e.source_node_id
+                    END
+                )
                 WHERE e.user_id = :uid
                 AND (e.source_node_id = n.id OR e.target_node_id = n.id)
+                AND other.user_id = :uid
+                AND other.object_type IN ('source_file', 'context_pack')
             )
             AND NOT EXISTS (
                 SELECT 1 FROM suggested_relations s

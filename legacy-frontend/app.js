@@ -1670,25 +1670,36 @@ async function loadStats() {
 // Called once per session from loadStats. Idempotent — safe to no-op when ghosts=0.
 async function cleanupGhostsOnce() {
  try {
-  // v2 key — v10.0.16 expanded scope to orphan derived nodes (note/entity/tag/...).
-  // Bumping key so users who ran v1 cleanup in this session get the deeper purge.
-  if (sessionStorage.getItem('pdb_ghosts_cleaned_v2') === '1') return;
-  sessionStorage.setItem('pdb_ghosts_cleaned_v2', '1');
-  const res = await authFetch('/api/files/cleanup-ghosts', {
-   method: 'POST',
-   _background: true,
-   _silent401: true,
-  });
-  if (!res || !res.ok) return;
-  const data = await res.json();
-  const purged = data && data.stats && data.stats.ghosts_purged || 0;
-  if (purged > 0) {
-   console.info('[cleanup-ghosts] purged', purged, 'ghosts:', data.stats);
-   // Stats now stale (sidebar still showed orphan nodes/edges/clusters) → refresh once.
-   // Guard re-entry: flag is already set so loadStats() won't re-trigger cleanup.
-   loadStats();
-  }
+  // v3 key — v10.0.17 tightened orphan check (edge-to-source_file rule).
+  // Users who ran v2 cleanup in this session need the new logic on next load.
+  if (sessionStorage.getItem('pdb_ghosts_cleaned_v3') === '1') return;
+  sessionStorage.setItem('pdb_ghosts_cleaned_v3', '1');
+  await _runCleanupGhosts(false);
  } catch (_) { /* silent · network blip ok */ }
+}
+
+// v10.0.17 — post-delete cleanup hook. Bypasses session flag because
+// deletion creates fresh orphans that should be cleared immediately, not
+// "once per session". Idempotent + cheap when no orphans exist.
+async function cleanupAfterDelete() {
+ try { await _runCleanupGhosts(true); } catch (_) { /* silent */ }
+}
+
+async function _runCleanupGhosts(isPostDelete) {
+ const res = await authFetch('/api/files/cleanup-ghosts', {
+  method: 'POST',
+  _background: true,
+  _silent401: true,
+ });
+ if (!res || !res.ok) return;
+ const data = await res.json();
+ const s = data && data.stats || {};
+ const removed = (s.ghosts_purged || 0) + (s.orphan_nodes_removed || 0) + (s.empty_clusters_removed || 0);
+ if (removed > 0) {
+  console.info('[cleanup-ghosts]' + (isPostDelete ? ' (post-delete)' : ''), 'removed:', s);
+  // Refresh stats to reflect post-cleanup truth.
+  loadStats();
+ }
 }
 
 // ═══════════════════════════════════════════
@@ -3030,6 +3041,10 @@ async function deleteFile(id) {
  } catch (_) {}
  try { if (typeof loadContextPacks === 'function') loadContextPacks(); } catch (_) {}
  try { if (typeof loadUnprocessedCount === 'function') loadUnprocessedCount(); } catch (_) {}
+ // v10.0.17 — kick orphan cleanup right after every successful delete so derived
+ // entity/note nodes that just lost their only file get purged immediately
+ // (don't wait for next reload). Bypasses session flag of cleanupGhostsOnce.
+ try { cleanupAfterDelete(); } catch (_) {}
  } catch (e) { showToast(t('toast.error'), 'error'); }
 }
 
