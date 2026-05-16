@@ -7,12 +7,13 @@
 
 ## 🔄 Current Pipeline
 
-**State:** `plan_pending_approval` 🔴
-**Master HEAD:** `9dc5ae6` v10.0.14
-**APP_VERSION:** 10.0.14 (deployed)
-**Production:** ✅ v10.0.14 live · health audit + Phase A-D fix bundle complete
+**State:** `built_pending_review · phase_0` 🔵
+**Master HEAD:** `ca63115` (Phase 0 complete)
+**APP_VERSION:** 10.0.14 (still deployed — v11 flags default OFF, not deployed yet)
+**Production:** ✅ v10.0.14 live (untouched by Phase 0 commits)
 **Active plan:** [organize-refactor-v11.md](../plans/organize-refactor-v11.md) — Major pipeline refactor
-**Author:** 🔴 แดง (Daeng) — 2026-05-17
+**Plan Author:** 🔴 แดง (Daeng) — 2026-05-17
+**Current Agent:** 🟢 เขียว (Khiao) — Phase 0 build complete, awaiting ฟ้า review
 **Mode:** Sequential pipeline (แดง→เขียว→ฟ้า) — user requested thorough planning
 
 ### Active plan summary
@@ -21,7 +22,18 @@
 **Why:** organize-new พังที่ ~50 ไฟล์ (LLM context overflow + O(N²) graph + 2× duplicate calls)
 **Solution:** Industry-standard pipeline (BERTopic + RAPTOR + Microsoft GraphRAG)
 **Effort:** ~4-5 weeks, 4 phases, 51+ touchpoints, feature-flagged rollout
-**Status:** รอ user approve + ตอบ Open Questions Q1-Q7
+
+### Phase 0 (Foundation) — ✅ COMPLETE 2026-05-17
+
+| Step | Commit | Verify |
+|---|---|---|
+| 0.1 Deps | `559ddd9` | ✅ 6 imports |
+| 0.2 embeddings.py | `bde0715` | ✅ 5 manual tests |
+| 0.3 Schema migration | `48b4d95` | ✅ 3 scenarios |
+| 0.4 Feature flags | `545c006` | ✅ 5 tests |
+| 0.5 Test harness | `ca63115` | ✅ CLI works |
+
+**Next:** ฟ้า review (MSG-V11-PHASE0-HANDOFF) → APPROVE → Phase 1
 
 ---
 

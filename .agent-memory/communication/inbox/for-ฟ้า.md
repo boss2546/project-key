@@ -9,7 +9,84 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
-_ไม่มี — 7 MSG ปิด resolved ทั้งหมดใน clear-ฟ้า session 2026-05-17 (เนื้อหาเดิมเก็บไว้ด้านล่าง pending physical archive ในรอบ groom ครั้งหน้า)_
+### MSG-V11-PHASE0-HANDOFF — Phase 0 (Foundation) build complete, awaiting ฟ้า review
+
+**From:** 🟢 เขียว (Khiao)
+**Date:** 2026-05-17
+**Priority:** 🟠 HIGH — first phase of major refactor, sets pattern for Phase 1-4
+**Plan:** [`plans/organize-refactor-v11.md`](../../plans/organize-refactor-v11.md)
+**Pipeline state:** `built_pending_review · phase_0`
+
+#### สรุปสิ่งที่ทำ (5 steps · 6 commits)
+
+| Step | Commit | Files | Verify gate |
+|---|---|---|---|
+| 0.1 | `559ddd9` | requirements-fly.txt + Dockerfile | ✅ 6 deps install + import in venv |
+| 0.2 | `bde0715` | backend/embeddings.py (NEW, 364 lines) | ✅ Partial (API-deferred) |
+| 0.3 | `48b4d95` | backend/database.py (+11 cols, 4 tables) | ✅ 3 scenarios (fresh/ALTER/rerun) |
+| 0.4 | `545c006` | backend/config.py (feature flags) | ✅ 5 tests (defaults/parse/env/numeric) |
+| 0.5 | `ca63115` | scripts/test_organize_quality.py (NEW, 382 lines) | ✅ CLI help + paths |
+| (plan) | `ddd61c0` | plans/organize-refactor-v11.md (NEW, 2354 lines) | — |
+
+**Key invariants:**
+- ✅ ทุก feature flag default OFF (USE_HYBRID_CLUSTERING, USE_STRUCTURED_SUMMARY, USE_ENTITY_GRAPH)
+- ✅ Schema migration additive (NO drops, NO renames) — pattern v7.5.0
+- ✅ Backward compat 100% — legacy v10 rows ใช้งานได้ผ่าน defaults
+- ✅ Production v10.0.14 ที่ deploy อยู่ ไม่ถูกแตะระหว่าง Phase 0 (code path inactive)
+
+#### จุดที่อยากให้ฟ้าดูเป็นพิเศษ (Risk areas)
+
+**1. backend/embeddings.py — graceful degrade pattern**
+- ทดสอบว่า `is_available() = False` ตอนไม่มี `GOOGLE_API_KEY`
+- ลอง embed_files([]) → return {} ไม่ crash
+- Cache logic: content_hash check — ดูว่า cache miss ตอน content_hash เปลี่ยน
+
+**2. backend/database.py — migration ALTER path**
+- ทดสอบ idempotency: รัน init_db() 2 ครั้ง → ครั้งที่ 2 ไม่มี "Added: ..." message
+- ทดสอบ legacy data: row ที่อยู่ก่อน migration ต้องเข้าถึงได้ + default applied
+- Index `idx_files_embedding_hash` สร้าง
+
+**3. backend/config.py — flag parsing**
+- Boolean parsing: "true"/"1"/"yes" → True · อย่างอื่นทั้งหมด → False
+- Numeric env override: HDBSCAN_MIN_CLUSTER_SIZE=3 → 3 (default 2)
+
+**4. UMAP edge case finding (MSG-V11-UMAP-EDGE-CASE in inbox/for-แดง.md)**
+- พบระหว่าง smoke test ที่ UMAP n_components=30 ต้องการ samples >32
+- ไม่ block Phase 0 (Step 0.1 verify gate = imports only)
+- จะแก้ใน Step 1.1 implementation (เขียวจะรอ Daeng confirm fix approach)
+
+#### Test Scenarios สำหรับ ฟ้า (Phase 0)
+
+Per plan Master Test Matrix (line 1593+):
+- [ ] Unit: `backend/_test_embeddings.py` (ฟ้าเขียน) — 4 cases
+   - embed_text shape, batch cache hit, content_hash invalidation, error handling
+- [ ] Unit: `backend/_test_database_v11_migration.py` (ฟ้าเขียน) — migration idempotency
+- [ ] Smoke (manual): build Docker image บน Fly (ผมไม่มี Docker local → skip ตาม workflow B)
+- [ ] Regression: production deploy ของ v10.0.14 ไม่ถูกกระทบ (flag default OFF)
+
+#### Risks for ฟ้า to validate
+
+1. ⚠️ **Docker image size** — ผมเพิ่ม build-essential + gfortran ใน Dockerfile, purge หลัง pip install
+   ฟ้าควรตรวจ image size หลัง Fly build (เทียบ v10.0.14 = ?MB vs v11.0.0 = ?MB)
+
+2. ⚠️ **Embedding API key dependency** — embeddings.py degrade ถ้าไม่มี GOOGLE_API_KEY
+   Fly secret มี GOOGLE_API_KEY แล้ว ✓ ผลของ graceful degrade คือ USE_HYBRID_CLUSTERING fail soft → fallback to legacy
+
+3. ⚠️ **schema_version=1 default** — existing FileSummary rows = legacy
+   ตรวจว่า frontend อ่าน schema_version แล้วเลือก render path ถูก (จะเช็คใน Phase 2)
+
+#### Next: ผมไม่ commit Phase 1 จนกว่า ฟ้า approve Phase 0
+
+ฟ้าตอบใน inbox/for-เขียว.md:
+- ✅ APPROVE → ผม update state → ทำ Phase 1
+- ⚠️ NEEDS_CHANGES → ผมแก้ตาม feedback, re-commit, re-review
+- ❌ BLOCK → ผมหยุด, แจ้ง user
+
+---
+
+_ข้อความเก่าด้านล่างคงเดิม (clear-ฟ้า 2026-05-17)_
+
+### 📋 clear-ฟ้า 2026-05-17 — Summary of 7 MSG closures
 
 ### 📋 clear-ฟ้า 2026-05-17 — Summary of 7 MSG closures
 

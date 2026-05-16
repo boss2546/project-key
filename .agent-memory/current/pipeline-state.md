@@ -5,7 +5,7 @@
 
 ---
 
-## 🎯 Current State: `in_progress · phase_0` 🟢 (v11.0.0 Organize Refactor)
+## 🎯 Current State: `built_pending_review · phase_0` 🔵 (v11.0.0 Organize Refactor)
 
 **Active task:** v11.0.0 — Organize Pipeline Refactor (Hybrid Clustering + Structured Summary + Entity Graph)
 **Active plan:** [`.agent-memory/plans/organize-refactor-v11.md`](../plans/organize-refactor-v11.md)
@@ -32,12 +32,19 @@
 - **Pace**: ค่อยๆ ทำ ช้าๆ + เน้น test ละเอียด (user directive)
 
 ### Phase 0 Progress (24 milestones total across 4 phases)
-- [ ] Step 0.1 — Add deps to requirements-fly.txt + verify imports in venv
-- [ ] Step 0.2 — Create backend/embeddings.py + Verify gate
-- [ ] Step 0.3 — Schema migration (additive) + Verify gate
-- [ ] Step 0.4 — Feature flag system + Verify gate
-- [ ] Step 0.5 — Test harness baseline + Verify gate
-- [ ] Phase 0 wrap-up commit + ฟ้า handoff
+- [x] Step 0.1 — Add deps to requirements-fly.txt + verify imports in venv ✅ (commit 559ddd9)
+- [x] Step 0.2 — Create backend/embeddings.py + Verify gate ✅ (commit bde0715, partial — API-deferred)
+- [x] Step 0.3 — Schema migration (additive) + Verify gate ✅ (commit 48b4d95, 3 scenarios)
+- [x] Step 0.4 — Feature flag system + Verify gate ✅ (commit 545c006, 5 tests)
+- [x] Step 0.5 — Test harness baseline + Verify gate ✅ (commit ca63115, CLI verified)
+- [x] **Phase 0 COMPLETE** — built_pending_review by 🔵 ฟ้า
+
+### Phase 1 Roadmap (next, after ฟ้า approves Phase 0)
+- [ ] Step 1.1 — Create backend/clustering.py (⚠️ ต้องแก้ UMAP dynamic n_components per MSG-V11-UMAP-EDGE-CASE)
+- [ ] Step 1.2 — Create backend/importance.py
+- [ ] Step 1.3 — Route in organizer.py
+- [ ] Step 1.4 — Update frontend phase metadata
+- [ ] Step 1.5 — Run scripts/migrate_to_v11.py + scripts/test_organize_quality.py --compare
 
 ### Plan Summary
 - **Scope:** 4-phase refactor (~4-5 สัปดาห์), 51+ touchpoints
@@ -146,4 +153,4 @@
 
 ---
 
-**Last sync:** 2026-05-17 by 🟢 เขียว (Khiao) — Phase 0 in_progress (Step 0.1 starting) · user approved verbally + defaults Q1-Q7 confirmed
+**Last sync:** 2026-05-17 by 🟢 เขียว (Khiao) — **Phase 0 COMPLETE** (5/5 steps verified) · awaiting ฟ้า review · master HEAD `ca63115`

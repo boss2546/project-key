@@ -1,121 +1,107 @@
 # 📅 Last Session Summary
 
 **Date:** 2026-05-17
-**Agent:** 🔴 แดง (Daeng) — นักวางแผน
-**Pipeline state:** `plan_pending_approval` 🔴 (v11.0.0 organize refactor · awaiting user approval)
+**Agent:** 🟢 เขียว (Khiao) — นักพัฒนา (Phase 0 build)
+**Pipeline state:** `built_pending_review · phase_0` 🔵 (v11.0.0 organize refactor)
 
 ---
 
-## 🎯 ที่ทำเสร็จในรอบนี้ — v11.0.0 Plan Creation
+## 🎯 ที่ทำเสร็จในรอบนี้ — v11.0.0 Phase 0 (Foundation)
 
 **Trigger:**
-User รายงานปัญหา "อัพไฟล์ 50-100 ไฟล์แล้วกดจัดระเบียบด้วย AI → พัง / ค้าง"
+User สั่ง "ดำเนินการตามคำแนะนำของคุณได้เลย แต่ค่อยๆทำนะช้าๆค่อยทำ เน้นที่การเทสแบบละเอียด" หลัง approve plan ที่ผมเขียนไว้ตอนเป็น Daeng
 
-หลังจากคุยกัน user ขอ:
-1. วิเคราะห์ว่าระบบทำอะไรบ้าง (10 ขั้น)
-2. เปรียบเทียบกับมาตรฐานตลาด (ค้นวิจัย BERTopic/RAPTOR/GraphRAG)
-3. เปรียบเทียบ performance + quality ของเก่า/ใหม่
-4. ตรวจสอบว่า `.md` system ยังเข้ากันได้ไหม
-5. **ขอแผนแก้ไขแบบละเอียด** "ตรวจสอบไฟล์และโค้ดที่เกี่ยวข้องดีๆ ไม่ว่าจะเล็กน้อยแค่ไหนก็เก็บใหม่อัพเดทไปพร้อมๆกันทั้งโปรเจ็ค ค่อยๆทำไม่ต้องรีบ"
+**Approved defaults Q1-Q7 ที่ผมใช้:**
+- Q1 Embedding: Gemini text-embedding-004 (768-d, free tier)
+- Q2 HDBSCAN min_cluster_size: 2
+- Q3 Storage: BLOB ใน SQLite
+- Q4 Strategy: Phase 1 only first (stop checkpoint หลัง Phase 1)
+- Q5 Batch API: Skip
+- Q6 Test corpus: Admin user's prod copy
+- Q7 Gemini JSON mode: ใช้ทันที (ใน Phase 2)
 
-User invoke "แดง" (Daeng) role bootstrap prompt → ผมรับบทบาทนักวางแผน → เขียน plan ละเอียดสุด
+**Workflow agreed:**
+- Skip local Docker (ไม่มีบนเครื่อง) → ใช้ `flyctl deploy --remote-only`
+- Commit ตรงไป master + feature flags default OFF
 
-**สิ่งที่ผมทำ:**
+## 📦 Output (6 commits)
 
-1. อ่าน memory context ครบ:
-   - `.agent-memory/00-START-HERE.md`
-   - `.agent-memory/current/pipeline-state.md`
-   - `.agent-memory/communication/inbox/for-แดง.md` (empty)
-   - `.agent-memory/project/overview.md`
-   - `.agent-memory/contracts/conventions.md`
-   - `.agent-memory/plans/README.md`
-   - Existing plans (v9.3.5.5 reference style)
+| # | Commit | Description | Verify gate |
+|---|---|---|---|
+| 1 | `ddd61c0` | docs(plan): v11.0.0 refactor plan (2354 lines) | — |
+| 2 | `559ddd9` | deps(v11-phase0): hdbscan + umap + sklearn + networkx + louvain + numpy [Step 0.1] | ✅ 6 imports work |
+| 3 | `bde0715` | feat(v11-phase0): backend/embeddings.py (364 lines) [Step 0.2] | ✅ Partial (5 manual tests) |
+| 4 | `48b4d95` | feat(v11-phase0): schema migration — 11 cols / 4 tables [Step 0.3] | ✅ 3 scenarios |
+| 5 | `545c006` | feat(v11-phase0): feature flags + config [Step 0.4] | ✅ 5 tests |
+| 6 | `ca63115` | feat(v11-phase0): test_organize_quality.py harness [Step 0.5] | ✅ CLI works |
 
-2. Explore codebase ละเอียด (delegate Explore subagent):
-   - แมป 51+ touchpoints ครบทั้ง backend + frontend + DB schema + dependencies + docs + memory
-   - ไฟล์/function/line ทุกจุดที่กระทบ
+**Phase 0 totals:**
+- 6 commits on master
+- 1 new module: backend/embeddings.py (364 lines)
+- 1 new script: scripts/test_organize_quality.py (382 lines)
+- 1 new plan: .agent-memory/plans/organize-refactor-v11.md (2354 lines)
+- 11 new DB columns (additive)
+- 8 new feature flags
+- Production v10.0.14 untouched (all v11 flags default OFF)
 
-3. Research industry standards (delegate general-purpose agent):
-   - BERTopic, RAPTOR, Microsoft GraphRAG patterns
-   - LangChain/LlamaIndex summarization strategies
-   - Anti-patterns (LLM-as-clusterer, per-pair graph build, mega-call multi-task)
+## 🔬 Findings sent to Daeng
 
-4. เขียน plan ละเอียดที่ `.agent-memory/plans/organize-refactor-v11.md`:
-   - **Goal + Context** (รวมเหตุผล + industry references)
-   - **Performance/Quality comparison table** (20+ metrics, ของเดิมเทียบใหม่)
-   - **Files to Create/Modify** (40+ ไฟล์ — 4 create + 12 modify + 2 frontend + 8 tests + 4 docs + 7 small things + 3 memory)
-   - **API Changes** (additive — schema เพิ่ม fields ไม่ลบ)
-   - **Data Model Changes** (additive migration plan ตาม v7.5.0 pattern)
-   - **Step-by-Step Implementation** ทุก phase พร้อม code snippets
-   - **Test Scenarios** (unit + integration + quality + e2e + browser)
-   - **Done Criteria** (functional + quality + docs + security + compat)
-   - **Risks** (12 risks ระบุ likelihood/impact/mitigation)
-   - **Open Questions** (Q1-Q7 รอ user ตัดสิน)
-   - **Notes for เขียว** (gotchas, style, what's forbidden)
-   - **Timeline** (4-5 weeks recommended)
-   - **Rollback procedures** ทุก phase
-   - **References** (industry + internal)
-
-5. Update memory:
-   - `pipeline-state.md` → state = `plan_pending_approval`
-   - `active-tasks.md` → state changed from idle → planning
-   - `last-session.md` (this file)
-
-## 📦 Output
-
-- `.agent-memory/plans/organize-refactor-v11.md` (~1,400 lines, comprehensive)
-- `.agent-memory/current/pipeline-state.md` (updated to plan_pending_approval)
-- `.agent-memory/current/active-tasks.md` (updated to current planning task)
-- `.agent-memory/current/last-session.md` (this file)
+**MSG-V11-UMAP-EDGE-CASE** (inbox/for-แดง.md):
+- UMAP n_components=30 requires ≥32 samples
+- Plan Step 1.1 code crashes when 5 ≤ N ≤ 31 files
+- Need dynamic n_components or skip UMAP for small N
+- ไม่ block Phase 0 (Step 0.1 gate = imports only)
 
 ## 🔄 Pipeline ต่อไป
 
-**สถานะปัจจุบัน:** `plan_pending_approval`
+**สถานะปัจจุบัน:** `built_pending_review · phase_0`
 
-**รอ user:**
-1. อ่าน plan ที่ [`.agent-memory/plans/organize-refactor-v11.md`](../plans/organize-refactor-v11.md)
-2. ตอบ Open Questions Q1-Q7
-3. Approve plan → ส่งต่อให้ เขียว เริ่ม Phase 0
+**รอ ฟ้า review** (MSG-V11-PHASE0-HANDOFF sent to inbox/for-ฟ้า.md):
+1. ฟ้าอ่าน plan + commits 559ddd9 ถึง ca63115
+2. ฟ้าเขียน tests (unit + smoke)
+3. ฟ้าตอบใน inbox/for-เขียว.md:
+   - ✅ APPROVE → ผมเริ่ม Phase 1
+   - ⚠️ NEEDS_CHANGES → ผมแก้ตาม feedback
+   - ❌ BLOCK → หยุด, แจ้ง user
 
-**ถ้า user revise:** แดง update plan + re-submit
-
-**ถ้า user approve:**
-- แดง update `pipeline-state.md` → state = "plan_approved · ready for เขียว Phase 0"
-- แดง เขียน notification ใน `.agent-memory/communication/inbox/for-เขียว.md`
-- เขียว เปิด chat ใหม่ → อ่าน plan → เริ่ม Phase 0
+**Phase 1 prep ที่ค้าง:**
+- รอ Daeng confirm UMAP fix approach (MSG-V11-UMAP-EDGE-CASE)
+- ตอน Phase 1 Step 1.1: implement clustering.py พร้อม dynamic n_components
 
 ## 🔖 หมายเหตุพิเศษ
 
-### User priorities (จาก conversation):
-- ✅ คุณภาพ > ความเร็ว ("ทำดีตั้งแต่แรก ดีกว่าแก้ทีหลังเสียเวลา 10 เท่า")
-- ✅ ค่อยๆ ทำไม่ต้องรีบ ("เรื่องนี้สำคัญ")
-- ✅ ครบ 100% ตามที่คุยกันก่อนหน้านี้
-- ✅ เก็บแม้สิ่งเล็กน้อย ("ไม่ว่าจะเล็กน้อยแค่ไหนก็เก็บใหม่อัพเดทไปพร้อมๆกันทั้งโปรเจ็ค")
-- ✅ ใช้ token ได้เต็มที่เพื่อคุณภาพ
+### Verify gates ที่ defer (รอ Phase 1)
+- backend/embeddings.py: API integration test (need real GOOGLE_API_KEY + DB)
+- scripts/test_organize_quality.py: actual baseline run (need same)
 
-### Pre-session production state (v10.0.14):
-- v10.0.13 deploy completed (badge removal + Drive OAuth scope drift fix)
-- v10.0.14 deploy completed (Phase A-D fix bundle):
-  - Rate-limit login (5 fail/15min)
-  - Retry-on-chunk-fail (3 attempts with backoff)
-  - Unified error response (`detail` + `error.code` ทุก response)
-  - Cleanup: dead code (ABSOLUTE_MAX_FILE_SIZE_MB), httpx context, env override
+ทั้ง 2 จะ verify ตอนเริ่ม Phase 1 ก่อน enable USE_HYBRID_CLUSTERING.
 
-### Things deferred (not in this refactor plan):
-- LINE quota admin gate (already shipped earlier)
-- Drive OAuth scope drift (already shipped in 935535b)
-- Login retry/recovery (out of scope — user-side Safari autofill issue)
-- Synthetic QA file cleanup (BYOS push log flood — cosmetic, not in scope)
+### Branch strategy
+- ทำงานบน master ตาม project convention (recent commits ทั้งหมดบน master)
+- Feature flags default OFF เป็น safety net แทน branch isolation
+- ถ้า Phase 0 ผ่าน + Phase 1 approval → user เปิด flag per machine via `flyctl secrets set`
+
+### Production safety check
+- v10.0.14 ยัง live (https://personaldatabank.fly.dev/health → version=10.0.14)
+- Phase 0 commits ไม่ deploy → v10.0.14 ยังเป็น production active
+- Deploy v11.0.0-alpha.1 = หลัง ฟ้า approve Phase 0 + user confirm
 
 ## 📝 Memory ที่ update
 
-- `pipeline-state.md` ✓
-- `active-tasks.md` ✓
+- `pipeline-state.md` ✓ (phase_0 complete · ready for ฟ้า)
 - `last-session.md` ✓ (this file)
-- `plans/organize-refactor-v11.md` ✓ (new)
+- `inbox/for-ฟ้า.md` ✓ (MSG-V11-PHASE0-HANDOFF)
+- `inbox/for-แดง.md` ✓ (MSG-V11-UMAP-EDGE-CASE)
+- `inbox/for-เขียว.md` ✓ (UX audit moved to Read)
 
 ## 🔖 Next session
 
-ถ้า user approve plan → เปิดแชทใหม่กับ เขียว (Khiao) → ส่ง bootstrap prompt → เขียว อ่าน plan → เริ่ม Phase 0 (Foundation: deps + schema + flags + embeddings)
+**สำหรับ ฟ้า:**
+- เปิด chat ใหม่ → bootstrap prompt-ฟ้า → อ่าน Phase 0 commits → review + tests
+- หลัง APPROVE → กลับมาแชทนี้บอกว่า "ฟ้า approve แล้ว" → เขียวเริ่ม Phase 1
 
-— 🔴 แดง (Daeng) | นักวางแผน
+**สำหรับ user:**
+- ตอนนี้ pipeline พร้อมให้ ฟ้า review
+- ถ้าจะข้าม ฟ้า (3-in-1 mode) → บอกผมว่า "ผ่าน, ทำ Phase 1 ต่อ" → ผมจะเริ่ม Step 1.1 (รอ Daeng confirm UMAP fix ก่อน)
+
+— 🟢 เขียว (Khiao) | นักพัฒนา
