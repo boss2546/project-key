@@ -3138,6 +3138,93 @@ async def delete_file(
     return {"status": "ok", "drive_cleanup": drive_cleanup}
 
 
+@app.post("/api/files/cleanup-ghosts")
+async def cleanup_ghost_files(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """v10.0.15 — Hard-delete ghost file rows + their dangling graph relations.
+
+    Why this exists:
+      drive_sync marks File rows as processing_status='deleted_in_drive' when it
+      detects user deleted the file from Drive UI directly (so PDB remembers it
+      existed · กัน re-upload). /api/files hides these ghosts (per F16), but
+      /api/stats counted them → sidebar showed phantom counts even when file
+      list was empty. Same for graph nodes/edges/clusters attached to ghosts —
+      because the normal delete_file path was bypassed, _cleanup_file_references
+      never fired → orphan graph entities linger.
+
+    What this does:
+      1. Find all ghost rows for current user
+      2. For each: invoke _cleanup_file_references (graph + summary md + pack/chat JSON)
+      3. db.delete(ghost) → cascade kills FileInsight/FileSummary/FileClusterMap
+      4. Commit → then _cleanup_empty_clusters to drop clusters that lost their last file
+
+    Idempotent: re-running with 0 ghosts returns stats with all zeros (no-op).
+    Skips Drive trash (files already gone from Drive — that's why they're ghosts).
+    """
+    ghost_q = await db.execute(
+        select(File).where(
+            File.user_id == current_user.id,
+            File.processing_status == "deleted_in_drive",
+        )
+    )
+    ghosts = ghost_q.scalars().all()
+
+    stats = {
+        "ghosts_purged": 0,
+        "graph_nodes_removed": 0,
+        "graph_edges_removed": 0,
+        "suggestions_removed": 0,
+        "summaries_md_removed": 0,
+        "packs_updated": 0,
+        "chats_updated": 0,
+        "injection_logs_updated": 0,
+        "empty_clusters_removed": 0,
+    }
+
+    for ghost in ghosts:
+        summary_md_path = (await db.execute(
+            select(FileSummary.md_path).where(FileSummary.file_id == ghost.id)
+        )).scalar_one_or_none() or None
+
+        try:
+            ref_stats = await _cleanup_file_references(
+                db, current_user.id, ghost.id, summary_md_path
+            )
+            stats["graph_nodes_removed"] += ref_stats.get("graph_nodes_removed", 0)
+            stats["graph_edges_removed"] += ref_stats.get("graph_edges_removed", 0)
+            stats["suggestions_removed"] += ref_stats.get("suggestions_removed", 0)
+            if ref_stats.get("summary_md_removed"):
+                stats["summaries_md_removed"] += 1
+            stats["packs_updated"] += ref_stats.get("packs_updated", 0)
+            stats["chats_updated"] += ref_stats.get("chats_updated", 0)
+            stats["injection_logs_updated"] += ref_stats.get("injection_logs_updated", 0)
+        except Exception as e:
+            logger.warning("cleanup_ghosts: refs cleanup failed for %s: %s", ghost.id, e)
+
+        await db.delete(ghost)
+        stats["ghosts_purged"] += 1
+
+    await db.commit()
+
+    if stats["ghosts_purged"]:
+        try:
+            stats["empty_clusters_removed"] = await _cleanup_empty_clusters(db, current_user.id)
+            await db.commit()
+        except Exception as e:
+            logger.warning("cleanup_ghosts: empty cluster cleanup failed: %s", e)
+
+    logger.info(
+        "cleanup_ghosts: user=%s purged=%d nodes=%d edges=%d clusters=%d",
+        current_user.id[:8] + "..",
+        stats["ghosts_purged"], stats["graph_nodes_removed"],
+        stats["graph_edges_removed"], stats["empty_clusters_removed"],
+    )
+
+    return {"status": "ok", "stats": stats}
+
+
 @app.post("/api/files/{file_id}/promote")
 async def promote_vault_file(
     file_id: str,
@@ -4115,8 +4202,21 @@ async def api_list_lenses(current_user: User = Depends(get_current_user), db: As
 
 @app.get("/api/stats")
 async def get_stats(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    """Get storage/processing stats including v3 graph data and v4 MCP data."""
-    files_result = await db.execute(select(File).where(File.user_id == current_user.id))
+    """Get storage/processing stats including v3 graph data and v4 MCP data.
+
+    v10.0.15 — exclude `processing_status='deleted_in_drive'` ghost rows from
+    file count so sidebar matches what /api/files returns (which also hides
+    these per F16). Without this filter, ghosts inflated sidebar counter while
+    file list showed 0 → looked like a sync bug.
+    Graph/cluster/pack counts still include orphans tied to ghosts — those get
+    cleaned by POST /api/files/cleanup-ghosts.
+    """
+    files_result = await db.execute(
+        select(File).where(
+            File.user_id == current_user.id,
+            File.processing_status != "deleted_in_drive",
+        )
+    )
     files = files_result.scalars().all()
 
     clusters_result = await db.execute(select(Cluster).where(Cluster.user_id == current_user.id))

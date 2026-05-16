@@ -1659,7 +1659,34 @@ async function loadStats() {
  document.getElementById('stat-tokens').textContent = data.active_tokens || 0;
  const dot = document.getElementById('profile-dot');
  if (dot) dot.className = `profile-status-dot ${data.profile_set ? 'active' : ''}`;
+ // v10.0.15 — fire-and-forget cleanup of drive-side ghost rows (once per session)
+ // Stats above still reflect orphans tied to ghosts (graph_nodes/edges/clusters) —
+ // cleanup purges those + reloads stats if anything changed.
+ cleanupGhostsOnce();
  } catch (e) { console.error('Stats error:', e); }
+}
+
+// v10.0.15 — Purge ghost file rows (deleted_in_drive) + their orphan graph relations.
+// Called once per session from loadStats. Idempotent — safe to no-op when ghosts=0.
+async function cleanupGhostsOnce() {
+ try {
+  if (sessionStorage.getItem('pdb_ghosts_cleaned_v1') === '1') return;
+  sessionStorage.setItem('pdb_ghosts_cleaned_v1', '1');
+  const res = await authFetch('/api/files/cleanup-ghosts', {
+   method: 'POST',
+   _background: true,
+   _silent401: true,
+  });
+  if (!res || !res.ok) return;
+  const data = await res.json();
+  const purged = data && data.stats && data.stats.ghosts_purged || 0;
+  if (purged > 0) {
+   console.info('[cleanup-ghosts] purged', purged, 'ghosts:', data.stats);
+   // Stats now stale (sidebar still showed orphan nodes/edges/clusters) → refresh once.
+   // Guard re-entry: flag is already set so loadStats() won't re-trigger cleanup.
+   loadStats();
+  }
+ } catch (_) { /* silent · network blip ok */ }
 }
 
 // ═══════════════════════════════════════════
