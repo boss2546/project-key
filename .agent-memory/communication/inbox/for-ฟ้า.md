@@ -564,9 +564,16 @@ print('Metrics class: OK')
 
 ---
 
-## 6️⃣ End-to-end regression (เขียวทำแล้ว — ฟ้ายืนยัน)
+## 6️⃣ End-to-end regression บน **PRODUCTION จริง** (deployed v10.0.18)
 
-อ้างอิง: [`reports/v11-phase0-frontend-test-2026-05-17.md`](../../../reports/v11-phase0-frontend-test-2026-05-17.md)
+⭐ **เทสที่ Fly Production live**: `https://personaldatabank.fly.dev`
+
+- ✅ Phase 0 commits + v10.0.18 audit batch deployed แล้ว (เขียวทำเอง 2026-05-17 22:09 UTC)
+- ✅ Schema migration ran cleanly on Fly volume (4-tier 11-col ALTER ADD)
+- ✅ เขียว smoke test 6 endpoints บน prod = 200 OK (220-263ms latency)
+- เก่า prod = v10.0.17 · ใหม่ prod = v10.0.18 (มี Phase 0 + audit batch)
+
+อ้างอิง: [`reports/v11-phase0-frontend-test-2026-05-17.md`](../../../reports/v11-phase0-frontend-test-2026-05-17.md) (local self-test — รายงานละเอียด)
 
 ### 🧰 ฟ้าใช้เครื่องมือ Browser ของตัวเอง
 
@@ -579,30 +586,34 @@ print('Metrics class: OK')
 
 ⚠️ **ห้ามรัน `npx playwright`** — ทั้งสอง env ไม่ใช้ standalone Playwright CLI
 
-### Setup ก่อนเริ่ม browser test
+### Pre-flight check
 
 ```bash
-# Terminal 1: Start backend (run-in-background)
-python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+# ตรวจ prod ก่อนเริ่ม
+curl -s https://personaldatabank.fly.dev/health
+# Expected: {"ok":true,"version":"10.0.18"}
 
-# Terminal 2: ตรวจ health ก่อน
-curl http://127.0.0.1:8000/health
-# Expected: {"ok":true,"version":"10.0.17"}
+# ตรวจ git อยู่ที่ HEAD ถูก
+git log --oneline -3
+# Expected: 1715ebe (chore: cleanup) at top
 ```
 
 ### Test scenarios (tool-agnostic — ฟ้าแปลเป็นคำสั่งของเครื่องมือตัวเอง)
 
+> 🌐 **Base URL = `https://personaldatabank.fly.dev`** (ทุก scenario ใช้ prod)
+
 #### Scenario A — Landing page loads
 ```
-1. Navigate ไปที่ http://127.0.0.1:8000/
+1. Navigate ไปที่ https://personaldatabank.fly.dev/
 2. Assert: Page title = "Personal Data Bank — Knowledge Workspace"
 3. Assert: เห็น hero text "Personal Data Bank"
 4. Console check: errors ทั้งหมดต้องเป็น favicon.ico 404 เท่านั้น (อื่นๆ = ❌)
+5. Response time: page load < 5 sec (cold start อาจช้า, warm < 2 sec)
 ```
 
 #### Scenario B — Login flow (admin)
 ```
-1. Navigate ไปที่ http://127.0.0.1:8000/
+1. Navigate ไปที่ https://personaldatabank.fly.dev/
 2. Click element id="btn-show-login"
 3. Type "bossok2546@gmail.com" ใน element id="login-email"
 4. Type "0898661896za" ใน element id="login-password"
@@ -615,10 +626,11 @@ curl http://127.0.0.1:8000/health
 
 #### Scenario C — User app loads + file list (after login)
 ```
-1. (หลัง login แล้ว) Navigate ไปที่ http://127.0.0.1:8000/app
-2. Wait 3 seconds (ให้ file list โหลด)
+1. (หลัง login แล้ว) Navigate ไปที่ https://personaldatabank.fly.dev/app
+2. Wait 3-5 seconds (file list โหลด — prod อาจช้ากว่า local)
 3. Evaluate JavaScript: 
-   - document.querySelectorAll('.file-item').length → ต้อง > 0 (เขียวเจอ 125)
+   - document.querySelectorAll('.file-item').length → จำนวนไฟล์ของ admin user บน prod
+     (อาจ 0 ถ้า admin บน prod ยังไม่ได้ upload — ไม่ใช่ bug ถ้า prod DB เพิ่งเริ่ม)
    - document.querySelectorAll('.extraction-badge.extraction-partial').length → ต้อง = 0
      (ป้าย "บางส่วนถูกตัด" ถูก remove ใน v10.0.13 — ห้ามกลับมา)
    - document.querySelector('#btn-organize-new') !== null → True
@@ -626,9 +638,10 @@ curl http://127.0.0.1:8000/health
 4. Console check: 0 errors
 ```
 
-#### Scenario D — Rate-limit (v10.0.14)
+#### Scenario D — Rate-limit (v10.0.14) — ⚠️ ระวัง
+
 ```
-HTTP POST 6 ครั้ง ไปที่ http://127.0.0.1:8000/api/auth/login
+HTTP POST 6 ครั้ง ไปที่ https://personaldatabank.fly.dev/api/auth/login
 แต่ละครั้ง body = {email: "fake-test@nowhere.local", password: "wrong" + i}
 
 - ครั้ง 1-5: ต้องได้ status 401
@@ -637,8 +650,12 @@ HTTP POST 6 ครั้ง ไปที่ http://127.0.0.1:8000/api/auth/login
   - response body: ต้องมีทั้ง .detail + .error.message (unified error format v10.0.14)
   - error.message ภาษาไทย: "พยายาม login ผิดเกิน 5 ครั้ง — ลองใหม่ในอีก 15 นาที"
 
-⚠️ NOTE: rate-limit เป็น per-IP. รันนี้แล้ว IP จะโดน block 15 นาที. 
-        ทำเป็นเทสสุดท้ายก่อน restart backend (เพราะ in-memory state)
+🚨 CAUTION:
+   - Rate-limit เป็น per-IP บน Fly proxy (ใช้ Fly-Client-IP header)
+   - รันแล้ว IP ของฟ้าจะถูก block ตลอด 15 นาที — ทำเป็นเทสสุดท้าย
+   - ฟ้าจะ login admin ไม่ได้ระหว่าง 15 นาทีนั้น
+   - ⚠️ ถ้าฟ้าต้องการ login อีกครั้งหลัง rate-limit test → รอ 15 นาที หรือ
+     เปลี่ยน VPN/IP
 ```
 
 #### Scenario E — API endpoints respond (after login)
@@ -661,27 +678,51 @@ Headers: Authorization: Bearer {token}
 
 ทุก endpoint ต้อง:
 - status = 200
-- response time < 200ms (local) / < 500ms (Fly)
+- response time < 500ms (Fly Singapore latency จากไทย ~200-300ms)
 - มี keys ที่ expected (เช่น /api/auth/me → id, name, email, mcp_secret)
+```
+
+#### Scenario F — v11 schema verify (ทำผ่าน API response ที่ไม่ระบาด)
+
+```
+v11 columns ไม่ exposed ผ่าน public API (v11 features default OFF) แต่ฟ้ายืนยันได้ทางอ้อม:
+
+1. /api/files response — ต้อง field 'files' (legacy format ไม่เปลี่ยน)
+   ถ้า backend crash จาก v11 schema → endpoint return 500
+2. /api/clusters response — total_clusters/total_files/total_ready ครบ
+3. /api/stats — total_files / total_clusters นับได้ปกติ
+4. /api/organize-status — running: false, snapshot ตามที่ควร
+
+ทั้งหมดที่ได้ 200 OK = schema migration successful + backend stable
 ```
 
 ### หลังเสร็จ — Cleanup
 
 ```bash
-# Stop backend (Ctrl+C ใน terminal หรือ kill process)
-# ไม่ต้องเขียน test file ลงใน repo — ฟ้าใช้เครื่องมือ on-the-fly
-
-# Test artifacts (.playwright-mcp/, screenshots) จะถูกลบโดย .gitignore อัตโนมัติ
+# ฟ้าไม่ต้อง stop backend (prod ทำงานต่อเนื่อง)
+# ไม่ต้อง commit test artifact (.playwright-mcp/, screenshots gitignored)
+# ถ้าฟ้าโดน rate-limit lock → รอ 15 นาทีก่อน login ใหม่
 ```
 
-### 🚩 Red flags ในการ browser test
+### 🚩 Red flags ในการ browser test บน prod
 
-- ❌ Console errors นอกเหนือ favicon 404 → mark NEEDS_CHANGES
-- ❌ File list ว่าง (0 files) → migration อาจกระทบ FK query
+- ❌ Console errors นอกเหนือ favicon 404 → mark NEEDS_CHANGES + capture exact error
+- ❌ Schema crash signal: API ตอบ 500 พร้อม Internal Server Error → migration พัง
 - ❌ มีป้าย "บางส่วนถูกตัด" โผล่ → v10.0.13 ถูก revert (ห้าม!)
 - ❌ Login redirect ไป / แทน /admin → admin flag ไม่ทำงาน
 - ❌ API endpoint ตอบ 5xx → backend error ใน v11 code
 - ❌ Rate-limit ไม่ block ที่ครั้ง 6 → v10.0.14 ถูก revert
+- ❌ /health ตอบ version != "10.0.18" → deploy fail
+
+### 📊 เทียบกับ local self-test ของเขียว (sanity)
+
+| Metric | Local (เขียวทำ) | Prod (ฟ้าทำ) | Acceptable diff |
+|---|---|---|---|
+| /health status | 200, v10.0.17 (เก่า) | 200, **v10.0.18** | version +1 (มี audit batch) |
+| API response time | 12-83 ms | 200-300 ms | latency Thailand→Singapore |
+| File count | 125 (local DB) | 0 หรือไหนก็ตาม | prod admin user มี data ของตัวเอง |
+| Rate-limit | 5→429 | 5→429 | ต้องเหมือนกัน |
+| Console errors | 0 (real) | 0 (real) | ต้องเหมือนกัน |
 
 ---
 
