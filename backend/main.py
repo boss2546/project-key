@@ -37,7 +37,7 @@ from .relations import get_backlinks, get_outgoing, get_suggestions, accept_sugg
 from .metadata import enrich_file_metadata, enrich_all_files, get_file_metadata, update_file_metadata
 from .config import UPLOAD_DIR, BASE_DIR, ADMIN_PASSWORD, APP_VERSION
 from .mcp_tokens import generate_token, validate_token, list_tokens, revoke_token, get_active_token_count
-from .mcp_tools import call_tool, get_usage_logs, TOOL_REGISTRY
+from .mcp_tools import call_tool, get_usage_logs, TOOL_REGISTRY, ADMIN_ONLY_TOOL_NAMES
 from .auth import register_user, login_user, get_current_user, get_optional_user, request_password_reset, reset_password, require_admin
 from . import admin as _admin_mod
 # Billing (Stripe) removed in v9.6.0 — see docs/restoration/billing-restore.md
@@ -4669,19 +4669,37 @@ class MCPToolCallRequest(BaseModel):
 
 @app.get("/api/mcp/info")
 async def api_mcp_info(request: Request, current_user: User = Depends(get_current_user)):
-    """Get MCP server info and available tools — per-user URL."""
+    """Get MCP server info and available tools — per-user URL.
+
+    v10.0.18 — filter ADMIN_ONLY_TOOL_NAMES (เช่น admin_login) ออกจาก response
+    ของ user ที่ไม่ใช่ admin. ป้องกัน information disclosure + กัน user พยายาม
+    invoke admin tools ผ่าน AI agent. Admin check: is_admin column หรือ email ∈
+    ADMIN_EMAILS env (legacy fallback per require_admin pattern).
+    """
     base_url = str(request.base_url).rstrip('/')
     # Fly.io reverse proxy sends X-Forwarded-Proto
     if request.headers.get("x-forwarded-proto") == "https":
         base_url = base_url.replace("http://", "https://", 1)
+
+    is_admin_user = bool(getattr(current_user, "is_admin", False))
+    if not is_admin_user:
+        from .config import ADMIN_EMAILS
+        email = (current_user.email or "").lower()
+        if email and email in ADMIN_EMAILS:
+            is_admin_user = True
+    if is_admin_user:
+        tools = list(TOOL_REGISTRY.values())
+    else:
+        tools = [t for t in TOOL_REGISTRY.values() if t["name"] not in ADMIN_ONLY_TOOL_NAMES]
+
     return {
         "mcp_server_url": f"{base_url}/api/mcp/tools/call",
         "mcp_connector_url": f"{base_url}/mcp/{current_user.mcp_secret}",
         "auth_type": "bearer",
         "scope": "read+write",
         "version": f"v{APP_VERSION}",
-        "available_tools": list(TOOL_REGISTRY.values()),
-        "tool_count": len(TOOL_REGISTRY),
+        "available_tools": tools,
+        "tool_count": len(tools),
     }
 
 

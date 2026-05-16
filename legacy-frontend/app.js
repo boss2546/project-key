@@ -3671,7 +3671,49 @@ async function loadKnowledge() {
 function showNodeInGraph(nodeId) {
  state.localNodeId = nodeId;
  state.graphMode = 'local';
+ // v10.0.18 — KV-001 fix: เก็บ origin tab ไว้ใน sessionStorage เพื่อให้
+ // loadGraph render breadcrumb "← กลับไป Notes" ให้ user ไม่หลงทาง.
+ // ใช้ sessionStorage (per-tab) เพราะถ้าย้าย tab แล้วเปิด graph เอง
+ // (ไม่ใช่จาก notes) จะไม่อยาก breadcrumb ขึ้น
+ try {
+  if (state.currentPage === 'knowledge' && state.knowledgeTab === 'notes') {
+   sessionStorage.setItem('pdb_graph_from', 'notes');
+  }
+ } catch (_) {}
  switchPage('graph');
+}
+
+// v10.0.18 — KV-001: render breadcrumb "← กลับไป Notes" ถ้า user มาจาก Notes tab.
+// เรียกจาก loadGraph() หลัง page-header render เสร็จ. กดแล้ว navigate กลับ + ล้าง flag
+function _renderGraphBreadcrumb() {
+ const wrap = document.getElementById('page-graph');
+ if (!wrap) return;
+ const existing = document.getElementById('graph-breadcrumb');
+ const from = (function () {
+  try { return sessionStorage.getItem('pdb_graph_from'); } catch (_) { return null; }
+ })();
+ if (from !== 'notes') {
+  if (existing) existing.remove();
+  return;
+ }
+ if (existing) return; // already shown
+ const isTH = getLang() === 'th';
+ const bc = document.createElement('div');
+ bc.id = 'graph-breadcrumb';
+ bc.className = 'graph-breadcrumb';
+ bc.innerHTML = `<button type="button" class="btn btn-ghost btn-sm" id="graph-breadcrumb-back">← ${isTH ? 'กลับไป Notes' : 'Back to Notes'}</button>`;
+ const header = wrap.querySelector('.page-header');
+ if (header) {
+  wrap.insertBefore(bc, header);
+ } else {
+  wrap.prepend(bc);
+ }
+ document.getElementById('graph-breadcrumb-back')?.addEventListener('click', () => {
+  try { sessionStorage.removeItem('pdb_graph_from'); } catch (_) {}
+  bc.remove();
+  if (state) state.knowledgeTab = 'notes';
+  switchPage('knowledge');
+ });
 }
 
 // ─── Collection Editing ───
@@ -4463,6 +4505,10 @@ function fitGraphToView() {
 }
 
 async function loadGraph() {
+ // v10.0.18 — KV-001: ถ้ามาจาก Notes tab → render breadcrumb "← กลับไป Notes"
+ // ก่อน fetch data เพื่อให้ user เห็นทางกลับทันที (ไม่ต้องรอ graph render)
+ try { _renderGraphBreadcrumb(); } catch (_) {}
+
  let url = '/api/graph/global';
  if (state.graphMode === 'local' && state.localNodeId) {
  const depth = document.getElementById('depth-slider')?.value || 1;
@@ -5550,8 +5596,22 @@ function initMCP() {
  });
 
  document.getElementById('btn-copy-url')?.addEventListener('click', () => {
- const url = document.getElementById('mcp-url-value')?.textContent;
+ // v10.0.18 — MCP-002 fix: ใช้ dataset.fullUrl (URL จริง) แทน textContent (masked)
+ const el = document.getElementById('mcp-url-value');
+ const url = el?.dataset.fullUrl || el?.textContent;
  if (url && url !== 'Loading...') copyToClipboard(url);
+ });
+ // v10.0.18 — MCP-002: click ที่ URL → toggle masked ↔ full (สำหรับ user
+ // ที่อยาก verify URL ก่อน paste ลง Claude config). Default = masked เพื่อ
+ // ลดความเสี่ยง shoulder-surfing / screenshot leak
+ document.getElementById('mcp-url-value')?.addEventListener('click', (e) => {
+ const el = e.currentTarget;
+ const full = el.dataset.fullUrl;
+ if (!full) return;
+ const showing = el.dataset.showingFull === '1';
+ el.textContent = showing ? _maskMcpUrl(full) : full;
+ el.dataset.showingFull = showing ? '0' : '1';
+ el.title = showing ? 'คลิกเพื่อแสดงเต็ม' : 'คลิกเพื่อซ่อนใหม่';
  });
 
  document.getElementById('btn-generate-token')?.addEventListener('click', generateMCPToken);
@@ -5593,6 +5653,21 @@ function switchMcpTab(platform) {
  document.getElementById(`panel-${platform}`)?.classList.add('active');
 }
 
+// v10.0.18 — MCP-002 helper: mask middle ของ MCP connector URL
+// Input:  https://personaldatabank.fly.dev/mcp/xVfJ3vhiLDA5-U75Mj8PqjCIFKmCTJjiods2zdW805I
+// Output: https://personaldatabank.fly.dev/mcp/xVf…805I
+// คงต้นกับท้ายไว้ช่วงสั้น (4 ตัว) เพื่อให้ user verify ได้คร่าวๆ ว่าใช่ URL ตัวเองไหม
+// โดยไม่เปิดเผย token เต็ม
+function _maskMcpUrl(url) {
+ if (!url || typeof url !== 'string') return url;
+ const slashIdx = url.lastIndexOf('/');
+ if (slashIdx < 0 || slashIdx === url.length - 1) return url;
+ const prefix = url.slice(0, slashIdx + 1);
+ const token = url.slice(slashIdx + 1);
+ if (token.length <= 12) return url; // token สั้นเกิน mask ก็ไม่ช่วย — แสดงตรงๆ
+ return prefix + token.slice(0, 4) + '…' + token.slice(-4);
+}
+
 async function loadMCPSetup() {
  try {
  // Load MCP info
@@ -5602,7 +5677,15 @@ async function loadMCPSetup() {
 
  // Set server URL — use the secured connector URL with secret
  const connectorUrl = info.mcp_connector_url || info.mcp_server_url;
- document.getElementById('mcp-url-value').textContent = connectorUrl;
+ // v10.0.18 — MCP-002 fix: mask middle ของ URL (secret token) ใน DOM display
+ // เพื่อกัน shoulder-surfing / screenshot leak. URL จริงเก็บใน dataset.fullUrl
+ // ให้ copy button + click-to-reveal toggle ใช้ได้
+ const urlEl = document.getElementById('mcp-url-value');
+ urlEl.dataset.fullUrl = connectorUrl;
+ urlEl.dataset.showingFull = '0';
+ urlEl.textContent = _maskMcpUrl(connectorUrl);
+ urlEl.title = 'คลิกเพื่อแสดงเต็ม';
+ urlEl.style.cursor = 'pointer';
 
  // Build config JSON — simplified for Claude Custom Connector
  const configObj = {

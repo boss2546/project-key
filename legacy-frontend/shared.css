@@ -222,10 +222,22 @@ body.show-landing {
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 18px;
-  padding: 4px;
+  font-size: 24px;
+  line-height: 1;
+  padding: 4px 10px;
+  border-radius: 6px;
+  /* v10.0.18 — LP-001/PROF-001 fix: HTML <button class="btn-close"> หลายที่ในแอป
+     เป็น empty element (ไม่มี text/icon ข้างใน) → user มองไม่เห็นปุ่ม. ใส่ ×
+     ผ่าน ::before เพื่อแก้พร้อมกันทุก modal โดยไม่ต้องไล่ patch HTML ทีละไฟล์.
+     Button ที่มี content อยู่แล้ว (เช่น &times; ใน ai-builder-close) จะ override
+     เพราะ ::before ถูก render ก่อน text content แต่ทั้งคู่จะแสดง × คล้ายกัน
+     (ยอมรับ duplicate × เล็กน้อย หรือลบ &times; HTML ถ้าอยาก clean ต่อ). */
 }
-.btn-close:hover { color: var(--text-primary); }
+.btn-close::before {
+  content: "×";
+  font-weight: 400;
+}
+.btn-close:hover { color: var(--text-primary); background: var(--surface-2, rgba(255,255,255,0.06)); }
 
 .btn-ghost {
   background: transparent;

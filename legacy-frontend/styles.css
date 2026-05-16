@@ -346,6 +346,16 @@
   margin-bottom: var(--space-6);
 }
 
+/* v10.0.18 — KV-001 breadcrumb แสดงเมื่อ user มา graph จาก Notes tab
+   เพื่อให้กลับไปได้ง่าย. inject ด้วย JS (_renderGraphBreadcrumb) เหนือ .page-header */
+.graph-breadcrumb {
+  margin-bottom: var(--space-3);
+}
+.graph-breadcrumb .btn {
+  font-size: 13px;
+  padding: 6px 12px;
+}
+
 /* v9.3.0 Phase D — page title prominence: bigger, lighter weight,
    gradient accent underline (Stripe Dashboard style).
    inline-block + ::after lets the underline sit under the text only. */

@@ -29,6 +29,15 @@ logger = logging.getLogger(__name__)
 # TOOL REGISTRY — 30 tools in 5 categories
 # ═══════════════════════════════════════════
 
+# v10.0.18 — tools ที่ห้ามโผล่ใน tool list ของ user ปกติ (security).
+# `admin_login` เป็น tool ที่ user ทั่วไปไม่ควรเห็น เพราะ:
+#   1. เปิดเผยว่า PDB มี admin auth mechanism → information disclosure
+#   2. user อาจพยายาม invoke ผ่าน AI agent เพื่อ brute-force admin_key
+# Admin (is_admin=True หรือ email ∈ ADMIN_EMAILS) ยังเห็น + toggle ได้ตามปกติ
+# Filter ใช้ที่ /api/mcp/info — endpoint ที่ frontend ใช้ render tool cards
+ADMIN_ONLY_TOOL_NAMES = frozenset({"admin_login"})
+
+
 TOOL_REGISTRY = {
     # ─── 📖 READ & SEARCH (12) ───
     "get_profile": {
