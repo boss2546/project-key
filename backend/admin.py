@@ -785,7 +785,7 @@ async def delete_user(
         ChatQuery, ContextInjectionLog, NoteObject,
         GraphNode, GraphEdge, SuggestedRelation, GraphLens, CanvasObject,
         UserProfile, PersonalityHistory, UsageLog, MCPToken, MCPUsageLog,
-        DriveConnection, WebhookLog,
+        DriveConnection,
     )
 
     # ─── Guard 1: cannot delete self ───

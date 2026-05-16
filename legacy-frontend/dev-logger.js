@@ -30,7 +30,7 @@
   if (userDisabled) return;
   if (!isDevHost && !forceEnable && !isAdminCached) {
     // ไม่ใช่ dev/admin/forced · async probe /api/admin/me ครั้งเดียวเพื่อตัดสิน
-    // ถ้า admin → re-bootstrap logger (cache + reload script ในหน้า ถัดไป)
+    // v10.0.12 — ถ้าเป็น admin → bootstrap ทันทีใน session นี้ (ไม่ต้อง reload หน้าใหม่)
     // (กัน 403 spam: probe ครั้งเดียว · set cache · ไม่ retry ถ้าไม่ admin)
     const tok = (function () { try { return localStorage.getItem('pdb_token'); } catch (_) { return null; } })();
     if (tok) {
@@ -40,14 +40,22 @@
             localStorage.setItem('pdb_admin_probe', r.ok ? '1' : '0');
             localStorage.setItem('pdb_admin_probe_ts', String(Date.now()));
           } catch (_) {}
-          // ไม่ reload เอง · ครั้งหน้าที่ user navigate dev-logger จะ activate
+          if (r.ok) bootstrap();  // v10.0.12 — first-visit admin: บูตใน session นี้เลย
         })
         .catch(() => {});
     }
     return;
   }
+  // ผ่าน gate (dev/admin-cached/?debug=1) → บูตทันที
+  bootstrap();
+  return;
 
-  // กัน double-init เมื่อ script ถูกโหลดซ้ำจาก SPA-like navigation
+  // ═══════════════════════════════════════════
+  // bootstrap() — UI mount + interceptors + state · เรียกหลัง gate (sync) หรือ probe-success (async)
+  // function declaration hoisted → เรียกได้ทั้งสองทาง
+  // ═══════════════════════════════════════════
+  function bootstrap() {
+  // กัน double-init เมื่อ script ถูกโหลดซ้ำ หรือ probe เสร็จหลัง gate ผ่านแล้ว
   if (window.__pdbDevLogger) return;
 
   // ─── Constants ───
@@ -1485,4 +1493,5 @@
     mountButton();
   }
   mountUI();
+  } // ─── end bootstrap() ───
 })();

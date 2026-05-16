@@ -19,7 +19,7 @@ from .database import (
     init_db, get_db, gen_id,
     User, File, Cluster, FileClusterMap, FileInsight, FileSummary,
     ContextPack, GraphNode, GraphEdge, NoteObject, SuggestedRelation, GraphLens,
-    MCPToken, MCPUsageLog, WebhookLog, UsageLog, AuditLog,
+    MCPToken, MCPUsageLog, UsageLog, AuditLog,
     DriveConnection,
     ChatQuery, ContextInjectionLog, ContextMemory, PersonalityHistory, CanvasObject,
     PackShare, LineUser,
@@ -2057,12 +2057,12 @@ async def line_webhook(
 # ─── v8.0.0 Phase H — Admin: LINE push quota ───
 @app.get("/api/line/admin/quota")
 async def line_quota_status(
-    current_user: User = Depends(get_current_user),
+    current_admin: User = Depends(require_admin),
 ):
     """Admin: get LINE push quota usage for current month.
 
-    `current_user` parameter required as auth gate via Depends — Phase K
-    may upgrade to admin-role check; for now any authenticated user.
+    v10.0.12 — gated to admin only (was any-authenticated). Exposes system-wide
+    quota state; regular users shouldn't see internal capacity metrics.
 
     Returns: pushes_used / limit / percent / remaining / exceeded.
     """

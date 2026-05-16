@@ -89,3 +89,9 @@ organize-live-progress*.png
 
 # Scratch agent memory
 .agent-memory/scratch/
+
+# Ad-hoc debug/maintenance scripts (one-off DB inspection · not production)
+check_*.py
+list_tables.py
+restore_db.py
+fly_logs*.txt
