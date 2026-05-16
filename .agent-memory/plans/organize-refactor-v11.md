@@ -745,18 +745,35 @@ except Exception as e:
        file_ids = [f.id for f in files]
        vectors = np.array([vectors_dict[fid] for fid in file_ids])
        
-       # 2. UMAP reduce (if N > min for UMAP to be useful)
+       # 2. UMAP reduce (dynamic n_components per MSG-V11-UMAP-EDGE-CASE Option A)
+       #
+       # ⚠️ UMAP มี constraint คณิตศาสตร์: n_components < n_samples - 1
+       #    เดิม hard-code n_components=30 → crash เมื่อ 5 ≤ N ≤ 31 ไฟล์
+       #    (TypeError: Cannot use scipy.linalg.eigh for sparse A with k >= N)
+       #
+       # Fix (Option A — dynamic):
+       #   N < 5:          skip UMAP → cluster ตรงจาก raw embeddings
+       #   5 ≤ N ≤ UMAP_N_COMPONENTS+1: scale n_components ลงเป็น max(2, N-2)
+       #   N > UMAP_N_COMPONENTS+1: ใช้ UMAP_N_COMPONENTS เต็ม
        if len(files) >= 5:
+           # Pick n_components ที่ปลอดภัย: ≤ N - 2 เพื่อกัน edge case ของ
+           # spectral_layout (eigsh ต้องการ k < N)
+           n_comp = min(UMAP_N_COMPONENTS, max(2, len(files) - 2))
            import umap
            reducer = umap.UMAP(
-               n_components=UMAP_N_COMPONENTS,
+               n_components=n_comp,
                metric="cosine",
                random_state=42,
                n_neighbors=min(15, len(files) - 1),
            )
            reduced = reducer.fit_transform(vectors)
+           logger.info(
+               f"UMAP: {len(files)} files × {vectors.shape[1]}-d → "
+               f"{n_comp}-d (target={UMAP_N_COMPONENTS})"
+           )
        else:
            reduced = vectors  # too few files, skip UMAP
+           logger.info(f"UMAP skipped (N={len(files)} < 5) — clustering on raw embeddings")
        
        # 3. HDBSCAN clustering
        import hdbscan

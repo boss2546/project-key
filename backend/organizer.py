@@ -60,7 +60,28 @@ async def organize_files(db: AsyncSession, user_id: str, force: bool = False):
 
     try:
         # 2. Cluster files
-        clusters_data = await _cluster_files(files)
+        # v11.0.0 — feature flag routing: hybrid (embeddings + HDBSCAN) vs legacy (LLM mega-call)
+        # ดู MSG-V11-PHASE0-REVIEW-RESULT + plans/organize-refactor-v11.md Phase 1
+        from .config import USE_HYBRID_CLUSTERING
+        if USE_HYBRID_CLUSTERING:
+            from .clustering import cluster_files_hybrid
+            from . import progress_tracker as _pt
+
+            async def _cluster_progress(phase, step_th, step_en, current=0, total=0):
+                _pt.report(user_id, phase=phase, step_th=step_th, step_en=step_en,
+                           current=current, total=total)
+
+            try:
+                clusters_data = await cluster_files_hybrid(
+                    files, progress_callback=_cluster_progress,
+                )
+                logger.info(f"organize_files: hybrid clustering produced {len(clusters_data.get('clusters', []))} clusters")
+            except RuntimeError as e:
+                # ถ้า embeddings ไม่พร้อม (ไม่มี API key) → fallback legacy
+                logger.warning(f"organize_files: hybrid clustering unavailable ({e}) — falling back to legacy")
+                clusters_data = await _cluster_files(files)
+        else:
+            clusters_data = await _cluster_files(files)
 
         # 3. Clear old clusters for this user
         old_clusters = await db.execute(select(Cluster).where(Cluster.user_id == user_id))
@@ -551,7 +572,25 @@ async def organize_new_files(db: AsyncSession, user_id: str) -> dict:
 
     try:
         # 1. Cluster just the new files
-        clusters_data = await _cluster_files(new_files)
+        # v11.0.0 — feature flag routing (same pattern as organize_files)
+        from .config import USE_HYBRID_CLUSTERING
+        if USE_HYBRID_CLUSTERING:
+            from .clustering import cluster_files_hybrid
+
+            async def _cluster_progress(phase, step_th, step_en, current=0, total=0):
+                _pt.report(user_id, phase=phase, step_th=step_th, step_en=step_en,
+                           current=current, total=total)
+
+            try:
+                clusters_data = await cluster_files_hybrid(
+                    new_files, progress_callback=_cluster_progress,
+                )
+                logger.info(f"organize_new_files: hybrid clustering produced {len(clusters_data.get('clusters', []))} clusters")
+            except RuntimeError as e:
+                logger.warning(f"organize_new_files: hybrid clustering unavailable ({e}) — falling back to legacy")
+                clusters_data = await _cluster_files(new_files)
+        else:
+            clusters_data = await _cluster_files(new_files)
 
         # 2. Create new clusters for the new files (don't delete existing clusters)
         for c_data in clusters_data.get("clusters", []):

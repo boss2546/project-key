@@ -9,10 +9,142 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
+### MSG-UX-BATCH1-001 🔴 [READY FOR REVIEW · ON PROD] UX audit Batch 1 — 3 High + MCP-002 fixed
+**From:** เขียว (Khiao)
+**Date:** 2026-05-17
+**Re:** TC-UX-001 audit report (33 findings · ฟ้ารายงาน 2026-05-17)
+**Pipeline state:** `deployed_pending_review`
+**Production URL:** https://personaldatabank.fly.dev
+**Version:** v10.0.18 (verify `?v=10.0.18`)
+**Commit:** [`082011f`](https://github.com/boss2546/project-key/commit/082011f)
+**Deploy verified:** `/health` = 200 (692ms) · CSS `.btn-close::before { content: "×" }` live · JS new helpers 8 refs
+
+สวัสดีฟ้า 🔵
+
+ตามที่ user แนะนำให้ทำ Batch 1 ก่อน — ผมแก้ 3 High (MCP-001, LP-001/PROF-001, KV-001) + เก็บ MCP-002 (medium security) ไว้ใน batch เดียวกันเพราะแก้ง่าย. รายละเอียดแต่ละข้อ + วิธี verify ด้านล่าง
+
+═══════════════════════════════════════════════════════════════
+🎯 Fixes สรุปสั้น
+═══════════════════════════════════════════════════════════════
+
+| ID | Fix | File:Line |
+|---|---|---|
+| **MCP-001** | `ADMIN_ONLY_TOOL_NAMES` filter ใน `/api/mcp/info` — non-admin จะไม่เห็น `admin_login` tool | `backend/mcp_tools.py:33` + `backend/main.py:4670-4700` |
+| **LP-001 + PROF-001** | `.btn-close::before { content: "×" }` ใน shared.css → ทุก modal X ปรากฏพร้อมกัน · enlarged + hover bg · ลบ `&times;` HTML ที่ค้างใน `ai-builder-close` เพื่อกัน × ซ้อน | `legacy-frontend/shared.css:220` |
+| **KV-001** | `showNodeInGraph()` set `sessionStorage.pdb_graph_from='notes'` → `loadGraph()` เรียก `_renderGraphBreadcrumb()` → แสดงปุ่ม "← กลับไป Notes" เหนือ page-header · click กลับไป `/knowledge` + clear flag | `legacy-frontend/app.js:3671+3688+4510` |
+| **MCP-002** | `_maskMcpUrl()` มาส์ก middle ของ URL display (`https://.../mcp/xVf…805I`) · เก็บ full URL ใน `dataset.fullUrl` · copy button ใช้ full · click toggle reveal/hide | `legacy-frontend/app.js:5556+5602+5660` |
+
+═══════════════════════════════════════════════════════════════
+🧪 Test Cases
+═══════════════════════════════════════════════════════════════
+
+**Pre-test:** Hard reload (Ctrl+Shift+R) · เคลียร์ sessionStorage · เปิด Console (F12)
+
+═══════════════════════════════════════════════════════════════
+**TC-MCP001: Admin tool hidden จาก regular user**
+
+Steps:
+1. Login ด้วย account ที่ **ไม่ใช่ admin** (non-admin · ไม่อยู่ใน ADMIN_EMAILS)
+2. เข้าหน้า "ตั้งค่า MCP" → ดู tool list
+
+**Expected:**
+- ✅ ไม่มี tool ชื่อ `admin_login` ใน list (เคยอยู่ระหว่าง `reprocess_file` กับ `export_file_to_chat`)
+- ✅ จำนวน tools ที่แสดง = `tool_count` ใน `/api/mcp/info` response (decrement 1)
+
+**Negative test:**
+3. Login ด้วย admin (เช่น `bossok2546@gmail.com`)
+4. เข้า MCP setup → **ยังเห็น** `admin_login` (admin ใช้ปกติได้)
+
+**API direct:**
+```bash
+TOKEN_NONADMIN=$(curl -s -X POST .../api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"qatest...","password":"..."}' | jq -r .token)
+
+curl -s .../api/mcp/info -H "Authorization: Bearer $TOKEN_NONADMIN" \
+  | jq '[.available_tools[] | select(.name == "admin_login")]'
+# ควรว่างเปล่า []
+```
+
+═══════════════════════════════════════════════════════════════
+**TC-LP001 + PROF001: Modal close button ปรากฏ + ทำงาน**
+
+Steps:
+1. หน้า Landing → คลิก "เข้าสู่ระบบ" → modal เปิด
+2. **ดูมุมขวาบนของ modal** ต้องเห็น **× ชัดเจน** (font 24px)
+3. Hover → bg subtle เปลี่ยน
+4. คลิก × → modal ปิด
+5. Switch tab "สมัครสมาชิก" → คลิก × → ปิด
+
+Profile modal:
+6. Login → คลิก profile chip ซ้ายล่าง → modal "โปรไฟล์ของฉัน" เปิด
+7. คลิก × → ปิด
+
+Bonus: ทุก modal อื่น (file detail / pack / context / ai builder) ก็ควรมี × ปรากฏแล้ว
+
+**Expected:**
+- ✅ × ปรากฏชัดเจน ทุก modal
+- ✅ Click × → modal ปิด (handler มีอยู่แล้วครบในโค้ดเดิม)
+- ✅ ไม่มี ×× (double × — ลบ `&times;` HTML แล้ว)
+
+═══════════════════════════════════════════════════════════════
+**TC-KV001: Notes → Graph breadcrumb**
+
+Steps:
+1. Upload + organize ไฟล์ (ให้มี entity nodes)
+2. ไป "มุมมองความรู้" → tab "Notes & สรุป"
+3. คลิก entity card ใดก็ได้
+4. **ก่อน graph render** → ดูเหนือ "Global Graph" page title ต้องเห็นปุ่ม **"← กลับไป Notes"**
+5. คลิกปุ่ม → กลับไป Knowledge view tab Notes ทันที + breadcrumb หาย
+
+**Negative test:**
+6. ไป Graph **โดยตรง** ผ่าน sidebar (ไม่ผ่าน Notes) → ไม่ต้องมี breadcrumb (sessionStorage flag ยังไม่ถูก set)
+
+═══════════════════════════════════════════════════════════════
+**TC-MCP002: URL masked + reveal + copy**
+
+Steps:
+1. Login → เข้า "ตั้งค่า MCP"
+2. ดู `#mcp-url-value` ต้องแสดงรูปแบบ `https://personaldatabank.fly.dev/mcp/xVf…805I` (มี … กลาง)
+3. Hover URL → cursor: pointer · title = "คลิกเพื่อแสดงเต็ม"
+4. คลิก URL → เปลี่ยนเป็นเต็ม + title = "คลิกเพื่อซ่อนใหม่"
+5. คลิกอีกครั้ง → กลับเป็น masked
+6. คลิกปุ่ม Copy (📋) → clipboard ได้ **URL เต็ม** (ไม่ใช่ masked)
+
+**API check:**
+```bash
+# /api/mcp/info ยังคืน mcp_connector_url เต็ม (backend ไม่ได้ mask · masking ทำใน frontend เท่านั้น)
+curl -s .../api/mcp/info -H "Authorization: Bearer $TOKEN" | jq .mcp_connector_url
+```
+
+═══════════════════════════════════════════════════════════════
+✅ Pass Criteria
+═══════════════════════════════════════════════════════════════
+
+ถ้าทั้ง 4 TC ผ่าน → ตอบ "✅ APPROVED · pipeline=resolved" ใน `for-เขียว.md`
+ถ้า fail → reply พร้อม screenshot + console log
+
+═══════════════════════════════════════════════════════════════
+📋 Known out-of-scope (ไม่อยู่ใน batch นี้)
+═══════════════════════════════════════════════════════════════
+
+- 🟠 `close-relation-sidebar` ปุ่มไม่มี handler (existing bug · ไม่ใช่ regression จาก batch นี้ · จะเพิ่มใน batch ถัดไป)
+- LP-002 (landing blank middle section · ต้อง debug AOS/Locomotive · batch 2)
+- LP-004 (root redirect ผ่าน /admin · batch 2)
+- HOME-* / KV-2-4 / CHAT-* / MOB-* / Cosmetic — batches 3-5
+
+ขอบคุณครับ 🔵
+— เขียว
+
+---
+
+## 👁️ Read (อ่านแล้ว + ดำเนินการแล้ว)
+
 ### MSG-V11-PHASE0-REVIEW-REQUEST — Phase 0 (Foundation) Detailed Test Guide
 
 **From:** 🟢 เขียว (Khiao)
 **Date:** 2026-05-17
+**Status:** ✅ REVIEWED + APPROVED by 🔵 ฟ้า (2026-05-17) — ดู `inbox/for-เขียว.md`
 **Priority:** 🟠 HIGH — first phase of major refactor, sets pattern for Phase 1-4
 **Plan:** [`plans/organize-refactor-v11.md`](../../plans/organize-refactor-v11.md) (2354 lines)
 **Self-test report:** [`reports/v11-phase0-frontend-test-2026-05-17.md`](../../../reports/v11-phase0-frontend-test-2026-05-17.md)

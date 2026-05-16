@@ -27,23 +27,23 @@ from typing import Optional
 
 import numpy as np
 
+# v11.0.0-fix (ฟ้า review LOW finding): consolidate constants — import จาก config
+# เลิก duplicate EMBEDDING_MODEL/BATCH_SIZE ใน 2 ไฟล์
+from .config import EMBEDDING_MODEL, EMBEDDING_BATCH_SIZE
+
 logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════
-# Config (default ปลอดภัย ใน case ไม่ได้ set env)
+# Config local (เฉพาะของ embeddings — ไม่ใช้นอกโมดูล)
 # ═══════════════════════════════════════════════════════════════
 
-# Gemini text-embedding model. ใช้ text-embedding-004 (free tier, 768-d).
-# ถ้าจะเปลี่ยนเป็น gemini-embedding-001 (3072-d, paid) ต้อง set env EMBEDDING_MODEL
-EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "text-embedding-004")
-
-# Batch size สำหรับ API calls. Gemini รับ list of contents ต่อ 1 request.
-# free tier: 1500 RPM = 25 req/sec. batch=50 + sleep 250ms → 4 req/sec, safe.
-EMBEDDING_BATCH_SIZE: int = int(os.getenv("EMBEDDING_BATCH_SIZE", "50"))
+# Sleep ระหว่าง batch — local-only เพราะใช้แค่ใน embed_texts_batch loop.
+# free tier Gemini: 1500 RPM = 25 req/sec. batch=50 + sleep 250ms → 4 req/sec, safe.
 EMBEDDING_BATCH_SLEEP_SEC: float = float(os.getenv("EMBEDDING_BATCH_SLEEP_SEC", "0.25"))
 
 # Max text length per embedding (Gemini limit ~30K tokens; 1 token ~ 4 chars → 120K chars max)
 # ใช้ค่า conservative 80K chars เพื่อ headroom + reduce cost
+# Local-only — ไม่ expose ใน config (พฤติกรรมเฉพาะของ embeddings module)
 EMBEDDING_MAX_TEXT_CHARS: int = int(os.getenv("EMBEDDING_MAX_TEXT_CHARS", "80000"))
 
 
@@ -179,12 +179,11 @@ async def embed_texts_batch(texts: list[str]) -> list[Optional[np.ndarray]]:
         batch = texts[start:end]
 
         # Truncate each text + handle empty
+        # v11.0.0-fix (ฟ้า review LOW finding): ลบ empty_indices ที่ไม่ได้ใช้ออก
         prepared = []
-        empty_indices = []  # indices ใน batch ที่ text ว่าง
-        for i, t in enumerate(batch):
+        for t in batch:
             if not t.strip():
-                empty_indices.append(i)
-                prepared.append("")  # placeholder, จะถูก replace ด้วย None
+                prepared.append("")  # placeholder, จะถูก replace ด้วย None ตอน map back
                 continue
             if len(t) > EMBEDDING_MAX_TEXT_CHARS:
                 t = t[:EMBEDDING_MAX_TEXT_CHARS]

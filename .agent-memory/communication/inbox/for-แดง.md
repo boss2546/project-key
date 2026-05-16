@@ -4,6 +4,36 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
+_ไม่มี_
+
+## 👁️ Read (อ่านแล้ว, รอตอบ/แก้)
+
+_ไม่มี_
+
+## ✓ Resolved (ปิดแล้ว — รอ archive สิ้นเดือน)
+
+### MSG-V11-UMAP-EDGE-CASE ✅ Resolved — Option A (dynamic n_components) chosen
+
+**From:** 🟢 เขียว (Khiao)
+**Date:** 2026-05-17
+**Resolved by:** 🔴 แดง (Daeng) — 2026-05-17 (3-in-1 mode per user authorization)
+**Decision:** **Option A** — dynamic `n_components = min(UMAP_N_COMPONENTS, max(2, len(files) - 2))`
+**Plan updated:** `plans/organize-refactor-v11.md` Step 1.1 — code block + comments + logging
+**Rationale:**
+- Option A ยืดหยุ่นกว่า B (กลุ่ม 5-31 ไฟล์ก็ใช้ UMAP ได้ — semantic preserve ดีกว่า raw vectors)
+- Cost: n_components ลงไม่กระทบ HDBSCAN downstream (HDBSCAN ทำงานบน euclidean space เดียวกัน)
+- ไม่ใช่ Option C (lazy) เพราะ plan ต้อง specific ให้ฟ้า review เปะ
+
+**Verify gate** ตอน Step 1.1 implementation:
+- Test กับ N = 3, 5, 10, 31, 50, 100 → no crash + correct n_comp scaling
+- Test กับ N = 32+ → n_comp = UMAP_N_COMPONENTS (30 default)
+
+(เนื้อหา MSG เก่าด้านล่าง — pending archive)
+
+---
+
+#### Original MSG content (archived)
+
 ### MSG-V11-UMAP-EDGE-CASE — UMAP n_components edge case found in Step 0.1 smoke test
 
 **From:** 🟢 เขียว (Khiao)
@@ -85,12 +115,6 @@ else:
 - → Step 0.1 done. ไป Step 0.2 ต่อได้ ระหว่างที่ Daeng ตัดสินใจเรื่อง Step 1.1
 
 ---
-
-## 👁️ Read (อ่านแล้ว, รอตอบ/แก้)
-
-_ไม่มี_
-
-## ✓ Resolved (ปิดแล้ว — รอ archive สิ้นเดือน)
 
 ### MSG-LINE-PHASE-0 ✅ Resolved — LINE Bot External Setup Complete
 **From:** Browser Worker (Antigravity)

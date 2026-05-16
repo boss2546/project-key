@@ -327,6 +327,7 @@ let _organizePhaseHistory = [];   // [{phase, step_th, step_en, started_at_ms, c
 let _organizeStartedAtMs = null;
 
 const PHASE_META = {
+  // Legacy phases (v10.x)
   starting:    {th: 'เริ่มประมวลผล', en: 'Starting', icon: '▶'},
   scanning:    {th: 'ตรวจหาไฟล์ใหม่', en: 'Scanning files', icon: '🔍'},
   clustering:  {th: 'AI จัดกลุ่มไฟล์', en: 'Clustering', icon: '🧩'},
@@ -337,6 +338,14 @@ const PHASE_META = {
   duplicates:  {th: 'ตรวจหาไฟล์ซ้ำ', en: 'Detecting duplicates', icon: '🔁'},
   done:        {th: 'เสร็จสมบูรณ์', en: 'Complete', icon: '✅'},
   error:       {th: 'เกิดข้อผิดพลาด', en: 'Error', icon: '❌'},
+
+  // v11.0.0 Phase 1 — Hybrid clustering phases (appear when USE_HYBRID_CLUSTERING=true)
+  embedding:        {th: 'วิเคราะห์ความคล้าย', en: 'Computing similarity', icon: '🧮'},
+  cluster_math:     {th: 'จัดกลุ่มด้วยคณิตศาสตร์', en: 'Math clustering', icon: '📐'},
+  cluster_label:    {th: 'ตั้งชื่อกลุ่ม', en: 'Labeling clusters', icon: '🏷'},
+  // v11.0.0 Phase 3 (forward-compat — won't appear until Phase 3 wired)
+  entity_resolve:   {th: 'รวมเอนทิตี้', en: 'Resolving entities', icon: '🔗'},
+  community_detect: {th: 'หา community', en: 'Detecting communities', icon: '🕸️'},
 };
 
 function _fmtSec(ms) {
