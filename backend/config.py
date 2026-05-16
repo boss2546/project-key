@@ -36,6 +36,77 @@ LARGE_FILE_THRESHOLD = 5_500
 # เคยตั้งใจ enforce hard cap แต่ไม่เคยถูก import ที่ไหน.
 # ใช้ plan_limits.max_file_size_mb เป็นแหล่ง single-source-of-truth แทน.
 
+# ═══════════════════════════════════════════════════════════════
+# v11.0.0 — Hybrid Clustering Pipeline Feature Flags
+# Plan ref: .agent-memory/plans/organize-refactor-v11.md
+# ═══════════════════════════════════════════════════════════════
+# กลยุทธ์ rollout: deploy code → flag default OFF → enable per-user (admin) →
+#   enable all → cleanup legacy code (v11.1.0)
+#
+# ห้ามเปลี่ยน default OFF ก่อน:
+#   (1) Phase X verify gate ผ่าน
+#   (2) ฟ้า review
+#   (3) admin smoke test (bossok2546@gmail.com)
+#
+# ทุก flag อ่านครั้งเดียวตอน import → restart Fly machine เมื่อเปลี่ยน secret
+
+def _env_bool(name: str, default: str = "false") -> bool:
+    """Parse env var เป็น bool. ยอมรับ: true/1/yes (case-insensitive) = True · อื่นๆ = False."""
+    return os.getenv(name, default).lower() in ("true", "1", "yes")
+
+
+# Phase 1 — Hybrid Clustering (embeddings + UMAP + HDBSCAN + LLM label)
+# ON → ใช้ backend/clustering.py:cluster_files_hybrid()
+# OFF → ใช้ legacy backend/organizer.py:_cluster_files() (LLM mega-call)
+USE_HYBRID_CLUSTERING: bool = _env_bool("USE_HYBRID_CLUSTERING", "false")
+
+# Phase 2 — Structured Summary (รวม sum + tag + entities + relationships ใน 1 call)
+# ON → ใช้ _generate_summary_v2() + skip enrich_all_files()
+# OFF → ใช้ legacy _generate_summary_simple() + enrich แยก step
+USE_STRUCTURED_SUMMARY: bool = _env_bool("USE_STRUCTURED_SUMMARY", "false")
+
+# Phase 3 — Entity Graph + Leiden Community Detection
+# ON → ใช้ _build_graph_v2() + entity_resolver + Leiden communities
+# OFF → ใช้ legacy graph_builder
+USE_ENTITY_GRAPH: bool = _env_bool("USE_ENTITY_GRAPH", "false")
+
+# Phase 4 — .md cache layer (ลดค่า AI ใน re-organize)
+# ON → check .md cache ก่อน LLM call, hit → skip API
+# DEFAULT ON เพราะ low-risk + clear win (no API key dependency)
+USE_SUMMARY_CACHE: bool = _env_bool("USE_SUMMARY_CACHE", "true")
+
+# Phase 4 — Checkpoint + Resume (recovery จาก Fly machine restart)
+# ON → commit ทุก N ไฟล์ + resume "processing" rows ตอนเริ่ม organize
+# DEFAULT ON เพราะ improves crash recovery, no API cost
+USE_ORGANIZE_CHECKPOINT: bool = _env_bool("USE_ORGANIZE_CHECKPOINT", "true")
+
+# ─── Embedding Model Configuration ───
+# Gemini text-embedding-004 (free tier, 768-d) — default.
+# Alternatives:
+#   - gemini-embedding-001 (3072-d, paid, higher quality)
+#   - text-multilingual-embedding-002 (768-d, optimized for multilingual)
+EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "text-embedding-004")
+
+# Batch size สำหรับ Gemini embed_content. Free tier: 1500 RPM = 25 req/sec.
+# batch=50 + sleep 250ms ระหว่าง batch → 4 req/sec, safe under limit.
+EMBEDDING_BATCH_SIZE: int = int(os.getenv("EMBEDDING_BATCH_SIZE", "50"))
+
+# ─── HDBSCAN / UMAP Configuration ───
+# Plan recommendation: min_cluster_size=2 — matches small workspaces (10-100 files).
+# เพิ่มเป็น 3 ถ้าต้องการกลุ่มใหญ่กว่า (less granular, more "noise" outliers).
+HDBSCAN_MIN_CLUSTER_SIZE: int = int(os.getenv("HDBSCAN_MIN_CLUSTER_SIZE", "2"))
+
+# UMAP target dimensionality. 30-d เป็น sweet spot สำหรับ HDBSCAN
+# (high enough to preserve semantic structure, low enough to avoid curse of
+# dimensionality). NOTE: UMAP ต้องการ samples > n_components — clustering.py
+# จะ dynamically adjust ถ้า len(files) < n_components + 2.
+UMAP_N_COMPONENTS: int = int(os.getenv("UMAP_N_COMPONENTS", "30"))
+
+# Concurrency override for organizer summary parallelization.
+# DEFAULT 5 (Gemini Flash free 10 RPM safe). เพิ่มถ้ามี paid quota.
+SUMMARY_CONCURRENCY: int = int(os.getenv("SUMMARY_CONCURRENCY", "5"))
+
+
 # Paths
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # DATA_DIR: use mounted volume if available (Fly.io), else local
