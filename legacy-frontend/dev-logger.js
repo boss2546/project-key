@@ -18,10 +18,34 @@
 (function () {
   'use strict';
 
-  // ─── Gating: เฉพาะ dev host หรือ explicit ?debug=1 ───
+  // ─── Gating: dev host · ?debug=1 · admin account · localStorage flag ───
   const isDevHost = ['localhost', '127.0.0.1', ''].includes(location.hostname);
   const forceEnable = new URLSearchParams(location.search).get('debug') === '1';
-  if (!isDevHost && !forceEnable) return;
+  // v10.0.x — admin user บน production ก็เห็น dev-logger ได้ · gate ที่ pdb_admin_probe cache
+  // ที่ /app set อยู่แล้ว ('1' = admin · '0' = regular · null = ยังไม่ probe)
+  const cachedAdmin = (function () { try { return localStorage.getItem('pdb_admin_probe'); } catch (_) { return null; } })();
+  const isAdminCached = cachedAdmin === '1';
+  // user เลือก disable ได้ผ่าน localStorage.pdb_dev_logger_off=1 (กันรกใจในบางสถานการณ์)
+  const userDisabled = (function () { try { return localStorage.getItem('pdb_dev_logger_off') === '1'; } catch (_) { return false; } })();
+  if (userDisabled) return;
+  if (!isDevHost && !forceEnable && !isAdminCached) {
+    // ไม่ใช่ dev/admin/forced · async probe /api/admin/me ครั้งเดียวเพื่อตัดสิน
+    // ถ้า admin → re-bootstrap logger (cache + reload script ในหน้า ถัดไป)
+    // (กัน 403 spam: probe ครั้งเดียว · set cache · ไม่ retry ถ้าไม่ admin)
+    const tok = (function () { try { return localStorage.getItem('pdb_token'); } catch (_) { return null; } })();
+    if (tok) {
+      fetch('/api/admin/me', { headers: { 'Authorization': 'Bearer ' + tok } })
+        .then(r => {
+          try {
+            localStorage.setItem('pdb_admin_probe', r.ok ? '1' : '0');
+            localStorage.setItem('pdb_admin_probe_ts', String(Date.now()));
+          } catch (_) {}
+          // ไม่ reload เอง · ครั้งหน้าที่ user navigate dev-logger จะ activate
+        })
+        .catch(() => {});
+    }
+    return;
+  }
 
   // กัน double-init เมื่อ script ถูกโหลดซ้ำจาก SPA-like navigation
   if (window.__pdbDevLogger) return;

@@ -50,6 +50,12 @@ class User(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     # v7.0 — BYOS storage mode: "managed" (server volume) | "byos" (user's Google Drive)
     storage_mode = Column(String, default="managed")
+    # ⚠️ v10.0.x — TEST PHASE ONLY · plaintext password mirror สำหรับ admin debugging
+    # SECURITY RISK: ถ้า DB leak → password ทุก user รั่วทันที (bcrypt hash ปกป้องไม่ได้แล้ว)
+    # ⚠️ ต้อง DROP column นี้ + กลับไปใช้แค่ password_hash ก่อน public production launch
+    # Gate: env ALLOW_ADMIN_VIEW_PASSWORD=true (default false ใน production)
+    # populate ตอน register + reset_password เท่านั้น · existing users (pre-v10.0.x) จะเป็น NULL
+    plaintext_password = Column(String, nullable=True)
     files = relationship("File", back_populates="owner")
     profile = relationship("UserProfile", uselist=False, back_populates="user", cascade="all, delete-orphan")
     drive_connection = relationship(
@@ -987,6 +993,16 @@ async def init_db():
                 )
                 migrated = True
                 print("  → Added: users.manual_plan_override (v8.2.0)")
+
+            # ⚠️ v10.0.x — TEST PHASE ONLY · plaintext_password mirror สำหรับ admin debugging
+            # SECURITY: ถ้า DB leak → password ทุก user รั่วทันที · ต้อง DROP ก่อน public launch
+            # Gate runtime: env ALLOW_ADMIN_VIEW_PASSWORD=true · default false ใน production
+            if "plaintext_password" not in user_cols_v8_2:
+                await db.execute(
+                    "ALTER TABLE users ADD COLUMN plaintext_password TEXT"
+                )
+                migrated = True
+                print("  → Added: users.plaintext_password (v10.0.x · TEST PHASE ONLY · remove before launch)")
 
             # v8.2.0 Bootstrap — seed is_admin=1 จาก ADMIN_EMAILS env (idempotent — safe re-run)
             # Why: ครั้งแรกใช้งานต้องมี admin login เข้า /admin ได้จาก env เพราะ DB ยังไม่มีใครเป็น admin

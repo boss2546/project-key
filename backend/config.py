@@ -108,6 +108,18 @@ ADMIN_EMAILS = {
     if e.strip()
 }
 
+# ⚠️ v10.0.x — TEST PHASE ONLY · Allow admin to view user plaintext passwords
+# Set env ALLOW_ADMIN_VIEW_PASSWORD=true เพื่อเปิด feature (default = false ใน production)
+# SECURITY: เปิดเมื่อ:
+#   - ระหว่าง early test phase (founder + small QA team)
+#   - DB ไม่มี real user data ที่ sensitive
+# ห้ามเปิดเมื่อ:
+#   - มี user จริง > 50 คน
+#   - PCI-DSS/GDPR scope
+#   - public production launch
+# Migration: schema มี column `users.plaintext_password` แล้ว · feature flip = env เท่านั้น
+ALLOW_ADMIN_VIEW_PASSWORD = os.getenv("ALLOW_ADMIN_VIEW_PASSWORD", "false").lower() in ("true", "1", "yes")
+
 # MCP Secret — persists across restarts
 _MCP_SECRET_FILE = os.path.join(DATA_DIR, ".mcp_secret")
 

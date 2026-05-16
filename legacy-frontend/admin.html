@@ -269,6 +269,43 @@
   </div>
  </div>
 
+ <!-- v10.0.x — Modal: View user plaintext password (TEST PHASE ONLY) -->
+ <div class="modal-overlay hidden" id="modal-view-password">
+  <div class="modal">
+   <div class="modal-header" style="border-bottom-color:rgba(245,158,11,0.30);">
+    <h2 style="color:#fbbf24;">🔑 ดูรหัสผ่านผู้ใช้</h2>
+    <button class="btn-close" id="modal-view-password-close" type="button">&times;</button>
+   </div>
+   <div class="modal-body">
+    <div style="padding:12px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:8px;margin-bottom:16px;font-size:12px;line-height:1.6;color:var(--text-secondary);">
+     ⚠️ <strong style="color:#fbbf24;">TEST PHASE FEATURE</strong> · ทุก view จะถูกบันทึก audit log<br>
+     ใช้สำหรับ debug ช่วงทดสอบเท่านั้น · ปิด feature ก่อน production launch (env <code>ALLOW_ADMIN_VIEW_PASSWORD=false</code>)
+    </div>
+    <p style="font-size:13px;margin:0 0 12px 0;">
+     <span style="color:var(--text-muted);">User:</span>
+     <strong id="modal-view-password-name">—</strong>
+     <span style="color:var(--text-muted);">·</span>
+     <code id="modal-view-password-email" style="color:#7dd3fc;">—</code>
+    </p>
+    <div class="form-group">
+     <label>เหตุผล (บันทึกใน audit log · จำเป็น)</label>
+     <textarea id="modal-view-password-reason" rows="2" placeholder="เช่น debug login issue · test phase QA · user request"></textarea>
+    </div>
+    <div id="modal-view-password-result" class="hidden" style="margin-top:12px;padding:14px;background:#1a1f2e;border:1px solid #475569;border-radius:8px;">
+     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <span style="font-size:12px;color:var(--text-muted);font-weight:600;">รหัสผ่าน (plaintext)</span>
+      <button class="btn btn-outline btn-sm" id="modal-view-password-copy" type="button">📋 คัดลอก</button>
+     </div>
+     <code id="modal-view-password-result-value" style="display:block;font-family:ui-monospace,monospace;font-size:14px;word-break:break-all;line-height:1.5;">—</code>
+    </div>
+   </div>
+   <div class="modal-footer">
+    <button class="btn btn-outline" id="modal-view-password-cancel" type="button">ปิด</button>
+    <button class="btn btn-primary" id="modal-view-password-submit" type="button">ดูรหัสผ่าน</button>
+   </div>
+  </div>
+ </div>
+
  <!-- v10.0.x — Modal: Delete user (HARD DELETE · cascade · irreversible) -->
  <div class="modal-overlay hidden" id="modal-delete-user">
   <div class="modal">

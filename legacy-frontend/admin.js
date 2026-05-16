@@ -57,6 +57,11 @@ async function init() {
     const res = await adminFetch('/api/admin/me');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     ADMIN.me = await res.json();
+    // v10.0.x · set admin probe cache เพื่อให้ dev-logger.js เห็นว่าเป็น admin (gate ที่หน้าอื่น)
+    try {
+      localStorage.setItem('pdb_admin_probe', '1');
+      localStorage.setItem('pdb_admin_probe_ts', String(Date.now()));
+    } catch (_) {}
     document.getElementById('admin-email').textContent = ADMIN.me.email || ADMIN.me.id;
     document.getElementById('admin-loading').classList.add('hidden');
     document.getElementById('admin-shell').classList.remove('hidden');
@@ -204,7 +209,8 @@ function renderUsersTable(users) {
      <td>${u.is_active ? '<span class="badge-active">Active</span>' : '<span class="badge-inactive">Inactive</span>'}</td>
      <td class="admin-user-actions">
       <button class="btn btn-sm" data-action="plan" data-uid="${escapeHtml(u.id)}">Plan</button>
-      <button class="btn btn-sm" data-action="password" data-uid="${escapeHtml(u.id)}">รหัสผ่าน</button>
+      <button class="btn btn-sm" data-action="view-password" data-uid="${escapeHtml(u.id)}" title="ดูรหัสผ่าน (TEST PHASE)">ดูรหัส</button>
+      <button class="btn btn-sm" data-action="password" data-uid="${escapeHtml(u.id)}">รีเซ็ตรหัส</button>
       <button class="btn btn-sm" data-action="active" data-uid="${escapeHtml(u.id)}" data-value="${u.is_active ? '0' : '1'}">${u.is_active ? 'Deactivate' : 'Reactivate'}</button>
       <button class="btn btn-sm" data-action="admin" data-uid="${escapeHtml(u.id)}" data-value="${u.is_admin ? '0' : '1'}">${u.is_admin ? 'Demote' : 'Promote'}</button>
       <button class="btn btn-sm btn-danger" data-action="delete" data-uid="${escapeHtml(u.id)}" title="ลบบัญชี (irreversible)">ลบ</button>
@@ -228,6 +234,7 @@ function handleUserAction(action, userId, value) {
   if (!user) { showToast('ไม่พบผู้ใช้', 'error'); return; }
   if (action === 'plan') return openChangePlan(user);
   if (action === 'password') return openResetPassword(user);
+  if (action === 'view-password') return openViewPassword(user);  // v10.0.x · TEST PHASE
   if (action === 'active') return openConfirmActive(user, value === '1');
   if (action === 'admin') return openConfirmAdmin(user, value === '1');
   if (action === 'delete') return openDeleteUser(user);  // v10.0.x · hard delete
@@ -238,8 +245,8 @@ function handleUserAction(action, userId, value) {
 // ═══════════════════════════════════════════
 
 function setupModals() {
-  // Close handlers (X button + Cancel) · v10.0.x · เพิ่ม modal-delete-user
-  ['modal-change-plan', 'modal-reset-password', 'modal-confirm-action', 'modal-delete-user'].forEach(id => {
+  // Close handlers (X button + Cancel) · v10.0.x · เพิ่ม modal-delete-user + modal-view-password
+  ['modal-change-plan', 'modal-reset-password', 'modal-confirm-action', 'modal-delete-user', 'modal-view-password'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     const closeBtn = document.getElementById(`${id}-close`);
@@ -266,6 +273,9 @@ function setupModals() {
   document.getElementById('modal-confirm-ok').onclick = submitConfirmAction;
   // v10.0.x · Delete user confirm
   document.getElementById('modal-delete-confirm-btn')?.addEventListener('click', submitDeleteUser);
+  // v10.0.x · View password (TEST PHASE) · submit + copy
+  document.getElementById('modal-view-password-submit')?.addEventListener('click', submitViewPassword);
+  document.getElementById('modal-view-password-copy')?.addEventListener('click', copyViewedPassword);
 
   // ESC key closes any open modal
   document.addEventListener('keydown', (e) => {
@@ -452,6 +462,75 @@ async function submitConfirmAction() {
     showToast(e.message, 'error');
   } finally {
     btn.disabled = false;
+  }
+}
+
+// ═══════════════════════════════════════════
+// §E.4 — View user password (v10.0.x · TEST PHASE ONLY)
+// ═══════════════════════════════════════════
+
+function openViewPassword(user) {
+  const modal = document.getElementById('modal-view-password');
+  if (!modal) { showToast('View-password modal ไม่พร้อม', 'error'); return; }
+  modal.dataset.userId = user.id;
+  document.getElementById('modal-view-password-email').textContent = user.email || '(no email)';
+  document.getElementById('modal-view-password-name').textContent = user.name || '—';
+  document.getElementById('modal-view-password-reason').value = '';
+  // Reset display
+  document.getElementById('modal-view-password-result').classList.add('hidden');
+  document.getElementById('modal-view-password-result-value').textContent = '';
+  openModal('modal-view-password');
+}
+
+async function submitViewPassword() {
+  const modal = document.getElementById('modal-view-password');
+  const userId = modal.dataset.userId;
+  const reason = document.getElementById('modal-view-password-reason').value.trim();
+  if (!reason) { showToast('กรุณากรอกเหตุผล', 'error'); return; }
+
+  const btn = document.getElementById('modal-view-password-submit');
+  btn.disabled = true;
+  btn.textContent = 'กำลังดึง...';
+  try {
+    // ใช้ AdminToggleRequest schema ที่ backend ใช้ซ้ำ: value=false (ignored), reason=str
+    const res = await adminFetch(`/api/admin/users/${encodeURIComponent(userId)}/view-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: false, reason }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      const msg = data?.detail?.error?.message || data?.detail || `HTTP ${res.status}`;
+      throw new Error(msg);
+    }
+    const result = document.getElementById('modal-view-password-result');
+    const valueEl = document.getElementById('modal-view-password-result-value');
+    result.classList.remove('hidden');
+    if (data.password_available && data.password) {
+      valueEl.textContent = data.password;
+      valueEl.style.color = '#fef2f2';
+      result.classList.remove('is-warning');
+    } else {
+      valueEl.textContent = data.hint || 'ไม่มีรหัสผ่านเก็บไว้ · ใช้ Reset Password เพื่อตั้งใหม่';
+      valueEl.style.color = '#fbbf24';
+      result.classList.add('is-warning');
+    }
+  } catch (e) {
+    showToast(e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'ดูรหัสผ่าน';
+  }
+}
+
+async function copyViewedPassword() {
+  const val = document.getElementById('modal-view-password-result-value').textContent;
+  if (!val) return;
+  try {
+    await navigator.clipboard.writeText(val);
+    showToast('คัดลอกรหัสผ่านแล้ว', 'success');
+  } catch (e) {
+    showToast('คัดลอกไม่สำเร็จ: ' + e.message, 'error');
   }
 }
 
