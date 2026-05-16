@@ -1,5 +1,5 @@
 """Database models and setup for Personal Data Bank (PDB) — MVP v3."""
-from sqlalchemy import Column, String, Integer, Float, Boolean, Text, DateTime, ForeignKey, create_engine
+from sqlalchemy import Column, String, Integer, Float, Boolean, Text, DateTime, ForeignKey, create_engine, LargeBinary
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker as async_sessionmaker
@@ -145,6 +145,18 @@ class File(Base):
     # Empty/NULL on the happy path. Surfaced in admin diagnostics + dev log panel.
     extract_warnings = Column(Text, nullable=True)
 
+    # ─── v11.0.0 — Hybrid Clustering pipeline (embeddings cache) ───
+    # Plan ref: .agent-memory/plans/organize-refactor-v11.md
+    # NULL ทุก column = ไฟล์ที่ยังไม่ถูก embed (legacy / new upload ก่อน USE_HYBRID_CLUSTERING)
+    # backend/embeddings.py จัดการ cache invalidation ผ่าน embedding_hash
+    embedding_vector = Column(LargeBinary, nullable=True)
+    # numpy float32 BLOB. text-embedding-004 = 768-d × 4 bytes = ~3KB/file.
+    # ถ้าเปลี่ยน model (e.g. gemini-embedding-001 3072-d) → embedding_hash เปลี่ยน → re-embed.
+    embedding_model = Column(String(64), default="")
+    # e.g. "text-embedding-004" — ใช้เทียบเพื่อ invalidate cache เมื่อเปลี่ยน model
+    embedding_hash = Column(String(64), default="")
+    # = File.content_hash ตอนที่ embed สำเร็จ — เปลี่ยน text → cache miss → re-embed
+
     owner = relationship("User", back_populates="files")
     insight = relationship("FileInsight", uselist=False, back_populates="file", cascade="all, delete-orphan")
     summary = relationship("FileSummary", uselist=False, back_populates="file", cascade="all, delete-orphan")
@@ -158,6 +170,17 @@ class Cluster(Base):
     title = Column(String, nullable=False)
     summary = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    # ─── v11.0.0 — Hybrid Clustering metadata ───
+    # Plan ref: .agent-memory/plans/organize-refactor-v11.md (Phase 1)
+    method = Column(String(32), default="llm")
+    # "llm" = legacy (single mega-call), "hdbscan" = v11 hybrid pipeline
+    centroid = Column(LargeBinary, nullable=True)
+    # numpy float32 vector — cluster center สำหรับ re-cluster delta + similarity queries.
+    # NULL ถ้า method="llm" (no embedding centroid)
+    member_count = Column(Integer, default=0)
+    # Denormalized count of files in cluster — fast lookup ไม่ต้อง JOIN file_cluster_map
+
     file_maps = relationship("FileClusterMap", back_populates="cluster", cascade="all, delete-orphan")
 
 
@@ -194,6 +217,20 @@ class FileSummary(Base):
     key_facts = Column(Text, default="[]")   # JSON array
     why_important = Column(Text, default="")
     suggested_usage = Column(Text, default="")
+
+    # ─── v11.0.0 — Structured summary (รวม sum+tag in 1 LLM call) ───
+    # Plan ref: .agent-memory/plans/organize-refactor-v11.md (Phase 2)
+    # Empty string = legacy v1 schema (USE_STRUCTURED_SUMMARY=false)
+    # JSON populated = v2 schema (structured output from Gemini)
+    entities = Column(Text, default="")
+    # JSON list[{"type": "person|company|product|date|place|document|other",
+    #            "name": "canonical", "aliases": ["alt1", "alt2"]}]
+    relationships = Column(Text, default="")
+    # JSON list[{"from": "entity_name", "to": "entity_name",
+    #            "type": "owned_by|signed_by|part_of|...",
+    #            "evidence": "short quote from doc"}]
+    schema_version = Column(Integer, default=1)
+    # 1 = legacy (summary only) · 2 = structured (with entities + relationships)
 
     file = relationship("File", back_populates="summary")
 
@@ -323,6 +360,14 @@ class GraphNode(Base):
     pinned = Column(Boolean, default=False)
     metadata_json = Column(Text, default="{}")       # Flexible metadata
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    # ─── v11.0.0 — Leiden community detection ───
+    # Plan ref: .agent-memory/plans/organize-refactor-v11.md (Phase 3)
+    # Empty string = legacy graph (no community detected)
+    community_id = Column(String(64), default="")
+    # e.g. "comm-3" — Leiden community label from python-louvain.best_partition
+    embedding_centrality = Column(Float, default=0.0)
+    # 0-1, distance to community centroid (1 = at centroid). Used สำหรับ importance fallback.
 
 
 class GraphEdge(Base):
@@ -1087,6 +1132,95 @@ async def init_db():
             if indexes_added:
                 migrated = True
                 print(f"  → v10.0.0: ensured {indexes_added} performance indexes")
+
+            # ─── v11.0.0 Migration — Hybrid Clustering + Structured Summary ───
+            # Plan ref: .agent-memory/plans/organize-refactor-v11.md (Step 0.3)
+            #
+            # Additive only: 11 new columns across 4 tables · NO drops · NO renames.
+            # Pattern: PRAGMA table_info(table) → check missing → ALTER ADD if missing.
+            # Idempotent: rerun safe — already-present columns skipped.
+            #
+            # All defaults make legacy behavior unchanged ถ้า USE_HYBRID_CLUSTERING=false.
+            try:
+                # files: embedding_vector + embedding_model + embedding_hash
+                cursor = await db.execute("PRAGMA table_info(files)")
+                file_cols_v11 = [row[1] for row in await cursor.fetchall()]
+                if "embedding_vector" not in file_cols_v11:
+                    await db.execute("ALTER TABLE files ADD COLUMN embedding_vector BLOB")
+                    migrated = True
+                    print("  → Added: files.embedding_vector (v11.0.0 — neural embedding cache)")
+                if "embedding_model" not in file_cols_v11:
+                    await db.execute("ALTER TABLE files ADD COLUMN embedding_model TEXT DEFAULT ''")
+                    migrated = True
+                    print("  → Added: files.embedding_model (v11.0.0)")
+                if "embedding_hash" not in file_cols_v11:
+                    await db.execute("ALTER TABLE files ADD COLUMN embedding_hash TEXT DEFAULT ''")
+                    migrated = True
+                    print("  → Added: files.embedding_hash (v11.0.0 — cache invalidation key)")
+            except Exception as e:
+                print(f"  ⚠️ v11.0.0 files migration warning: {e}")
+
+            try:
+                # file_summaries: entities + relationships + schema_version
+                cursor = await db.execute("PRAGMA table_info(file_summaries)")
+                fs_cols_v11 = [row[1] for row in await cursor.fetchall()]
+                if "entities" not in fs_cols_v11:
+                    await db.execute("ALTER TABLE file_summaries ADD COLUMN entities TEXT DEFAULT ''")
+                    migrated = True
+                    print("  → Added: file_summaries.entities (v11.0.0 — structured output)")
+                if "relationships" not in fs_cols_v11:
+                    await db.execute("ALTER TABLE file_summaries ADD COLUMN relationships TEXT DEFAULT ''")
+                    migrated = True
+                    print("  → Added: file_summaries.relationships (v11.0.0)")
+                if "schema_version" not in fs_cols_v11:
+                    await db.execute("ALTER TABLE file_summaries ADD COLUMN schema_version INTEGER DEFAULT 1")
+                    migrated = True
+                    print("  → Added: file_summaries.schema_version (v11.0.0 — 1=legacy, 2=structured)")
+            except Exception as e:
+                print(f"  ⚠️ v11.0.0 file_summaries migration warning: {e}")
+
+            try:
+                # clusters: method + centroid + member_count
+                cursor = await db.execute("PRAGMA table_info(clusters)")
+                cluster_cols_v11 = [row[1] for row in await cursor.fetchall()]
+                if "method" not in cluster_cols_v11:
+                    await db.execute("ALTER TABLE clusters ADD COLUMN method TEXT DEFAULT 'llm'")
+                    migrated = True
+                    print("  → Added: clusters.method (v11.0.0 — llm|hdbscan)")
+                if "centroid" not in cluster_cols_v11:
+                    await db.execute("ALTER TABLE clusters ADD COLUMN centroid BLOB")
+                    migrated = True
+                    print("  → Added: clusters.centroid (v11.0.0 — cluster center vector)")
+                if "member_count" not in cluster_cols_v11:
+                    await db.execute("ALTER TABLE clusters ADD COLUMN member_count INTEGER DEFAULT 0")
+                    migrated = True
+                    print("  → Added: clusters.member_count (v11.0.0 — denormalized count)")
+            except Exception as e:
+                print(f"  ⚠️ v11.0.0 clusters migration warning: {e}")
+
+            try:
+                # graph_nodes: community_id + embedding_centrality
+                cursor = await db.execute("PRAGMA table_info(graph_nodes)")
+                gn_cols_v11 = [row[1] for row in await cursor.fetchall()]
+                if "community_id" not in gn_cols_v11:
+                    await db.execute("ALTER TABLE graph_nodes ADD COLUMN community_id TEXT DEFAULT ''")
+                    migrated = True
+                    print("  → Added: graph_nodes.community_id (v11.0.0 — Leiden community)")
+                if "embedding_centrality" not in gn_cols_v11:
+                    await db.execute("ALTER TABLE graph_nodes ADD COLUMN embedding_centrality REAL DEFAULT 0.0")
+                    migrated = True
+                    print("  → Added: graph_nodes.embedding_centrality (v11.0.0)")
+            except Exception as e:
+                print(f"  ⚠️ v11.0.0 graph_nodes migration warning: {e}")
+
+            # v11.0.0 Index — เพื่อ filter file ที่ยังไม่ embed (migration script)
+            try:
+                await db.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_files_embedding_hash "
+                    "ON files(embedding_hash)"
+                )
+            except Exception as e:
+                print(f"  ⚠️ v11.0.0 embedding index warning: {e}")
 
             if migrated:
                 await db.commit()
