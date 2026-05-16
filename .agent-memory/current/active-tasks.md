@@ -1,18 +1,27 @@
 # 🎯 Active Tasks
 
 > Source of truth คือ [pipeline-state.md](pipeline-state.md) — ไฟล์นี้เป็น overview สั้นๆ
-> Pipeline ตอนนี้ = `idle` 🟢 (no active feature · ready for new assignment)
+> Pipeline ตอนนี้ = `plan_pending_approval` 🔴 (v11.0.0 Organize Refactor)
 
 ---
 
 ## 🔄 Current Pipeline
 
-**State:** `idle` 🟢
-**Master HEAD:** `7a2f84a` v9.4.8
-**APP_VERSION:** 9.4.8
-**Production:** ✅ v9.4.8 live · worker healthy · queue empty · 100% success_24h
-**Active plan:** ไม่มี (พร้อมรับงานใหม่)
-**Mode:** Free — user เลือกได้ว่าจะเข้า sequential pipeline (แดง→เขียว→ฟ้า) หรือ 3-in-1 mode (Opus 4.7 ตรง)
+**State:** `plan_pending_approval` 🔴
+**Master HEAD:** `9dc5ae6` v10.0.14
+**APP_VERSION:** 10.0.14 (deployed)
+**Production:** ✅ v10.0.14 live · health audit + Phase A-D fix bundle complete
+**Active plan:** [organize-refactor-v11.md](../plans/organize-refactor-v11.md) — Major pipeline refactor
+**Author:** 🔴 แดง (Daeng) — 2026-05-17
+**Mode:** Sequential pipeline (แดง→เขียว→ฟ้า) — user requested thorough planning
+
+### Active plan summary
+
+**Feature:** Organize Pipeline Refactor (v10.0.14 → v11.0.0)
+**Why:** organize-new พังที่ ~50 ไฟล์ (LLM context overflow + O(N²) graph + 2× duplicate calls)
+**Solution:** Industry-standard pipeline (BERTopic + RAPTOR + Microsoft GraphRAG)
+**Effort:** ~4-5 weeks, 4 phases, 51+ touchpoints, feature-flagged rollout
+**Status:** รอ user approve + ตอบ Open Questions Q1-Q7
 
 ---
 
