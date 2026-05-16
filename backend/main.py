@@ -3143,26 +3143,32 @@ async def cleanup_ghost_files(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """v10.0.15 — Hard-delete ghost file rows + their dangling graph relations.
+    """v10.0.16 — Two-phase orphan purge: ghost file rows + derived entity nodes.
 
-    Why this exists:
+    Phase 1 (v10.0.15): drive-side ghosts
       drive_sync marks File rows as processing_status='deleted_in_drive' when it
-      detects user deleted the file from Drive UI directly (so PDB remembers it
-      existed · กัน re-upload). /api/files hides these ghosts (per F16), but
-      /api/stats counted them → sidebar showed phantom counts even when file
-      list was empty. Same for graph nodes/edges/clusters attached to ghosts —
-      because the normal delete_file path was bypassed, _cleanup_file_references
-      never fired → orphan graph entities linger.
+      detects user deleted the file from Drive UI directly. /api/files hides
+      these ghosts (per F16) but graph entities tied to them lingered.
 
-    What this does:
-      1. Find all ghost rows for current user
-      2. For each: invoke _cleanup_file_references (graph + summary md + pack/chat JSON)
-      3. db.delete(ghost) → cascade kills FileInsight/FileSummary/FileClusterMap
-      4. Commit → then _cleanup_empty_clusters to drop clusters that lost their last file
+    Phase 2 (v10.0.16): orphan derived nodes
+      AI extracts note/entity/tag/concept/person nodes from files. Normal file
+      delete (_cleanup_file_references) only removes the `source_file` GraphNode
+      projection — derived NoteObject + their GraphNode projections persist as
+      orphans. After all files gone, sidebar still showed 62 phantom nodes.
 
-    Idempotent: re-running with 0 ghosts returns stats with all zeros (no-op).
-    Skips Drive trash (files already gone from Drive — that's why they're ghosts).
+      Phase 2 finds GraphNodes that have no incoming/outgoing graph_edges AND no
+      suggested_relations, with object_type NOT IN ('cluster','context_pack').
+      For (note/entity/tag/concept/person/project) types we also drop the linked
+      NoteObject row. Cluster/pack types are left alone — they have their own
+      lifecycle (_cleanup_empty_clusters handles empty clusters · packs are
+      user-created and stay until user deletes them).
+
+    Idempotent: re-running with 0 orphans returns stats with all zeros (no-op).
+    Skips Drive trash for ghosts (files already gone from Drive — that's why
+    they're ghosts).
     """
+    from sqlalchemy import delete as sql_delete, text
+
     ghost_q = await db.execute(
         select(File).where(
             File.user_id == current_user.id,
@@ -3181,8 +3187,12 @@ async def cleanup_ghost_files(
         "chats_updated": 0,
         "injection_logs_updated": 0,
         "empty_clusters_removed": 0,
+        # v10.0.16 — orphan derived nodes
+        "orphan_nodes_removed": 0,
+        "orphan_notes_removed": 0,
     }
 
+    # ─── Phase 1: ghost file rows ───
     for ghost in ghosts:
         summary_md_path = (await db.execute(
             select(FileSummary.md_path).where(FileSummary.file_id == ghost.id)
@@ -3215,11 +3225,57 @@ async def cleanup_ghost_files(
         except Exception as e:
             logger.warning("cleanup_ghosts: empty cluster cleanup failed: %s", e)
 
+    # ─── Phase 2 (v10.0.16): orphan derived GraphNodes + their NoteObject rows ───
+    # Run AFTER ghost cleanup so this also catches orphans freed by phase 1.
+    try:
+        orphan_q = await db.execute(text("""
+            SELECT n.id, n.object_type, n.object_id
+            FROM graph_nodes n
+            WHERE n.user_id = :uid
+            AND n.object_type NOT IN ('cluster', 'context_pack')
+            AND NOT EXISTS (
+                SELECT 1 FROM graph_edges e
+                WHERE e.user_id = :uid
+                AND (e.source_node_id = n.id OR e.target_node_id = n.id)
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM suggested_relations s
+                WHERE s.user_id = :uid
+                AND (s.source_node_id = n.id OR s.target_node_id = n.id)
+            )
+        """), {"uid": current_user.id})
+        orphan_rows = orphan_q.all()
+
+        # NoteObject-backed types — drop the underlying NoteObject too
+        note_obj_types = ('note', 'entity', 'tag', 'concept', 'person', 'project')
+        note_obj_ids = [r[2] for r in orphan_rows if r[1] in note_obj_types]
+        orphan_node_ids = [r[0] for r in orphan_rows]
+
+        if note_obj_ids:
+            r = await db.execute(sql_delete(NoteObject).where(
+                NoteObject.id.in_(note_obj_ids),
+                NoteObject.user_id == current_user.id,
+            ))
+            stats["orphan_notes_removed"] = r.rowcount or 0
+
+        if orphan_node_ids:
+            r = await db.execute(sql_delete(GraphNode).where(
+                GraphNode.id.in_(orphan_node_ids),
+                GraphNode.user_id == current_user.id,
+            ))
+            stats["orphan_nodes_removed"] = r.rowcount or 0
+
+        if orphan_node_ids:
+            await db.commit()
+    except Exception as e:
+        logger.warning("cleanup_ghosts: orphan node cleanup failed: %s", e)
+
     logger.info(
-        "cleanup_ghosts: user=%s purged=%d nodes=%d edges=%d clusters=%d",
+        "cleanup_ghosts: user=%s ghosts=%d ghost_nodes=%d orphan_nodes=%d orphan_notes=%d clusters=%d",
         current_user.id[:8] + "..",
         stats["ghosts_purged"], stats["graph_nodes_removed"],
-        stats["graph_edges_removed"], stats["empty_clusters_removed"],
+        stats["orphan_nodes_removed"], stats["orphan_notes_removed"],
+        stats["empty_clusters_removed"],
     )
 
     return {"status": "ok", "stats": stats}

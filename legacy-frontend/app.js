@@ -1670,8 +1670,10 @@ async function loadStats() {
 // Called once per session from loadStats. Idempotent — safe to no-op when ghosts=0.
 async function cleanupGhostsOnce() {
  try {
-  if (sessionStorage.getItem('pdb_ghosts_cleaned_v1') === '1') return;
-  sessionStorage.setItem('pdb_ghosts_cleaned_v1', '1');
+  // v2 key — v10.0.16 expanded scope to orphan derived nodes (note/entity/tag/...).
+  // Bumping key so users who ran v1 cleanup in this session get the deeper purge.
+  if (sessionStorage.getItem('pdb_ghosts_cleaned_v2') === '1') return;
+  sessionStorage.setItem('pdb_ghosts_cleaned_v2', '1');
   const res = await authFetch('/api/files/cleanup-ghosts', {
    method: 'POST',
    _background: true,
