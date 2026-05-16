@@ -2886,9 +2886,11 @@ function renderFileList(files) {
  const chunkBadge = (f.chunk_count && f.chunk_count > 0)
    ? `<span class="chunk-count-badge" title="${isThai ? 'แบ่งเป็นหลายส่วนเพื่อวิเคราะห์ครบทุกหน้า' : 'Split into chunks for full analysis'}">📚 ${f.chunk_count} ${isThai ? 'ส่วน' : 'parts'}</span>`
    : '';
- const truncBadge = f.is_truncated
-   ? `<span class="extraction-badge extraction-partial" title="${isThai ? 'บางส่วนถูกตัด' : 'Some content truncated'}">⚠️ ${isThai ? 'บางส่วนถูกตัด' : 'partial'}</span>`
-   : '';
+ // v10.0.13 — badge "บางส่วนถูกตัด" ถูกถอดออก: flag is_truncated สื่อความผิด
+ // (จริงๆ คือ chunk บางตัวล้มเหลวตอน map step ไม่ใช่ "ตัดเนื้อหา").
+ // raw text + vector index ยังครบ — UI ไม่ควรทำให้ user เข้าใจผิดว่าข้อมูลหาย.
+ // จะกลับมาแก้ retry-on-fail ภายหลัง.
+ const truncBadge = '';
  // v7.5.0 — retry button if extract failed (encrypted/empty/ocr_failed/unsupported)
  const canRetry = !f.is_locked && extStatus !== 'ok' && extStatus !== 'partial' && extStatus !== 'vault';
  const retryBtn = canRetry
