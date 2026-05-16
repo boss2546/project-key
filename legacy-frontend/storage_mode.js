@@ -102,10 +102,21 @@ function handleDriveCallbackParams() {
       if (modal) modal.classList.remove('hidden');
     }, 800);
   } else if (driveConnected === 'false') {
-    const msg = error === 'access_denied'
-      ? (getLang() === 'th' ? 'คุณปฏิเสธการเข้าถึง Google Drive' : 'You denied Google Drive access')
-      : (getLang() === 'th' ? 'ไม่สามารถเชื่อมต่อ Google Drive ได้' : 'Failed to connect Google Drive');
-    showToast(msg, 'error');
+    // v10.0.12 — surface specific error code so user/support can diagnose.
+    // Codes from backend callback: access_denied, missing_params, invalid_state,
+    // oauth_callback_failed, db_save_failed.
+    const isTH = getLang() === 'th';
+    const codeMap = {
+      access_denied: isTH ? 'คุณปฏิเสธการเข้าถึง Google Drive' : 'You denied Google Drive access',
+      missing_params: isTH ? 'พารามิเตอร์ไม่ครบจาก Google (code/state ขาด)' : 'Missing OAuth params from Google',
+      invalid_state: isTH ? 'Session หมดอายุระหว่างเชื่อมต่อ — ลองกดเชื่อมต่ออีกครั้ง' : 'OAuth session expired — please retry',
+      oauth_callback_failed: isTH ? 'การยืนยันกับ Google ล้มเหลว (อาจเป็น redirect URI / scope mismatch)' : 'Google OAuth handshake failed (redirect URI / scope mismatch)',
+      db_save_failed: isTH ? 'เชื่อมกับ Google สำเร็จแต่บันทึก DB ล้มเหลว — ลองอีกครั้ง' : 'Connected to Google but DB save failed — retry',
+    };
+    const friendly = codeMap[error] || (isTH ? 'ไม่สามารถเชื่อมต่อ Google Drive ได้' : 'Failed to connect Google Drive');
+    const codeSuffix = error ? ` (${error})` : '';
+    showToast(friendly + codeSuffix, 'error');
+    console.error('[drive-oauth] callback failure', { error });
     window.history.replaceState({}, '', '/');
   }
 }
