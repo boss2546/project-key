@@ -128,12 +128,69 @@
     } catch (_) {}
   }
 
+  // v10.0.x — Dedup key per entry kind · กำหนด "identity" ของ entry สำหรับ collapse ซ้ำติดกัน
+  // คืน null = ไม่ collapse (entry ที่มี state เปลี่ยน เช่น meta/perf · อยากเห็นทุกครั้ง)
+  function _dedupKey(e) {
+    if (!e || !e.kind) return null;
+    switch (e.kind) {
+      case 'fetch':
+        // collapse เฉพาะ fetch ซ้ำ URL + method + status เดียวกัน (เช่น poll /api/upload-status)
+        return `fetch|${e.method}|${e.url}|${e.status || 'err'}`;
+      case 'console':
+        return `console|${e.level}|${e.message || ''}`;
+      case 'click':
+        // ignore x/y · selector + event ก็พอ
+        return `click|${e.event || 'click'}|${e.selector || ''}`;
+      case 'focus':
+      case 'input':
+        return `${e.kind}|${e.event || ''}|${e.selector || ''}`;
+      case 'route':
+        return `route|${e.reason}|${e.to}`;
+      case 'storage':
+        // collapse เฉพาะ op+key เดียวกัน (value ต่างก็ยัง collapse)
+        return `storage|${e.area}|${e.op}|${e.key || ''}`;
+      case 'scroll':
+        return `scroll|${e.percent}|${e.path}`;
+      case 'ui':
+        return `ui|${e.event}|${e.selector || ''}|${e.w || ''}|${e.h || ''}`;
+      case 'vis':
+      case 'net':
+        return `${e.kind}|${e.event}`;
+      // meta / perf / nav / error / form → ไม่ collapse (เห็นทุกครั้งสำคัญ)
+      default:
+        return null;
+    }
+  }
+
   function addLog(entry) {
     if (state.paused) return;
     entry.t = entry.t || Date.now();
     // ใช้ `_id` (ขีดล่างนำ) เพื่อไม่ชนกับ HTML element's `id` ที่ describeElement() ส่งมา
     // (เดิมใช้ entry.id ทำให้ element id เช่น 'login-email' โดน clobber)
     entry._id = (entry.t.toString(36) + Math.random().toString(36).slice(2, 6));
+
+    // v10.0.x — Collapse consecutive duplicates · ลดขนาด log + scroll noise
+    const key = _dedupKey(entry);
+    const last = state.logs[state.logs.length - 1];
+    if (key && last && last._dedup_key === key) {
+      // ซ้ำกับตัวก่อน → เพิ่ม count ที่ตัวเก่า · อัปเดต timestamp ล่าสุด
+      last._dup_count = (last._dup_count || 1) + 1;
+      last._last_t = entry.t;
+      // For fetch dedup: update duration + resBody to LATEST poll (เห็น state ล่าสุด)
+      if (entry.kind === 'fetch') {
+        if (entry.durationMs != null) last.durationMs = entry.durationMs;
+        if (entry.resBody) last.resBody = entry.resBody;
+      }
+      // error count: นับซ้ำด้วย ถ้าเป็น error
+      if (entry.kind === 'error' || (entry.kind === 'fetch' && entry.status >= 400) || entry.level === 'error') {
+        state.errorCount++;
+      }
+      persistLogs();
+      scheduleRender();
+      return;
+    }
+    // ไม่ซ้ำ → push entry ใหม่
+    entry._dedup_key = key;
     state.logs.push(entry);
     if (entry.kind === 'error' || (entry.kind === 'fetch' && entry.status >= 400) || entry.level === 'error') {
       state.errorCount++;
@@ -753,6 +810,20 @@
     .pdb-tag-ui { background: #3b0764; color: #e9d5ff; }
     .pdb-dev-row .dur.slow { color: #fbbf24; font-weight: 700; }
     .pdb-dev-row .dur.very-slow { color: #fca5a5; font-weight: 700; }
+    /* v10.0.x — × N badge สำหรับ consecutive-duplicate collapse */
+    .pdb-dev-dup {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 1px 6px;
+      background: rgba(99, 102, 241, 0.18);
+      color: #a5b4fc;
+      border: 1px solid rgba(99, 102, 241, 0.35);
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      vertical-align: middle;
+    }
     .pdb-dev-row .msg {
       color: #e8eaed; font-size: 11.5px;
       overflow-wrap: anywhere;
@@ -982,10 +1053,12 @@
     const time = formatTime(log.t);
     const tag = tagFor(log);
     const msg = formatSummary(log, 200);
+    // v10.0.x — แสดง × N ถ้า entry ถูก collapse จากซ้ำติดกัน
+    const dup = (log._dup_count && log._dup_count > 1) ? `<span class="pdb-dev-dup">× ${log._dup_count}</span>` : '';
     return el('div', { class: 'pdb-dev-row' },
       el('div', { class: 't' }, time),
       el('div', { class: 'tag pdb-tag-' + tag }, tag),
-      el('div', { class: 'msg', html: msg }),
+      el('div', { class: 'msg', html: msg + dup }),
     );
   }
 
@@ -1196,7 +1269,9 @@
 
     row.appendChild(el('div', { class: 't' }, formatTime(log.t)));
     row.appendChild(el('div', { class: 'tag pdb-tag-' + tag }, tag));
-    row.appendChild(el('div', { class: 'msg', html: formatSummary(log, 400) }));
+    // v10.0.x — × N badge ใน fullscreen ด้วย
+    const dup = (log._dup_count && log._dup_count > 1) ? `<span class="pdb-dev-dup">× ${log._dup_count}</span>` : '';
+    row.appendChild(el('div', { class: 'msg', html: formatSummary(log, 400) + dup }));
 
     // expand on click
     row.addEventListener('click', () => {
@@ -1213,6 +1288,12 @@
     const lines = [];
     lines.push(`time: ${new Date(log.t).toISOString()}  (+${log.t - SESSION_START}ms from session start)`);
     lines.push(`kind: ${log.kind}` + (log.level ? ` · level: ${log.level}` : ''));
+    // v10.0.x — show dedup info ใน detail
+    if (log._dup_count && log._dup_count > 1) {
+      const lastT = log._last_t || log.t;
+      const span = lastT - log.t;
+      lines.push(`⟳ duplicates: × ${log._dup_count} · ครั้งแรก ${formatTime(log.t)} · ครั้งล่าสุด ${formatTime(lastT)} · ช่วง ${span}ms`);
+    }
     if (log.kind === 'fetch') {
       lines.push(`method: ${log.method}`);
       lines.push(`url: ${log.url}`);
