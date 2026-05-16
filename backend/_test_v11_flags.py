@@ -349,12 +349,3 @@ class TestFlagEnvOverride:
         monkeypatch.setenv("USE_ORGANIZE_CHECKPOINT", "0")
         cfg = _reload_config()
         assert cfg.USE_ORGANIZE_CHECKPOINT == False
-lse."""
-        monkeypatch.setenv("USE_SUMMARY_CACHE", "false")
-        cfg = _reload_config()
-        assert cfg.USE_SUMMARY_CACHE == False
-
-    def test_organize_checkpoint_deactivates_with_env_0(self, monkeypatch):
-        monkeypatch.setenv("USE_ORGANIZE_CHECKPOINT", "0")
-        cfg = _reload_config()
-        assert cfg.USE_ORGANIZE_CHECKPOINT == False
