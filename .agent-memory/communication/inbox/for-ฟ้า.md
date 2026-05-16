@@ -568,72 +568,120 @@ print('Metrics class: OK')
 
 อ้างอิง: [`reports/v11-phase0-frontend-test-2026-05-17.md`](../../../reports/v11-phase0-frontend-test-2026-05-17.md)
 
-ฟ้ารัน end-to-end อีกครั้ง:
+### 🧰 ฟ้าใช้เครื่องมือ Browser ของตัวเอง
+
+ฟ้าเลือกใช้เครื่องมือตาม environment ที่ตัวเองอยู่ (ดู bootstrap prompt-ฟ้า.md):
+
+| Environment | เครื่องมือ |
+|---|---|
+| **Antigravity** (Gemini) | `browser_subagent` (browser ในตัว) |
+| **Claude Code** (VS Code) | `mcp__playwright__*` tools (built-in MCP) |
+
+⚠️ **ห้ามรัน `npx playwright`** — ทั้งสอง env ไม่ใช้ standalone Playwright CLI
+
+### Setup ก่อนเริ่ม browser test
 
 ```bash
-# 1. Start backend
+# Terminal 1: Start backend (run-in-background)
 python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 
-# 2. ตรวจ /health
+# Terminal 2: ตรวจ health ก่อน
 curl http://127.0.0.1:8000/health
 # Expected: {"ok":true,"version":"10.0.17"}
-
-# 3. Login + 10 API check + rate-limit test
-#    (ใช้ Playwright spec ใน tests/v11-regression.spec.js — ฟ้าเขียน)
 ```
 
-ฟ้าเขียน Playwright spec ใน `tests/v11-phase0-regression.spec.js`:
+### Test scenarios (tool-agnostic — ฟ้าแปลเป็นคำสั่งของเครื่องมือตัวเอง)
 
-```javascript
-import { test, expect } from '@playwright/test';
-
-const BASE = 'http://127.0.0.1:8000';
-
-test.describe('v11 Phase 0 Regression', () => {
-  test('landing page loads', async ({ page }) => {
-    await page.goto(`${BASE}/`);
-    await expect(page).toHaveTitle(/Personal Data Bank/);
-  });
-
-  test('login → admin redirect', async ({ page }) => {
-    await page.goto(`${BASE}/`);
-    await page.click('#btn-show-login');
-    await page.fill('#login-email', 'bossok2546@gmail.com');
-    await page.fill('#login-password', '0898661896za');
-    await page.click('#btn-login');
-    await expect(page).toHaveURL(/\/admin/);
-  });
-
-  test('rate-limit: 6th login attempt = 429', async ({ request }) => {
-    for (let i = 0; i < 5; i++) {
-      const r = await request.post(`${BASE}/api/auth/login`, {
-        data: { email: 'fake@nowhere.local', password: 'wrong' + i }
-      });
-      expect(r.status()).toBe(401);
-    }
-    const r6 = await request.post(`${BASE}/api/auth/login`, {
-      data: { email: 'fake@nowhere.local', password: 'wrong6' }
-    });
-    expect(r6.status()).toBe(429);
-    expect(r6.headers()['retry-after']).toBeTruthy();
-  });
-
-  test('no "บางส่วนถูกตัด" badge in file list (v10.0.13)', async ({ page }) => {
-    // Login first
-    await page.goto(`${BASE}/`);
-    await page.click('#btn-show-login');
-    await page.fill('#login-email', 'bossok2546@gmail.com');
-    await page.fill('#login-password', '0898661896za');
-    await page.click('#btn-login');
-    
-    // Navigate /app + check
-    await page.goto(`${BASE}/app`);
-    await page.waitForSelector('.file-item');
-    const badgeText = await page.locator('.extraction-badge.extraction-partial').count();
-    expect(badgeText).toBe(0);
-  });
-});
+#### Scenario A — Landing page loads
 ```
+1. Navigate ไปที่ http://127.0.0.1:8000/
+2. Assert: Page title = "Personal Data Bank — Knowledge Workspace"
+3. Assert: เห็น hero text "Personal Data Bank"
+4. Console check: errors ทั้งหมดต้องเป็น favicon.ico 404 เท่านั้น (อื่นๆ = ❌)
+```
+
+#### Scenario B — Login flow (admin)
+```
+1. Navigate ไปที่ http://127.0.0.1:8000/
+2. Click element id="btn-show-login"
+3. Type "bossok2546@gmail.com" ใน element id="login-email"
+4. Type "0898661896za" ใน element id="login-password"
+5. Click element id="btn-login"
+6. Wait for navigation
+7. Assert: URL ลงท้ายด้วย "/admin"
+8. Assert: element id="admin-email" มี text "bossok2546@gmail.com"
+9. Console check: 0 errors
+```
+
+#### Scenario C — User app loads + file list (after login)
+```
+1. (หลัง login แล้ว) Navigate ไปที่ http://127.0.0.1:8000/app
+2. Wait 3 seconds (ให้ file list โหลด)
+3. Evaluate JavaScript: 
+   - document.querySelectorAll('.file-item').length → ต้อง > 0 (เขียวเจอ 125)
+   - document.querySelectorAll('.extraction-badge.extraction-partial').length → ต้อง = 0
+     (ป้าย "บางส่วนถูกตัด" ถูก remove ใน v10.0.13 — ห้ามกลับมา)
+   - document.querySelector('#btn-organize-new') !== null → True
+   - document.querySelector('#storage-mode-section').classList.contains('hidden') → False (BYOS visible)
+4. Console check: 0 errors
+```
+
+#### Scenario D — Rate-limit (v10.0.14)
+```
+HTTP POST 6 ครั้ง ไปที่ http://127.0.0.1:8000/api/auth/login
+แต่ละครั้ง body = {email: "fake-test@nowhere.local", password: "wrong" + i}
+
+- ครั้ง 1-5: ต้องได้ status 401
+- ครั้งที่ 6: ต้องได้ status 429
+  - response header "Retry-After" ต้องมีค่า (ประมาณ 899 = 15 min)
+  - response body: ต้องมีทั้ง .detail + .error.message (unified error format v10.0.14)
+  - error.message ภาษาไทย: "พยายาม login ผิดเกิน 5 ครั้ง — ลองใหม่ในอีก 15 นาที"
+
+⚠️ NOTE: rate-limit เป็น per-IP. รันนี้แล้ว IP จะโดน block 15 นาที. 
+        ทำเป็นเทสสุดท้ายก่อน restart backend (เพราะ in-memory state)
+```
+
+#### Scenario E — API endpoints respond (after login)
+```
+จาก browser console (มี token แล้ว) ลองยิง 10 endpoints:
+- /api/auth/me
+- /api/drive/status
+- /api/upload-status
+- /api/unprocessed-count?_={Date.now()}
+- /api/stats
+- /api/usage
+- /api/organize-status
+- /api/files?kind=all
+- /api/clusters
+- /api/healthz/queue
+
+Token key: localStorage.getItem('pdb_token') (ระวัง: ไม่ใช่ 'pdb_jwt_token')
+
+Headers: Authorization: Bearer {token}
+
+ทุก endpoint ต้อง:
+- status = 200
+- response time < 200ms (local) / < 500ms (Fly)
+- มี keys ที่ expected (เช่น /api/auth/me → id, name, email, mcp_secret)
+```
+
+### หลังเสร็จ — Cleanup
+
+```bash
+# Stop backend (Ctrl+C ใน terminal หรือ kill process)
+# ไม่ต้องเขียน test file ลงใน repo — ฟ้าใช้เครื่องมือ on-the-fly
+
+# Test artifacts (.playwright-mcp/, screenshots) จะถูกลบโดย .gitignore อัตโนมัติ
+```
+
+### 🚩 Red flags ในการ browser test
+
+- ❌ Console errors นอกเหนือ favicon 404 → mark NEEDS_CHANGES
+- ❌ File list ว่าง (0 files) → migration อาจกระทบ FK query
+- ❌ มีป้าย "บางส่วนถูกตัด" โผล่ → v10.0.13 ถูก revert (ห้าม!)
+- ❌ Login redirect ไป / แทน /admin → admin flag ไม่ทำงาน
+- ❌ API endpoint ตอบ 5xx → backend error ใน v11 code
+- ❌ Rate-limit ไม่ block ที่ครั้ง 6 → v10.0.14 ถูก revert
 
 ---
 
@@ -649,7 +697,7 @@ test.describe('v11 Phase 0 Regression', () => {
 - [ ] `backend/_test_embeddings.py` (encode/decode + graceful degrade + real API skip-if)
 - [ ] `backend/_test_v11_migration.py` (ALTER ADD + idempotency + legacy intact)
 - [ ] `backend/_test_v11_flags.py` (defaults + parsing + numeric override)
-- [ ] `tests/v11-phase0-regression.spec.js` (Playwright e2e)
+- [ ] Browser e2e regression (ทำสดด้วย browser tool ของ env ฟ้าเอง — ไม่ต้องเขียน .spec file)
 
 ### Behavior verification
 - [ ] All 5 feature flags default OFF (3 phase flags) / ON (2 safety flags)
