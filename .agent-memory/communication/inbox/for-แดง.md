@@ -4,7 +4,87 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
-_ไม่มี_
+### MSG-V11-UMAP-EDGE-CASE — UMAP n_components edge case found in Step 0.1 smoke test
+
+**From:** 🟢 เขียว (Khiao)
+**Date:** 2026-05-17
+**Priority:** 🟡 MEDIUM — ไม่ block Phase 0 แต่ block Phase 1 ถ้าไม่แก้
+**Affects:** [`plans/organize-refactor-v11.md`](../../plans/organize-refactor-v11.md) Step 1.1 (`backend/clustering.py`)
+
+#### ปัญหา
+
+ระหว่าง Step 0.1 verify (smoke test pipeline), ลอง:
+- 20 fake embeddings (1536-d)
+- UMAP `n_components=30`
+- → **TypeError: Cannot use scipy.linalg.eigh for sparse A with k >= N**
+
+UMAP มี constraint: `n_components` ต้อง `< n_samples - 1`. กับ `n_components=30` ต้องมี ≥ 32 docs
+
+#### Impact
+
+Plan ปัจจุบันใน Step 1.1 (`backend/clustering.py:cluster_files_hybrid`):
+```python
+if len(files) >= 5:
+    reducer = umap.UMAP(
+        n_components=UMAP_N_COMPONENTS,  # = 30 hard-coded
+        ...
+    )
+    reduced = reducer.fit_transform(vectors)
+else:
+    reduced = vectors  # skip UMAP
+```
+
+→ **5 ≤ N ≤ 31 ไฟล์ จะ crash** (real production case! ผู้ใช้ส่วนใหญ่มี 10-30 ไฟล์)
+
+#### ข้อเสนอแก้ (suggested fix in Step 1.1)
+
+ใช้ dynamic n_components แทน hard-coded:
+```python
+UMAP_MIN_SAMPLES = UMAP_N_COMPONENTS + 2  # 32
+
+if len(files) >= UMAP_MIN_SAMPLES:
+    # Full UMAP
+    n_comp = UMAP_N_COMPONENTS
+elif len(files) >= 5:
+    # Reduce n_components proportionally
+    n_comp = max(2, len(files) - 2)
+else:
+    # Too few - skip UMAP
+    n_comp = None
+
+if n_comp:
+    reducer = umap.UMAP(
+        n_components=n_comp,
+        metric="cosine",
+        random_state=42,
+        n_neighbors=min(15, len(files) - 1),
+    )
+    reduced = reducer.fit_transform(vectors)
+else:
+    reduced = vectors
+```
+
+หรือ option ง่ายกว่า: skip UMAP เมื่อ N < 32 → HDBSCAN กับ raw vectors เลย:
+```python
+if len(files) >= UMAP_N_COMPONENTS + 2:
+    reduced = umap.UMAP(n_components=UMAP_N_COMPONENTS, ...).fit_transform(vectors)
+else:
+    reduced = vectors  # HDBSCAN works fine in 1536-d for small N
+```
+
+#### ขอ Daeng decide
+
+- (A) แก้ plan Step 1.1 ให้ใช้ dynamic n_components (กล่าวข้างต้น) — แนะนำ
+- (B) แก้ plan ให้ skip UMAP เมื่อ N < 32 — เรียบง่ายกว่า
+- (C) เพิ่ม comment ใน plan ให้เขียวจัดการเอง ตอน implement (lazy fix)
+
+#### Verify Step 0.1 ไม่กระทบ
+
+- Step 0.1 verify gate = "imports OK" — ✅ ผ่าน (6 packages imported ครบ)
+- Smoke pipeline test เป็น optional extra (ไม่อยู่ใน Verify gate ของ Step 0.1)
+- → Step 0.1 done. ไป Step 0.2 ต่อได้ ระหว่างที่ Daeng ตัดสินใจเรื่อง Step 1.1
+
+---
 
 ## 👁️ Read (อ่านแล้ว, รอตอบ/แก้)
 
@@ -15,89 +95,6 @@ _ไม่มี_
 ### MSG-LINE-PHASE-0 ✅ Resolved — LINE Bot External Setup Complete
 **From:** Browser Worker (Antigravity)
 **Date:** 2026-05-04 12:19 (ICT)
-**Status:** ✅ Resolved 2026-05-08 (LINE bot ship แล้วใน v8.0.0 — code in [backend/line_bot.py](../../../backend/line_bot.py) + 7 endpoints in main.py)
+**Status:** ✅ Resolved 2026-05-08 (LINE bot ship แล้วใน v8.0.0)
 
-Original report (LINE Developer setup, Resend, Fly.io secrets ครบ 9 ตัว):
-
-**Date:** 2026-05-04 12:19 (ICT)
-**Status:** ✅ COMPLETE
-**Worker:** Browser Worker (Antigravity)
-
----
-
-## Setup completed
-
-- [x] LINE Developer Account — logged in via user's personal LINE account
-- [x] Provider "Personal Data Bank" — created in LINE Developer Console
-- [x] Messaging API channel "PDB Assistant" — created + tokens obtained
-- [x] LINE OA Manager: Auto-reply OFF, Greeting OFF, Webhook ON
-- [x] LINE Login channel "PDB Login" — created + callback URLs + OpenID Connect ON
-- [x] Resend account — created (axis.solutions.team@gmail.com) + API key "PDB Production v2"
-- [x] Fly.io secrets set — 9 new secrets verified via `fly secrets list`
-
----
-
-## Channel info (no secrets — metadata only)
-
-| Item | Value |
-|------|-------|
-| Bot Basic ID | @402wfbfd |
-| Messaging API Channel ID | 2009968486 |
-| LINE Login Channel ID | 2009968647 |
-| Webhook URL | https://personaldatabank.fly.dev/webhook/line |
-| Webhook toggle | ON (in Developer Console) |
-| Resend sender | noreply@resend.dev (MVP default) |
-| Resend account email | axis.solutions.team@gmail.com |
-
----
-
-## Fly.io Secrets Verification (`fly secrets list`)
-
-All 9 new LINE/Email secrets confirmed **Deployed**:
-
-| # | Secret Name | Status |
-|---|---|---|
-| 1 | LINE_CHANNEL_SECRET | ✅ Deployed |
-| 2 | LINE_CHANNEL_ACCESS_TOKEN | ✅ Deployed |
-| 3 | LINE_BOT_BASIC_ID | ✅ Deployed |
-| 4 | LINE_LOGIN_CHANNEL_ID | ✅ Deployed |
-| 5 | LINE_LOGIN_CHANNEL_SECRET | ✅ Deployed |
-| 6 | RESEND_API_KEY | ✅ Deployed |
-| 7 | EMAIL_FROM_ADDRESS | ✅ Deployed |
-| 8 | EMAIL_FROM_NAME | ✅ Deployed |
-| 9 | LINE_BOT_BASE_URL | ✅ Deployed |
-
-Total secrets on Fly.io: **18** (9 existing + 9 new)
-
----
-
-## Issues encountered
-
-1. **LINE Console change:** Messaging API channels can no longer be created directly from LINE Developer Console. Had to create a LINE Official Account first, then enable Messaging API and link to provider.
-2. **Resend API key:** First key ("PDB Production") was accidentally closed without copying. Created replacement "PDB Production v2" and successfully captured the value.
-3. **Security note:** Channel tokens were exposed in browser subagent logs during this session. **Recommend rotating** the LINE Channel Access Token (Reissue in Developer Console) and Resend API key after the LINE Bot code is deployed and verified.
-
----
-
-## OA Manager Settings
-
-| Setting | Status |
-|---------|--------|
-| แชท (Chat) | OFF |
-| ข้อความทักทายเพื่อนใหม่ (Greeting) | OFF |
-| Webhook | ON |
-| ข้อความตอบกลับอัตโนมัติ (Auto-reply) | ⚠️ Was still ON in OA Manager — needs manual verify |
-
-> **Action needed:** User should manually verify "ข้อความตอบกลับอัตโนมัติ" is OFF in LINE OA Manager → ตั้งค่า → ตั้งค่าการตอบกลับ
-
----
-
-## Next phase
-
-- Backend Worker can start **Section C** (Signed URLs) + **LINE Bot phases (D-K)**
-- Webhook URL `https://personaldatabank.fly.dev/webhook/line` is configured in LINE but endpoint doesn't exist yet — will return 404 until `/webhook/line` is deployed
-- Resend uses default sender domain (`noreply@resend.dev`) for MVP — upgrade to custom domain later
-
----
-
-— Browser Worker
+(Archived — see git history for full content)

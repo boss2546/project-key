@@ -5,12 +5,77 @@
 
 ---
 
-## 🎯 Current State: `idle` 🟢 (v10.0.7 Deployed)
+## 🎯 Current State: `in_progress · phase_0` 🟢 (v11.0.0 Organize Refactor)
 
-**Active task:** None
-**Master HEAD:** `c2cd898`
-**Production:** ✅ **v10.0.7 deployed live** ที่ `https://personaldatabank.fly.dev` (Deployed on 2026-05-15)
-**Note:** The system is successfully updated to v10.0.7 with LlamaParse and Landing page fixes.
+**Active task:** v11.0.0 — Organize Pipeline Refactor (Hybrid Clustering + Structured Summary + Entity Graph)
+**Active plan:** [`.agent-memory/plans/organize-refactor-v11.md`](../plans/organize-refactor-v11.md)
+**Plan Author:** 🔴 แดง (Daeng) — Plan created 2026-05-17
+**Current Agent:** 🟢 เขียว (Khiao) — Building Phase 0 (started 2026-05-17)
+**Status:** `in_progress` — User approved verbally "ดำเนินการได้เลย แต่ในหมวกของเขียวนะ"
+**Master HEAD:** `9dc5ae6` (v10.0.14 deployed live หลัง health audit + phase A-D fix bundle)
+**Production:** ✅ **v10.0.14 deployed live** (untouched ระหว่าง Phase 0 — feature flags default OFF)
+
+### Approved Defaults (Q1-Q7)
+| # | Question | Approved |
+|---|---|---|
+| Q1 | Embedding model | Gemini text-embedding-001 |
+| Q2 | HDBSCAN min_cluster_size | 2 |
+| Q3 | Embedding storage | BLOB ใน SQLite |
+| Q4 | Phase strategy | Phase 1 only first (stop checkpoint หลัง Phase 1) |
+| Q5 | Batch API | Skip |
+| Q6 | Test corpus | Admin user's prod copy → local test DB |
+| Q7 | Gemini JSON mode | Use immediately |
+
+### Workflow Decisions
+- **Docker**: Skip local Docker → Use `flyctl deploy --remote-only` for deploy verification (user approved workflow B)
+- **Branch**: master (project convention) + feature flags default OFF for safety
+- **Pace**: ค่อยๆ ทำ ช้าๆ + เน้น test ละเอียด (user directive)
+
+### Phase 0 Progress (24 milestones total across 4 phases)
+- [ ] Step 0.1 — Add deps to requirements-fly.txt + verify imports in venv
+- [ ] Step 0.2 — Create backend/embeddings.py + Verify gate
+- [ ] Step 0.3 — Schema migration (additive) + Verify gate
+- [ ] Step 0.4 — Feature flag system + Verify gate
+- [ ] Step 0.5 — Test harness baseline + Verify gate
+- [ ] Phase 0 wrap-up commit + ฟ้า handoff
+
+### Plan Summary
+- **Scope:** 4-phase refactor (~4-5 สัปดาห์), 51+ touchpoints
+- **Goal:** Scale organize-new จาก 50 ไฟล์ → 1,000+ ไฟล์, ลด AI cost 10×, ลดเวลา 6-9×
+- **Strategy:** BERTopic + RAPTOR + Microsoft GraphRAG patterns (industry standard)
+- **Safety:** Feature flags + additive schema + sequential phases + rollback ทุก phase
+
+### Phase Roadmap
+- **Phase 0** — Foundation (deps, schema, flags, embeddings) — 1-2 วัน
+- **Phase 1** — Hybrid Clustering (embeddings + HDBSCAN + LLM label) — 1-2 วัน
+- **🛑 Stop Checkpoint** — Validate Phase 1 results ก่อนทำต่อ
+- **Phase 2** — Structured Summary (merge sum+tag in 1 call) — 1-2 วัน
+- **Phase 3** — Entity Graph + Leiden Community Detection — 2-3 วัน
+- **Phase 4** — Polish + Cache + Cleanup — 1-2 วัน
+
+### Open Decisions (รอ user)
+1. Embedding model: Gemini (A) / OpenAI (B) / Local (C)
+2. HDBSCAN min_cluster_size: 2 (A) / 3 (B) / Adaptive (C)
+3. Storage: BLOB (A) / File (B)
+4. Phase order: Sequential (A) / Phase 1 only first (B) / Parallel 1+2 (C)
+5. Batch API: Yes (A) / Skip (B)
+6. Test corpus: Prod copy (A) / Synthetic (B) / Public (C)
+7. Gemini JSON mode: Use now (A) / Skip (B)
+
+---
+
+## 📜 Previous State (v10.0.14 deploy completed)
+
+**Master HEAD:** `9dc5ae6`
+**Production:** ✅ **v10.0.14 deployed live**
+**Completed in this session:**
+- v10.0.13 — badge "บางส่วนถูกตัด" removal + drive OAuth scope drift fix
+- v10.0.14 — Phase A-D fix bundle: rate-limit login (5 fails/15min) + retry-on-chunk-fail + structured error response + cleanup (dead code, httpx context, env override)
+
+**Health audit findings remaining:**
+- Plaintext password footgun (ALLOW_ADMIN_VIEW_PASSWORD env, default false)
+- LINE/Email user login fails (Safari autofill issue, user-side)
+- BYOS push log flood (synthetic QA leftover files in DB — recommended cleanup)
 
 ---
 
@@ -81,4 +146,4 @@
 
 ---
 
-**Last sync:** 2026-05-12 by 🔵 ฟ้า (Track A1 · pipeline-state drift fix)
+**Last sync:** 2026-05-17 by 🟢 เขียว (Khiao) — Phase 0 in_progress (Step 0.1 starting) · user approved verbally + defaults Q1-Q7 confirmed
