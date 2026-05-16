@@ -20,6 +20,18 @@ State CSRF token:
 """
 from __future__ import annotations
 
+# v10.0.13 — บอก requests_oauthlib ให้ยอม scope ที่ Google คืนกลับมาต่างจากที่ขอได้
+# ต้อง set ก่อน google_auth_oauthlib + requests_oauthlib โหลด (lazy import ใน _build_flow
+# ก็ยังทันเพราะ env ถูก set ตอน module นี้ import — ก่อนเรียก flow.fetch_token).
+#
+# Why: ผู้ใช้ที่เคย grant scope `userinfo.profile` ตอน Google Sign-In ยุคก่อน (ถอด v9.5.0)
+# ยังมี scope ค้างใน Google account. พอ init OAuth ด้วย `include_granted_scopes=true`
+# → Google append scope เก่าเข้า token response → requests_oauthlib ตรวจเจอ scope mismatch
+# (ขอ 3, ได้ 4) → raise Warning("Scope has changed from ... to ...") → callback fail
+# เป็น `oauth_callback_failed`. OAUTHLIB_RELAX_TOKEN_SCOPE บอกให้ ignore drift นี้.
+import os as _os
+_os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
+
 import logging
 import secrets
 import time
