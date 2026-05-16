@@ -9,7 +9,7 @@ load_dotenv()
 # ─── App Version (single source of truth) ───
 # Bump this when releasing. All version strings exposed to clients
 # (Swagger /docs, /api/mcp/info, MCP serverInfo) read from here.
-APP_VERSION = "10.0.10"
+APP_VERSION = "10.0.11"
 
 # OpenRouter API
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
@@ -23,7 +23,14 @@ MAX_FILE_SIZE_MB = 10  # legacy — superseded by plan_limits.max_file_size_mb (
 # v7.5.0 — Big File map-reduce threshold (chars in extracted_text, not file size)
 # Files where extracted_text exceeds this trigger chunking + map-reduce summary
 # (raw file is preserved unchanged regardless of size).
-LARGE_FILE_THRESHOLD = 30_000
+#
+# v10.0.11 — lowered 30_000 → 5_500. Previous value left a 24K-char gap
+# where files in the 6K-30K range hit the "simple" path that truncates at
+# 6K chars (organizer.py:316) → 20-80% content loss. New value matches
+# simple_path's preview window (with safety margin) so ANY file longer than
+# what simple can handle goes through map-reduce instead. Cost trade-off:
+# a typical 15K PDF now uses 2-3 LLM calls (was 1) but gets full content.
+LARGE_FILE_THRESHOLD = 5_500
 
 # v7.5.0 — Hard upper cap on raw file size (bytes). Even with plan_limits set
 # higher, this guards against memory blowup at extraction time. Adjust as

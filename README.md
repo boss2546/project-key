@@ -1,13 +1,13 @@
 # 🔑 Personal Data Bank (PDB)
 
 > พื้นที่ข้อมูลส่วนตัวที่ใช้ AI จัดระเบียบ วิเคราะห์ และเชื่อมโยงข้อมูลของคุณ
-> **Current: v10.0.10** — Ingestion Pipeline 2.0 (LlamaParse + Local DOCX/PPTX/XLSX + Gemini PDF fallback) + Parallel Worker (4 concurrent) + Live Processing Timeline
+> **Current: v10.0.11** — Ingestion Pipeline 2.0 (LlamaParse + Local DOCX/PPTX/XLSX + Gemini PDF fallback) + Parallel Worker (4 concurrent) + Live Processing Timeline
 > **Previous milestone: v9.4.9** — Upload Queue + Visible Progress, Stripe/Google Login removed (see [docs/restoration/](docs/restoration/) to restore)
 >
 > Personality Profile (MBTI / Enneagram / CliftonStrengths / VIA) + History + Plan Limits + BYOS
 
 [![Production](https://img.shields.io/badge/Production-personaldatabank.fly.dev-blue)](https://personaldatabank.fly.dev/)
-[![Version](https://img.shields.io/badge/version-10.0.10-green)]()
+[![Version](https://img.shields.io/badge/version-10.0.11-green)]()
 [![MCP Tools](https://img.shields.io/badge/MCP_Tools-22-purple)]()
 [![BYOS](https://img.shields.io/badge/BYOS-v7.0.1-brightgreen)]()
 [![Pipeline](https://img.shields.io/badge/Ingestion-Pipeline%202.0-blue)]()
@@ -407,7 +407,8 @@ flyctl deploy
 | v10.0.7 | Version sync release + admin probe 24hr cache + upload retry + bfcache guard |
 | v10.0.8 | Privacy / data deletion completeness · register email normalize · drive-oauth callback wrap · organize-new error display · /health endpoint + fly.toml http_checks |
 | v10.0.9 | Organize race fix — frontend handles `snap === null` from /api/organize-status (backend hadn't called _pt.start() yet) |
-| **v10.0.10** | **Watchdog false-positive fix** — phase+current as activity signature (was: phase string only · "summary 0/3" → "summary 1/3" no longer looks stalled) · phase-stall 90s → 240s (Gemini 60-140s/PDF is normal) · hard limit 5min → 15min · safety timeout 3min → 16min · 409 ORGANIZE_IN_PROGRESS shows info toast (was: error) |
+| v10.0.10 | Watchdog false-positive fix — phase+current as activity signature · phase-stall 90s→240s · hard limit 5min→15min · safety timeout 3min→16min · 409 ORGANIZE_IN_PROGRESS shows info toast (was: error) |
+| **v10.0.11** | **No-truncation summaries** — LARGE_FILE_THRESHOLD 30K→5.5K (was a 24K gap where 6K-30K files lost 20-80% content via simple-path 6K truncate) · simple_path preview 6K→8K · clustering preview per-file 3K→8K (better grouping accuracy) · all files >5.5K now route through map-reduce → AI sees full content via chunked summarization |
 
 ---
 

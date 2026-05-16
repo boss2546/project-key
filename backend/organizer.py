@@ -244,11 +244,19 @@ async def organize_files(db: AsyncSession, user_id: str, force: bool = False):
 
 
 async def _cluster_files(files: list) -> dict:
-    """Use LLM to cluster files and score importance."""
+    """Use LLM to cluster files and score importance.
+
+    v10.0.11 — preview window per file 3_000 → 8_000 chars. AI clustering
+    accuracy was poor on files whose distinguishing content sits past the
+    first 3K (e.g. Thai documents with bilingual header + meaningful body
+    after the abstract). Cost: clustering prompt token count grows ~2.7x
+    per batch — still cheap because it's one shared LLM call regardless
+    of file count.
+    """
 
     file_descriptions = []
     for f in files:
-        text_preview = f.extracted_text[:3000] if f.extracted_text else "[No text]"
+        text_preview = f.extracted_text[:8000] if f.extracted_text else "[No text]"
         file_descriptions.append(
             f"FILE_ID: {f.id}\n"
             f"FILENAME: {f.filename}\n"
@@ -312,8 +320,14 @@ async def _generate_summary(file: File, cluster_title: str, importance: dict) ->
 
 
 async def _generate_summary_simple(file: File, cluster_title: str, importance: dict) -> dict:
-    """Original single-LLM-call path for files ≤ LARGE_FILE_THRESHOLD chars."""
-    text_preview = file.extracted_text[:6000] if file.extracted_text else "[No text]"
+    """Single-LLM-call path for files ≤ LARGE_FILE_THRESHOLD chars.
+
+    v10.0.11 — preview window 6_000 → 8_000 chars. Paired with the lowered
+    LARGE_FILE_THRESHOLD = 5_500, this guarantees: simple-path files always
+    fit fully within the preview (no silent truncation); anything beyond
+    that is routed to map-reduce by the caller.
+    """
+    text_preview = file.extracted_text[:8000] if file.extracted_text else "[No text]"
 
     system_prompt = """You are a document summarization AI. Create a structured summary of the given file.
 
