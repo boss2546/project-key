@@ -5,15 +5,15 @@
 
 ---
 
-## 🎯 Current State: `review_passed · phase_0 → ready_for_phase_1` 🔵 (v11.0.0 Organize Refactor)
+## 🎯 Current State: `built_pending_review · phase_1` 🔵 (v11.0.0 Organize Refactor)
 
 **Active task:** v11.0.0 — Organize Pipeline Refactor (Hybrid Clustering + Structured Summary + Entity Graph)
 **Active plan:** [`.agent-memory/plans/organize-refactor-v11.md`](../plans/organize-refactor-v11.md)
-**Plan Author:** 🔴 แดง (Daeng) — Plan created 2026-05-17
-**Current Agent:** 🟢 เขียว (Khiao) — Ready to start Phase 1
-**Status:** `review_passed` — ฟ้า APPROVE Phase 0 (2026-05-17) ✅ เขียวเริ่ม Phase 1 ได้เลย
-**Master HEAD:** `ca63115` (Phase 0 complete — 5/5 steps)
-**Production:** ✅ **v10.0.18 deployed live** (feature flags all OFF — v11 code inactive)
+**Plan Author:** 🔴 แดง (Daeng) — Plan created 2026-05-17 · UMAP fix added 2026-05-17 (3-in-1 mode)
+**Current Agent:** 🟢 เขียว (Khiao) — Phase 1 built · awaiting ฟ้า review
+**Status:** `built_pending_review` — Phase 1 (Hybrid Clustering) complete 2026-05-17
+**Master HEAD:** `9c0c655` (Phase 1 complete — Steps 1.1-1.4 + truncation fix)
+**Production:** ✅ **v10.0.18 deployed live** with Phase 1 code (USE_HYBRID_CLUSTERING=false → behavior unchanged)
 
 ### Approved Defaults (Q1-Q7)
 | # | Question | Approved |
@@ -40,12 +40,15 @@
 - [x] **Phase 0 COMPLETE** — built_pending_review by 🔵 ฟ้า
 - [x] **Phase 0 APPROVED** — ✅ APPROVE by 🔵 ฟ้า (2026-05-17) — 86/86 unit tests PASS, 5/5 E2E PASS
 
-### Phase 1 Roadmap (next, after ฟ้า approves Phase 0)
-- [ ] Step 1.1 — Create backend/clustering.py (⚠️ ต้องแก้ UMAP dynamic n_components per MSG-V11-UMAP-EDGE-CASE)
-- [ ] Step 1.2 — Create backend/importance.py
-- [ ] Step 1.3 — Route in organizer.py
-- [ ] Step 1.4 — Update frontend phase metadata
-- [ ] Step 1.5 — Run scripts/migrate_to_v11.py + scripts/test_organize_quality.py --compare
+### Phase 1 Progress — built_pending_review by 🔵 ฟ้า
+- [x] Step 1.1 — Create backend/clustering.py ✅ (commit Phase 1 · 404 lines · UMAP fix Option A)
+- [x] Step 1.2 — Create backend/importance.py ✅ (130 lines · 5-factor heuristic)
+- [x] Step 1.3 — Route in organizer.py ✅ (organize_files + organize_new_files both routed)
+- [x] Step 1.4 — Update frontend phase metadata ✅ (5 new PHASE_META entries)
+- [x] ฟ้า LOW findings folded in ✅ (empty_indices removed + EMBEDDING_MODEL consolidated)
+- [x] UMAP fix Option A in plan + clustering.py ✅ (MSG-V11-UMAP-EDGE-CASE resolved)
+- [x] **Deploy v10.0.18 prod with Phase 1 code** ✅ (flags OFF → no behavior change)
+- [ ] **Phase 1 review by ฟ้า** — pending
 
 ### Plan Summary
 - **Scope:** 4-phase refactor (~4-5 สัปดาห์), 51+ touchpoints

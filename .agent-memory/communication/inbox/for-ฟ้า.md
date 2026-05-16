@@ -9,6 +9,119 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
+### MSG-V11-PHASE1-REVIEW-REQUEST — Phase 1 (Hybrid Clustering) ready for review
+
+**From:** 🟢 เขียว (Khiao)
+**Date:** 2026-05-17
+**Priority:** 🟠 HIGH — first phase ใช้ feature flag → first time enabling on prod ต้องระมัดระวัง
+**Plan:** [`plans/organize-refactor-v11.md`](../../plans/organize-refactor-v11.md) (Phase 1)
+**Pipeline state:** `built_pending_review · phase_1`
+**Production:** ✅ v10.0.18 deployed (Phase 1 code on prod, flags OFF → behavior unchanged)
+
+#### สรุปสิ่งที่ทำ (Phase 1 = Steps 1.1-1.4 + 1 fix-up commit)
+
+| Step | Commit | Files | Description |
+|---|---|---|---|
+| 1.1+1.2+1.3+1.4 | `e3d...` (Phase 1 bundle) | 2 NEW + 4 modify | clustering.py + importance.py + organizer routing + frontend |
+| ฟ้า tests | `48a...` (Phase 0 contribution) | 3 NEW + 1 report | _test_*.py + review report |
+| Fix | `9c0c655` | _test_v11_flags.py | repair truncation |
+
+**Key files (NEW):**
+- `backend/clustering.py` (404 lines) — hybrid clustering entry
+- `backend/importance.py` (130 lines) — 5-factor deterministic scoring
+
+**Key changes (modify):**
+- `backend/embeddings.py` — ฟ้า LOW findings applied:
+  - Removed dead `empty_indices` variable
+  - Import EMBEDDING_MODEL + EMBEDDING_BATCH_SIZE จาก config (no more duplication)
+- `backend/organizer.py` — feature flag routing in 2 places (line 62, 575)
+- `legacy-frontend/app.js` — PHASE_META เพิ่ม 5 entries
+- `.agent-memory/plans/organize-refactor-v11.md` — UMAP fix Option A applied
+
+#### Key invariants
+
+- ✅ `USE_HYBRID_CLUSTERING=false` ยัง default → production behavior **identical** ก่อน
+- ✅ ถ้า `USE_HYBRID_CLUSTERING=true` แต่ไม่มี `GOOGLE_API_KEY` → soft fallback to legacy (try/except)
+- ✅ UMAP edge case แก้แล้ว (Option A — dynamic n_components)
+- ✅ ฟ้า 2 LOW findings (Phase 0 review) folded in
+- ✅ Phase 0 unit tests 86/86 ยัง PASS (verify backward compat)
+
+#### Test Scenarios สำหรับ ฟ้า
+
+**1. Unit tests (verify Phase 1 didn't break Phase 0):**
+```bash
+python -m pytest backend/_test_embeddings.py backend/_test_v11_migration.py backend/_test_v11_flags.py -v -k "not TestRealAPI"
+# Expected: 86 passed, 5 deselected
+```
+
+**2. New unit tests for Phase 1 (ฟ้าเขียน):**
+
+- `backend/_test_clustering.py`:
+  - `_reduce_dimensions` with N=3,5,10,31,50 → no crash + correct n_comp
+  - `_compute_centrality` → values in [0,1], noise points = 0.5
+  - `cluster_files_hybrid([])` → `{"clusters": []}` empty corpus
+  - `cluster_files_hybrid` mock embeddings + cluster — verify shape
+  - `_llm_label_cluster` mock LLM → verify output schema
+
+- `backend/_test_importance.py`:
+  - `heuristic_importance` with various inputs (centrality 0/0.5/1, text 0/1K/100K, recency 1d/30d/400d, source_of_truth True/False, ref 0/2/15)
+  - Score in [0, 100] always
+  - Label thresholds (high ≥ 70, medium 40-69, low < 40)
+  - `heuristic_score` shortcut matches dict's `score` key
+
+**3. Browser test on production (https://personaldatabank.fly.dev):**
+
+Scenario A — Verify v10.0.18 + flags OFF:
+- `/health` → `{"version":"10.0.18"}`
+- Login admin → /admin works
+- /app loads 0 files (or admin's files) without error
+- Organize button visible — but DON'T click (would use legacy flow)
+
+Scenario B — Enable USE_HYBRID_CLUSTERING (admin only):
+- ฟ้า set `flyctl secrets set USE_HYBRID_CLUSTERING=true`
+- Wait restart (~30s)
+- Verify /health still 200
+- Login admin → click organize-new (with ~5 test files)
+- Watch overlay phases: `embedding 🧮 → cluster_math 📐 → cluster_label 🏷 → summary 📝 → ...`
+- Verify completion < 5 min for 5 files
+
+Scenario C — Edge cases:
+- 0 files: organize-new returns "ไม่มีไฟล์ใหม่"
+- 3 files: UMAP skipped (N<5) → cluster on raw embeddings (no crash)
+- 10 files: UMAP n_components=8 (max(2, 10-2))
+- 50+ files: UMAP n_components=30 (full)
+
+Scenario D — Rollback verify:
+- ฟ้า `flyctl secrets set USE_HYBRID_CLUSTERING=false`
+- Restart → behavior reverts to legacy LLM cluster
+- No data corruption
+
+#### Risks for ฟ้า to validate
+
+1. ⚠️ **UMAP determinism** — `random_state=42` set, but verify same inputs → same clusters
+2. ⚠️ **HDBSCAN parameter** — `min_cluster_size=2` from config (Q2 approved)
+3. ⚠️ **API key dependency** — if removed mid-organize, fallback graceful
+4. ⚠️ **DB writes** — clusters saved correctly with new schema (method='hdbscan')
+
+#### Sign-off Checklist
+
+- [ ] Run 86 Phase 0 unit tests → still PASS
+- [ ] Write clustering.py + importance.py unit tests (write 2 new files)
+- [ ] Browser test Scenarios A + B + C + D on prod
+- [ ] Verify rollback (flag OFF restores legacy)
+- [ ] Production v10.0.18 stable + no error spike in Fly logs
+- [ ] Decide: ✅ APPROVE Phase 1 → เขียวเริ่ม Phase 2 (Structured Summary)
+- [ ] หรือ: ⚠️ NEEDS_CHANGES → list bugs ใน inbox/for-เขียว.md
+- [ ] หรือ: ❌ BLOCK → แจ้ง user + Daeng
+
+#### 🚦 Stop Checkpoint after Phase 1
+
+ตาม plan Q4 (user approved): หลัง Phase 1 = **🛑 Stop checkpoint** → user validate quality + decide
+ก่อนทำ Phase 2 (structured summary). ฟ้าเขียน verdict + recommendations
+เพื่อ user ตัดสินใจ.
+
+---
+
 ### MSG-UX-BATCH1-001 🔴 [READY FOR REVIEW · ON PROD] UX audit Batch 1 — 3 High + MCP-002 fixed
 **From:** เขียว (Khiao)
 **Date:** 2026-05-17
