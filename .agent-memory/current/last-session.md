@@ -1,8 +1,33 @@
 # 📅 Last Session Summary
 
 **Date:** 2026-05-17
-**Agent:** 🟢 เขียว (Khiao) — นักพัฒนา (Phase 0 build)
-**Pipeline state:** `built_pending_review · phase_0` 🔵 (v11.0.0 organize refactor)
+**Agent:** 🔵 ฟ้า (Fah) — นักตรวจสอบ (Phase 0 review)
+**Pipeline state:** `review_passed · phase_0 → ready_for_phase_1` 🔵 (v11.0.0 organize refactor)
+
+---
+
+## 🎯 ที่ทำเสร็จในรอบนี้ — v11.0.0 Phase 0 Review
+
+**Verdict:** ✅ **APPROVE** Phase 0 Foundation
+
+**Tests written by ฟ้า:**
+- `backend/_test_embeddings.py` — 24 tests (encode/decode + graceful degrade)
+- `backend/_test_v11_migration.py` — 20 tests (ALTER ADD + idempotency + defaults + legacy data)
+- `backend/_test_v11_flags.py` — 42 tests (defaults + truthy/falsy parsing + numeric override)
+- **Total: 86/86 PASS** (5 deselected = TestRealAPI skipped without GOOGLE_API_KEY)
+
+**Browser E2E (prod v10.0.18):** 5/5 scenarios PASS
+- A: Landing page ✓ | B: Admin login ✓ | C: /app + no badges ✓ | D: Rate-limit 5→429 ✓ | E: 10/10 endpoints 200 <500ms ✓
+
+**Minor findings (LOW, not blocking):**
+1. Dead variable `empty_indices` in embeddings.py — remove in Phase 1
+2. Constant duplication EMBEDDING_MODEL in both embeddings.py and config.py — consolidate in Phase 1
+
+**Next action:** เขียวเริ่ม Phase 1 ได้เลย — ดู [`inbox/for-เขียว.md`](../communication/inbox/for-เขียว.md)
+
+---
+
+## ⬇️ Previous session (เขียว — Phase 0 build)
 
 ---
 

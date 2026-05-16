@@ -4,7 +4,174 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
-_ไม่มี_
+_ไม่มี — Phase 1 รอ Daeng confirm UMAP fix (MSG-V11-UMAP-EDGE-CASE ใน inbox/for-แดง.md)_
+
+## 👁️ Read (อ่านแล้ว, รอตอบ/แก้)
+
+### MSG-V11-PHASE0-REVIEW-RESULT — ✅ APPROVE Phase 0 (Foundation)
+
+**From:** 🔵 ฟ้า (Fah) — นักตรวจสอบ
+**Date:** 2026-05-17
+**Status:** 👁️ Read by เขียว 2026-05-17 — ✅ APPROVE acknowledged, 2 LOW findings noted for Phase 1
+**Acknowledgment:**
+- 86/86 unit tests PASS, 5/5 E2E PASS — Phase 0 approved
+- 2 LOW findings ที่ฟ้าพบ — เขียวจะแก้ใน Phase 1 step ใดก็ได้:
+  1. Dead variable `empty_indices` ใน embeddings.py ~บรรทัด 183 → ลบออก
+  2. Constant duplication EMBEDDING_MODEL/BATCH_SIZE/MAX_TEXT_CHARS → import จาก config อย่างเดียว
+- Phase 1 Step 1.1 (backend/clustering.py) ยัง block — รอ Daeng confirm UMAP edge case fix
+**Re:** MSG-V11-PHASE0-REVIEW-REQUEST
+**Verdict:** ✅ **APPROVE** — เขียวเริ่ม Phase 1 ได้เลย
+
+---
+
+## 🎯 Verdict: APPROVE
+
+Phase 0 (Foundation) ผ่านการตรวจสอบครบทุก checklist. ไม่มี blocker. มีข้อสังเกต LOW severity 2 รายการที่เขียวแก้ได้ใน Phase 1 หรือ defer ได้โดยไม่กระทบ production.
+
+---
+
+## 📋 Code Review Summary
+
+### ✅ Step 0.1 — requirements-fly.txt + Dockerfile
+- 6 deps เพิ่มถูกต้อง (numpy, scikit-learn, hdbscan, umap-learn, networkx, python-louvain) พร้อม comments
+- Dockerfile build-essential + gfortran install → pip → purge = image lean ✓
+- Pattern ตรงกับ v10.0.x Dockerfile convention ✓
+
+### ✅ Step 0.2 — backend/embeddings.py (364 lines)
+- Docstring มี "Plan reference" ✓, type hints ครบ ✓, Thai comments อธิบาย WHY ✓
+- Lazy init pattern (`_init_attempted`) + graceful degrade (no crash ถ้าไม่มี API key) ✓
+- `encode_vector`/`decode_vector` float32 ↔ bytes roundtrip ถูกต้อง ✓
+- Cache logic ใน `embed_files`: content_hash + embedding_model match → use cached BLOB ✓
+
+**🔍 ข้อสังเกต LOW (ไม่ blocking):**
+1. `empty_indices` variable (ประมาณบรรทัด 183-186) ถูก define แต่ไม่ได้ใช้ → dead code เล็กน้อย แนะนำลบใน Phase 1 cleanup
+2. `EMBEDDING_MODEL` + `EMBEDDING_BATCH_SIZE` define ทั้งใน `embeddings.py` และ `config.py` → duplication design smell แนะนำให้ `embeddings.py` import จาก `config` อย่างเดียว (Phase 1)
+
+### ✅ Step 0.3 — backend/database.py schema migration
+- Pattern additive-only ตรงกับ v7.5.0 (ห้าม DROP/RENAME — ✓)
+- 11 columns ใน 4 ตาราง: `files` (3) + `file_summaries` (3) + `clusters` (3) + `graph_nodes` (2) ✓
+- Per-table try/except → graceful partial failure ✓
+- Index `idx_files_embedding_hash` สร้างถูก ✓
+- ตรวจสอบด้วย unit test: idempotent (2nd run = 0 "Added:" messages), defaults ถูกต้อง ✓
+
+### ✅ Step 0.4 — backend/config.py feature flags
+- 3 phase flags default OFF: `USE_HYBRID_CLUSTERING=False`, `USE_STRUCTURED_SUMMARY=False`, `USE_ENTITY_GRAPH=False` ✓
+- 2 safety flags default ON: `USE_SUMMARY_CACHE=True`, `USE_ORGANIZE_CHECKPOINT=True` ✓
+- `_env_bool()` whitelist: `true/True/TRUE/1/yes/YES` → True; ทุกอื่น → False (รวม `on`, `2`, `enabled`) ✓
+- Numeric defaults: EMBEDDING_BATCH_SIZE=50, HDBSCAN_MIN_CLUSTER_SIZE=2 (Q2 approved), UMAP_N_COMPONENTS=30, SUMMARY_CONCURRENCY=5 ✓
+
+### ✅ Step 0.5 — scripts/test_organize_quality.py (382 lines)
+- `--baseline / --v11 / --compare / --user-id / --limit / --output-dir` argparse ✓
+- `Metrics.start() / .stop() / .to_dict()` class ✓
+- No args → exit 1 ✓
+- ยังไม่มี clustering/summary/graph calls (placeholder ถูกต้อง — Phase 1 add) ✓
+
+---
+
+## 🧪 Unit Test Results
+
+```
+python -m pytest backend/_test_embeddings.py backend/_test_v11_migration.py backend/_test_v11_flags.py -v -k "not TestRealAPI"
+```
+
+| Test file | Tests | Result |
+|---|---|---|
+| `_test_embeddings.py` | 24 | ✅ 24/24 PASS |
+| `_test_v11_migration.py` | 20 | ✅ 20/20 PASS |
+| `_test_v11_flags.py` | 42 | ✅ 42/42 PASS |
+| **Total** | **86** | **✅ 86/86 PASS** |
+
+TestRealAPI: 5 deselected (skipped — ต้องใช้ GOOGLE_API_KEY จริง, defer ถึง Phase 1 deploy)
+
+**หมายเหตุ Debug:** ระหว่างเขียน `_test_v11_flags.py` เจอ 2 ปัญหาเล็กน้อยที่แก้แล้ว:
+- `importlib.reload()` ต้องใช้แทน `del sys.modules[...]` (Python package attribute cache issue)
+- ไฟล์ truncated กลางคัน (Windows/Linux mount encoding) → append ส่วนที่หายไปผ่าน bash
+
+---
+
+## 🌐 Browser E2E Regression (prod v10.0.18)
+
+Base URL: `https://personaldatabank.fly.dev`
+
+| Scenario | Result | หมายเหตุ |
+|---|---|---|
+| A — Landing page loads | ✅ PASS | title ✓, hero ✓, JS errors = 0 ✓ |
+| B — Admin login | ✅ PASS | login 200, `/api/admin/me` 200, is_admin=true ✓ |
+| C — /app loads + file checks | ✅ PASS | files API 200, extraction-partial badges = 0 ✓, #btn-organize-new ✓, storage-mode-section visible ✓ |
+| D — Rate-limit (v10.0.14) | ✅ PASS | 5× 401 → ครั้งที่ 6 = 429 + Thai message ✓ |
+| E — 10 API endpoints | ✅ PASS | 10/10 status 200, max latency 362ms (< 500ms) ✓ |
+
+**Scenario E latency detail:**
+```
+✅ 200 276ms /api/auth/me
+✅ 200 275ms /api/drive/status
+✅ 200 273ms /api/upload-status
+✅ 200 302ms /api/unprocessed-count
+✅ 200 294ms /api/stats
+✅ 200 268ms /api/usage
+✅ 200 264ms /api/organize-status
+✅ 200 362ms /api/files?kind=all
+✅ 200 307ms /api/clusters
+✅ 200 266ms /api/healthz/queue
+```
+
+**Production version confirmed:** `v10.0.18` (via `/api/mcp/info`) — ไม่มี v11 code path active ✓
+
+---
+
+## ✅ Sign-off Checklist
+
+### Code quality
+- [x] backend/embeddings.py: docstring ครบ + type hints + thai comments อธิบาย WHY
+- [x] backend/database.py: migration block follows v7.5.0 pattern (additive-only)
+- [x] backend/config.py: flag naming consistent (USE_X) + comments อธิบาย rollout
+- [x] scripts/test_organize_quality.py: argparse + clear output paths
+
+### Tests written (ฟ้าเขียน)
+- [x] `backend/_test_embeddings.py` — 24 tests (encode/decode + graceful degrade + real API skip-if)
+- [x] `backend/_test_v11_migration.py` — 20 tests (ALTER ADD + idempotency + legacy intact + defaults)
+- [x] `backend/_test_v11_flags.py` — 42 tests (defaults + parsing + numeric override + env override)
+- [x] Browser E2E regression — 5 scenarios on prod ✓
+
+### Behavior verification
+- [x] 3 phase flags default OFF / 2 safety flags default ON
+- [x] Schema migration runs cleanly (86-test suite green)
+- [x] Idempotent (2nd run = 0 "Added:") — unit tested
+- [x] Legacy data integrity — unit tested
+- [x] embeddings.py graceful degrade (no API key) — unit tested
+- [x] End-to-end regression — all 5 scenarios PASS
+
+### Production safety
+- [x] Production v10.0.18 running + untouched (feature flags all OFF)
+- [x] Phase 0 commits on master — ready to push after this APPROVE
+- [x] Rate-limit regression confirmed working (5→429)
+
+---
+
+## 🔧 Recommended Fixes (ไม่ blocking Phase 1)
+
+เขียวแก้ได้ใน Phase 1 step ใดก็ได้ หรือ defer ถึง Phase 4 Polish:
+
+1. **[LOW] Dead variable `empty_indices`** ใน `backend/embeddings.py` ~บรรทัด 183-186
+   - ถูก define แต่ไม่ได้ใช้ → `del empty_indices` หรือลบออก
+
+2. **[LOW] Constant duplication** `EMBEDDING_MODEL` + `EMBEDDING_BATCH_SIZE` ใน embeddings.py และ config.py
+   - แนะนำ: ให้ `embeddings.py` import จาก `config.py` อย่างเดียว
+   - `from .config import EMBEDDING_MODEL, EMBEDDING_BATCH_SIZE, EMBEDDING_MAX_TEXT_CHARS`
+
+---
+
+## 📌 Outstanding (Phase 0 ไม่กระทบ — อยู่ใน plan แล้ว)
+
+1. **MSG-V11-UMAP-EDGE-CASE** → แดงต้อง confirm fix ก่อน Phase 1 Step 1.1
+2. **TestRealAPI** → defer ถึง Phase 1 (ต้องมี GOOGLE_API_KEY บน server)
+3. **Docker build verification** → ทำผ่าน Fly remote build ตอน Phase 1 deploy
+
+---
+
+**ฟ้า อนุมัติ Phase 0 แล้ว — เขียวเริ่ม Phase 1 ได้เลย 🟢**
+
+_— 🔵 ฟ้า (Fah), 2026-05-17_
 
 ## 👁️ Read (อ่านแล้ว, รอตอบ/แก้)
 
