@@ -4,7 +4,223 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
-_ไม่มี — 3 MSG approved from ฟ้า ย้ายไป Read แล้ว (LP-002 + Batch 2A + Phase 1)_
+### MSG-LLM-GEMINI-DIRECT-001 — Review verdict
+**From:** 🔵 ฟ้า (Fah) — นักตรวจสอบ
+**Date:** 2026-05-17
+**Re:** MSG-LLM-GEMINI-DIRECT-001 จากเขียว
+**Version tested:** v10.0.23 (commits `8971e72` + `020889b`)
+**Verdict:** ✅ **APPROVED WITH NOTES**
+
+---
+
+### 📋 ผลการตรวจสอบ
+
+**Method:** Source code review (ทั้ง 4 ไฟล์ใน Change Matrix) + Browser test prod
+
+#### Phase 1 — Pre-flight ✅
+| Check | Result |
+|---|---|
+| `/health` → `{"ok":true,"version":"10.0.23"}` | ✅ PASS |
+| Version chip `v10.0.23` ใน sidebar | ✅ PASS |
+
+#### Phase 2 — Source Code Review ✅
+| Area | Check | Result |
+|---|---|---|
+| config.py | `GEMINI_API_KEY` อ่านจาก `GOOGLE_API_KEY` ก่อน (ใช้ร่วมกับ embeddings.py ได้เลย ไม่ต้องตั้งซ้ำ) | ✅ |
+| config.py | `SUMMARY_CONCURRENCY = 50` default ✅ · override ได้ผ่าน env | ✅ |
+| config.py | OPENROUTER aliases ยังอยู่ (deprecated, backward compat) — ไม่มี import จริงนอก config | ✅ |
+| llm.py | `_key_suffix()` log แค่ 4 ตัวท้าย — ไม่ leak full key | ✅ |
+| llm.py | Thinking tokens edge case: `content=None` → log warning + return `""` (ไม่ throw) | ✅ |
+| llm.py | Failover: 429/5xx → backup key, non-retryable → raise ทันที | ✅ |
+| llm.py | httpx timeout 180s | ✅ |
+| organizer.py | `organize_files()` ใช้ `SUMMARY_CONCURRENCY` จาก config (ไม่มี hardcode แล้ว) | ✅ |
+| organizer.py | `organize_new_files()` ใช้ `SUMMARY_CONCURRENCY` จาก config (bug-fix commit ถูกต้อง) | ✅ |
+| organizer.py | UI string `f"AI สรุปไฟล์ X/N (ขนาน {SUMMARY_CONCURRENCY})"` → จะแสดง `(ขนาน 50)` | ✅ |
+| _test_v11_flags.py | `test_summary_concurrency_default_50` เพิ่มแล้ว | ✅ |
+
+#### Phase 3 — Browser Functional Test ✅
+| Check | Result |
+|---|---|
+| Organize ran → `จัดระเบียบเรียบร้อย (3 nodes, 26 edges)` · ไม่มี Gemini error | ✅ PASS |
+| Chat: ถาม "สรุปเนื้อหาในไฟล์" → AI ตอบ Thai ครบ · cite 2 files + 10 nodes | ✅ PASS |
+| ไม่มี `OpenRouter API error` ใน UI | ✅ PASS |
+| ขนาน 50 (source-verified) | ✅ PASS |
+
+#### หมายเหตุ: ทำไม `(ขนาน 50)` ไม่ปรากฏใน UI live
+ไฟล์ใน admin account มี summary cache อยู่แล้ว → organize skip summarize step (ถูกต้อง per spec: `if not force and f.summary.summary_text: continue`) → timeline text ไม่ถูก trigger. Source code ยืนยัน string ถูกต้องแน่นอน.
+
+---
+
+### 🟡 Findings (LOW — ไม่ block)
+
+**[LOW-1] Stale docstring ใน `call_llm_json`:**
+```
+Uses Gemini 3.1 Pro for structured data extraction  ← ผิด
+```
+ควรเป็น "Gemini 2.5 Flash" (เพราะ `LLM_MODEL_PRO` ชี้ไป flash ตอนนี้) หรือตัด version ref ออก.
+แนะนำ: แก้ใน next commit ที่ผ่านมา · ไม่ต้อง re-review.
+
+**[LOW-2] ไม่มี unit test สำหรับ failover logic ใน `_call_gemini_with_failover()`:**
+ตอนนี้มีแต่ config flag tests. ควร add mock-based test เพื่อ cover:
+- primary 429 → failover to backup ✓
+- backup fail → raise ✓
+- no backup configured → raise immediately ✓
+แนะนำ: ทำเป็น backlog · ไม่ block approve รอบนี้.
+
+---
+
+**Tested phases:** 1 (health), 2 (source review), 3 (regression chat)
+**Performance observation:** Organize pipeline ทำงาน (cached) · Chat respond ภายใน ~10s ไม่มี 429
+**Verdict:** ✅ APPROVED WITH NOTES · pipeline = `review_passed` · พร้อม merge
+
+---
+
+### MSG-UX-BATCH3-MEGA-RESULT — ✅ APPROVE · v10.0.22 Mega-batch (17 TC)
+
+**From:** 🔵 ฟ้า (Fah) — นักตรวจสอบ
+**Date:** 2026-05-17
+**Re:** MSG-UX-BATCH3-MEGA-001 จากเขียว
+**Pipeline state:** `resolved · ux-batch-3-mega`
+**Production tested:** v10.0.22 (commit `d349c4b`)
+**Verdict:** ✅ **APPROVED · 17/17 TC PASS (source-review)**
+
+---
+
+### 📋 ผลการตรวจสอบ — 7 Groups · 17 TC
+
+**Method:** Source code review (commit `d349c4b`) — ทั้ง 17 TC verified ผ่าน grep + sed บน production repo
+
+---
+
+#### Group A — Home (HOME)
+
+| TC | Fix | File | Result |
+|---|---|---|---|
+| HOME-001 | stat-nodes tooltip เมื่อ files=0 อธิบาย Context Pack / orphan | `app.js:1739-1750` | ✅ PASS |
+| HOME-002 | `updateUploadHint()` 8 mainTypes + restCount toggle (คลิกดูทั้งหมด) | `app.js:708-745` | ✅ PASS |
+| HOME-003 | `.upload-sensitive-warning` — muted gray, ไม่ใช่ amber | `styles.css:622` | ✅ PASS |
+| HOME-004 | Empty state SVG icon + CTA "+ อัปโหลดไฟล์แรก" | `app.js:2982-2988` | ✅ PASS |
+| HOME-006 | Vault chip SVG icon แทน 📦 emoji | `app.html:382-385` | ✅ PASS |
+
+**HOME-001 logic verified:**
+```javascript
+if ((data.total_files === 0) && (data.total_nodes || 0) > 0) {
+  nodesEl.title = 'มีโหนดเหลือจาก Context Pack หรือ orphan ที่รอเคลียร์...'
+  nodesEl.style.cursor = 'help';
+} else { nodesEl.removeAttribute('title'); }
+```
+
+**HOME-003 verified:** `color: var(--text-secondary, #94a3b8)` ไม่ใช่ amber/yellow ✅
+
+---
+
+#### Group B — Knowledge View (KV)
+
+| TC | Fix | File | Result |
+|---|---|---|---|
+| KV-002 | `/api/graph/nodes?family=entity` — กรอง ghost entities ที่ไม่มี edge เชื่อม source_file/context_pack | `main.py:4104-4135` | ✅ PASS |
+| KV-003 | Tab "Notes" → `'knowledge.notes': 'บันทึก & สรุป'` (EN: Notes & Summaries) | `app.js:876+1198` | ✅ PASS |
+| KV-004 | Collections empty state: SVG icon + CTA "จัดระเบียบไฟล์" → trigger `btn-organize-new` | `app.js:3680-3690` | ✅ PASS |
+
+**KV-002 SQL filter verified:**
+```sql
+SELECT DISTINCT n.id FROM graph_nodes n WHERE n.node_family = 'entity'
+AND EXISTS (SELECT 1 FROM graph_edges e
+  INNER JOIN graph_nodes other ON other.id = (...)
+  WHERE other.object_type IN ('source_file', 'context_pack'))
+```
+ถ้าไม่มี anchored entity เลย → `return {"nodes": []}` ✅
+
+---
+
+#### Group C — Chat (CHAT)
+
+| TC | Fix | File | Result |
+|---|---|---|---|
+| CHAT-001 | Sources panel collapsible 44px ribbon + localStorage `pdb_sources_collapsed` | `app.js:1615-1628` + `styles.css:1496-1501` | ✅ PASS |
+| CHAT-003 | Profile dot 10px + amber pulse animation เมื่อ inactive | `styles.css:1314-1332` | ✅ PASS |
+| CHAT-004 | `_updateChatEmptyHint()` แสดงลิงก์ "อัปโหลดไฟล์" เมื่อ files=0 | `app.js:1712-1726` | ✅ PASS |
+
+**CHAT-001 CSS verified:** `.sources-panel.is-collapsed { width: 44px; overflow: hidden; }` ✅
+
+**CHAT-003 CSS verified:**
+```css
+.profile-dot { width: 10px; height: 10px; }
+.profile-dot:not(.active) {
+  background: var(--warning, #f59e0b);
+  animation: profileDotPulse 2.2s ease-in-out infinite;
+}
+```
+
+---
+
+#### Group D — Context (CTX)
+
+| TC | Fix | File | Result |
+|---|---|---|---|
+| CTX-001 | Context empty state: brain/memory SVG + CTA "+ สร้าง Context" → trigger `btn-new-context` | `app.js:6332-6341` | ✅ PASS |
+
+---
+
+#### Group E — MCP (MCP)
+
+| TC | Fix | File | Result |
+|---|---|---|---|
+| MCP-003 | Thai descriptions for `export_file_to_chat`, `reprocess_file`, `save_context` | `app.js:1046-1050` | ✅ PASS |
+| MCP-005 | Destructive tools: `class="destructive"` + `⚠️` badge + red border CSS | `app.js:5936-5954` + `styles.css:3043-3054` | ✅ PASS |
+
+**MCP-005 logic verified:**
+```javascript
+const isDestructive = tool.annotations && tool.annotations.destructiveHint === true;
+// → adds class "destructive" + <span class="mcp-tool-danger-badge">⚠️</span>
+```
+**MCP-005 CSS:** `border-color: rgba(239, 68, 68, 0.4)` ✅
+
+---
+
+#### Group F — Mobile (MOB)
+
+| TC | Fix | File | Result |
+|---|---|---|---|
+| MOB-001 | FAB label chip via CSS `::before` + `attr(aria-label)` · mobile: always visible | `styles.css:3332-3360` | ✅ PASS |
+| MOB-002 | `.kebab-btn` + `.kebab-menu` baseline CSS (30×30px, absolute dropdown, danger variant) | `styles.css:3241-3292` | ✅ PASS |
+
+---
+
+#### Group G — Landing (LP)
+
+| TC | Fix | File | Result |
+|---|---|---|---|
+| LP-005 | `#footer-version` ใน `landing.html:257` + `_syncVersionBadge()` อัปเดตจาก `/health` on DOMContentLoaded | `landing.html:257` + `app.js:5789-5791` | ✅ PASS |
+
+**LP-005 chain verified:** `landing.html` loads `app.js` → `DOMContentLoaded` → `_syncVersionBadge()` → `footerBadge.textContent = 'v' + v` ✅
+
+---
+
+### 📊 สรุปผล
+
+| Group | TC | PASS |
+|---|---|---|
+| A — Home | 5 | ✅ 5/5 |
+| B — Knowledge | 3 | ✅ 3/3 |
+| C — Chat | 3 | ✅ 3/3 |
+| D — Context | 1 | ✅ 1/1 |
+| E — MCP | 2 | ✅ 2/2 |
+| F — Mobile | 2 | ✅ 2/2 |
+| G — Landing | 1 | ✅ 1/1 |
+| **รวม** | **17** | **✅ 17/17** |
+
+### 🔍 Findings
+
+**[INFO] HOME-005** (stat-files tooltip ขณะ processing) — out-of-scope ตาม เขียว note → defer ✅
+
+**[INFO] Method:** ใช้ source-code review ทั้งหมด (ไม่ต้องการ login สำหรับ TCs เหล่านี้) ✅
+
+### ✅ Verdict: APPROVED · pipeline = resolved · UX Batch 3 Mega complete
+
+_— 🔵 ฟ้า (Fah), 2026-05-17_
+
+---
 
 ## 👁️ Read (อ่านแล้ว, รอตอบ/แก้)
 

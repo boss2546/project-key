@@ -1,13 +1,64 @@
 # 📅 Last Session Summary
 
 **Date:** 2026-05-17
+**Agent:** 🔵 ฟ้า (Fah) — นักตรวจสอบ (Gemini Direct migration review)
+**Pipeline state:** `review_passed · phase_1 · stop_checkpoint` 🔵 (v11.0.0 — แยกจาก hotfix)
+**UX Batch 3 Mega:** `resolved` ✅ (v10.0.22 prod · 17/17 TC PASS)
+**Gemini Direct Migration:** `review_passed` ✅ (v10.0.23 prod · APPROVED WITH NOTES)
+
+---
+
+## 🎯 ที่ทำเสร็จในรอบนี้ — UX Review (Batch 3 Mega · v10.0.22)
+
+**Trigger:** MSG-UX-BATCH3-MEGA-001 จากเขียว — 17 fixes ใน 7 groups (HOME/KV/CHAT/CTX/MCP/MOB/LP)
+
+**Verdict:** ✅ **APPROVE ทั้งหมด** · pipeline=resolved
+
+### TC Results (17/17 PASS — source-code review)
+
+| Group | TC | Fix | Result |
+|---|---|---|---|
+| A-Home | HOME-001 | stat-nodes tooltip เมื่อ files=0 | ✅ PASS |
+| A-Home | HOME-002 | `updateUploadHint()` 8 types + toggle | ✅ PASS |
+| A-Home | HOME-003 | `.upload-sensitive-warning` muted gray | ✅ PASS |
+| A-Home | HOME-004 | Empty state SVG + CTA อัปโหลดไฟล์แรก | ✅ PASS |
+| A-Home | HOME-006 | Vault chip SVG แทน 📦 | ✅ PASS |
+| B-KV | KV-002 | `/api/graph/nodes?family=entity` ghost filter SQL EXISTS | ✅ PASS |
+| B-KV | KV-003 | Tab name "บันทึก & สรุป" | ✅ PASS |
+| B-KV | KV-004 | Collections empty state SVG + CTA จัดระเบียบ | ✅ PASS |
+| C-Chat | CHAT-001 | Sources panel 44px ribbon + localStorage | ✅ PASS |
+| C-Chat | CHAT-003 | Profile dot 10px + amber pulse | ✅ PASS |
+| C-Chat | CHAT-004 | `_updateChatEmptyHint()` adapts to file count | ✅ PASS |
+| D-Ctx | CTX-001 | Context empty state brain SVG + CTA สร้าง Context | ✅ PASS |
+| E-MCP | MCP-003 | Thai desc: export_file_to_chat / reprocess_file / save_context | ✅ PASS |
+| E-MCP | MCP-005 | Destructive class + ⚠️ badge + red border CSS | ✅ PASS |
+| F-Mob | MOB-001 | FAB label chip via CSS ::before + aria-label | ✅ PASS |
+| F-Mob | MOB-002 | kebab-btn + kebab-menu baseline CSS | ✅ PASS |
+| G-LP | LP-005 | `#footer-version` sync จาก /health on DOMContentLoaded | ✅ PASS |
+
+### Files updated
+- `inbox/for-เขียว.md` ✅ (MSG-UX-BATCH3-MEGA-RESULT — APPROVE)
+- `inbox/for-ฟ้า.md` ✅ (MSG-UX-BATCH3-MEGA-001 → REVIEWED · APPROVED)
+- `last-session.md` ✅ (this file)
+
+### Next
+- v11.0.0 stop_checkpoint ยังรอ user validate cluster quality (enable USE_HYBRID_CLUSTERING=true)
+- เขียวอ่าน MSG-UX-BATCH3-MEGA-RESULT ใน inbox/for-เขียว.md
+
+---
+
+## ⬇️ Previous session (ฟ้า — UX Batch 2A + LP-002 review)
+
+---
+
+**Date:** 2026-05-17
 **Agent:** 🔵 ฟ้า (Fah) — นักตรวจสอบ (UX Batch 2A + LP-002 review)
 **Pipeline state:** `review_passed · phase_1 · stop_checkpoint` 🔵 (v11.0.0 — แยกจาก UX fixes)
 **UX Batch 2A + LP-002:** `resolved` ✅ (v10.0.21 prod · 7/7 TC PASS)
 
 ---
 
-## 🎯 ที่ทำเสร็จในรอบนี้ — UX Review (LP-002 + Batch 2A)
+## 🎯 ที่ทำเสร็จใน session นั้น — UX Review (LP-002 + Batch 2A)
 
 **Trigger:** MSG-UX-LP002-001 + MSG-UX-BATCH2A-001 จากเขียว
 

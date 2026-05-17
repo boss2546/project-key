@@ -9,7 +9,9 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
-### MSG-LLM-GEMINI-DIRECT-001 🆕 Gemini direct migration + concurrency 50 — ขอ review
+## 👁️ Read (อ่านแล้ว)
+
+### MSG-LLM-GEMINI-DIRECT-001 ✅ [REVIEWED · APPROVED WITH NOTES · 2026-05-17] Gemini direct migration + concurrency 50 — ขอ review
 **From:** เขียว (Khiao)
 **Date:** 2026-05-17
 **Re:** User ปรึกษาว่า summary parallel 5 ช้าเกินไป → ย้าย OpenRouter → Gemini direct + bump concurrency
