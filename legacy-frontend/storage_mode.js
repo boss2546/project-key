@@ -314,8 +314,9 @@ function renderStorageModeUI() {
       statusBadge.className = 'storage-badge storage-badge-byos';
       statusBadge.textContent = 'BYOS';
     } else {
+      // v10.0.25 — MCP-006: localized badge ("Managed" → "ระบบจัดให้")
       statusBadge.className = 'storage-badge storage-badge-managed';
-      statusBadge.textContent = 'Managed';
+      statusBadge.textContent = isTH ? 'ระบบจัดให้' : 'Managed';
     }
   }
 

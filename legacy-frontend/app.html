@@ -9,9 +9,9 @@
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
  <script src="https://d3js.org/d3.v7.min.js"></script>
- <link rel="stylesheet" href="/legacy/shared.css?v=10.0.24">
- <link rel="stylesheet" href="/legacy/styles.css?v=10.0.24">
- <link rel="stylesheet" href="/legacy/landing.css?v=10.0.24">
+ <link rel="stylesheet" href="/legacy/shared.css?v=10.0.25">
+ <link rel="stylesheet" href="/legacy/styles.css?v=10.0.25">
+ <link rel="stylesheet" href="/legacy/landing.css?v=10.0.25">
 </head>
 <body>
  <!-- ┌────────────────────────────────────────────────────────────┐
@@ -142,7 +142,7 @@
  </div>
  <div class="logo-text-area">
  <span class="logo-text">Personal Data Bank</span>
- <span class="logo-version" id="logo-version">v10.0.24</span>
+ <span class="logo-version" id="logo-version">v10.0.25</span>
  </div>
  </div>
  </div>
@@ -478,9 +478,9 @@
 
  <!-- Knowledge Tabs -->
  <div class="knowledge-tabs">
- <button class="tab-btn active" data-tab="collections" data-i18n="knowledge.collections">Collections</button>
- <button class="tab-btn" data-tab="notes" data-i18n="knowledge.notes">Notes & Summaries</button>
- <button class="tab-btn" data-tab="packs" data-i18n="knowledge.packs">Context Packs</button>
+ <button class="tab-btn active" data-tab="collections" data-i18n="knowledge.collections">คอลเลกชัน</button>
+ <button class="tab-btn" data-tab="notes" data-i18n="knowledge.notes">บันทึกและสรุป</button>
+ <button class="tab-btn" data-tab="packs" data-i18n="knowledge.packs">ชุดบริบท</button>
  </div>
 
  <div class="knowledge-content" id="knowledge-content">
@@ -773,7 +773,7 @@
  <div class="chat-messages" id="chat-messages">
  <div class="welcome-message">
  <h2 data-i18n="chat.welcome">Hi! Ask anything about your data</h2>
- <p data-i18n="chat.welcomeSub">AI uses Profile, Context Packs, Files, and Knowledge Graph to answer</p>
+ <p data-i18n="chat.welcomeSub">AI ใช้โปรไฟล์ ชุดบริบท ไฟล์ และกราฟความรู้ในการตอบ</p>
  <div class="context-layers" id="context-layers">
  <span class="layer-chip layer-profile"> Profile</span>
  <span class="layer-chip layer-pack"> Packs</span>
@@ -807,7 +807,7 @@
  <div id="src-profile" class="source-content">—</div>
  </div>
  <div class="source-section">
- <h4> Context Packs</h4>
+ <h4> ชุดบริบท</h4>
  <div id="src-packs" class="source-content">—</div>
  </div>
  <div class="source-section">
@@ -1150,7 +1150,7 @@
  </div>
  <div id="usage-bars-container"></div>
  </div>
- <!-- v10.0.24 — PROF-003: Group Storage + LINE under unified "Integrations" header -->
+ <!-- v10.0.25 — PROF-003: Group Storage + LINE under unified "Integrations" header -->
  <div class="profile-section-header" data-i18n="profile.integrationsTitle"> การเชื่อมต่อ</div>
  <!-- Storage Mode Section (BYOS v7.0.0) -->
  <div class="storage-mode-section" id="storage-mode-section">
@@ -1161,8 +1161,8 @@
     <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
     <line x1="12" y1="22.08" x2="12" y2="12"/>
    </svg>
-   <span class="storage-mode-title">Storage Mode</span>
-   <span class="storage-badge storage-badge-managed" id="storage-mode-badge">Managed</span>
+   <span class="storage-mode-title" data-i18n="storage.title">โหมดจัดเก็บข้อมูล</span>
+   <span class="storage-badge storage-badge-managed" id="storage-mode-badge">ระบบจัดให้</span>
   </div>
  </div>
  <div class="storage-mode-body">
@@ -1215,9 +1215,9 @@
  </div>
  </div>
  <hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:16px 0;">
- <!-- v10.0.24 — PROF-003: section header to separate profile content from integrations above -->
+ <!-- v10.0.25 — PROF-003: section header to separate profile content from integrations above -->
  <div class="profile-section-header" data-i18n="profile.aboutTitle"> ข้อมูลส่วนตัว</div>
- <!-- v10.0.24 — PROF-002: tip header above the 5 free-text fields -->
+ <!-- v10.0.25 — PROF-002: tip header above the 5 free-text fields -->
  <div class="profile-fields-tip" data-i18n="profile.fieldsTip"> ยิ่งกรอกละเอียด AI ยิ่งตอบได้ตรงกับคุณ — ทุกช่องไม่บังคับ ใส่เท่าที่อยากบอก</div>
  <div class="form-group">
  <label data-i18n="profile.identity">Who am I</label>
@@ -1437,10 +1437,10 @@
  <!-- END guide block -->
 
 
- <script src="/legacy/dev-logger.js?v=10.0.24"></script>
- <script src="/legacy/storage_mode.js?v=10.0.24"></script>
- <script src="/legacy/line_ui.js?v=10.0.24"></script>
- <script src="/legacy/app.js?v=10.0.24"></script>
- <script src="/legacy/landing.js?v=10.0.24"></script>
+ <script src="/legacy/dev-logger.js?v=10.0.25"></script>
+ <script src="/legacy/storage_mode.js?v=10.0.25"></script>
+ <script src="/legacy/line_ui.js?v=10.0.25"></script>
+ <script src="/legacy/app.js?v=10.0.25"></script>
+ <script src="/legacy/landing.js?v=10.0.25"></script>
 </body>
 </html>

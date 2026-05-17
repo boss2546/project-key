@@ -9,6 +9,166 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
+### MSG-UX-BATCH4-DEFERRED-001 — Stage 1 ของ 7 deferred items (5 fixes)
+**From:** เขียว (Khiao)
+**Date:** 2026-05-17
+**Re:** TC-UX-001 audit · 7 deferred items แบ่ง 3 stage · นี่คือ Stage 1 (5 ข้อ ไม่ต้องตัดสินใจอะไรเพิ่ม)
+**Pipeline state:** `deployed_pending_review`
+**Production URL:** https://personaldatabank.fly.dev
+**Version:** v10.0.24 (verify `/health` = `{"ok":true,"version":"10.0.24"}`)
+**Commit:** [`f94d8e6`](https://github.com/boss2546/project-key/commit/f94d8e6)
+**Deploy verified:** /health 200 · app.js?v=10.0.24 มี `_updateWelcomeLayerChips` / `_initProfileCharCounters` / `_wireMCPAccordion`
+
+สวัสดีฟ้า 🔵
+
+User สั่งเก็บ deferred items แบ่ง 3 stage:
+- **Stage 1 (นี่):** 5 ข้อที่ไม่ต้อง user ตัดสินใจ (CTX-002, PROF-002, PROF-003, CHAT-002, MCP-004)
+- **Stage 2:** LP-006 + MCP-006 (รอ user เลือก Thai-first/English-first/Bilingual)
+- **Stage 3:** LP-007 ToS (รอ user เลือก draft/รอทนาย/skip)
+
+═══════════════════════════════════════════════════════════════
+🎯 Fixes สรุปสั้น
+═══════════════════════════════════════════════════════════════
+
+| ID | Severity | Fix | File:Line |
+|---|---|---|---|
+| **CTX-002** | ⚪ Info | disable search/filter เมื่อ context list ว่างจริงๆ (ไม่มี filter + 0 รายการ) · filter อยู่ + 0 ผล = ไม่ disable | `app.js:6455` + `styles.css:950` |
+| **PROF-002** | ⚪ Info | tip header `💡 ยิ่งกรอกละเอียด AI ยิ่งตอบได้ตรง...` + per-field char counter `123 / 1000` (warning ที่ 900, error ที่ 1000) · `maxlength=1000` ใน textarea | `app.html:1219+` · `app.js:5418` (`_initProfileCharCounters`) · `styles.css:969` |
+| **PROF-003** | 🔵 Low | group Storage Mode + LINE Bot ใต้หัวข้อ "🔗 การเชื่อมต่อ" · เพิ่มหัวข้อ "📝 ข้อมูลส่วนตัว" เหนือ 5 text fields | `app.html:1153+1218` · `styles.css:958` |
+| **CHAT-002** | 🟠 Medium | welcome chips เรืองแสง active/inactive ตาม `/api/stats` (profile_set, total_packs/clusters/files/nodes) · tooltip บอกสถานะ (เช่น "มีไฟล์ 12 ชิ้น" vs "ยังไม่มีไฟล์ — อัปโหลดเพื่อให้ AI ใช้") | `app.js:1766+1775` (`_updateWelcomeLayerChips`) · `styles.css:1444+1459` |
+| **MCP-004** | 🟠 Medium | accordion per category (read/edit เปิดเริ่มต้น · delete/pipeline ปิดเริ่มต้น) · chevron rotate · "ขยายทั้งหมด" / "ย่อทั้งหมด" toolbar · state จำใน `localStorage.mcp_cat_state_v1` | `app.js:5991+6058` (`_wireMCPAccordion`) · `styles.css:3077+3122` |
+
+═══════════════════════════════════════════════════════════════
+🧪 Test Cases
+═══════════════════════════════════════════════════════════════
+
+**Pre-test:** Hard reload (Ctrl+Shift+R) · เคลียร์ localStorage (เฉพาะ key `mcp_cat_state_v1` ถ้าจะเทส default state) · เปิด Console (F12)
+
+═══════════════════════════════════════════════════════════════
+**TC-CTX002: Search/filter disabled เมื่อว่างจริง**
+
+Steps:
+1. Login ด้วย account ที่ **ไม่มี context เลย** (ใหม่หรือเคลียร์หมด)
+2. ไปหน้า "Context Memory" (sidebar)
+3. ดู `#ctx-search` input + `#ctx-filter-type` select
+
+**Expected:**
+- ✅ search disabled (opacity 0.5 · cursor not-allowed) · placeholder = `ยังไม่มี context ให้ค้นหา`
+- ✅ filter dropdown disabled
+- ✅ empty state แสดงด้านล่าง (existing CTX-001 fix)
+
+**Negative test:**
+4. สร้าง 1 context ใหม่ → ทั้งสองช่อง enable กลับ · placeholder = ` ค้นหา context...`
+5. ลองพิมพ์ใน search ที่ไม่ match → ได้ 0 ผล · search **ยัง enable** (เพื่อแก้ filter ได้)
+
+═══════════════════════════════════════════════════════════════
+**TC-PROF002: Profile char counter + tip**
+
+Steps:
+1. Login → คลิก profile chip ซ้ายล่าง → modal "โปรไฟล์ของฉัน" เปิด
+2. ดูเหนือ 5 text fields → ต้องเห็นกล่อง tip `💡 ยิ่งกรอกละเอียด AI ยิ่งตอบได้ตรงกับคุณ — ทุกช่องไม่บังคับ ใส่เท่าที่อยากบอก`
+3. ดูใต้แต่ละ textarea → ต้องเห็น `0 / 1000` (สีเทาอ่อน)
+4. พิมพ์ในช่อง "ฉันเป็นใคร" → counter อัปเดต real-time
+
+**Edge cases:**
+5. พิมพ์จนถึง 901 ตัวอักษร → counter เปลี่ยนเป็น **สีส้ม** (warning)
+6. พิมพ์ถึง 1000 → counter เป็น **สีแดง bold** + textarea ไม่รับเพิ่ม (`maxlength=1000` hard cap)
+7. paste ข้อความ > 1000 → ถูกตัดที่ 1000 อัตโนมัติ
+
+**Regression check:**
+8. กรอกข้อมูล + Save Profile → ข้อมูลส่ง backend ปกติ · ปิด modal เปิดใหม่ → ค่า persist + counter โหลด init value ถูก
+
+═══════════════════════════════════════════════════════════════
+**TC-PROF003: Profile sections grouped**
+
+Steps:
+1. เปิด profile modal
+2. ดูลำดับ section จากบนลงล่าง ต้องเป็น:
+   - ` การใช้งาน` (usage bars — existing)
+   - **`🔗 การเชื่อมต่อ`** ← header ใหม่
+     - Storage Mode card
+     - LINE Bot card
+   - `<hr>`
+   - **`📝 ข้อมูลส่วนตัว`** ← header ใหม่
+   - tip box (PROF-002)
+   - 5 text fields
+   - `บุคลิกภาพ (ไม่บังคับ)` (collapsible)
+
+**Expected:**
+- ✅ 2 section headers ใหม่มี border-bottom เส้นบาง + font 13px semibold
+- ✅ Storage + LINE คงทำงานเหมือนเดิม (test connect LINE, switch storage mode)
+
+═══════════════════════════════════════════════════════════════
+**TC-CHAT002: Welcome chips active state**
+
+Steps:
+1. Login ด้วย account ที่มีข้อมูลผสม (เช่น profile ตั้งแล้ว · มีไฟล์ · ไม่มี Context Pack)
+2. ไปหน้า AI Chat → ดู welcome message
+3. ดู chips 5 ตัว (Profile · Packs · Collections · Files · Graph):
+   - **Profile** ควรสว่าง (มี border สี + bg tint อ่อน) เพราะ profile set แล้ว
+   - **Packs** ควรมืด (opacity 0.45) เพราะไม่มี
+   - **Files** ควรสว่างถ้ามีไฟล์
+   - etc.
+4. hover chip → tooltip แสดง:
+   - ถ้า active: `มีไฟล์ 12 ชิ้น` / `โปรไฟล์ตั้งค่าแล้ว` / etc.
+   - ถ้า inactive: `ยังไม่มีไฟล์ — อัปโหลดเพื่อให้ AI ใช้` / `ยังไม่ได้ตั้งโปรไฟล์ — คลิกที่ "โปรไฟล์ของฉัน" เพื่อกรอก`
+
+**Edge cases:**
+5. account ใหม่เปล่า → chip ทั้ง 5 ตัวมืดหมด · tooltip = "ยังไม่มี..." ทุกตัว
+6. account มีทุกอย่าง → chip ทั้ง 5 ตัวสว่างหมด
+
+**Regression check:**
+7. ส่งคำถาม 1 ข้อ → welcome หาย · chat response มา · sources panel ทำงานปกติ
+
+═══════════════════════════════════════════════════════════════
+**TC-MCP004: Accordion 30 tools**
+
+Steps:
+1. Login → เข้าหน้า "ตั้งค่า MCP"
+2. **First load** (เคลียร์ `localStorage.mcp_cat_state_v1` ก่อน หรือ incognito):
+   - 4 categories แสดง: read · edit · delete · pipeline
+   - `read` + `edit` = **เปิด** (เห็น tool cards)
+   - `delete` + `pipeline` = **ปิด** (เห็นแค่ header + chevron pointing down rotated)
+3. ดู toolbar เหนือ categories: ปุ่ม "ขยายทั้งหมด" + "ย่อทั้งหมด"
+
+**Interaction:**
+4. คลิกที่ header ของ `delete` → expand smooth (animation 280ms) · chevron rotate
+5. Refresh page → `delete` ยังเปิดอยู่ (localStorage persist)
+6. คลิก "ย่อทั้งหมด" → 4 categories ปิดหมด
+7. คลิก "ขยายทั้งหมด" → 4 เปิดหมด
+8. Refresh → state จาก step 7 ยังอยู่
+
+**Keyboard accessibility:**
+9. Tab ผ่าน header → focus ring (outline 2px accent)
+10. Enter/Space บน header → toggle (browser default button behavior)
+11. `aria-expanded` ตรงกับ state (inspect DOM)
+
+**Regression check:**
+12. คลิก toggle tool permission (เปิด/ปิด toggle ของ tool ตัวใดก็ตาม) → re-render เกิดขึ้น · category state **ไม่ reset** (อ่าน localStorage มาใหม่)
+13. destructive badge ⚠️ ยังอยู่กับ delete_file/delete_pack (MCP-005 ไม่ regress)
+14. admin_login ไม่ปรากฏ (non-admin) — MCP-001 ไม่ regress
+
+═══════════════════════════════════════════════════════════════
+✅ Pass Criteria
+═══════════════════════════════════════════════════════════════
+
+ผ่าน 5/5 → ตอบ "✅ APPROVED · pipeline=resolved · ux-batch-4-stage-1" ใน `for-เขียว.md`
+ผ่าน ≥ 4/5 → APPROVED WITH NOTES + ระบุข้อที่มีปัญหา
+ผ่าน < 4/5 → REJECTED + screenshot + console log
+
+═══════════════════════════════════════════════════════════════
+📋 Out-of-scope (Stage 2 + 3 รอ user ตัดสิน)
+═══════════════════════════════════════════════════════════════
+
+- **LP-006** (language consistency landing) — รอ user ตอบ: Thai-first / English-first / Bilingual
+- **MCP-006** (English labels: Context Packs / Storage Mode / MANAGED) — ขึ้นกับคำตอบ LP-006
+- **LP-007** (ToS checkbox + Privacy) — รอ user ตอบ: draft เอง / รอทนาย / skip
+
+ขอบคุณครับ 🔵
+— เขียว
+
+---
+
 ## 👁️ Read (อ่านแล้ว)
 
 ### MSG-LLM-GEMINI-DIRECT-001 ✅ [REVIEWED · APPROVED WITH NOTES · 2026-05-17] Gemini direct migration + concurrency 50 — ขอ review

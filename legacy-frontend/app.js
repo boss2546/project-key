@@ -683,7 +683,7 @@ function renderUsageBars(data) {
  const bars = [
  { label: isTh ? 'ไฟล์' : 'Files', used: u.files.used, limit: u.files.limit, icon: '' },
  { label: isTh ? 'พื้นที่' : 'Storage', used: u.storage_mb.used, limit: u.storage_mb.limit, unit: 'MB', icon: '' },
- { label: 'Context Packs', used: u.context_packs.used, limit: u.context_packs.limit, icon: '' },
+ { label: isTh ? 'ชุดบริบท' : 'Context Packs', used: u.context_packs.used, limit: u.context_packs.limit, icon: '' },
  { label: isTh ? 'สรุป AI / เดือน' : 'AI Summary / mo', used: u.ai_summaries.used, limit: u.ai_summaries.limit, icon: '' },
  { label: isTh ? 'Export / เดือน' : 'Export / mo', used: u.exports.used, limit: u.exports.limit, icon: '' },
  ];
@@ -872,12 +872,12 @@ const I18N = {
  // Knowledge page
  'knowledge.title': 'มุมมองความรู้',
  'knowledge.subtitle': 'ข้อมูลที่ถูกจัดเป็นระบบความรู้แล้ว',
- 'knowledge.collections': 'Collections',
- 'knowledge.notes': 'บันทึก & สรุป',
- 'knowledge.packs': 'Context Packs',
- 'knowledge.emptyCollections': 'ยังไม่มี Collections — จัดระเบียบไฟล์ก่อน',
- 'knowledge.emptyPacks': 'ยังไม่มี Context Packs',
- 'knowledge.emptyNotes': 'ยังไม่มี Notes & Entities — สร้างกราฟก่อน',
+ 'knowledge.collections': 'คอลเลกชัน',
+ 'knowledge.notes': 'บันทึกและสรุป',
+ 'knowledge.packs': 'ชุดบริบท',
+ 'knowledge.emptyCollections': 'ยังไม่มีคอลเลกชัน — จัดระเบียบไฟล์ก่อน',
+ 'knowledge.emptyPacks': 'ยังไม่มีชุดบริบท',
+ 'knowledge.emptyNotes': 'ยังไม่มีบันทึกหรือ entity — สร้างกราฟก่อน',
  'knowledge.loadFailed': 'โหลดข้อมูลล้มเหลว',
  'knowledge.organize': 'จัดระเบียบไฟล์ก่อนเพื่อสร้างระบบความรู้',
 
@@ -905,7 +905,7 @@ const I18N = {
  'chat.title': 'AI แชท',
  'chat.subtitle': 'AI ใช้ข้อมูล ความสัมพันธ์ และบริบทของคุณในการตอบ',
  'chat.welcome': 'สวัสดี! ถามอะไรก็ได้เกี่ยวกับข้อมูลของคุณ',
- 'chat.welcomeSub': 'AI จะใช้ Profile, Context Packs, Files, และ Knowledge Graph ในการตอบ',
+ 'chat.welcomeSub': 'AI ใช้โปรไฟล์ ชุดบริบท ไฟล์ และกราฟความรู้ในการตอบ',
  'chat.placeholder': 'ถามเกี่ยวกับข้อมูลของคุณ...',
  'chat.profileNotSet': 'ยังไม่ตั้งค่า',
  'chat.profileActive': 'เปิดใช้งาน',
@@ -914,7 +914,7 @@ const I18N = {
  // Sources panel
  'sources.title': 'หลักฐานที่ใช้',
  'sources.profile': ' โปรไฟล์',
- 'sources.packs': ' Context Packs',
+ 'sources.packs': ' ชุดบริบท',
  'sources.files': ' ไฟล์ที่ใช้',
  'sources.graph': ' Nodes & Edges',
  'sources.reasoning': ' เหตุผลในการเลือก',
@@ -1043,7 +1043,7 @@ const I18N = {
  'tool.upload_text': 'อัพโหลดข้อความเป็นไฟล์ใหม่ (Claude สามารถสร้างไฟล์ความรู้ได้)',
  'tool.update_profile': 'อัพเดทโปรไฟล์ผู้ใช้ (ตัวตน เป้าหมาย สไตล์ ความชอบ)',
  'tool.delete_file': 'ลบไฟล์และข้อมูลที่เกี่ยวข้องทั้งหมด (สรุป ข้อมูลเชิงลึก คลัสเตอร์)',
- 'tool.delete_pack': 'ลบ Context Pack',
+ 'tool.delete_pack': 'ลบชุดบริบท',
  'tool.run_organize': 'รันไปป์ไลน์ AI แบบเต็ม: สรุป จัดกลุ่ม สร้างกราฟ',
  'tool.build_graph': 'สร้างกราฟความรู้ใหม่จากข้อมูลทั้งหมด',
  'tool.enrich_metadata': 'รัน AI เสริมข้อมูลเมตา (แท็ก ความละเอียดอ่อน ความสด)',
@@ -1730,7 +1730,7 @@ function _updateChatEmptyHint() {
    : 'No files yet — <a href="#" onclick="switchPage(\'data\');return false;" style="color:var(--accent);text-decoration:underline">upload files</a> so AI can answer from your data';
  } else {
   welcomeSub.textContent = isTH
-   ? 'AI จะใช้ Profile, Context Packs, Files, และ Knowledge Graph ในการตอบ'
+   ? 'AI ใช้โปรไฟล์ ชุดบริบท ไฟล์ และกราฟความรู้ในการตอบ'
    : 'AI uses Profile, Context Packs, Files, and Knowledge Graph to answer';
  }
 }
@@ -1785,8 +1785,8 @@ function _updateWelcomeLayerChips(stats) {
      ready: isTH ? 'โปรไฟล์ตั้งค่าแล้ว' : 'Profile is set',
      missing: isTH ? 'ยังไม่ได้ตั้งโปรไฟล์ — คลิกที่ "โปรไฟล์ของฉัน" เพื่อกรอก' : 'Profile not set — open My Profile to fill in' },
    { cls: 'layer-pack',       active: (stats.total_context_packs || 0) > 0,
-     ready: isTH ? `มี Context Packs ${stats.total_context_packs} ชุด` : `${stats.total_context_packs} context packs`,
-     missing: isTH ? 'ยังไม่มี Context Pack' : 'No context packs yet' },
+     ready: isTH ? `มีชุดบริบท ${stats.total_context_packs} ชุด` : `${stats.total_context_packs} context packs`,
+     missing: isTH ? 'ยังไม่มีชุดบริบท' : 'No context packs yet' },
    { cls: 'layer-collection', active: (stats.total_clusters || 0) > 0,
      ready: isTH ? `มี Collections ${stats.total_clusters} กลุ่ม` : `${stats.total_clusters} collections`,
      missing: isTH ? 'ยังไม่มี Collection' : 'No collections yet' },
@@ -3755,7 +3755,7 @@ async function loadKnowledge() {
  const createBtnLabel = getLang() === 'th' ? '+ สร้าง Pack' : '+ Create Pack';
  // v9.2.0 — AI Pack Builder entry point
  const aiBtnLabel = getLang() === 'th' ? '🪄 ให้ AI สร้างให้' : '🪄 AI Build for me';
- const emptyMsg = getLang() === 'th' ? 'ยังไม่มี Context Pack — สร้างเพื่อจัดกลุ่มข้อมูลให้ AI' : 'No context packs yet — create one to bundle data for AI';
+ const emptyMsg = getLang() === 'th' ? 'ยังไม่มีชุดบริบท — สร้างเพื่อจัดกลุ่มข้อมูลให้ AI' : 'No context packs yet — create one to bundle data for AI';
 
  let html = `<div class="packs-header">
  <span>${data.count || 0} pack${data.count !== 1 ? 's' : ''}</span>
@@ -4021,7 +4021,7 @@ async function submitCreatePack() {
 }
 
 async function deletePack(packId) {
- if (!await showConfirm(getLang() === 'th' ? 'ลบ Context Pack นี้?' : 'Delete this context pack?')) return;
+ if (!await showConfirm(getLang() === 'th' ? 'ลบชุดบริบทนี้?' : 'Delete this context pack?')) return;
  try {
  await authFetch(`/api/context-packs/${packId}`, { method: 'DELETE' });
  showToast(getLang() === 'th' ? 'ลบ Pack แล้ว' : 'Pack deleted', 'success');
@@ -6808,7 +6808,7 @@ function renderGuideTab(tab) {
  <p>ดูกลุ่มเอกสารที่ AI จัดให้อัตโนมัติ แต่ละกลุ่มมีชื่อและสรุปเนื้อหา</p>
  </div>
  <div class="guide-item">
- <strong> Context Packs</strong>
+ <strong> ชุดบริบท</strong>
  <p>สร้างชุดความรู้สำหรับแชร์หรือใช้กับ AI หลายแพลตฟอร์ม</p>
  </div>
  </div>
@@ -6970,7 +6970,7 @@ function renderGuideTab(tab) {
  <p>พิมพ์ในแชท: <code>เปรียบเทียบ [ไฟล์ A] กับ [ไฟล์ B]</code></p>
  </div>
  <div class="guide-item">
- <strong>สร้าง Context Pack</strong>
+ <strong>สร้างชุดบริบท</strong>
  <p>พิมพ์ในแชท: <code>สร้างแพ็คความรู้เรื่อง [หัวข้อ]</code></p>
  </div>
  <div class="guide-item">
