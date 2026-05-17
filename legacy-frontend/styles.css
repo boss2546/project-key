@@ -620,13 +620,16 @@
 
 /* v5.9.3 — Sensitive data warning */
 .upload-sensitive-warning {
+  /* v10.0.22 — HOME-003 fix: เดิมสีส้ม (warning amber) ทำให้ user คิดว่า
+     upload error · เป็น info-level reminder จริงๆ. เปลี่ยนเป็น muted gray +
+     ย้ายจาก inside drop zone (ตอน parent.appendChild) ดู subtle ขึ้น */
   font-size: 11px;
-  color: #f59e0b;
+  color: var(--text-secondary, #94a3b8);
   margin-top: 8px;
   padding: 6px 12px;
   border-radius: 6px;
-  background: rgba(245, 158, 11, 0.08);
-  border: 1px solid rgba(245, 158, 11, 0.15);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   text-align: center;
 }
 
@@ -1309,10 +1312,21 @@
 }
 
 .profile-dot {
-  width: 6px;
-  height: 6px;
+  /* v10.0.22 — CHAT-003 fix: 6px เล็กเกินจนสังเกตยาก. เพิ่มเป็น 10px +
+     pulse ring เมื่อ inactive เพื่อดึงสายตา user ให้ตั้ง profile */
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: var(--text-muted);
+}
+.profile-dot:not(.active) {
+  background: var(--warning, #f59e0b);
+  box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.6);
+  animation: profileDotPulse 2.2s ease-in-out infinite;
+}
+@keyframes profileDotPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5); }
+  50%      { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
 }
 
 .profile-dot.active { background: var(--success); }
@@ -1474,7 +1488,34 @@
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+  transition: width 0.2s ease;
 }
+/* v10.0.22 — CHAT-001 fix: panel ว่างเปล่าก่อนมี AI response → กิน 30% ของ
+   viewport โดยไม่ได้ใช้ประโยชน์. เพิ่ม collapsed mode (40px ribbon) ที่ user
+   toggle ได้ + ขยายอัตโนมัติเมื่อมี evidence */
+.sources-panel.is-collapsed {
+  width: 44px;
+  overflow: hidden;
+}
+.sources-panel.is-collapsed .sources-body,
+.sources-panel.is-collapsed .sources-header h3 {
+  display: none;
+}
+.sources-panel-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+.sources-panel-toggle:hover { color: var(--text-primary); }
 
 .sources-header {
   padding: 16px;
@@ -2997,6 +3038,22 @@
   text-decoration: line-through;
 }
 
+/* v10.0.22 — MCP-005: destructive tool ต้องแยกชัด ไม่ให้ user เผลอ enable
+   ของอันตราย (delete_file/delete_pack/etc). ขอบสีแดงอ่อน + ⚠️ badge */
+.mcp-tool-card.destructive {
+  border-color: rgba(239, 68, 68, 0.4);
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.04), transparent 60%);
+}
+.mcp-tool-card.destructive:hover {
+  border-color: rgba(239, 68, 68, 0.6);
+}
+.mcp-tool-danger-badge {
+  font-size: 14px;
+  cursor: help;
+  user-select: none;
+  margin-left: 4px;
+}
+
 /* §C LANDING block (hero, features, pricing, FAQ, trust, CTA,
    footer, auth-modal styles, landing responsive @media) was
    extracted to landing.css in Phase 3. */
@@ -3181,6 +3238,59 @@
   z-index: 1; /* above card content */
 }
 
+/* v10.0.22 — MOB-002 fix: kebab button + menu ขาด CSS เลย → ปุ่ม ⋮ ปรากฏแบบ
+   default browser styling + dropdown menu invisible. user mobile จึงดูเหมือน
+   ไม่มี action ให้ใช้ ทั้งที่ JS render ถูก. เพิ่ม baseline ที่ matching file kebab pattern. */
+.kebab-btn {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--text-secondary);
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
+  transition: background 0.15s, color 0.15s;
+}
+.kebab-btn:hover {
+  background: rgba(255,255,255,0.15);
+  color: var(--text-primary);
+}
+.kebab-menu {
+  position: absolute;
+  top: 38px;
+  right: 8px;
+  z-index: 10;
+  min-width: 140px;
+  background: var(--bg-secondary, #1e293b);
+  border: 1px solid var(--border, rgba(255,255,255,0.1));
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.kebab-menu.hidden { display: none; }
+.kebab-menu-item {
+  background: transparent;
+  border: none;
+  color: var(--text-primary, #e2e8f0);
+  padding: 8px 12px;
+  text-align: left;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.kebab-menu-item:hover { background: rgba(255,255,255,0.08); }
+.kebab-menu-item.danger { color: var(--error, #ef4444); }
+.kebab-menu-item.danger:hover { background: rgba(239, 68, 68, 0.12); }
+
 @media (max-width: 768px) {
   .ctx-grid { grid-template-columns: 1fr; }
   /* On mobile the legacy hover-only flyout never appears — kebab handles
@@ -3219,8 +3329,37 @@
 }
 .page-fab:active { transform: scale(0.96); }
 
+/* v10.0.22 — MOB-001 fix: FAB icon-only ทำให้ user mobile ไม่รู้ว่าทำอะไร
+   เพิ่ม visible label ที่ลอยข้างซ้าย FAB (chip style) ที่อ่านได้ทันที */
+.page-fab::before {
+  content: attr(aria-label);
+  position: absolute;
+  right: 64px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(15, 23, 42, 0.92);
+  color: #fff;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 100px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+.page-fab:hover::before,
+.page-fab:focus::before { opacity: 1; }
+
 @media (max-width: 768px) {
   .page.active .page-fab { display: inline-flex; }
+  /* Show label by default on mobile (no hover state on touch devices) */
+  .page-fab::before {
+    opacity: 1;
+    /* Reduce visual weight a tad on small screens to not crowd content */
+    font-size: 11px;
+    padding: 5px 10px;
+  }
   /* Hide in-flow primary actions where the FAB takes over */
   .page.active #btn-organize-new,
   .page.active #btn-new-context { display: none; }

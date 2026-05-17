@@ -707,15 +707,40 @@ function renderUsageBars(data) {
 
 function updateUploadHint(data) {
  const maxMB = data.limits.max_file_size_mb || 20;
- const types = Array.isArray(data.limits.allowed_file_types)
- ? data.limits.allowed_file_types.map(t => t.toUpperCase()).join(', ')
- : 'PDF, TXT, MD, DOCX';
+ const allTypes = Array.isArray(data.limits.allowed_file_types)
+ ? data.limits.allowed_file_types.map(t => t.toUpperCase())
+ : ['PDF', 'TXT', 'MD', 'DOCX'];
  const isTh = getLang() === 'th';
+ // v10.0.22 — HOME-002 fix: 80+ types ยาว 2 บรรทัด → visual noise + ดู overwhelming
+ // ใหม่: แสดงเฉพาะ "main" types ทั่วไป (PDF/TXT/MD/DOCX/JPG/PNG) + "และ N+ ประเภท"
+ // ที่คลิก toggle ให้ดูครบได้
+ const mainTypes = ['PDF', 'TXT', 'MD', 'DOCX', 'JPG', 'PNG', 'XLSX', 'PPTX'];
+ const visibleMain = mainTypes.filter(m => allTypes.includes(m));
+ const restCount = Math.max(0, allTypes.length - visibleMain.length);
+ const shortList = visibleMain.join(', ') + (restCount > 0
+   ? (isTh ? ` และอีก ${restCount}+ ประเภท` : ` and ${restCount}+ more`)
+   : '');
  const hint = isTh
- ? `รองรับ ${types} (สูงสุด ${maxMB} MB)`
- : `Supports ${types} (max ${maxMB} MB)`;
+ ? `รองรับ ${shortList} (สูงสุด ${maxMB} MB)`
+ : `Supports ${shortList} (max ${maxMB} MB)`;
  const el = document.getElementById('upload-hint');
- if (el) el.textContent = hint;
+ if (el) {
+   el.textContent = hint;
+   // คลิก hint → toggle เห็น full list (สำหรับ user ที่อยากรู้ว่ารองรับอะไรบ้าง)
+   if (restCount > 0 && !el.dataset.toggleWired) {
+     el.dataset.toggleWired = '1';
+     el.style.cursor = 'pointer';
+     el.title = isTh ? 'คลิกเพื่อดูประเภทไฟล์ทั้งหมด' : 'Click for full list';
+     const fullText = isTh
+       ? `รองรับ ${allTypes.join(', ')} (สูงสุด ${maxMB} MB)`
+       : `Supports ${allTypes.join(', ')} (max ${maxMB} MB)`;
+     el.addEventListener('click', () => {
+       const showingFull = el.dataset.showingFull === '1';
+       el.textContent = showingFull ? hint : fullText;
+       el.dataset.showingFull = showingFull ? '0' : '1';
+     });
+   }
+ }
 
  // v5.9.3 — Sensitive data warning
  const warnEl = document.getElementById('upload-sensitive-warning');
@@ -831,7 +856,7 @@ const I18N = {
  // v9.1.0 — Raw File Vault filter chips
  'myData.filterAll': 'ทั้งหมด',
  'myData.filterProcessed': 'ประมวลผลแล้ว',
- 'myData.filterVault': '📦 คลัง',
+ 'myData.filterVault': 'คลัง',
  'vault.badge': 'คลัง',
  'vault.toastUpload': 'เก็บใน "คลัง" — AI ค้นหาด้วยชื่อไฟล์ได้ แต่อ่านเนื้อหาไม่ได้',
  'vault.tryAnalyze': 'ลองวิเคราะห์',
@@ -848,7 +873,7 @@ const I18N = {
  'knowledge.title': 'มุมมองความรู้',
  'knowledge.subtitle': 'ข้อมูลที่ถูกจัดเป็นระบบความรู้แล้ว',
  'knowledge.collections': 'Collections',
- 'knowledge.notes': 'Notes & สรุป',
+ 'knowledge.notes': 'บันทึก & สรุป',
  'knowledge.packs': 'Context Packs',
  'knowledge.emptyCollections': 'ยังไม่มี Collections — จัดระเบียบไฟล์ก่อน',
  'knowledge.emptyPacks': 'ยังไม่มี Context Packs',
@@ -1018,6 +1043,10 @@ const I18N = {
  'tool.build_graph': 'สร้างกราฟความรู้ใหม่จากข้อมูลทั้งหมด',
  'tool.enrich_metadata': 'รัน AI เสริมข้อมูลเมตา (แท็ก ความละเอียดอ่อน ความสด)',
  'tool.admin_login': 'ยืนยันรหัสผ่านแอดมิน เพื่อเข้าถึงเครื่องมือที่ปิดอยู่',
+ // v10.0.22 — MCP-003 fix: เพิ่ม Thai description ของ 2 tool ที่ขาด
+ 'tool.export_file_to_chat': 'ส่งออกไฟล์ต้นฉบับจากฐานความรู้เป็นไฟล์แนบในแชท (PDF/TXT/MD/DOCX). ถ้า platform ไม่รองรับ attachment จะ fallback ให้ลิงก์ดาวน์โหลดอายุ 30 นาที',
+ 'tool.reprocess_file': 'สกัดข้อความใหม่จากไฟล์ด้วยไปป์ไลน์ล่าสุด (รวม OCR fallback + แก้ space ภาษาไทย). ใช้กับ PDF ที่ตอนแรกไม่มีข้อความ หรือ spacing พัง',
+ 'tool.save_context': 'บันทึก context การสนทนาเข้า memory bank ส่วนตัว · AI ควรเสนอบันทึกเมื่อ: 1) จบ session 2) เสร็จงานใหญ่ 3) เปลี่ยนเรื่อง',
 
  // Token Management page
  'tokens.title': 'จัดการ Token',
@@ -1149,7 +1178,7 @@ const I18N = {
  // v9.1.0 — Raw File Vault filter chips
  'myData.filterAll': 'All',
  'myData.filterProcessed': 'Processed',
- 'myData.filterVault': '📦 Vault',
+ 'myData.filterVault': 'Vault',
  'vault.badge': 'Vault',
  'vault.toastUpload': 'Stored in "Vault" — AI can search by filename but cannot read content',
  'vault.tryAnalyze': 'Try analyze',
@@ -1583,6 +1612,23 @@ document.addEventListener('DOMContentLoaded', () => {
  // → fetch ทุก page load + update DOM ครอบคลุม cached HTML drift)
  _syncVersionBadge();
 
+ // v10.0.22 — CHAT-001: wire sources-panel toggle + restore collapsed state
+ const sp = document.getElementById('sources-panel');
+ const spt = document.getElementById('sources-panel-toggle');
+ if (sp && spt) {
+  try {
+   if (localStorage.getItem('pdb_sources_collapsed') === '1') {
+    sp.classList.add('is-collapsed');
+    spt.textContent = '›';
+   }
+  } catch (_) {}
+  spt.addEventListener('click', () => {
+   const collapsed = sp.classList.toggle('is-collapsed');
+   spt.textContent = collapsed ? '›' : '‹';
+   try { localStorage.setItem('pdb_sources_collapsed', collapsed ? '1' : '0'); } catch (_) {}
+  });
+ }
+
  // Auth system MUST run before applyLanguage() — initAuth() synchronously
  // hydrates state.authToken from localStorage. If applyLanguage() runs first,
  // loadLineStatus() fires /api/line/status without an Authorization header;
@@ -1650,7 +1696,7 @@ function switchPage(page) {
 
  if (page === 'knowledge') loadKnowledge();
  if (page === 'graph') loadGraph();
- if (page === 'chat') loadProfile();
+ if (page === 'chat') { loadProfile(); _updateChatEmptyHint(); }
  if (page === 'mcp-setup') loadMCPSetup();
  if (page === 'tokens') loadTokens();
  if (page === 'mcp-logs') loadMCPLogs();
@@ -1660,6 +1706,25 @@ function switchPage(page) {
 // ═══════════════════════════════════════════
 // STATS
 // ═══════════════════════════════════════════
+// v10.0.22 — CHAT-004 fix: empty chat state เดิมบอก "AI ใช้ Profile/Packs/Files/Graph"
+// แต่ถ้า user ยังไม่มีไฟล์ → AI ตอบได้จำกัด → user คาดหวังเกินจริง.
+// แสดงข้อความ "อัปโหลดไฟล์ก่อนเพื่อ AI ช่วยได้มากขึ้น" + ลิงก์ไปหน้าข้อมูลของฉัน
+function _updateChatEmptyHint() {
+ const welcomeSub = document.querySelector('.welcome-message [data-i18n="chat.welcomeSub"]');
+ if (!welcomeSub) return;
+ const fileCount = parseInt(document.getElementById('stat-files')?.textContent || '0', 10);
+ const isTH = getLang() === 'th';
+ if (fileCount === 0 || isNaN(fileCount)) {
+  welcomeSub.innerHTML = isTH
+   ? 'ยังไม่มีไฟล์ในระบบ — <a href="#" onclick="switchPage(\'data\');return false;" style="color:var(--accent);text-decoration:underline">อัปโหลดไฟล์</a> เพื่อให้ AI ช่วยตอบจากข้อมูลจริง'
+   : 'No files yet — <a href="#" onclick="switchPage(\'data\');return false;" style="color:var(--accent);text-decoration:underline">upload files</a> so AI can answer from your data';
+ } else {
+  welcomeSub.textContent = isTH
+   ? 'AI จะใช้ Profile, Context Packs, Files, และ Knowledge Graph ในการตอบ'
+   : 'AI uses Profile, Context Packs, Files, and Knowledge Graph to answer';
+ }
+}
+
 async function loadStats() {
  try {
  const res = await authFetch('/api/stats', { _background: true });
@@ -1671,6 +1736,21 @@ async function loadStats() {
  document.getElementById('stat-edges').textContent = data.total_edges || 0;
  document.getElementById('stat-packs').textContent = data.total_context_packs;
  document.getElementById('stat-tokens').textContent = data.active_tokens || 0;
+ // v10.0.22 — HOME-001 fix: ถ้า nodes > 0 ขณะ files = 0 → tooltip อธิบายว่า
+ // ตัวเลขที่เหลือมาจาก Context Pack หรือข้อมูลที่ orphan-cleanup ยังไม่ทำงาน
+ // (sidebar อ่านได้แค่รวม — รายละเอียดอยู่ที่หน้ากราฟ)
+ const nodesEl = document.getElementById('stat-nodes');
+ if (nodesEl) {
+   if ((data.total_files === 0) && (data.total_nodes || 0) > 0) {
+     nodesEl.title = getLang() === 'th'
+       ? 'มีโหนดเหลือจาก Context Pack หรือ orphan ที่รอเคลียร์ — ลบเฉพาะไฟล์ไม่ลบ Pack/Note ที่ user ตั้งใจเก็บ'
+       : 'Nodes remain from Context Packs or pending orphan cleanup — file delete keeps user-pinned packs/notes';
+     nodesEl.style.cursor = 'help';
+   } else {
+     nodesEl.removeAttribute('title');
+     nodesEl.style.cursor = '';
+   }
+ }
  const dot = document.getElementById('profile-dot');
  if (dot) dot.className = `profile-status-dot ${data.profile_set ? 'active' : ''}`;
  // v10.0.15 — fire-and-forget cleanup of drive-side ghost rows (once per session)
@@ -2899,7 +2979,14 @@ function renderFileList(files) {
    console.warn(`[renderFileList] skipped ${skippedCount} phantom row(s) without filename`);
  }
  if (!cleanFiles.length) {
- container.innerHTML = `<div class="empty-state"><p>${t('myData.noFiles')}</p></div>`;
+ container.innerHTML = `<div class="empty-state">
+ <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4" style="margin-bottom:12px">
+   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+   <polyline points="14 2 14 8 20 8"/>
+ </svg>
+ <p>${t('myData.noFiles')}</p>
+ <button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="document.getElementById('file-input')?.click()">${getLang() === 'th' ? '+ อัปโหลดไฟล์แรก' : '+ Upload first file'}</button>
+</div>`;
  return;
  }
  container.innerHTML = cleanFiles.map(f => {
@@ -3590,7 +3677,17 @@ async function loadKnowledge() {
  const res = await authFetch('/api/clusters');
  const data = await res.json();
  if (!data.clusters.length) {
- container.innerHTML = `<div class="empty-state"><p>${t('knowledge.emptyCollections')}</p></div>`;
+ // v10.0.22 — KV-004 fix: empty state เดิมแค่ข้อความ → user ไม่รู้ทำอะไรต่อ
+ // เพิ่ม icon + CTA "จัดระเบียบ" ที่ trigger btn-organize-new (ปุ่มเดิม)
+ const ctaLabel = getLang() === 'th' ? 'จัดระเบียบไฟล์' : 'Organize Files';
+ container.innerHTML = `<div class="empty-state">
+   <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4" style="margin-bottom:12px">
+     <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+     <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+   </svg>
+   <p>${t('knowledge.emptyCollections')}</p>
+   <button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="document.getElementById('btn-organize-new')?.click()">${ctaLabel}</button>
+ </div>`;
  return;
  }
  container.innerHTML = data.clusters.map(c => `
@@ -5684,10 +5781,13 @@ async function _syncVersionBadge() {
   const v = data && data.version;
   if (!v) return;
   // app.html ใช้ id="logo-version" · admin.html ใช้ id="admin-logo-pill"
+  // landing.html (footer) ใช้ id="footer-version"
   const appBadge = document.getElementById('logo-version');
   if (appBadge) appBadge.textContent = 'v' + v;
   const adminBadge = document.getElementById('admin-logo-pill');
   if (adminBadge) adminBadge.textContent = 'Admin · v' + v;
+  const footerBadge = document.getElementById('footer-version');
+  if (footerBadge) footerBadge.textContent = 'v' + v;
  } catch (_) { /* network blip ok · keep hardcoded fallback */ }
 }
 
@@ -5833,11 +5933,19 @@ function renderMCPTools(tools) {
  groups[cat].forEach(tool => {
  const isEnabled = savedPerms[tool.name] !== false; // default: enabled
  const toolDesc = t(`tool.${tool.name}`) !== `tool.${tool.name}` ? t(`tool.${tool.name}`) : tool.description;
+ // v10.0.22 — MCP-005 fix: destructive tools (delete_file/delete_pack/etc)
+ // ดูเหมือน read-only tools เพราะ toggle style เดียวกัน → user เผลอ enable อันตราย
+ // เพิ่ม class `destructive` + label ⚠️ จาก annotations.destructiveHint
+ const isDestructive = tool.annotations && tool.annotations.destructiveHint === true;
+ const destructiveBadge = isDestructive
+   ? `<span class="mcp-tool-danger-badge" title="${getLang() === 'th' ? 'อันตราย — เครื่องมือนี้แก้/ลบข้อมูล' : 'Destructive — modifies/deletes data'}">⚠️</span>`
+   : '';
  html += `
- <div class="mcp-tool-card ${!isEnabled ? 'disabled' : ''}">
+ <div class="mcp-tool-card ${!isEnabled ? 'disabled' : ''} ${isDestructive ? 'destructive' : ''}">
  <div class="mcp-tool-header">
  <span class="mcp-tool-icon">${toolIcons[tool.name] || ''}</span>
  <code class="mcp-tool-name">${tool.name}</code>
+ ${destructiveBadge}
  <label class="toggle-switch">
  <input type="checkbox" ${isEnabled ? 'checked' : ''} onchange="toggleToolPermission('${tool.name}', this.checked)">
  <span class="toggle-slider"></span>
@@ -6221,7 +6329,16 @@ async function loadContexts() {
  _ctxCache = data.contexts || [];
 
  if (_ctxCache.length === 0) {
- grid.innerHTML = `<div class="empty-state"><p> ยังไม่มี Context — AI จะเริ่มบันทึกให้อัตโนมัติเมื่อคุณใช้งาน</p></div>`;
+ // v10.0.22 — CTX-001 fix: empty state เดิมแค่ข้อความเฉยๆ + ไม่มี icon
+ // เพิ่ม icon (memory/brain) + CTA "+ สร้าง Context" trigger ปุ่มเดิม
+ const ctaLabel = getLang() === 'th' ? '+ สร้าง Context' : '+ Create Context';
+ grid.innerHTML = `<div class="empty-state">
+   <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4" style="margin-bottom:12px">
+     <path d="M12 2a3 3 0 0 0-3 3v0a3 3 0 0 0-3 3v0a3 3 0 0 0-3 3v0a3 3 0 0 0 3 3v0a3 3 0 0 0 3 3v0a3 3 0 0 0 3 3 3 3 0 0 0 3-3v0a3 3 0 0 0 3-3v0a3 3 0 0 0 3-3v0a3 3 0 0 0-3-3v0a3 3 0 0 0-3-3v0a3 3 0 0 0-3-3Z"/>
+   </svg>
+   <p>${getLang() === 'th' ? 'ยังไม่มี Context — AI จะเริ่มบันทึกอัตโนมัติเมื่อคุณใช้งาน' : 'No Context yet — AI will auto-save as you work'}</p>
+   <button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="document.getElementById('btn-new-context')?.click()">${ctaLabel}</button>
+ </div>`;
  return;
  }
 

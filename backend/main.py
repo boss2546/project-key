@@ -4101,6 +4101,36 @@ async def api_list_nodes(
     query = select(GraphNode).where(GraphNode.user_id == current_user.id)
     if family:
         query = query.where(GraphNode.node_family == family)
+    # v10.0.22 — KV-002 fix: กรอง entity/note/tag nodes ที่ไม่มี edge เชื่อมไป
+    # source_file/context_pack ออกจาก Notes tab (ghost entities ที่ค้างจาก
+    # ไฟล์ที่ลบไปแล้ว · เคยทำให้ user เห็นข้อมูล "ลอยอยู่" สับสน). cluster/
+    # context_pack/source_file ตัวเองเก็บไว้ (มี lifecycle ของตัวเอง)
+    if family == "entity":
+        from sqlalchemy import text as _sql_text
+        anchored_ids_res = await db.execute(_sql_text("""
+            SELECT DISTINCT n.id FROM graph_nodes n
+            WHERE n.user_id = :uid
+              AND n.node_family = 'entity'
+              AND EXISTS (
+                SELECT 1 FROM graph_edges e
+                INNER JOIN graph_nodes other ON other.id = (
+                  CASE WHEN e.source_node_id = n.id THEN e.target_node_id
+                       ELSE e.source_node_id END
+                )
+                WHERE e.user_id = :uid
+                  AND (e.source_node_id = n.id OR e.target_node_id = n.id)
+                  AND other.user_id = :uid
+                  AND other.object_type IN ('source_file', 'context_pack')
+              )
+        """), {"uid": current_user.id})
+        anchored_ids = [r[0] for r in anchored_ids_res.all()]
+        if not anchored_ids:
+            return {"nodes": []}  # no entity is anchored to a file/pack → all ghosts
+        query = select(GraphNode).where(
+            GraphNode.user_id == current_user.id,
+            GraphNode.node_family == family,
+            GraphNode.id.in_(anchored_ids),
+        )
     query = query.limit(limit).offset(offset)
     nodes = (await db.execute(query)).scalars().all()
     return {"nodes": [
