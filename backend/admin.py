@@ -504,10 +504,7 @@ async def reset_user_password(
     # (password_hash IS NULL) ได้ตามปกติ — หลัง reset แล้ว user จะ login ด้วย
     # email/password ปกติ ไม่ต้องผ่าน Google.
     target.password_hash = await ahash_password(new_password)
-    # ⚠️ v10.0.x — TEST PHASE · update plaintext mirror ถ้า ALLOW_ADMIN_VIEW_PASSWORD เปิด
-    from .config import ALLOW_ADMIN_VIEW_PASSWORD as _ALLOW_VIEW_PWD
-    if _ALLOW_VIEW_PWD:
-        target.plaintext_password = new_password
+    # v10.0.30-hotfix — plaintext_password write REMOVED (PDPA risk · column will DROP in Phase 3)
     target.updated_at = datetime.utcnow()
     db.add(target)
 
@@ -688,71 +685,9 @@ async def set_user_admin(
 # 3.4 View user password (v10.0.x · TEST PHASE ONLY)
 # ═══════════════════════════════════════════
 
-async def get_user_password(
-    db: AsyncSession,
-    admin_user: User,
-    target_user_id: str,
-    reason: str,
-) -> dict:
-    """⚠️ TEST PHASE ONLY · Return plaintext password ของ user · audit log ทุก view.
-
-    Gated ที่ config.ALLOW_ADMIN_VIEW_PASSWORD (env) — caller ต้อง check ก่อน
-    เรียก function นี้ · function เองไม่เช็ค (caller รับผิดชอบ)
-
-    Behaviors:
-      - Existing users (pre-v10.0.x หรือ Google-only): plaintext = NULL → return null + hint
-      - New register/reset หลัง flag เปิด: plaintext = ค่าจริง · return string
-      - ทุก call → audit log "admin_viewed_password" + reason
-    """
-    from .config import ALLOW_ADMIN_VIEW_PASSWORD
-    if not ALLOW_ADMIN_VIEW_PASSWORD:
-        raise HTTPException(
-            status_code=403,
-            detail={"error": {
-                "code": "FEATURE_DISABLED",
-                "message": "การดูรหัสผ่านถูกปิด · ติดต่อ admin ระบบเพื่อเปิดใช้",
-            }},
-        )
-
-    target = (await db.execute(select(User).where(User.id == target_user_id))).scalar_one_or_none()
-    if not target:
-        raise HTTPException(
-            status_code=404,
-            detail={"error": {"code": "USER_NOT_FOUND", "message": "User not found"}},
-        )
-
-    plaintext = target.plaintext_password
-    available = bool(plaintext)
-    hint = None
-    if not available:
-        # User สมัครก่อน plaintext mirror feature · หรือ flag เพิ่ง enable
-        hint = (
-            "ไม่มี plaintext password เก็บไว้ (user สมัครก่อน feature นี้ · "
-            "หรือเป็น Google-only user) · ใช้ปุ่ม Reset Password เพื่อตั้งใหม่"
-        )
-
-    # Audit ทุก view (สำคัญ · admin ต้องรับผิดชอบ)
-    await log_audit(
-        db, target.id, "admin_viewed_password",
-        old_value=reason or "(no reason)",
-        new_value=target.email or "",
-        triggered_by=admin_user.email or "admin",
-    )
-    await db.commit()
-
-    logger.warning(
-        "Admin %s VIEWED password of %s (available=%s · reason: %s)",
-        admin_user.email, target.email, available, (reason or "")[:80],
-    )
-
-    return {
-        "status": "ok",
-        "user_id": target.id,
-        "email": target.email,
-        "password_available": available,
-        "password": plaintext,  # NULL ถ้า not available
-        "hint": hint,
-    }
+# v10.0.30-hotfix — get_user_password() REMOVED (feature deleted, PDPA compliance)
+# Caller endpoint /api/admin/users/{user_id}/view-password also removed.
+# Column users.plaintext_password to be DROPped 24h after deploy.
 
 
 # ═══════════════════════════════════════════

@@ -16,13 +16,42 @@
 
 ## 📋 6 รายการ + ลำดับ
 
-### 1. 🛡 Chat XSS Fix (30 min · ทำเลย)
-**ปัญหา:** AI response มี HTML → frontend รัน HTML นั้นเลย → hacker inject `<script>` ผ่าน prompt ได้
-**File:** `legacy-frontend/app.js:5118`
-**Fix:** ลบ `isHtml` flag · ใช้ `textContent` หรือ escape เสมอ
-**Test:** inject `<script>alert(1)</script>` ใน LLM response → escape (ไม่ run)
-**Risk:** 🟢 LOW · 1 ไฟล์ frontend
-**Deploy:** ทันทีหลังเสร็จ
+### 1. 🛡 Chat XSS Fix (45 min · ทำเลย)
+**ปัญหา:** `app.js:5089` ใส่ `data.answer` (LLM response) ลงใน HTML string ด้วย `isHtml=true` → hacker inject `<script>` ผ่าน LLM ได้
+
+**File:** `legacy-frontend/app.js`
+
+**Callers ของ `addMessage(..., isHtml=true)` ที่เจอ:**
+- `:5053` Loading spinner — trusted hardcoded · เก็บไว้
+- `:5082` Error message — partial user input (errMsg) — เก็บไว้แต่ verify escape
+- **`:5089` msgHtml มี `data.answer` (LLM response) — 🚨 XSS ที่นี่**
+- `:5098` Error connecting — partial user input — เก็บไว้แต่ verify escape
+
+**Fix:** เจาะจง line 5085-5089 — สร้าง DOM element + `textContent` สำหรับ `data.answer`:
+```js
+// แทน: const msgHtml = `<div class="answer">${data.answer}</div><div class="injection-badge">...</div>`;
+//      addMessage(msgHtml, 'assistant', true);
+// →
+const wrap = document.createElement('div');
+const ans = document.createElement('div');
+ans.className = 'answer';
+ans.textContent = data.answer;  // safe
+wrap.appendChild(ans);
+if (data.injection_summary) {
+    const badge = document.createElement('div');
+    badge.className = 'injection-badge';
+    badge.textContent = '⚙ ' + data.injection_summary;
+    wrap.appendChild(badge);
+}
+addMessage(wrap.outerHTML, 'assistant', true);  // outerHTML จาก DOM = escaped automatically
+// หรือดียิ่ง: เปลี่ยน addMessage รับ DOM node ตรงๆ
+```
+
+**Note:** ถ้า `data.answer` ต้อง render markdown → ใช้ DOMPurify (optional B, +1h)
+
+**Test:** inject `<script>alert(1)</script>` ใน prompt → response → ไม่ run · escape ใน DOM
+**Risk:** 🟡 MED · ต้อง verify markdown ไม่หาย (ถ้าเคย render)
+**Deploy:** combined กับ #2 + #3
 
 ### 2. 🐳 Dockerfile Non-root + .dockerignore (45 min)
 **ปัญหา:** Container รัน root · image มี `.env`/cache
@@ -76,20 +105,42 @@
 
 ### 5. 🔓 Drop `plaintext_password` Column — Phase 1+2 (2h, Phase 3 รอ 24h)
 **ปัญหา:** เก็บ password เป็น plaintext ใน DB → DB leak = หายนะ · ผิด PDPA/GDPR
-**Files:** `backend/auth.py:128`, `backend/admin.py:507`, `backend/main.py:2281`, `backend/config.py:198`, `backend/database.py:58`
+
+**Files (Phase 1+2 — 5 write/read sites + 1 constant):**
+```
+backend/auth.py:119-120        — import _ALLOW_VIEW_PWD (delete)
+backend/auth.py:128            — plaintext_password=password if _ALLOW_VIEW_PWD else None (delete field)
+backend/auth.py:398-401        — password change write (delete _ALLOW_VIEW_PWD block)
+backend/admin.py:507-510       — admin reset password write (delete _ALLOW_VIEW_PWD block)
+backend/admin.py:699-724       — admin_view_password helper (delete function)
+backend/main.py:2297+          — /api/admin/users/{id}/password endpoint (delete)
+backend/config.py:198-217      — ALLOW_ADMIN_VIEW_PASSWORD constant + comment block (delete)
+```
+
 **Phase 1 — stop writes (deploy ทันที):**
-- ลบ `plaintext_password=password if _ALLOW_VIEW_PWD else None` จาก register
-**Phase 2 — remove endpoint (deploy ทันที):**
-- ลบ admin view-password endpoint + admin_view_password helper
-- ลบ `ALLOW_ADMIN_VIEW_PASSWORD` constant
+- ลบ 3 write sites (auth.py:128, auth.py:401, admin.py:510)
+
+**Phase 2 — remove read paths + flag (deploy ทันที):**
+- ลบ admin_view_password helper (admin.py:699-724)
+- ลบ endpoint `/api/admin/users/{id}/password` (main.py:2297+)
+- ลบ `ALLOW_ADMIN_VIEW_PASSWORD` constant (config.py:198-217)
+- ลบ import statements ที่อ้าง _ALLOW_VIEW_PWD
+
 **Phase 3 — DROP COLUMN (รอ 24h หลัง Phase 1+2 deploy):**
-- backup DB ก่อน
+- Pre-check: `SELECT COUNT(*) FROM users WHERE plaintext_password IS NOT NULL` (expect 0 — flag never true in prod)
+- Pre-migration: backup DB (`flyctl ssh sftp get /app/data/projectkey.db backup.db`)
 - `ALTER TABLE users DROP COLUMN plaintext_password` (SQLite 3.35+)
+
 **Test:**
-- Phase 1+2: register new user → DB row ไม่มี plaintext · `/api/admin/users/{id}/password` → 404
+- Phase 1+2:
+  - register new user → DB row plaintext_password = NULL
+  - `/api/admin/users/{id}/password` → 404
+  - admin reset password → DB plaintext_password = NULL
+  - `grep -r ALLOW_ADMIN_VIEW_PASSWORD backend/` = 0 hits
 - Phase 3: `PRAGMA table_info(users)` → ไม่มี column
+
 **Risk:** 🟡 MED · DROP COLUMN ทำลายข้อมูลถาวร · pre-migration backup ป้องกัน
-**Deploy:** Phase 1+2 = วันที่ 1 · Phase 3 = วันที่ 2
+**Deploy:** Phase 1+2 = วันที่ 1 (combined กับ #1, #2, #3) · Phase 3 = วันที่ 2 (standalone)
 
 ### 6. 🔄 Backup Gemini Key (30 min)
 **ปัญหา:** Primary key เดียว · key ดับ = AI ทั้งระบบใช้ไม่ได้

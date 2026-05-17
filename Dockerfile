@@ -40,5 +40,11 @@ RUN mkdir -p /app/data/uploads /app/data/summaries /app/data/context_packs /app/
 # Expose port
 EXPOSE 8000
 
+# v10.0.30-hotfix — Healthcheck (Docker-level awareness · Fly probe ยังเป็นตัว gate หลัก)
+# Note: USER non-root deferred ไป backlog เพราะ Fly volume permission ต้อง entrypoint script (gosu)
+#       และ Fly machine = firecracker VM อยู่แล้ว (host isolation จากตัว container)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD python -c "import httpx,sys; r=httpx.get('http://127.0.0.1:8000/health', timeout=4.0); sys.exit(0 if r.status_code==200 else 1)" || exit 1
+
 # Run
 CMD ["python", "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]

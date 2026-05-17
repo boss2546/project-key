@@ -2278,25 +2278,11 @@ async def api_admin_toggle_admin(
     return await _admin_mod.set_user_admin(db, current_admin, user_id, body.value, body.reason)
 
 
-@app.post("/api/admin/users/{user_id}/view-password")
-async def api_admin_view_password(
-    user_id: str,
-    body: AdminToggleRequest,
-    current_admin: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db),
-):
-    """⚠️ v10.0.x · TEST PHASE ONLY · View user plaintext password.
-
-    Body: `{ value: false (ignored), reason: str }` · reused AdminToggleRequest schema
-    เพื่อความ consistent · `value` ไม่ใช้ แต่ schema เดิม require · ใส่ false ได้
-
-    Returns: `{ status, user_id, email, password_available, password, hint }`
-    - password_available=false → user สมัครก่อน feature นี้ · ต้อง reset ก่อน
-    - audit log ทุก view (event_type='admin_viewed_password')
-
-    Gated: env ALLOW_ADMIN_VIEW_PASSWORD=true · 403 ถ้า disabled
-    """
-    return await _admin_mod.get_user_password(db, current_admin, user_id, body.reason)
+# v10.0.30-hotfix — /api/admin/users/{user_id}/view-password endpoint REMOVED
+# Was: TEST PHASE feature reading users.plaintext_password column (PDPA risk).
+# Column will be DROPped 24h after this deploy.
+# Replacement: use Reset Password endpoint (admin generates new password, shown
+# once in response, never persisted as plaintext).
 
 
 @app.delete("/api/admin/users/{user_id}")
@@ -5052,7 +5038,9 @@ async def mcp_streamable_http(secret: str, request: Request, db: AsyncSession = 
         # Check if tool is disabled by this user's permissions
         user_perms = MCP_PERMISSIONS.get(mcp_user_id, {})
         if user_perms.get(tool_name) is False:
-            if arguments.get("admin_key") != ADMIN_PASSWORD:
+            # v10.0.30-hotfix — guard against empty ADMIN_PASSWORD (would accept empty admin_key as override)
+            admin_key = arguments.get("admin_key", "")
+            if not ADMIN_PASSWORD or admin_key != ADMIN_PASSWORD:
                 return JSONResponse({
                     "jsonrpc": "2.0",
                     "id": msg_id,

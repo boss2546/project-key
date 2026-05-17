@@ -20,8 +20,16 @@ README.md
 # Python dev
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.venv/
 venv/
 env/
+*.egg-info/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
 
 # Local data (mounted as volume in production)
 uploads/
@@ -33,8 +41,12 @@ projectkey.db*
 
 # Secrets (set via environment)
 .env
+.env.*
 .jwt_secret
 .mcp_secret
+*.key
+*.pem
+secrets/
 
 # Tests
 tests/

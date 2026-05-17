@@ -9,7 +9,7 @@ load_dotenv()
 # ─── App Version (single source of truth) ───
 # Bump this when releasing. All version strings exposed to clients
 # (Swagger /docs, /api/mcp/info, MCP serverInfo) read from here.
-APP_VERSION = "10.0.27"
+APP_VERSION = "10.0.30-hotfix"
 
 # ─── LLM API (v10.0.23 — Gemini Direct, no OpenRouter) ───
 # ย้ายมาเรียก Gemini ตรง (OpenAI-compatible endpoint) — ตัด OpenRouter middleman
@@ -163,37 +163,46 @@ def _generate_jwt_secret() -> str:
     return secret
 
 
-# v9.3.0 stability patch — warn (ไม่ fail closed กัน break dev/CI) ถ้า production-like
-# deploy ไม่ได้ set JWT_SECRET_KEY env var. detect ด้วย DATA_DIR mount path ของ Fly.io
-# (`/app/data`) ซึ่ง dev เครื่องไม่มี → no false-positive warn ใน local.
+# v10.0.30-hotfix — Fail-hard on Fly without JWT_SECRET_KEY env var.
+# File-based fallback (.jwt_secret) breaks multi-machine scale because each machine
+# generates its own secret = JWT mismatch across machines = 401 cascades.
+# Detect Fly via `/app/data` mount path (dev local ไม่มี → ใช้ file fallback ต่อได้).
 _jwt_env = os.getenv("JWT_SECRET_KEY")
 if not _jwt_env and os.path.isdir("/app/data"):
     import sys
     print(
-        "WARN: JWT_SECRET_KEY env var not set in production-like environment. "
-        "Falling back to .jwt_secret file in DATA_DIR — works for single-machine + "
-        "persistent volume, but breaks multi-machine scale + volume migrate/fork. "
-        "Set with: flyctl secrets set JWT_SECRET_KEY=$(openssl rand -base64 64) "
-        "(one-time; do not rotate after — invalidates all existing sessions).",
+        "FATAL: JWT_SECRET_KEY env var required when running on Fly.io.\n"
+        "  File-based fallback (.jwt_secret) breaks multi-machine scale = user sessions\n"
+        "  invalidated สลับเครื่อง.\n"
+        "  Fix: flyctl secrets set JWT_SECRET_KEY=$(openssl rand -base64 64) -a personaldatabank\n"
+        "  (one-time; do not rotate after = invalidates existing sessions)",
         file=sys.stderr,
     )
+    sys.exit(1)
 
 JWT_SECRET_KEY = _jwt_env or _generate_jwt_secret()
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))  # 24 hours default
 
-# ─── Admin Password (from env — fail closed if unset) ───
-# Used as override for disabled MCP tools. Default "1234" was guessable; now required.
-# Local dev: set ADMIN_PASSWORD in .env. Production: `fly secrets set ADMIN_PASSWORD=...`
+# ─── Admin Password (from env — soft fail if unset, v10.0.30-hotfix) ───
+# Used as override for disabled MCP tools. ปล่อย admin endpoints คืน 503 ถ้าไม่ตั้ง
+# (เดิม sys.exit(1) = ทั้ง app ดับ = ปัญหา operational แค่หาย env หนึ่งตัว)
+# Local dev: set ADMIN_PASSWORD in .env. Production: `flyctl secrets set ADMIN_PASSWORD=...`
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 if not ADMIN_PASSWORD:
     import sys
     print(
-        "FATAL: ADMIN_PASSWORD env var is required (no default). "
-        "Set in .env locally or via `fly secrets set ADMIN_PASSWORD=...` in production.",
+        "WARN: ADMIN_PASSWORD env var not set. "
+        "Admin override endpoints (MCP disabled-tool bypass) will return 503. "
+        "App continues serving regular users normally. "
+        "Set via: flyctl secrets set ADMIN_PASSWORD=... -a personaldatabank",
         file=sys.stderr,
     )
-    sys.exit(1)
+
+
+def is_admin_password_configured() -> bool:
+    """True if ADMIN_PASSWORD is set · use in endpoints that gate admin override."""
+    return bool(ADMIN_PASSWORD)
 
 # ─── Admin Emails (v8.0.1) ───
 # Comma-separated list. Users matching get plan="admin" (all limits = 999999).
@@ -204,17 +213,9 @@ ADMIN_EMAILS = {
     if e.strip()
 }
 
-# ⚠️ v10.0.x — TEST PHASE ONLY · Allow admin to view user plaintext passwords
-# Set env ALLOW_ADMIN_VIEW_PASSWORD=true เพื่อเปิด feature (default = false ใน production)
-# SECURITY: เปิดเมื่อ:
-#   - ระหว่าง early test phase (founder + small QA team)
-#   - DB ไม่มี real user data ที่ sensitive
-# ห้ามเปิดเมื่อ:
-#   - มี user จริง > 50 คน
-#   - PCI-DSS/GDPR scope
-#   - public production launch
-# Migration: schema มี column `users.plaintext_password` แล้ว · feature flip = env เท่านั้น
-ALLOW_ADMIN_VIEW_PASSWORD = os.getenv("ALLOW_ADMIN_VIEW_PASSWORD", "false").lower() in ("true", "1", "yes")
+# v10.0.30-hotfix — ALLOW_ADMIN_VIEW_PASSWORD REMOVED
+# Was: TEST PHASE feature toggle for plaintext_password column · PDPA/GDPR risk.
+# All write/read sites removed in this release. Column will DROP in Phase 3 (24h).
 
 # MCP Secret — persists across restarts
 _MCP_SECRET_FILE = os.path.join(DATA_DIR, ".mcp_secret")

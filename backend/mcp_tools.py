@@ -1140,6 +1140,12 @@ async def _tool_get_overview(db: AsyncSession, user_id: str) -> dict:
 
 def _tool_admin_login(admin_key: str) -> dict:
     """Verify admin password — grants bypass for disabled tools."""
+    # v10.0.30-hotfix — guard against empty ADMIN_PASSWORD (would accept empty admin_key)
+    if not ADMIN_PASSWORD:
+        return {
+            "status": "unavailable",
+            "message": "Admin features not configured. Set ADMIN_PASSWORD env var to enable.",
+        }
     if admin_key == ADMIN_PASSWORD:
         all_tools = list(TOOL_REGISTRY.keys())
         return {

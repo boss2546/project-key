@@ -5079,13 +5079,16 @@ async function sendMessage() {
    removeMessage(loadingId);
    const errMsg = data?.detail?.error?.message || data?.detail || data?.error || `HTTP ${res.status}`;
    const msg = (getLang() === 'th' ? 'ไม่สามารถตอบคำถามได้: ' : 'Cannot answer: ') + String(errMsg).slice(0, 200);
-   addMessage(msg, 'assistant', true);
+   // v10.0.30-hotfix — XSS fix: errMsg อาจมีจาก server response = escape เสมอ
+   addMessage(msg, 'assistant');
    return;  // _chatBusy reset ใน finally
  }
  // Replace loading with answer
  removeMessage(loadingId);
- const msgHtml = `${data.answer}
- <div class="injection-badge"> ${data.injection_summary || 'Context injected'}</div>`;
+ // v10.0.30-hotfix — XSS fix: data.answer คือ LLM output ที่อาจ inject HTML/<script>
+ // เคย addMessage(..., true) → innerHTML ตรงๆ → exploitable ผ่าน prompt
+ // ใช้ escapeHtml กับทั้ง answer + injection_summary · เก็บ tag <div class="injection-badge"> ที่เป็น trusted
+ const msgHtml = `${escapeHtml(data.answer)}<div class="injection-badge"> ${escapeHtml(data.injection_summary || 'Context injected')}</div>`;
  addMessage(msgHtml, 'assistant', true);
 
  // Update sources panel
@@ -5094,8 +5097,9 @@ async function sendMessage() {
  clearInterval(elapsedTimer);
  removeMessage(loadingId);
  // v10.0.x — P0-2 · แสดง error message จริงให้ user · เดิม "เกิดข้อผิดพลาด" ไม่ระบุสาเหตุ
+ // v10.0.30-hotfix — XSS fix: e.message อาจมาจาก server response = escape (ใช้ isHtml=false)
  const detail = (e && e.message) ? ` (${String(e.message).slice(0, 150)})` : '';
- addMessage((getLang() === 'th' ? 'เกิดข้อผิดพลาดในการเชื่อมต่อ AI' : 'Error connecting to AI') + detail, 'assistant', true);
+ addMessage((getLang() === 'th' ? 'เกิดข้อผิดพลาดในการเชื่อมต่อ AI' : 'Error connecting to AI') + detail, 'assistant');
  } finally {
  _chatBusy = false;
  input.disabled = false;

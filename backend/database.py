@@ -50,11 +50,9 @@ class User(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     # v7.0 — BYOS storage mode: "managed" (server volume) | "byos" (user's Google Drive)
     storage_mode = Column(String, default="managed")
-    # ⚠️ v10.0.x — TEST PHASE ONLY · plaintext password mirror สำหรับ admin debugging
-    # SECURITY RISK: ถ้า DB leak → password ทุก user รั่วทันที (bcrypt hash ปกป้องไม่ได้แล้ว)
-    # ⚠️ ต้อง DROP column นี้ + กลับไปใช้แค่ password_hash ก่อน public production launch
-    # Gate: env ALLOW_ADMIN_VIEW_PASSWORD=true (default false ใน production)
-    # populate ตอน register + reset_password เท่านั้น · existing users (pre-v10.0.x) จะเป็น NULL
+    # v10.0.30-hotfix — DEPRECATED · column will DROP in Phase 3 (24h after this deploy)
+    # All write/read sites removed in v10.0.30. Column kept temporarily so existing
+    # rows don't break ORM mapping. DROP COLUMN scheduled day 2 of hotfix rollout.
     plaintext_password = Column(String, nullable=True)
     # v10.0.26 — LP-007: ToS acceptance tracking (PDPA compliance)
     # NULL = grandfathered (legacy users before v10.0.26 · ไม่บังคับ accept ย้อนหลัง)

@@ -115,9 +115,8 @@ async def register_user(
     from datetime import datetime as _dt
     import secrets as _secrets
     pw_hash = await ahash_password(password)  # v10.0.0 -- offload bcrypt
-    # ⚠️ v10.0.x — TEST PHASE · เก็บ plain text mirror สำหรับ admin view
-    # gate ด้วย ALLOW_ADMIN_VIEW_PASSWORD env (default false) · ถ้า false จะ NULL = ปกป้องได้
-    from .config import ALLOW_ADMIN_VIEW_PASSWORD as _ALLOW_VIEW_PWD
+    # v10.0.30-hotfix — plaintext_password storage REMOVED (PDPA/GDPR · DB leak = catastrophic)
+    # Column ยังอยู่ใน schema · จะ DROP ใน Phase 3 หลัง deploy นี้ครบ 24h
     # v10.0.26 — LP-007: record ToS acceptance if version provided
     _tos_at = _dt.utcnow() if tos_version else None
     user = User(
@@ -125,7 +124,6 @@ async def register_user(
         name=name or "User",
         email=email_normalized,
         password_hash=pw_hash,
-        plaintext_password=password if _ALLOW_VIEW_PWD else None,
         is_active=True,
         mcp_secret=_secrets.token_urlsafe(32),
         tos_accepted_at=_tos_at,
@@ -395,10 +393,7 @@ async def reset_password(db: AsyncSession, token: str, new_password: str) -> dic
 
     # Update password (v10.0.0 -- offload bcrypt)
     user.password_hash = await ahash_password(new_password)
-    # ⚠️ v10.0.x — TEST PHASE · update plaintext mirror ด้วย (ถ้า ALLOW_ADMIN_VIEW_PASSWORD เปิด)
-    from .config import ALLOW_ADMIN_VIEW_PASSWORD as _ALLOW_VIEW_PWD
-    if _ALLOW_VIEW_PWD:
-        user.plaintext_password = new_password
+    # v10.0.30-hotfix — plaintext_password write REMOVED (was: TEST PHASE only · PDPA risk)
     await db.commit()
 
     logger.info(f"Password reset completed for: {user.email}")
