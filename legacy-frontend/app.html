@@ -9,9 +9,9 @@
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
  <script src="https://d3js.org/d3.v7.min.js"></script>
- <link rel="stylesheet" href="/legacy/shared.css?v=10.0.22">
- <link rel="stylesheet" href="/legacy/styles.css?v=10.0.22">
- <link rel="stylesheet" href="/legacy/landing.css?v=10.0.22">
+ <link rel="stylesheet" href="/legacy/shared.css?v=10.0.24">
+ <link rel="stylesheet" href="/legacy/styles.css?v=10.0.24">
+ <link rel="stylesheet" href="/legacy/landing.css?v=10.0.24">
 </head>
 <body>
  <!-- ┌────────────────────────────────────────────────────────────┐
@@ -142,7 +142,7 @@
  </div>
  <div class="logo-text-area">
  <span class="logo-text">Personal Data Bank</span>
- <span class="logo-version" id="logo-version">v10.0.22</span>
+ <span class="logo-version" id="logo-version">v10.0.24</span>
  </div>
  </div>
  </div>
@@ -1150,6 +1150,8 @@
  </div>
  <div id="usage-bars-container"></div>
  </div>
+ <!-- v10.0.24 — PROF-003: Group Storage + LINE under unified "Integrations" header -->
+ <div class="profile-section-header" data-i18n="profile.integrationsTitle"> การเชื่อมต่อ</div>
  <!-- Storage Mode Section (BYOS v7.0.0) -->
  <div class="storage-mode-section" id="storage-mode-section">
  <div class="storage-mode-header">
@@ -1213,25 +1215,34 @@
  </div>
  </div>
  <hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:16px 0;">
+ <!-- v10.0.24 — PROF-003: section header to separate profile content from integrations above -->
+ <div class="profile-section-header" data-i18n="profile.aboutTitle"> ข้อมูลส่วนตัว</div>
+ <!-- v10.0.24 — PROF-002: tip header above the 5 free-text fields -->
+ <div class="profile-fields-tip" data-i18n="profile.fieldsTip"> ยิ่งกรอกละเอียด AI ยิ่งตอบได้ตรงกับคุณ — ทุกช่องไม่บังคับ ใส่เท่าที่อยากบอก</div>
  <div class="form-group">
  <label data-i18n="profile.identity">Who am I</label>
- <textarea id="profile-identity" rows="2" placeholder="เช่น นักศึกษาปริญญาโท สาขาวิทยาศาสตร์..."></textarea>
+ <textarea id="profile-identity" rows="2" maxlength="1000" placeholder="เช่น นักศึกษาปริญญาโท สาขาวิทยาศาสตร์..."></textarea>
+ <div class="form-char-count" data-counter-for="profile-identity">0 / 1000</div>
  </div>
  <div class="form-group">
  <label data-i18n="profile.goals">My Goals</label>
- <textarea id="profile-goals" rows="2" placeholder="เช่น ทำวิจัยเกี่ยวกับ..."></textarea>
+ <textarea id="profile-goals" rows="2" maxlength="1000" placeholder="เช่น ทำวิจัยเกี่ยวกับ..."></textarea>
+ <div class="form-char-count" data-counter-for="profile-goals">0 / 1000</div>
  </div>
  <div class="form-group">
  <label data-i18n="profile.style">Work Style</label>
- <textarea id="profile-style" rows="2" placeholder="เช่น ชอบข้อมูลที่เป็นระบบ..."></textarea>
+ <textarea id="profile-style" rows="2" maxlength="1000" placeholder="เช่น ชอบข้อมูลที่เป็นระบบ..."></textarea>
+ <div class="form-char-count" data-counter-for="profile-style">0 / 1000</div>
  </div>
  <div class="form-group">
  <label data-i18n="profile.output">Answer Preference</label>
- <textarea id="profile-output" rows="2" placeholder="เช่น สรุปสั้นๆ ตรงประเด็น..."></textarea>
+ <textarea id="profile-output" rows="2" maxlength="1000" placeholder="เช่น สรุปสั้นๆ ตรงประเด็น..."></textarea>
+ <div class="form-char-count" data-counter-for="profile-output">0 / 1000</div>
  </div>
  <div class="form-group">
  <label data-i18n="profile.background">Important Context</label>
- <textarea id="profile-background" rows="2" placeholder="เช่น กำลังทำโปรเจกต์..."></textarea>
+ <textarea id="profile-background" rows="2" maxlength="1000" placeholder="เช่น กำลังทำโปรเจกต์..."></textarea>
+ <div class="form-char-count" data-counter-for="profile-background">0 / 1000</div>
  </div>
 
  <!-- ═══════════════════════════════════════════ -->
@@ -1426,10 +1437,10 @@
  <!-- END guide block -->
 
 
- <script src="/legacy/dev-logger.js?v=10.0.22"></script>
- <script src="/legacy/storage_mode.js?v=10.0.22"></script>
- <script src="/legacy/line_ui.js?v=10.0.22"></script>
- <script src="/legacy/app.js?v=10.0.22"></script>
- <script src="/legacy/landing.js?v=10.0.22"></script>
+ <script src="/legacy/dev-logger.js?v=10.0.24"></script>
+ <script src="/legacy/storage_mode.js?v=10.0.24"></script>
+ <script src="/legacy/line_ui.js?v=10.0.24"></script>
+ <script src="/legacy/app.js?v=10.0.24"></script>
+ <script src="/legacy/landing.js?v=10.0.24"></script>
 </body>
 </html>

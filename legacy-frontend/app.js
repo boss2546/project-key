@@ -933,6 +933,11 @@ const I18N = {
  'profile.stylePh': 'เช่น ชอบข้อมูลที่เป็นระบบ...',
  'profile.outputPh': 'เช่น สรุปสั้นๆ ตรงประเด็น...',
  'profile.backgroundPh': 'เช่น กำลังทำโปรเจกต์...',
+ // v10.0.24 — PROF-002: tip + char-count helpers
+ 'profile.fieldsTip': ' ยิ่งกรอกละเอียด AI ยิ่งตอบได้ตรงกับคุณ — ทุกช่องไม่บังคับ ใส่เท่าที่อยากบอก',
+ // v10.0.24 — PROF-003: section headers to group integrations vs personal content
+ 'profile.integrationsTitle': ' การเชื่อมต่อ',
+ 'profile.aboutTitle': ' ข้อมูลส่วนตัว',
  // v6.0 — Personality
  'personality.title': 'บุคลิกภาพ',
  'personality.optional': '(ไม่บังคับ)',
@@ -1255,6 +1260,11 @@ const I18N = {
  'profile.stylePh': 'e.g. Prefer structured data...',
  'profile.outputPh': 'e.g. Short and to the point...',
  'profile.backgroundPh': 'e.g. Working on a project...',
+ // v10.0.24 — PROF-002: tip + char-count helpers
+ 'profile.fieldsTip': ' The more detail you share, the better AI can match your style — all fields optional',
+ // v10.0.24 — PROF-003: section headers to group integrations vs personal content
+ 'profile.integrationsTitle': ' Integrations',
+ 'profile.aboutTitle': ' About You',
  // v6.0 — Personality
  'personality.title': 'Personality',
  'personality.optional': '(optional)',
@@ -1753,11 +1763,47 @@ async function loadStats() {
  }
  const dot = document.getElementById('profile-dot');
  if (dot) dot.className = `profile-status-dot ${data.profile_set ? 'active' : ''}`;
+ // v10.0.24 — CHAT-002: color welcome chips by what user actually has ready
+ _updateWelcomeLayerChips(data);
  // v10.0.15 — fire-and-forget cleanup of drive-side ghost rows (once per session)
  // Stats above still reflect orphans tied to ghosts (graph_nodes/edges/clusters) —
  // cleanup purges those + reloads stats if anything changed.
  cleanupGhostsOnce();
  } catch (e) { console.error('Stats error:', e); }
+}
+
+// v10.0.24 — CHAT-002: Light up welcome chips based on which layers the user
+// actually has data in. Inactive = muted/outlined → user instantly sees what's
+// still missing to feed the AI better answers.
+function _updateWelcomeLayerChips(stats) {
+ const wrap = document.getElementById('context-layers');
+ if (!wrap) return;
+ const isTH = getLang() === 'th';
+ const tipFor = (active, ready, missing) => active ? ready : missing;
+ const chips = [
+   { cls: 'layer-profile',    active: !!stats.profile_set,
+     ready: isTH ? 'โปรไฟล์ตั้งค่าแล้ว' : 'Profile is set',
+     missing: isTH ? 'ยังไม่ได้ตั้งโปรไฟล์ — คลิกที่ "โปรไฟล์ของฉัน" เพื่อกรอก' : 'Profile not set — open My Profile to fill in' },
+   { cls: 'layer-pack',       active: (stats.total_context_packs || 0) > 0,
+     ready: isTH ? `มี Context Packs ${stats.total_context_packs} ชุด` : `${stats.total_context_packs} context packs`,
+     missing: isTH ? 'ยังไม่มี Context Pack' : 'No context packs yet' },
+   { cls: 'layer-collection', active: (stats.total_clusters || 0) > 0,
+     ready: isTH ? `มี Collections ${stats.total_clusters} กลุ่ม` : `${stats.total_clusters} collections`,
+     missing: isTH ? 'ยังไม่มี Collection' : 'No collections yet' },
+   { cls: 'layer-file',       active: (stats.total_files || 0) > 0,
+     ready: isTH ? `มีไฟล์ ${stats.total_files} ชิ้น` : `${stats.total_files} files`,
+     missing: isTH ? 'ยังไม่มีไฟล์ — อัปโหลดเพื่อให้ AI ใช้' : 'No files yet — upload to feed AI' },
+   { cls: 'layer-graph',      active: (stats.total_nodes || 0) > 0,
+     ready: isTH ? `มี Graph ${stats.total_nodes} โหนด` : `${stats.total_nodes} graph nodes`,
+     missing: isTH ? 'ยังไม่มี Knowledge Graph' : 'No knowledge graph yet' },
+ ];
+ chips.forEach(c => {
+   const el = wrap.querySelector('.' + c.cls);
+   if (!el) return;
+   el.classList.toggle('is-active', c.active);
+   el.title = tipFor(c.active, c.ready, c.missing);
+   el.style.cursor = 'help';
+ });
 }
 
 // v10.0.15 — Purge ghost file rows (deleted_in_drive) + their orphan graph relations.
@@ -5369,6 +5415,29 @@ function updateEnneagramWingOptions(core) {
  wingSel.disabled = false;
 }
 
+// v10.0.24 — PROF-002: per-field character counter (max 1000)
+// idempotent — safe to call multiple times (won't double-bind)
+function _initProfileCharCounters() {
+  const MAX = 1000;
+  const ids = ['profile-identity', 'profile-goals', 'profile-style', 'profile-output', 'profile-background'];
+  ids.forEach(id => {
+    const ta = document.getElementById(id);
+    const counter = document.querySelector(`[data-counter-for="${id}"]`);
+    if (!ta || !counter) return;
+    const update = () => {
+      const len = ta.value.length;
+      counter.textContent = `${len} / ${MAX}`;
+      counter.classList.toggle('is-near-limit', len >= MAX * 0.9 && len < MAX);
+      counter.classList.toggle('is-over-limit', len >= MAX);
+    };
+    if (!ta.dataset.counterBound) {
+      ta.addEventListener('input', update);
+      ta.dataset.counterBound = '1';
+    }
+    update();
+  });
+}
+
 async function loadProfile() {
  try {
  const res = await authFetch('/api/profile');
@@ -5379,6 +5448,8 @@ async function loadProfile() {
  document.getElementById('profile-style').value = p.working_style || '';
  document.getElementById('profile-output').value = p.preferred_output_style || '';
  document.getElementById('profile-background').value = p.background_context || '';
+ // v10.0.24 — PROF-002: init/update char counters after values loaded
+ _initProfileCharCounters();
 
  // ─── v6.0 — Personality fields ───
  // MBTI
@@ -5917,18 +5988,33 @@ function renderMCPTools(tools) {
  // Load saved permissions
  const savedPerms = JSON.parse(localStorage.getItem('mcp_tool_permissions') || '{}');
 
- let html = '';
+ // v10.0.24 — MCP-004: per-category collapse state (localStorage)
+ // Defaults: read/edit open · delete/pipeline closed (safer + less visual noise)
+ const savedCatState = JSON.parse(localStorage.getItem('mcp_cat_state_v1') || '{}');
+ const catDefaultOpen = { read: true, edit: true, delete: false, pipeline: false };
+ const isCatOpen = (cat) => (cat in savedCatState) ? !!savedCatState[cat] : !!catDefaultOpen[cat];
+
+ // Toolbar: Expand all / Collapse all
+ const expandLbl = getLang() === 'th' ? 'ขยายทั้งหมด' : 'Expand all';
+ const collapseLbl = getLang() === 'th' ? 'ย่อทั้งหมด' : 'Collapse all';
+ let html = `<div class="mcp-cat-toolbar">
+   <button type="button" class="mcp-cat-toolbtn" data-mcp-cat-action="expand">${expandLbl}</button>
+   <button type="button" class="mcp-cat-toolbtn" data-mcp-cat-action="collapse">${collapseLbl}</button>
+ </div>`;
  const order = ['read', 'edit', 'delete', 'pipeline'];
  for (const cat of order) {
  if (!groups[cat]) continue;
  const label = categoryLabels[cat] || { icon: '', en: cat, th: cat };
  const langLabel = getLang() === 'th' ? label.th : label.en;
+ const open = isCatOpen(cat);
 
- html += `<div class="mcp-tools-category">
- <div class="mcp-category-header">
+ html += `<div class="mcp-tools-category ${open ? '' : 'is-collapsed'}" data-mcp-cat="${cat}">
+ <button type="button" class="mcp-category-header" aria-expanded="${open}" data-mcp-cat-toggle="${cat}">
  <span>${label.icon} ${langLabel}</span>
  <span class="badge">${groups[cat].length}</span>
- </div>`;
+ <svg class="mcp-cat-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+ </button>
+ <div class="mcp-category-body">`;
 
  groups[cat].forEach(tool => {
  const isEnabled = savedPerms[tool.name] !== false; // default: enabled
@@ -5960,10 +6046,48 @@ function renderMCPTools(tools) {
  </div>`;
  });
 
- html += '</div>';
+ html += '</div></div>';  // close .mcp-category-body + .mcp-tools-category
  }
 
  grid.innerHTML = html;
+
+ // v10.0.24 — MCP-004: wire accordion toggles + expand/collapse all
+ _wireMCPAccordion(grid);
+}
+
+// v10.0.24 — MCP-004 helper · idempotent (re-render replaces grid contents,
+// so this just rebinds on the new DOM). Saves state per category to localStorage.
+function _wireMCPAccordion(grid) {
+ const STORAGE_KEY = 'mcp_cat_state_v1';
+ const readState = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; } };
+ const writeState = (s) => localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+
+ grid.querySelectorAll('[data-mcp-cat-toggle]').forEach(btn => {
+   btn.addEventListener('click', () => {
+     const cat = btn.getAttribute('data-mcp-cat-toggle');
+     const card = grid.querySelector(`[data-mcp-cat="${cat}"]`);
+     if (!card) return;
+     const open = card.classList.toggle('is-collapsed');  // returns new state (true = collapsed)
+     btn.setAttribute('aria-expanded', String(!open));
+     const s = readState(); s[cat] = !open; writeState(s);
+   });
+ });
+
+ grid.querySelectorAll('[data-mcp-cat-action]').forEach(btn => {
+   btn.addEventListener('click', () => {
+     const action = btn.getAttribute('data-mcp-cat-action');
+     const collapse = action === 'collapse';
+     const s = readState();
+     grid.querySelectorAll('[data-mcp-cat]').forEach(card => {
+       const cat = card.getAttribute('data-mcp-cat');
+       card.classList.toggle('is-collapsed', collapse);
+       s[cat] = !collapse;
+       const head = card.querySelector('[data-mcp-cat-toggle]');
+       if (head) head.setAttribute('aria-expanded', String(!collapse));
+     });
+     writeState(s);
+   });
+ });
 }
 
 function toggleToolPermission(toolName, enabled) {
@@ -6327,6 +6451,20 @@ async function loadContexts() {
  const res = await authFetch(url);
  const data = await res.json();
  _ctxCache = data.contexts || [];
+
+ // v10.0.24 — CTX-002: disable search/filter only when truly empty (no filter applied + 0 results)
+ // ถ้า user filter อยู่แล้วได้ 0 → ไม่ disable เพื่อให้แก้ filter ได้
+ const hasFilter = (search && search.length > 0) || (ctxType && ctxType.length > 0);
+ const trulyEmpty = !hasFilter && _ctxCache.length === 0;
+ const searchEl = document.getElementById('ctx-search');
+ const filterEl = document.getElementById('ctx-filter-type');
+ if (searchEl) {
+   searchEl.disabled = trulyEmpty;
+   searchEl.placeholder = trulyEmpty
+     ? (getLang() === 'th' ? 'ยังไม่มี context ให้ค้นหา' : 'No context to search')
+     : (getLang() === 'th' ? ' ค้นหา context...' : ' Search context...');
+ }
+ if (filterEl) filterEl.disabled = trulyEmpty;
 
  if (_ctxCache.length === 0) {
  // v10.0.22 — CTX-001 fix: empty state เดิมแค่ข้อความเฉยๆ + ไม่มี icon
