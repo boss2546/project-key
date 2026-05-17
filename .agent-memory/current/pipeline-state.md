@@ -5,29 +5,33 @@
 
 ---
 
-## 🎯 Current State: `fix-plan-sprint-0-pending` 🟢 (unified single-track)
+## 🎯 Current State: `hotfix-pending` 🔥 (urgent only — backlog deferred)
 
-**Active task:** fix-plan — Sprint 0 Security Emergency (S0.1-S0.10) · Owner: เขียวคนเดียว (me)
-**Active plan:** [`.agent-memory/plans/fix-plan.md`](../plans/fix-plan.md) — 60 milestones, 4 sprints + ฟ้า final UI
+**Active task:** Urgent Hotfix — 6 critical items · Owner: เขียวคนเดียว (me)
+**Active plan:** [`.agent-memory/plans/fix-plan.md`](../plans/fix-plan.md) — 6 items, ~1-2 days
+**Backlog:** [`.agent-memory/plans/issues-backlog.md`](../plans/issues-backlog.md) — 102 items deferred
 
-**Paused:**
-- 🟡 **v11-phase-2** (Structured Summary + Entity Graph + Polish) — resume เมื่อ fix-plan Sprint 2 ผ่าน
-  - Rationale: S0.7 (embedding model) + S2.1 (Thai tokenizer) เป็น v11 prerequisites
-- ✅ v11-phase-1 — review_passed by ฟ้า (2026-05-17) · retained as checkpoint history
+**The 6 hotfix items:**
+1. Chat XSS fix
+2. Dockerfile non-root + .dockerignore
+3. JWT + ADMIN_PASSWORD bulletproof
+4. Rotate secrets + clean .env from git
+5. Drop plaintext_password column (Phase 1+2 day 1, Phase 3 day 2)
+6. Backup Gemini key on Fly
 
-**Reviewer:** 🔵 ฟ้า (Fah) — sprint-end reviews + FINAL UI test (Phase 1-7) ก่อน public launch
-**Master HEAD:** `81db101` (last commit · pre-Sprint 0 baseline)
-**Production:** ✅ v10.0.24 live (audit-batch4 UX) · awaiting fix-plan Sprint 0 deploy → `v10.0.30-sprint0`
+**Paused (in backlog):**
+- 🟡 **v11-phase-2** — resume เมื่อ user มี capacity · prereq = embedding model fix
+- ✅ v11-phase-1 — review_passed by ฟ้า (2026-05-17) · code deployed (flags OFF)
+- 🟡 All other 102 audit findings — see `issues-backlog.md`
 
-### Plan history
-- **2026-05-17:** User สั่ง audit ระบบ — เจอ 188 findings (24 P0, 34 P1)
-- **2026-05-17:** ร่างแผน 2-เขียว (A + B) parallel · drafted plan files
-- **2026-05-18:** User restart — รวมเป็นเขียวคนเดียว · simpler plan
-- **2026-05-18:** Created unified `fix-plan.md` · ready Sprint 0
+**Reviewer:** 🔵 ฟ้า (Fah) — review หลัง hotfix deploy
+**Production:** ✅ v10.0.24 live · awaiting hotfix deploy → `v10.0.30-hotfix`
 
-### Legacy archived
-- v11.0.0 Phase 1: ✅ APPROVED · code deployed (flags OFF) · paused
-- 2-เขียว plans: removed (commit `<pending>` — restart per user direction)
+### Plan history (compressed)
+- **2026-05-17:** User commissioned full audit — 188 findings (24 P0, 34 P1)
+- **2026-05-18:** Plan iterations (v1 4 sprints → v2 5 sprints with review → v3 2 phases)
+- **2026-05-18:** User scope-reduced — เน้นแค่ 6 urgent · พักแผนใหญ่ไว้
+- **2026-05-18:** Created `fix-plan.md` (urgent) + `issues-backlog.md` (deferred 102)
 
 ### Approved Defaults (Q1-Q7)
 | # | Question | Approved |
