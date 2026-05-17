@@ -151,8 +151,9 @@ async def call_llm_pro(system_prompt: str, user_prompt: str, temperature: float 
 
 async def call_llm_json(system_prompt: str, user_prompt: str, temperature: float = 0.2) -> dict:
     """Call Pro model and parse the response as JSON.
-    
-    Uses Gemini 3.1 Pro for structured data extraction — organize, summarize, etc.
+
+    Used for structured data extraction — organize, summarize, etc.
+    Model resolves via LLM_MODEL_PRO config (default gemini-2.5-flash).
     """
     raw = await call_llm_pro(system_prompt, user_prompt, temperature, max_tokens=16384)
 
