@@ -5,33 +5,40 @@
 
 ---
 
-## 🎯 Current State: `hotfix-pending` 🔥 (urgent only — backlog deferred)
+## 🎯 Current State: `hotfix-deployed_pending_review` 🔥 (4/6 done · awaiting ฟ้า)
 
-**Active task:** Urgent Hotfix — 6 critical items · Owner: เขียวคนเดียว (me)
-**Active plan:** [`.agent-memory/plans/fix-plan.md`](../plans/fix-plan.md) — 6 items, ~1-2 days
+**Active task:** Urgent Hotfix · v10.0.30-hotfix · Owner: เขียวคนเดียว (me)
+**Active plan:** [`.agent-memory/plans/fix-plan.md`](../plans/fix-plan.md) — 6 items
 **Backlog:** [`.agent-memory/plans/issues-backlog.md`](../plans/issues-backlog.md) — 102 items deferred
 
-**The 6 hotfix items:**
-1. Chat XSS fix
-2. Dockerfile non-root + .dockerignore
-3. JWT + ADMIN_PASSWORD bulletproof
-4. Rotate secrets + clean .env from git
-5. Drop plaintext_password column (Phase 1+2 day 1, Phase 3 day 2)
-6. Backup Gemini key on Fly
+### Hotfix progress (4/6 deployed)
+| # | Item | Status |
+|---|------|--------|
+| 1 | Chat XSS fix | ✅ DEPLOYED |
+| 2 | Dockerfile HEALTHCHECK + .dockerignore | ✅ DEPLOYED (USER non-root deferred) |
+| 3 | JWT + ADMIN_PASSWORD bulletproof | ✅ DEPLOYED |
+| 4 | Rotate secrets + clean .env from git | 🟡 PENDING (user will do later) |
+| 5 | Drop plaintext_password | ✅ Phase 1+2 DEPLOYED · ⏳ Phase 3 (24h) |
+| 6 | Backup Gemini key on Fly | 🟡 PENDING (user will provide key) |
+
+**Master HEAD:** `e13f0b3` (v10.0.30-hotfix · security batch)
+**Production:** ✅ `v10.0.30-hotfix` live · `/health` 200 verified
+**Sent:** ฟ้า review request via MSG-HOTFIX-V10030-001 in `for-ฟ้า.md`
 
 **Paused (in backlog):**
-- 🟡 **v11-phase-2** — resume เมื่อ user มี capacity · prereq = embedding model fix
+- 🟡 **v11-phase-2** — resume เมื่อ fix-plan + backlog priority items ทำเสร็จ
 - ✅ v11-phase-1 — review_passed by ฟ้า (2026-05-17) · code deployed (flags OFF)
 - 🟡 All other 102 audit findings — see `issues-backlog.md`
 
-**Reviewer:** 🔵 ฟ้า (Fah) — review หลัง hotfix deploy
-**Production:** ✅ v10.0.24 live · awaiting hotfix deploy → `v10.0.30-hotfix`
+### Pending user action
+- **#4:** User rotate keys at consoles + tell me when done → I do code/secret/git work
+- **#6:** User generate 2nd Gemini key + tell me → I set Fly secret
+- **#5 Phase 3:** Auto after 24h (DROP COLUMN)
 
 ### Plan history (compressed)
 - **2026-05-17:** User commissioned full audit — 188 findings (24 P0, 34 P1)
-- **2026-05-18:** Plan iterations (v1 4 sprints → v2 5 sprints with review → v3 2 phases)
-- **2026-05-18:** User scope-reduced — เน้นแค่ 6 urgent · พักแผนใหญ่ไว้
-- **2026-05-18:** Created `fix-plan.md` (urgent) + `issues-backlog.md` (deferred 102)
+- **2026-05-18:** Plan iterations (v1 4 sprints → v2 5 sprints with review → v3 2 phases → v4 6-item hotfix)
+- **2026-05-18:** Deployed v10.0.30-hotfix (4 of 6 items) · awaiting user for #4 + #6
 
 ### Approved Defaults (Q1-Q7)
 | # | Question | Approved |

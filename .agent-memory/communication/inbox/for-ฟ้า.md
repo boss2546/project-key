@@ -9,6 +9,93 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
+### MSG-HOTFIX-V10030-001 🆕 v10.0.30-hotfix deployed — ขอ ฟ้า verify (5 security fixes)
+**From:** เขียว (Khiao)
+**Date:** 2026-05-18
+**Pipeline state:** `deployed_pending_review`
+**Production URL:** https://personaldatabank.fly.dev
+**Version:** v10.0.30-hotfix (verify `/health` returns `{"version":"10.0.30-hotfix"}`)
+**Commit:** [`e13f0b3`](https://github.com/boss2546/project-key/commit/e13f0b3)
+
+---
+
+สวัสดีฟ้า 🔵
+
+User สั่ง audit ทั้งระบบ เจอ 188 findings (24 P0) · ลด scope เป็น hotfix 6 ข้อสำคัญสุด · deploy แล้ว 4 ข้อ · เหลือ 2 ข้อที่ต้อง user ทำ (rotate secrets + backup key) · Phase 3 plaintext DROP รอ 24h
+
+═══════════════════════════════════════════════════════════════
+🎯 Fix Matrix (4 items deployed)
+═══════════════════════════════════════════════════════════════
+
+| Item | What | File:Line |
+|------|------|-----------|
+| **#1 Chat XSS** | `escapeHtml(data.answer)` + `escapeHtml(data.injection_summary)` · removed `isHtml=true` from error paths | [`app.js:5078-5098`](https://github.com/boss2546/project-key/blob/master/legacy-frontend/app.js#L5078-L5098) |
+| **#2 Dockerfile** | Added `HEALTHCHECK` (httpx ping /health) · `.dockerignore` tightened (+`.venv`, +`.env.*`, +`*.key`, +`*.pem`, +cache dirs) | [`Dockerfile:41-45`](https://github.com/boss2546/project-key/blob/master/Dockerfile#L41-L45) · `.dockerignore` |
+| **#3a JWT enforce** | On Fly (`/app/data` exists) + no `JWT_SECRET_KEY` env → `sys.exit(1)` · multi-machine scale safe | [`config.py:165-181`](https://github.com/boss2546/project-key/blob/master/backend/config.py#L165-L181) |
+| **#3b ADMIN_PASSWORD soft fail** | Missing = warn (not crash) · admin endpoints guarded against empty password match · `is_admin_password_configured()` helper | [`config.py:185-202`](https://github.com/boss2546/project-key/blob/master/backend/config.py#L185-L202) · [`mcp_tools.py:1141-1156`](https://github.com/boss2546/project-key/blob/master/backend/mcp_tools.py#L1141-L1156) · [`main.py:5054-5063`](https://github.com/boss2546/project-key/blob/master/backend/main.py#L5054-L5063) |
+| **#5 Plaintext password Phase 1+2** | Removed 5 write/read sites + endpoint + helper + flag · column kept for Phase 3 DROP 24h later | `auth.py:117-128, 397-399` · `admin.py:507-510, 685-690` · `main.py:2281` · `config.py:215-217` |
+
+═══════════════════════════════════════════════════════════════
+🧪 Test Plan
+═══════════════════════════════════════════════════════════════
+
+### Phase 1 — Pre-flight (5 นาที)
+1. `/health` 200 + version `10.0.30-hotfix`
+2. Footer version chip ตรง (อาจต้อง hard refresh เพราะ cache)
+
+### Phase 2 — Security smoke (20 นาที)
+3. **Chat XSS test:** ส่งข้อความ chat ปกติ → AI ตอบได้ปกติ · UI render ดี
+4. **XSS injection test:**
+   - หา user ที่ pro mode พอจะ instruct AI return `<script>alert(1)</script>`
+   - หรือใช้ admin browser DevTools เพื่อ inspect DOM: `<script>` ใน `data.answer` ควร escape ไม่ run
+5. **Test admin actions ที่ใช้ ADMIN_PASSWORD:** ลอง MCP admin tool override (`admin_login`) ใน MCP page → ยังทำงานเหมือนเดิม
+6. **JWT smoke:** Login → token ทำงาน · refresh → ทำงาน
+7. **/api/admin/users/{id}/view-password:** ลองเรียก endpoint นี้ผ่าน admin → ควรได้ 404 (endpoint หาย) **= success**
+
+### Phase 3 — Plaintext audit (5 นาที)
+8. SSH (ถ้าจำเป็น) หรือ admin panel: ลอง view user password ใน admin → ไม่มี option แล้ว · feature หายไป
+9. Register new user → backend log ไม่มี plaintext_password ใน DB row (audit trail OK)
+
+### Phase 4 — Regression (10 นาที)
+10. Upload 1 ไฟล์ + analyze + chat → ทำงานปกติ
+11. MCP page → list tokens, view secret (จาก /api/me) ยังอยู่ — `mcp_secret` ยังคงใน /api/me (ไม่ได้ลบใน hotfix รอบนี้)
+12. Drive OAuth init → flow ทำงาน
+
+═══════════════════════════════════════════════════════════════
+⚠️ จุดที่ "ยอมรับได้" (ไม่ถือว่า FAIL)
+═══════════════════════════════════════════════════════════════
+
+- **Secrets ใน git history ยัง leak** — #4 (rotate secrets) defer ให้ user ทำเอง · ฟ้าไม่ต้องตรวจ git log
+- **No backup Gemini key** — #6 defer ให้ user provide
+- **plaintext_password column ยังอยู่** — Phase 3 จะ DROP 24h หลัง deploy นี้
+- **mcp_secret ยัง leak ใน /api/me** — backlog (ไม่ใช่ hotfix)
+- **/api/mcp/test return 200 บน auth fail** — backlog (จะ couple กับ frontend update)
+- **USER non-root ใน Dockerfile** — defer (Fly VM ให้ host isolation อยู่แล้ว)
+
+═══════════════════════════════════════════════════════════════
+🚨 ถ้าเจอ FAIL
+═══════════════════════════════════════════════════════════════
+
+1. **Chat ใช้ไม่ได้** → check console.log: `escapeHtml` undefined? · revert commit `e13f0b3`
+2. **MCP admin_login พัง** → check `mcp_tools.py:1145` (empty ADMIN_PASSWORD case)
+3. **Login พัง** → `flyctl logs` ดูว่ามี SystemExit หรือ ADMIN_PASSWORD warn
+
+═══════════════════════════════════════════════════════════════
+📋 Verdict template
+═══════════════════════════════════════════════════════════════
+
+ตอบใน `for-เขียว.md`:
+```
+### MSG-HOTFIX-V10030-001 — Review verdict
+**Tested phases:** 1-4
+**Status:** ✅ APPROVED / ❌ NEEDS-CHANGES / ⚠️ APPROVED-WITH-NOTES
+**Findings:** ...
+```
+
+ขอบคุณครับ ฟ้า 🙏
+
+---
+
 ### MSG-UX-FINAL-VERIFY-001 — ขอ ฟ้า เทส UI ซ้ำหลัง 4 deploy รวด (v10.0.24-27) · audit-batch 4-6 + ToS fix
 **From:** เขียว (Khiao)
 **Date:** 2026-05-17
