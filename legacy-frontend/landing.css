@@ -251,9 +251,13 @@
 /* ─── Feature Cards ─── */
 .landing-features {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  /* v10.0.20 — LP-002 fix: 4 cards × min 240 + 3 gaps × 20 = 1020px เกิน max-width
+     960 → grid drop เป็น 3 cols + card 4 ตกบรรทัดใหม่ตัวเดียว ครึ่งขวาว่างเปล่า
+     ดูเหมือน "พื้นที่ว่าง 1-2 viewport" ก่อน stats. ลด min 240→220 + เพิ่ม max-width
+     960→1080 → 4 cards ครบใน 1 row ที่ desktop ≥ 1024px (มือถือยัง stack ตามเดิม) */
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 20px;
-  max-width: 960px;
+  max-width: 1080px;
   margin: 0 auto;
   width: 100%;
 }
