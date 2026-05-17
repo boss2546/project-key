@@ -502,7 +502,7 @@ function startOrganizeStatusPoll() {
             const btn = document.getElementById('btn-organize-new');
             if (btn && btn.disabled) {
               btn.disabled = false;
-              btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> <span data-i18n="myData.organizeNew">${typeof t === 'function' ? t('myData.organizeNew') : 'จัดระเบียบไฟล์ใหม่'}</span><span class="badge-count" id="unprocessed-badge" style="display:none;">0</span>`;
+              btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> <span data-i18n="myData.organizeNew">${typeof t === 'function' ? t('myData.organizeNew') : 'วิเคราะห์ไฟล์ใหม่'}</span><span class="badge-count" id="unprocessed-badge" style="display:none;">0</span>`;
               if (typeof loadUnprocessedCount === 'function') loadUnprocessedCount();
             }
           }, 2500);
@@ -823,8 +823,8 @@ const I18N = {
  // My Data page
  'myData.title': 'ข้อมูลของฉัน',
  'myData.subtitle': 'พื้นที่ข้อมูลส่วนตัวของคุณ',
- 'myData.organizeAll': 'จัดระเบียบทั้งหมด',
- 'myData.organizeNew': 'จัดระเบียบไฟล์ใหม่',
+ 'myData.organizeAll': 'วิเคราะห์ทั้งหมด',
+ 'myData.organizeNew': 'วิเคราะห์ไฟล์ใหม่',
  'myData.uploadText': 'ลากไฟล์มาวาง หรือ คลิกเพื่อเลือกไฟล์',
  'myData.uploadHint': 'รองรับ เอกสาร / รูปภาพ (OCR ไทย) / Spreadsheet / เสียง + วิดีโอ (AI) / Code · 50+ formats · สูงสุด 200 MB · ครั้งละ 20 ไฟล์',
  'myData.allFiles': 'ไฟล์ทั้งหมด',
