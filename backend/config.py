@@ -9,13 +9,31 @@ load_dotenv()
 # ─── App Version (single source of truth) ───
 # Bump this when releasing. All version strings exposed to clients
 # (Swagger /docs, /api/mcp/info, MCP serverInfo) read from here.
-APP_VERSION = "10.0.22"
+APP_VERSION = "10.0.23"
 
-# OpenRouter API
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
-LLM_MODEL = "google/gemini-3-flash-preview"            # Chat & lightweight tasks (fast, cheap)
-LLM_MODEL_PRO = "google/gemini-3-flash-preview"          # ⚡ TEMP: ใช้ Flash แทน Pro เพื่อเทสเร็ว (เดิม: google/gemini-3.1-pro-preview)
+# ─── LLM API (v10.0.23 — Gemini Direct, no OpenRouter) ───
+# ย้ายมาเรียก Gemini ตรง (OpenAI-compatible endpoint) — ตัด OpenRouter middleman
+# เหตุผล: Tier 1 Postpay = 2,000 RPM/key (เทียบ OpenRouter free ~10 RPM), latency ต่ำลง,
+# ไม่ต้องจ่าย markup.
+#
+# Failover: ถ้า primary key เจอ 429/5xx → fallback ไป backup key อัตโนมัติ (llm.py)
+# Backup key ว่าง = ใช้ primary อย่างเดียว (no-op failover)
+#
+# Primary key: อ่าน GOOGLE_API_KEY ก่อน (SDK convention — ใช้ร่วมกับ embeddings.py/
+# ai_ingest.py) แล้วค่อย fallback GEMINI_API_KEY env. ไม่ต้องตั้งซ้ำสองตัว.
+GEMINI_API_KEY = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY", "")
+GEMINI_API_KEY_BACKUP = os.getenv("GEMINI_API_KEY_BACKUP", "")
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+
+# Model names (Gemini direct — no `google/` prefix like OpenRouter)
+# Tier 1 Postpay: stable models recommended. Switch to preview/3.x ที่มีก็ได้.
+LLM_MODEL = os.getenv("LLM_MODEL", "gemini-2.5-flash")            # Chat & lightweight (fast, cheap)
+LLM_MODEL_PRO = os.getenv("LLM_MODEL_PRO", "gemini-2.5-flash")    # ⚡ TEMP: Flash แทน Pro เพื่อเทสเร็ว (เปลี่ยนเป็น gemini-2.5-pro ได้เมื่อพร้อม)
+
+# v10.0.23 — Legacy OpenRouter aliases (ยังเก็บไว้เพื่อ backward compat กับโค้ดเก่า
+# ที่อาจ import OPENROUTER_API_KEY/OPENROUTER_BASE_URL โดยตรง). ตัดทิ้งใน v10.1.0
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")  # deprecated
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"  # deprecated
 
 # Limits
 MAX_FILE_SIZE_MB = 10  # legacy — superseded by plan_limits.max_file_size_mb (per-plan)
@@ -103,8 +121,9 @@ HDBSCAN_MIN_CLUSTER_SIZE: int = int(os.getenv("HDBSCAN_MIN_CLUSTER_SIZE", "2"))
 UMAP_N_COMPONENTS: int = int(os.getenv("UMAP_N_COMPONENTS", "30"))
 
 # Concurrency override for organizer summary parallelization.
-# DEFAULT 5 (Gemini Flash free 10 RPM safe). เพิ่มถ้ามี paid quota.
-SUMMARY_CONCURRENCY: int = int(os.getenv("SUMMARY_CONCURRENCY", "5"))
+# v10.0.23: bumped 5 → 50. Gemini Tier 1 Postpay = 2,000 RPM/key — 50 concurrent
+# safe โดยไม่ติด rate limit. ลดลงถ้าเจอ 429 บ่อย หรือต้องการคุม cost.
+SUMMARY_CONCURRENCY: int = int(os.getenv("SUMMARY_CONCURRENCY", "50"))
 
 
 # Paths
