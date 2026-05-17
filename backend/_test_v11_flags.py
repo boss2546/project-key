@@ -296,11 +296,12 @@ class TestNumericConfigDefaults:
             f"UMAP_N_COMPONENTS default should be 30, got {cfg.UMAP_N_COMPONENTS}"
         )
 
-    def test_summary_concurrency_default_5(self, monkeypatch):
+    def test_summary_concurrency_default_50(self, monkeypatch):
+        # v10.0.23: bumped default 5 → 50 (Gemini Tier 1 Postpay = 2,000 RPM/key)
         monkeypatch.delenv("SUMMARY_CONCURRENCY", raising=False)
         cfg = _reload_config()
-        assert cfg.SUMMARY_CONCURRENCY == 5, (
-            f"SUMMARY_CONCURRENCY default should be 5, got {cfg.SUMMARY_CONCURRENCY}"
+        assert cfg.SUMMARY_CONCURRENCY == 50, (
+            f"SUMMARY_CONCURRENCY default should be 50, got {cfg.SUMMARY_CONCURRENCY}"
         )
 
     def test_embedding_batch_size_env_override(self, monkeypatch):

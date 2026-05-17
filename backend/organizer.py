@@ -6,6 +6,7 @@ from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from .config import SUMMARY_CONCURRENCY
 from .database import File, Cluster, FileClusterMap, FileInsight, FileSummary, gen_id
 from .llm import call_llm_json
 from .markdown_store import write_summary_md
@@ -154,11 +155,9 @@ async def organize_files(db: AsyncSession, user_id: str, force: bool = False):
         # to respect provider rate limits. DB writes stay sequential because
         # SQLAlchemy AsyncSession is not safe to use from concurrent coroutines.
         import asyncio as _asyncio
-        # v10.0.14 — concurrency override via env (เดิม hard-coded 5).
-        # ปรับขึ้นเมื่อมี paid Gemini quota; ลดลงเมื่อชน rate limit บ่อย.
-        import os as _os
-        _SUMMARY_CONCURRENCY = int(_os.getenv("SUMMARY_CONCURRENCY", "5"))
-        _sum_sem = _asyncio.Semaphore(_SUMMARY_CONCURRENCY)
+        # v10.0.23: ใช้ SUMMARY_CONCURRENCY จาก config (single source of truth).
+        # ปรับผ่าน env var SUMMARY_CONCURRENCY (default 50, Gemini Tier 1 Postpay).
+        _sum_sem = _asyncio.Semaphore(SUMMARY_CONCURRENCY)
 
         files_to_summarize = []
         for f in files:
@@ -654,9 +653,8 @@ async def organize_new_files(db: AsyncSession, user_id: str) -> dict:
 
         # 4. Generate summaries for new files
         # v10.0.4 — PARALLEL summaries (was serial = 50s for 10 files)
-        # Semaphore caps concurrent LLM calls so we don't blow Gemini rate
-        # limit (10 RPM free tier / 1000 RPM paid). Lab tested 5 parallel = sweet spot.
-        SUMMARY_CONCURRENCY = 5
+        # v10.0.23 — concurrency จาก config.SUMMARY_CONCURRENCY (default 50, Tier 1 Postpay).
+        # Semaphore caps concurrent LLM calls so we don't blow Gemini rate limit.
         sem = _asyncio.Semaphore(SUMMARY_CONCURRENCY)
         _completed = 0
         _completed_lock = _asyncio.Lock()
