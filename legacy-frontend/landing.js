@@ -208,6 +208,14 @@ function showAuthModal(mode) {
  ['btn-login', 'btn-register', 'btn-forgot-submit', 'btn-reset-submit'].forEach(id => {
    _setBtnLoading(document.getElementById(id), false);
  });
+ // v10.0.26 — LP-007: _setBtnLoading(btn, false) clears `disabled` unconditionally,
+ // which would re-enable the register button even when ToS checkbox is unticked.
+ // Re-uncheck the ToS box every time the modal opens (fresh-state security) AND
+ // re-disable btn-register so the user must opt in again.
+ const _tosResetCb = document.getElementById('register-tos');
+ const _tosResetBtn = document.getElementById('btn-register');
+ if (_tosResetCb) _tosResetCb.checked = false;
+ if (_tosResetBtn) _tosResetBtn.disabled = true;
 }
 
 async function doLogin() {
