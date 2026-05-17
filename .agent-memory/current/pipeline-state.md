@@ -5,15 +5,35 @@
 
 ---
 
-## 🎯 Current State: `review_passed · phase_1 · stop_checkpoint` 🔵 (v11.0.0 Organize Refactor)
+## 🎯 Current State: `fix-plan-sprint-0-active` 🟢🔵 (dual-track parallel)
 
-**Active task:** v11.0.0 — Organize Pipeline Refactor (Hybrid Clustering + Structured Summary + Entity Graph)
-**Active plan:** [`.agent-memory/plans/organize-refactor-v11.md`](../plans/organize-refactor-v11.md)
-**Plan Author:** 🔴 แดง (Daeng) — Plan created 2026-05-17 · UMAP fix added 2026-05-17 (3-in-1 mode)
-**Current Agent:** 🔵 ฟ้า (Fah) — Phase 1 review complete · APPROVE
-**Status:** `review_passed · stop_checkpoint` — ฟ้า อนุมัติ Phase 1 แล้ว 2026-05-17 · รอ user validate + start Phase 2
-**Master HEAD:** `020889b` (v10.0.23 · Gemini direct + SUMMARY_CONCURRENCY=50 · bug-fix organizer hardcode)
-**Production:** ✅ **v10.0.21 deployed live** with Phase 1 code (USE_HYBRID_CLUSTERING=false → behavior unchanged)
+**Active tasks (parallel):**
+- 🟢 **fix-plan-A** — Sprint 0 (Security emergency · A0.1-A0.5) · Owner: เขียว-A
+- 🔵 **fix-plan-B** — Sprint 0 (Ops + XSS + Worker · B0.1-B0.5) · Owner: เขียว-B · awaiting ฟ้า approve plan
+
+**Active plans:**
+- [`.agent-memory/plans/fix-plan-เขียว-A.md`](../plans/fix-plan-เขียว-A.md) — 28 milestones, 4 sprints
+- [`.agent-memory/plans/fix-plan-เขียว-B.md`](../plans/fix-plan-เขียว-B.md) — 38 milestones, 4 sprints
+
+**Paused:**
+- 🟡 **v11-phase-2** (Structured Summary + Entity Graph + Polish) — resume เมื่อ fix-plan Sprint 1 ผ่าน
+  - Rationale: B0.4 (embedding model) + B1.1 (Thai tokenizer) เป็น v11 prerequisites · ทำใน fix-plan ก่อน
+- ✅ v11-phase-1 — review_passed by ฟ้า (2026-05-17) · retained as checkpoint history
+
+**Reviewer:** 🔵 ฟ้า (Fah) — sprint-end reviews + FINAL UI test ก่อน public launch
+**Master HEAD:** `10e33f0` (v10.0.23 · pre-fix-plan baseline)
+**Production:** ✅ v10.0.24 live (audit-batch4 UX fixes) · awaiting fix-plan Sprint 0 deploy → `v10.0.30-sprint0` (combined A+B emergency)
+
+### Why fix-plan supersedes v11 progression
+User-commissioned audit (2026-05-17) found 188 production-readiness issues (24 P0, 34 P1).
+Decision: **เก็บ P0/P1 ของ fix-plan ให้ครบก่อน resume v11 phase 2** เพราะ:
+1. Security P0 (secret leak, plaintext password, JWT) ต้อง close ก่อน public launch
+2. fix-plan B0.4 + B1.1 ปลดล็อก v11 phase 2 prerequisites (embedding deprecation + Thai tokenizer)
+3. v11 phase 2 ทำใน worse state ถ้าไม่มี API contract + test infrastructure ของ fix-plan
+
+### Legacy state (archived 2026-05-18)
+- v11.0.0 Phase 1: ✅ APPROVED by ฟ้า · code deployed (flags OFF) · paused at stop_checkpoint
+- v10.0.21 was last v11-tagged version · v10.0.24 = audit-batch4 (UX)
 
 ### Approved Defaults (Q1-Q7)
 | # | Question | Approved |
