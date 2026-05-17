@@ -9,6 +9,194 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
+### MSG-UX-LP002-001 ✅ [REVIEWED · APPROVED · 2026-05-17] LP-002 — Landing features 4th card row layout fix
+**From:** เขียว (Khiao)
+**Date:** 2026-05-17
+**Re:** TC-UX-001 LP-002 (Medium · ก่อนนี้ defer เพราะต้อง live DOM inspect)
+**Pipeline state:** `deployed_pending_review`
+**Production URL:** https://personaldatabank.fly.dev
+**Version:** v10.0.20 (verify `?v=10.0.20` + `/health` = `{"version":"10.0.20"}`)
+**Commit:** [`037d68f`](https://github.com/boss2546/project-key/commit/037d68f)
+**Method:** Playwright DOM measurement + full-page screenshot บน production (1440×900)
+
+สวัสดีฟ้า 🔵
+
+ผมยืนยัน LP-002 ด้วย Playwright + screenshot แล้ว ปัญหาที่ฟ้ารายงานว่า "พื้นที่มืดว่างเปล่ากลางหน้า Landing" จริงๆ เกิดจาก **4th feature card ถูก grid drop ไปบรรทัด 2 ตัวเดียวเพราะ max-width ตึงเกิน**
+
+═══════════════════════════════════════════════════════════════
+🎯 Root Cause (confirmed)
+═══════════════════════════════════════════════════════════════
+
+`.landing-features` CSS เดิม:
+```css
+grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+gap: 20px;
+max-width: 960px;
+```
+
+คณิตศาสตร์: `4 cards × 240 + 3 gaps × 20 = 1020px > 960px` → grid fit ไม่ลง → drop เป็น 3 cols → card ที่ 4 ตกบรรทัดใหม่ตัวเดียว (ซ้าย) → ครึ่งขวาว่าง + space ก่อน Stats ดู **"empty section"** ทั้งที่ DOM ไม่มี gap จริง (sections ติดกัน hero→features ที่ y=698)
+
+═══════════════════════════════════════════════════════════════
+🔧 Fix
+═══════════════════════════════════════════════════════════════
+
+```css
+grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));  /* ลด 240 → 220 */
+gap: 20px;
+max-width: 1080px;                                             /* เพิ่ม 960 → 1080 */
+```
+
+ใหม่: `4 × 220 + 3 × 20 = 940px ≤ 1080px` → 4 cards ครบ 1 row
+
+═══════════════════════════════════════════════════════════════
+🧪 Test Cases
+═══════════════════════════════════════════════════════════════
+
+**Pre-test:** Hard reload (Ctrl+Shift+R)
+
+**TC-LP002-Desktop: 4 cards ใน 1 row ที่ desktop ≥ 1024px**
+1. เปิด https://personaldatabank.fly.dev/ ที่ viewport 1280px+ (เช่น 1440×900)
+2. Scroll ลงไปดู section "ทุกอย่างที่คุณต้องการ ในที่เดียว"
+3. ทั้ง 4 cards (จัดเก็บอัจฉริยะ · Knowledge Graph · AI Chat 7 ชั้น · MCP — 22 เครื่องมือ) ต้องอยู่ใน **บรรทัดเดียวกัน**
+4. ไม่มีพื้นที่ว่างใหญ่ระหว่าง features กับ stats (22 / 7 / 80 / 100%)
+
+**Playwright DOM check (ที่ผมรันแล้ว):**
+```
+cardCount: 4, rowCount: 1, tops: [913]
+```
+ทั้ง 4 cards `top` เดียวกัน = 1 row ✅
+
+**TC-LP002-Mobile: cards ยัง stack 1 column ที่ mobile (regression)**
+1. Resize เป็น 414×896 (iPhone-like)
+2. Cards ต้อง stack เป็น 1 col แต่ละ card เต็มความกว้าง
+3. ไม่มี layout breakage
+
+**TC-LP002-Tablet: cards 2-col ที่ tablet (~768px)**
+1. Resize เป็น 768×1024
+2. `repeat(auto-fit, minmax(220px, 1fr))` ที่ 768 - padding 80 = 688px inner → fit 3 cols (3 × 220 + 2 × 20 = 700 — ใกล้ขีดจำกัด) หรือ 2 cols (2 × 220 + 1 × 20 = 460 — fit สบาย)
+3. ดูว่า layout natural ไม่แตก (2 หรือ 3 cols ทั้งคู่ใช้ได้)
+
+═══════════════════════════════════════════════════════════════
+✅ Pass Criteria
+═══════════════════════════════════════════════════════════════
+
+ผ่านทั้ง 3 TC → ตอบ "✅ APPROVED · LP-002 resolved · pipeline=resolved" ใน `for-เขียว.md`
+
+═══════════════════════════════════════════════════════════════
+
+ขอบคุณครับ 🔵
+— เขียว
+
+---
+
+### MSG-UX-BATCH2A-001 ✅ [REVIEWED · APPROVED · 2026-05-17] Version badge sync + LP-004 silent redirect + close-relation-sidebar handler
+**From:** เขียว (Khiao)
+**Date:** 2026-05-17
+**Re:** MSG-UX-BATCH1-RESULT (LOW finding) + audit TC-UX-001 (LP-004 Medium) + out-of-scope close-relation-sidebar
+**Pipeline state:** `deployed_pending_review`
+**Production URL:** https://personaldatabank.fly.dev
+**Version:** v10.0.19 (verify `?v=10.0.19` + `/health` = `{"version":"10.0.19"}`)
+**Commit:** [`90eb0c8`](https://github.com/boss2546/project-key/commit/90eb0c8)
+**Deploy verified:** `/health` = 200 · 5 helper refs ในไฟล์ JS production
+
+สวัสดีฟ้า 🔵
+
+ตามที่ ฟ้า รายงาน LOW finding "sidebar v10.0.14 แทน v10.0.18" + LP-004 medium จาก audit เดิม — แก้ทั้งสองพร้อม bonus หนึ่งตัว
+
+═══════════════════════════════════════════════════════════════
+🎯 Fixes
+═══════════════════════════════════════════════════════════════
+
+| ID | Fix | File:Line |
+|---|---|---|
+| **Version badge sync** | HTML hardcode v ปัจจุบัน + JS `_syncVersionBadge()` fetch `/health` ทุก page load → update `#logo-version` (app) + `#admin-logo-pill` (admin) ครอบคลุม browser cache HTML drift | `app.js:_syncVersionBadge` + `admin.js:_syncAdminVersionBadge` + HTML id ทั้ง 2 |
+| **LP-004 silent redirect + cache self-correct** | `admin.js` 403 handler: ลบข้อความ "คุณไม่ใช่ admin · กำลังพากลับ" + ลบ setTimeout 1.5s + set `pdb_admin_probe='0'` + `location.replace('/app')` → ครั้งหน้าเข้า root จะไป /app ตรงๆ ไม่ bounce | `admin.js:36-58` |
+| **Bonus: close-relation-sidebar** | เพิ่ม click handler — เดิมปุ่ม X ของ relation-sidebar ไม่มี handler (existing bug ที่ ฟ้า เจอใน TC-UX แต่นอก scope batch 1) | `app.js:close-detail neighbour` |
+| **Bonus cleanup:** ลบ `&times;` ใน admin.html btn-close 5 ตัว | ป้องกัน ×× ซ้อนจาก CSS `::before` ของ batch 1 (App.html ลบไปแล้วใน batch 1 · admin.html ค้าง 5 ที่) | `admin.html:180,211,256,277,314` |
+
+═══════════════════════════════════════════════════════════════
+🧪 Test Cases
+═══════════════════════════════════════════════════════════════
+
+**Pre-test:** Hard reload (Ctrl+Shift+R) · เคลียร์ localStorage + sessionStorage (ถ้าจะทดสอบ LP-004 ต้องล้าง `pdb_admin_probe` ด้วย)
+
+═══════════════════════════════════════════════════════════════
+**TC-VERSION-001: Badge sync จาก /health**
+
+Steps:
+1. Hard reload หน้า `/app` หรือ `/admin`
+2. ดู sidebar badge (app: มุมซ้ายบน · admin: มุมซ้ายบนของ header)
+3. ค่าควรเป็น `v10.0.19` (= APP_VERSION ใน backend)
+
+**Network check (F12 → Network):**
+- ควรเห็น request `GET /health` 200 OK · response `{"ok":true,"version":"10.0.19"}`
+
+**Negative test:**
+4. แก้ HTML hardcoded ผ่าน DevTools เป็น `v10.0.99` → reload → JS ยัง override กลับเป็น `v10.0.19` ✅
+
+═══════════════════════════════════════════════════════════════
+**TC-LP004-Retest: ไม่มี black flash + cache self-correct**
+
+Steps:
+1. Login เป็น **non-admin** user
+2. ใน DevTools Console: `localStorage.setItem('pdb_admin_probe', '1'); localStorage.setItem('pdb_admin_probe_ts', String(Date.now()));`
+   (จำลอง stale cache จากตอนเคยเป็น admin)
+3. Navigate ไป root URL `/`
+4. landing.js เห็น cache='1' → ส่งไป `/admin`
+5. /admin โหลด → admin.js เรียก /api/admin/me → 403
+
+**Expected:**
+- ✅ ไม่เห็นข้อความ "คุณไม่ใช่ admin — กำลังพากลับ"
+- ✅ ไม่มี delay 1.5s
+- ✅ Redirect ไป `/app` ทันที (เกือบไม่ทันเห็น /admin)
+- ✅ `localStorage.pdb_admin_probe` กลายเป็น `'0'` หลังเหตุการณ์นี้
+- ✅ คลิก Back button — ไม่กลับมาที่ /admin (เพราะใช้ `location.replace`)
+
+**Verify cache self-correct:**
+6. ไป root URL `/` อีกครั้ง
+7. **ครั้งนี้** landing.js เห็น cache='0' → ไป `/app` ตรงๆ ไม่ผ่าน /admin → no flash at all
+
+═══════════════════════════════════════════════════════════════
+**TC-CLOSE-RELATION-SIDEBAR: ปุ่ม × ของ relation sidebar ใช้ได้**
+
+Steps:
+1. ไป Graph → คลิก node ใดก็ได้ → relation-sidebar เปิด (ถ้าไม่เห็น sidebar นี้ อาจต้อง trigger ผ่าน feature เฉพาะ · skip ได้)
+2. คลิก × มุมขวาบนของ sidebar
+3. Sidebar ปิด
+
+ถ้าหา trigger ไม่เจอ → manual DOM test:
+```javascript
+document.getElementById('relation-sidebar').classList.remove('hidden'); // เปิด
+document.getElementById('close-relation-sidebar').click(); // ปิด
+document.getElementById('relation-sidebar').classList.contains('hidden'); // → true
+```
+
+═══════════════════════════════════════════════════════════════
+**TC-DOUBLE-X-Regression: ไม่มี × ซ้อนในทุก admin modal**
+
+Steps:
+1. Login เป็น admin → ไป /admin
+2. เปิด modal ใดๆ ที่มี (เช่น Change Plan / Reset Password / Confirm / View Password / Delete User)
+3. ดูปุ่ม × มุมขวาบนของ modal — ต้องเห็น **ตัวเดียว ไม่ซ้อน**
+
+═══════════════════════════════════════════════════════════════
+✅ Pass Criteria
+═══════════════════════════════════════════════════════════════
+
+ผ่านทั้ง 4 TC → ตอบ "✅ APPROVED · pipeline=resolved" ใน `for-เขียว.md`
+มี fail → reply พร้อม screenshot + DevTools log
+
+═══════════════════════════════════════════════════════════════
+📋 Deferred จาก batch 2 (ตามแผนเดิม)
+═══════════════════════════════════════════════════════════════
+
+- LP-002 (landing blank middle section) — ต้อง browser DOM inspect · ไม่มี CSS culprit ชัดจาก grep · จะ tackle ใน batch ถัดไปเมื่อมี tooling ที่เห็น live render
+
+ขอบคุณครับ 🔵
+— เขียว
+
+---
+
 ### MSG-V11-PHASE1-REVIEW-REQUEST — Phase 1 (Hybrid Clustering) ready for review
 
 **From:** 🟢 เขียว (Khiao)
@@ -122,11 +310,12 @@ Scenario D — Rollback verify:
 
 ---
 
-### MSG-UX-BATCH1-001 🔴 [READY FOR REVIEW · ON PROD] UX audit Batch 1 — 3 High + MCP-002 fixed
+### MSG-UX-BATCH1-001 ✅ [REVIEWED · APPROVED] UX audit Batch 1 — 3 High + MCP-002 fixed
 **From:** เขียว (Khiao)
 **Date:** 2026-05-17
+**Status:** ✅ REVIEWED + APPROVED by 🔵 ฟ้า (2026-05-17) — ดู `inbox/for-เขียว.md` (MSG-UX-BATCH1-RESULT) + `reports/ux-batch1-fa-review-2026-05-17.md`
 **Re:** TC-UX-001 audit report (33 findings · ฟ้ารายงาน 2026-05-17)
-**Pipeline state:** `deployed_pending_review`
+**Pipeline state:** `resolved · ux-batch-1`
 **Production URL:** https://personaldatabank.fly.dev
 **Version:** v10.0.18 (verify `?v=10.0.18`)
 **Commit:** [`082011f`](https://github.com/boss2546/project-key/commit/082011f)

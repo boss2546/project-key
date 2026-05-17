@@ -1,8 +1,143 @@
 # 📅 Last Session Summary
 
 **Date:** 2026-05-17
-**Agent:** 🔵 ฟ้า (Fah) — นักตรวจสอบ (Phase 0 review)
+**Agent:** 🔵 ฟ้า (Fah) — นักตรวจสอบ (UX Batch 2A + LP-002 review)
+**Pipeline state:** `review_passed · phase_1 · stop_checkpoint` 🔵 (v11.0.0 — แยกจาก UX fixes)
+**UX Batch 2A + LP-002:** `resolved` ✅ (v10.0.21 prod · 7/7 TC PASS)
+
+---
+
+## 🎯 ที่ทำเสร็จในรอบนี้ — UX Review (LP-002 + Batch 2A)
+
+**Trigger:** MSG-UX-LP002-001 + MSG-UX-BATCH2A-001 จากเขียว
+
+**Verdicts:** ✅ **APPROVE ทั้งคู่** · pipeline=resolved
+
+### TC Results (7/7 PASS)
+
+| TC | Fix | Method | Result |
+|---|---|---|---|
+| TC-LP002-Desktop | 4 cards 1 row @ 1440px | Browser live DOM | ✅ PASS |
+| TC-LP002-Mobile | 1-col stack ≤480px | CSS source @media | ✅ PASS |
+| TC-LP002-Tablet | 2-3 cols ~768px | CSS math auto-fit | ✅ PASS |
+| TC-VERSION-001 | Badge sync /health | Browser network + inject test | ✅ PASS |
+| TC-LP004-Retest | Silent redirect + cache self-correct | Code review admin.js | ✅ PASS |
+| TC-CLOSE-RELATION-SIDEBAR | × button ปิด sidebar | HTML source + app.js handler | ✅ PASS |
+| TC-DOUBLE-X-Regression | ไม่มี × ซ้อน admin modals | admin.html source (5 empty btn-close) | ✅ PASS |
+
+### Key findings
+- Production อยู่ที่ v10.0.21 ขณะทดสอบ (message ระบุ v10.0.20/v10.0.19) — fixes ยังอยู่ครบ
+- TC-LP002-Mobile/Tablet ใช้ CSS source review (browser Chrome min-width > 414px ทำให้ resize ไม่ได้)
+- TC-CLOSE-SIDEBAR + TC-LP004 ใช้ code review (ต้องล็อกอินถึงจะ E2E ได้)
+
+### Files updated
+- `inbox/for-เขียว.md` ✅ (MSG-UX-LP002-RESULT + MSG-UX-BATCH2A-RESULT)
+- `inbox/for-ฟ้า.md` ✅ (ทั้ง 2 messages → REVIEWED · APPROVED)
+- `last-session.md` ✅ (this file)
+
+### Next
+- เขียวอ่าน 2 RESULT messages ใน `inbox/for-เขียว.md`
+- v11.0.0 stop_checkpoint ยังรอ user validate cluster quality (enable USE_HYBRID_CLUSTERING=true)
+
+---
+
+## ⬇️ Previous session (ฟ้า — Phase 1 review)
+
+---
+
+**Date:** 2026-05-17
+**Agent:** 🔵 ฟ้า (Fah) — นักตรวจสอบ (Phase 1 review)
+**Pipeline state:** `review_passed · phase_1 · stop_checkpoint` 🔵 (v11.0.0 organize refactor)
+**Phase 1 verdict:** `APPROVE` ✅ (commit b3542b3 · v10.0.19 prod)
+
+---
+
+## 🎯 ที่ทำเสร็จในรอบนี้ — v11.0.0 Phase 1 Review (Hybrid Clustering)
+
+**Trigger:** MSG-V11-PHASE1-REVIEW-REQUEST จากเขียว — Phase 1 (clustering.py + importance.py + organizer routing + frontend phase_meta) พร้อม review
+
+**Verdict:** ✅ **APPROVE** · pipeline = review_passed · stop_checkpoint
+
+### Test Results (161/161 PASS)
+
+| Suite | Tests | Result |
+|---|---|---|
+| Phase 0 regression | 86 | ✅ 86/86 PASS |
+| `_test_clustering.py` (ฟ้าเขียน) | 35 | ✅ 35/35 PASS |
+| `_test_importance.py` (ฟ้าเขียน) | 40 | ✅ 40/40 PASS |
+| **Grand total** | **161** | **✅ 161/161 PASS** |
+
+### Scenarios (A/C/D PASS)
+
+| Scenario | Result |
+|---|---|
+| A — Production live v10.0.19 | ✅ PASS |
+| C — Edge cases N=0/3/5/50 | ✅ PASS |
+| D — Rollback flag=false → legacy | ✅ PASS |
+
+### Key findings (non-blocking)
+- **[LOW] temp_id collision** — `title[:16]` prefix → 2 clusters could share temp_id (cosmetic only)
+- **[INFO] pipeline-state.md HEAD stale** — was 9c0c655, actual 90eb0c8 (v10.0.19 Batch 2a) → updated ✅
+
+### Files created/updated this session
+- `backend/_test_clustering.py` ✅ (35 tests — NEW)
+- `backend/_test_importance.py` ✅ (40 tests — NEW)
+- `inbox/for-เขียว.md` ✅ (MSG-V11-PHASE1-REVIEW-RESULT — APPROVE)
+- `reports/v11-phase1-fa-review-2026-05-17.md` ✅ (new report)
+- `current/pipeline-state.md` ✅ (review_passed · stop_checkpoint)
+- `current/last-session.md` ✅ (this file)
+
+### Next
+- **Stop Checkpoint** — user ทดสอบ `flyctl secrets set USE_HYBRID_CLUSTERING=true` + validate cluster quality
+- ถ้า OK → เขียวเริ่ม Phase 2 (Structured Summary)
+- ถ้า user สั่ง "ข้าม checkpoint" → เขียวเริ่ม Phase 2 ได้ทันที
+
+---
+
+## ⬇️ Previous session (ฟ้า — UX Batch 1 review)
+
+---
+
+**Date:** 2026-05-17
+**Agent:** 🔵 ฟ้า (Fah) — นักตรวจสอบ (UX Batch 1 review)
 **Pipeline state:** `review_passed · phase_0 → ready_for_phase_1` 🔵 (v11.0.0 organize refactor)
+**UX Batch 1:** `resolved` ✅ (commit 082011f · v10.0.18)
+
+---
+
+## 🎯 ที่ทำเสร็จในรอบนี้ — UX Audit Batch 1 Review (v10.0.18)
+
+**Trigger:** MSG-UX-BATCH1-001 จากเขียว — 4 TC ใน commit `082011f`
+
+**Verdict:** ✅ **APPROVE** · pipeline=resolved · UX Batch 1 complete
+
+### TC Results (5/5 PASS)
+
+| TC | Fix | Method | Result |
+|---|---|---|---|
+| TC-MCP001 | admin_login hidden from non-admin | API live (29 tools) + code review | ✅ PASS |
+| TC-LP001 | Login modal × | Browser E2E | ✅ PASS |
+| TC-PROF001 | Profile modal × | Browser E2E | ✅ PASS |
+| TC-KV001 | Notes→Graph breadcrumb | jsdom 12/12 + code review | ✅ PASS |
+| TC-MCP002 | URL masked + reveal + copy | Browser E2E + source review | ✅ PASS |
+
+### Key findings
+- **[LOW] Sidebar badge v10.0.14** ทั้งที่ backend=v10.0.18 → browser cache issue (cosmetic, defer Batch 2)
+- close-relation-sidebar no handler — known out-of-scope
+
+### Files updated
+- `inbox/for-เขียว.md` ✅ (MSG-UX-BATCH1-RESULT — APPROVE)
+- `inbox/for-ฟ้า.md` ✅ (MSG-UX-BATCH1-001 → resolved)
+- `reports/ux-batch1-fa-review-2026-05-17.md` ✅ (new report)
+- `last-session.md` ✅ (this file)
+
+### Next
+- เขียวมี MSG-V11-PHASE1-REVIEW-REQUEST รออยู่ใน `inbox/for-ฟ้า.md` — Phase 1 (Hybrid Clustering) พร้อม review
+- ฟ้าอ่าน MSG-V11-PHASE1-REVIEW-REQUEST ก่อนเริ่ม session ถัดไป
+
+---
+
+## ⬇️ Previous session (ฟ้า — Phase 0 review)
 
 ---
 

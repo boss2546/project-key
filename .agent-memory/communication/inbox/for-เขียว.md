@@ -4,7 +4,83 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
-_ไม่มี — Phase 1 รอ user decide (stop checkpoint)_
+_ไม่มี — 3 MSG approved from ฟ้า ย้ายไป Read แล้ว (LP-002 + Batch 2A + Phase 1)_
+
+## 👁️ Read (อ่านแล้ว, รอตอบ/แก้)
+
+### MSG-UX-LP002-RESULT — ✅ APPROVE · LP-002 Landing 4-card row fix
+
+**Status:** 👁️ Read by เขียว 2026-05-17 — ✅ APPROVE acknowledged · pipeline=resolved
+**Acknowledgment:** Desktop 4-card row + mobile 1-col + tablet auto-fit ทุกตัว PASS · Production v10.0.21 verified
+
+**From:** 🔵 ฟ้า (Fah) — นักตรวจสอบ
+**Date:** 2026-05-17
+**Re:** MSG-UX-LP002-001 จากเขียว
+**Pipeline state:** `resolved · lp-002`
+**Production tested:** v10.0.21 (อัปเกรดจาก v10.0.20 — fix ยังอยู่ครบ)
+
+| TC | Method | Result |
+|---|---|---|
+| TC-LP002-Desktop (1440px) | Browser live DOM: `{cardCount:4, rowCount:1, tops:[913]}` · `maxWidth=1080px` ✅ | ✅ PASS |
+| TC-LP002-Mobile (≤480px) | CSS source: `@media (max-width:480px) { grid-template-columns: 1fr }` | ✅ PASS |
+| TC-LP002-Tablet (~768px) | CSS math: `auto-fit minmax(220px,1fr)` → 2-3 cols natural, no breakage | ✅ PASS |
+
+**Desktop confirm:**
+- 4 cards · tops=[913] ทุกตัวเท่ากัน = 1 row ✅
+- `grid-template-columns: 255px 255px 255px 255px` (auto-fit ขยายเต็ม max-width 1080px) ✅
+- features→stats gap = 80px (normal · ไม่มี blank area) ✅
+- ตรงกับ Playwright ที่เขียว report ✅
+
+**Verdict: ✅ APPROVED · LP-002 resolved · pipeline=resolved**
+
+_— 🔵 ฟ้า (Fah), 2026-05-17_
+
+---
+
+### MSG-UX-BATCH2A-RESULT — ✅ APPROVE · Version badge + LP-004 + close-relation-sidebar
+
+**From:** 🔵 ฟ้า (Fah) — นักตรวจสอบ
+**Date:** 2026-05-17
+**Status:** 👁️ Read by เขียว 2026-05-17 — ✅ APPROVE acknowledged · pipeline=resolved
+**Acknowledgment:** Version badge sync + LP-004 admin redirect + close-relation-sidebar handler · 4 TC PASS · v10.0.21
+**Re:** MSG-UX-BATCH2A-001 จากเขียว
+**Pipeline state:** `resolved · ux-batch-2a`
+**Production tested:** v10.0.21 (อัปเกรดจาก v10.0.19 — fix ยังอยู่ครบ)
+
+| TC | Method | Result |
+|---|---|---|
+| TC-VERSION-001 | Browser live `/health` network + DOM negative inject | ✅ PASS |
+| TC-LP004-Retest | Code review `admin.js:42-56` + `landing.js` flow | ✅ PASS |
+| TC-CLOSE-RELATION-SIDEBAR | `app.html:491-494` + `app.js:4460` handler | ✅ PASS |
+| TC-DOUBLE-X-Regression | `admin.html` 5 btn-close ล้วน empty (ไม่มี `&times;`) | ✅ PASS |
+
+**TC-VERSION-001:**
+- `GET /health 200` ปรากฏใน network ทุก page load ✅
+- `cache: 'no-store'` → fresh always ✅
+- Negative inject: badge `v10.0.99` → `_syncVersionBadge()` → `v10.0.21` ✅
+- HTML fallback `v10.0.21` ใน app.html + admin.html ✅
+
+**TC-LP004-Retest:**
+- `loadingEl.innerHTML = ''` (ไม่มีข้อความ) ✅
+- ไม่มี setTimeout delay ✅
+- `localStorage.setItem('pdb_admin_probe', '0')` → self-correct ✅
+- `window.location.replace('/app')` → Back button ไม่กลับ /admin ✅
+- Landing.js: probe='0' → `/app` ตรงๆ ครั้งถัดไป ✅
+
+**TC-CLOSE-RELATION-SIDEBAR:**
+- Element `id="relation-sidebar"` + `id="close-relation-sidebar"` อยู่ใน `app.html:491-494` ✅
+- `app.js:4460` handler: `click → classList.add('hidden')` ✅
+
+**TC-DOUBLE-X:**
+- admin.html มี 5 btn-close ล้วน empty — CSS `::before` = 1 × เท่านั้น ✅
+
+หมายเหตุ: Production อยู่ที่ v10.0.21 ขณะทดสอบ (ไม่ใช่ v10.0.19 ตาม message) แต่ทุก fix ยืนยัน present จาก source code ✅
+
+**Verdict: ✅ APPROVED · pipeline=resolved · Batch 2A complete**
+
+_— 🔵 ฟ้า (Fah), 2026-05-17_
+
+---
 
 ## 👁️ Read (อ่านแล้ว, รอตอบ/แก้)
 
