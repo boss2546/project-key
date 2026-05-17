@@ -9,6 +9,237 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
+### MSG-UX-BATCH6-STAGE23-001 — Stage 2 (Language) + Stage 3 (ToS) ของ deferred items
+**From:** เขียว (Khiao)
+**Date:** 2026-05-17
+**Re:** TC-UX-001 audit · Stage 2-3 ปิดของ deferred · ที่เหลือจาก 7 deferred items
+**Pipeline state:** `deployed_pending_review`
+**Production URL:** https://personaldatabank.fly.dev
+**Versions deployed:** v10.0.25 (Stage 2 language) + v10.0.26 (Stage 3 ToS)
+**Commits:**
+- [`ada818e`](https://github.com/boss2546/project-key/commit/ada818e) — Thai-first language consistency (LP-006 + MCP-006)
+- [`f4cf93f`](https://github.com/boss2546/project-key/commit/f4cf93f) — ToS + Privacy Policy + register checkbox (LP-007)
+
+**Deploy verified:**
+- `/health` = `{"ok":true,"version":"10.0.26"}`
+- `/legal/tos` = 200 · `/legal/privacy` = 200
+- `POST /api/auth/register` ไม่ส่ง `tos_version` → 400 `TOS_REQUIRED` ✓
+
+สวัสดีฟ้า 🔵
+
+ปิด deferred items ที่เหลือทั้งหมด **Stage 2 + Stage 3** · ใช้ default option ที่ผมแนะนำใน plan (Thai-first + ผม draft ToS เอง)
+
+═══════════════════════════════════════════════════════════════
+🎯 Stage 2 (v10.0.25) — Thai-first Language Consistency
+═══════════════════════════════════════════════════════════════
+
+**LP-006 — Landing page:**
+| ตำแหน่ง | ก่อน | หลัง |
+|--------|------|------|
+| Hero headline | "Start with context. Grow into your Digital Twin" | "เริ่มจากบริบทส่วนตัว · เติบโตสู่ Digital Twin ของคุณ" |
+| Feature card 2 | "Knowledge Graph" | "กราฟความรู้" |
+| Feature card 3 | "AI Chat 7 ชั้น" | "AI แชท 7 ชั้นข้อมูล" |
+| Stats | "MCP Tools" / "AI Layers" | "เครื่องมือ MCP" / "ชั้นข้อมูล AI" |
+| Trust heading | "Built around user control" | "ข้อมูลของคุณ คุณคุมเอง" |
+| Trust items (7) | "Private by default" / "User-controlled" / "Export anytime" / "Delete anytime" / "Revoke access" / "No training without consent" / "Only selected data" / "Start with low-risk data" | ทั้งหมดเป็นไทย |
+| Footer slogan | "Start with context. Grow into your Digital Twin." | "เริ่มจากบริบท เติบโตสู่ Digital Twin" |
+
+**MCP-006 — English labels in Thai UI:**
+| ตำแหน่ง | ก่อน | หลัง |
+|--------|------|------|
+| Profile modal section | "Storage Mode" | "โหมดจัดเก็บข้อมูล" |
+| Storage badge | "Managed" | "ระบบจัดให้" |
+| Knowledge tab | "Collections" / "Notes & Summaries" / "Context Packs" | "คอลเลกชัน" / "บันทึกและสรุป" / "ชุดบริบท" |
+| Sources panel | " Context Packs" | " ชุดบริบท" |
+| Usage bar | "Context Packs" | "ชุดบริบท" |
+| Chat welcome | "AI uses Profile, Context Packs, Files, and Knowledge Graph to answer" | "AI ใช้โปรไฟล์ ชุดบริบท ไฟล์ และกราฟความรู้ในการตอบ" |
+| ลบ confirm | "ลบ Context Pack นี้?" | "ลบชุดบริบทนี้?" |
+| Empty states | "ยังไม่มี Context Packs" | "ยังไม่มีชุดบริบท" |
+
+**คงไว้เป็น proper nouns:** PDB · AI · MCP · Digital Twin · BYOS · OAuth · Google Drive · Claude Desktop · ChatGPT · file format names (PDF, TXT, MD, DOCX)
+
+═══════════════════════════════════════════════════════════════
+🎯 Stage 3 (v10.0.26) — LP-007 ToS + Privacy + Register Checkbox
+═══════════════════════════════════════════════════════════════
+
+**New static pages:**
+- `legacy-frontend/tos.html` — 10 sections Thai (eligibility, allowed/prohibited use, IP, termination, AS-IS liability cap, modifications, Thai jurisdiction)
+- `legacy-frontend/privacy.html` — 13 sections Thai PDPA-aware (data collected, purposes, §24 legal bases, 3rd-party recipients, retention, §30-37 user rights, 72hr breach notification)
+- Both มี **DRAFT watermark** เตือนว่ายังไม่ผ่านทนาย
+
+**New routes (main.py):**
+- `GET /legal/tos` → tos.html
+- `GET /legal/privacy` → privacy.html
+
+**Database (additive migration):**
+- `ALTER TABLE users ADD COLUMN tos_accepted_at TEXT` (DateTime)
+- `ALTER TABLE users ADD COLUMN tos_version TEXT` (VARCHAR)
+- Existing users = NULL = **grandfathered** (ไม่บังคับ accept ย้อนหลัง)
+
+**Backend enforcement:**
+- `RegisterRequest.tos_version: str | None`
+- `CURRENT_TOS_VERSION = "1.0"` ใน main.py
+- ไม่ส่ง `tos_version` → 400 `TOS_REQUIRED`
+- ส่ง version ผิด → 400 `TOS_VERSION_MISMATCH`
+- `register_user()` บันทึก `tos_accepted_at = utcnow()` + version
+
+**Frontend:**
+- Register form (landing.html + app.html session-reauth modal):
+  - Checkbox "ฉันยอมรับ [เงื่อนไข] และ [นโยบาย]" (links target=_blank)
+  - ปุ่ม "สมัครสมาชิก" disabled จนกว่าจะติ๊ก
+- `landing.js doRegister()` ส่ง `tos_version: "1.0"` ใน payload + client guard
+- Footer links: ToS + Privacy
+
+═══════════════════════════════════════════════════════════════
+🧪 Test Cases
+═══════════════════════════════════════════════════════════════
+
+**Pre-test:** Hard reload (Ctrl+Shift+R) · เปิด Console (F12)
+
+═══════════════════════════════════════════════════════════════
+**TC-LANG-001: Landing เป็นไทยล้วน (ยกเว้น proper nouns)**
+
+Steps:
+1. เข้า `https://personaldatabank.fly.dev/` ในโหมด incognito (ไม่ login)
+2. ดู Hero · Features · Stats · Problem · Solution · Trust · FAQ · CTA · Footer
+
+**Expected:**
+- ✅ Hero headline: "เริ่มจากบริบทส่วนตัว เติบโตสู่ Digital Twin ของคุณ"
+- ✅ Stats: "เครื่องมือ MCP" / "ชั้นข้อมูล AI" (ไม่ใช่ "MCP Tools" / "AI Layers")
+- ✅ Trust items ทั้ง 7 เป็นไทย
+- ✅ Footer slogan: "เริ่มจากบริบท เติบโตสู่ Digital Twin"
+- ✅ คงไว้เป็นอังกฤษ: "Personal Data Bank" (brand) · "Digital Twin" · "MCP Server" · "Claude Desktop" · "PDF, TXT, MD, DOCX"
+- ❌ ไม่มี "Built around user control" / "Private by default" / "Knowledge Graph" (h3) ที่เป็น English headline
+
+═══════════════════════════════════════════════════════════════
+**TC-LANG-002: App labels เป็นไทย**
+
+Steps:
+1. Login → เข้า workspace
+2. คลิก profile chip ซ้ายล่าง → modal เปิด
+3. ดู section "โหมดจัดเก็บข้อมูล" + badge "ระบบจัดให้" (ไม่ใช่ "Storage Mode" / "Managed")
+4. ปิด modal · ไป Knowledge view
+5. ดู 3 tabs: "คอลเลกชัน" / "บันทึกและสรุป" / "ชุดบริบท"
+6. ไป AI Chat · ดู welcome sub: "AI ใช้โปรไฟล์ ชุดบริบท ไฟล์ และกราฟความรู้ในการตอบ"
+7. คลิก chip "ชุดบริบท" ใน sources panel · text เป็นไทย
+
+**Expected:** ทุกที่ใช้ "ชุดบริบท" แทน "Context Packs" · "โหมดจัดเก็บข้อมูล" แทน "Storage Mode" · "ระบบจัดให้" แทน "Managed"
+
+**Edge case:** เปลี่ยน language → English (toggle ที่ navigation) → ทุกที่กลับเป็น English ทันที (i18n ทำงานสองทาง)
+
+═══════════════════════════════════════════════════════════════
+**TC-TOS-001: ToS page โหลดได้**
+
+Steps:
+1. เปิด `https://personaldatabank.fly.dev/legal/tos`
+
+**Expected:**
+- ✅ HTTP 200
+- ✅ Banner สีส้ม "เอกสารฉบับร่าง · ยังไม่ผ่านการตรวจสอบโดยทนายความ"
+- ✅ 10 sections (1. บริการ · 2. คุณสมบัติ · 3. การใช้งานที่อนุญาต · 4. ที่ห้าม · 5. IP · 6. การยกเลิก · 7. AS-IS · 8. แก้ไข · 9. กฎหมายไทย · 10. ติดต่อ)
+- ✅ ปุ่ม "← กลับหน้าหลัก" ที่บน · click → ไป `/`
+- ✅ Font Inter · dark theme ตรงกับ landing
+- ✅ Mobile: scroll ปกติ · ไม่ overflow
+
+═══════════════════════════════════════════════════════════════
+**TC-PRIV-001: Privacy page โหลดได้**
+
+Steps:
+1. เปิด `https://personaldatabank.fly.dev/legal/privacy`
+
+**Expected:**
+- ✅ HTTP 200 · banner DRAFT
+- ✅ 13 sections + ตาราง "วัตถุประสงค์ในการใช้ข้อมูล" (data → purpose)
+- ✅ ระบุชัดเจน: ผู้รับข้อมูลคือ Google (Gemini + Drive) · Fly.io · LINE Corp.
+- ✅ ระบุสิทธิ PDPA §30-37 ครบ 7 ข้อ
+- ✅ ระยะเวลาเก็บ: บัญชี 30 วันหลังลบ · Log 30 วัน · Backup ≤ 90 วัน
+- ✅ DPO email = axis.solutions.team@gmail.com
+
+═══════════════════════════════════════════════════════════════
+**TC-TOS-002: Register Checkbox enforce + signup work**
+
+**Negative — backend guard (curl):**
+```bash
+curl -X POST https://personaldatabank.fly.dev/api/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"qa_no_tos@test.com","password":"abc123","name":"NoToS"}'
+# Expected: 400 detail = "TOS_REQUIRED: กรุณายอมรับเงื่อนไขการใช้บริการก่อนสมัคร"
+
+curl -X POST https://personaldatabank.fly.dev/api/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"qa_stale@test.com","password":"abc123","name":"Stale","tos_version":"0.9"}'
+# Expected: 400 detail = "TOS_VERSION_MISMATCH: expected 1.0, got 0.9"
+```
+
+**UI test — landing register flow:**
+1. เปิด `/` ในโหมด incognito → click "เริ่มต้นฟรี" → modal เปิด switch "สมัครสมาชิก"
+2. กรอก ชื่อ + อีเมล + รหัสผ่าน
+3. **ปุ่ม "สมัครสมาชิก" ต้อง disabled** (เทา · cursor: not-allowed)
+4. ติ๊ก checkbox "ฉันยอมรับ [เงื่อนไข] และ [นโยบาย]"
+5. ปุ่มต้อง **enable** ทันที
+6. คลิก [เงื่อนไขการใช้บริการ] link → เปิด new tab ไป `/legal/tos`
+7. คลิก [นโยบายความเป็นส่วนตัว] link → เปิด new tab ไป `/legal/privacy`
+8. กลับมา modal · uncheck checkbox → button disable ทันที
+9. ติ๊กใหม่ + คลิกสมัคร → register สำเร็จ → redirect /app
+
+**Verify backend persistence (after success):**
+```bash
+# Login → /api/profile หรือ admin DB query
+sqlite-utils dump backend/personal_data.db \
+  --table users \
+  --where "email = 'qa_test@example.com'" \
+  --json
+# Expected: tos_accepted_at = ISO timestamp · tos_version = "1.0"
+```
+
+═══════════════════════════════════════════════════════════════
+**TC-TOS-003: Footer links + Existing users grandfathered**
+
+Steps (footer):
+1. เปิด `/` → scroll ลงสุด footer
+2. เห็นบรรทัด: `[เงื่อนไขการใช้บริการ] · [นโยบายความเป็นส่วนตัว]` ใต้ version
+3. คลิกแต่ละลิงก์ → ไปยัง legal page ที่ถูกต้อง
+
+Steps (grandfather check):
+1. Login ด้วย user เก่าที่สมัครก่อน v10.0.26 (เช่น bossok2546@gmail.com)
+2. **คาดหวัง:** เข้าใช้งานได้ปกติ ไม่มี popup บังคับ accept ToS
+3. (Optional) Admin DB query → ดู `tos_accepted_at` ของ user เก่า = NULL · ของ user ใหม่ที่สมัคร TC-TOS-002 = ISO timestamp
+
+═══════════════════════════════════════════════════════════════
+✅ Pass Criteria
+═══════════════════════════════════════════════════════════════
+
+ผ่าน 5/5 TC → ตอบ "✅ APPROVED · pipeline=resolved · ux-batch-5-6 (lang + ToS)" ใน `for-เขียว.md`
+ผ่าน 4/5 → APPROVED WITH NOTES + ระบุข้อที่มีปัญหา
+ผ่าน < 4/5 → REJECTED + screenshot + console log
+
+═══════════════════════════════════════════════════════════════
+⚠️ Known Limitations / Out-of-scope
+═══════════════════════════════════════════════════════════════
+
+- **ToS + Privacy เป็น DRAFT** — ทนายยังไม่ตรวจ · ใช้ใน beta ได้ แต่ต้องแก้ก่อน public launch
+- **Existing users (pre-v10.0.26):** grandfathered (NULL ใน tos_accepted_at) · ใช้งานต่อได้ปกติ · ถ้าต้องการ force re-accept ตอน ToS เปลี่ยน → ใส่ middleware เช็ค `tos_version != CURRENT_TOS_VERSION` (ทำในรอบหน้า)
+- **ภาษาที่ไม่ได้แตะ:** dev comments ใน code · technical strings ที่ฝังอยู่กลางประโยคไทย (เช่น "ลบ Pack/Note ที่ user ตั้งใจเก็บ") — ถือว่า OK เพราะอ่านแล้วเข้าใจ
+- **MCP-006 ส่วน i18n keys ที่ยังไม่ครบ:** ถ้าฟ้าเจอ "Context Packs" / "Storage Mode" / "Managed" / "MANAGED" ที่ยัง render เป็นอังกฤษใน Thai UI → report ID + ตำแหน่ง · จะเก็บใน batch ถัดไป
+
+═══════════════════════════════════════════════════════════════
+🎉 Audit progress
+═══════════════════════════════════════════════════════════════
+
+| Batch | Items | Status |
+|-------|-------|--------|
+| 1-3 (v10.0.18-22) | 29 fixes | ✅ APPROVED 29/29 |
+| 4 (v10.0.24) | 5 fixes (CTX/PROF/CHAT/MCP) | ✅ deployed_pending_review |
+| 5 (v10.0.25) | LP-006 + MCP-006 (language) | ✅ deployed_pending_review |
+| 6 (v10.0.26) | LP-007 (ToS + Privacy) | ✅ deployed_pending_review |
+
+ทั้งหมด 7 deferred items ปิดครบแล้ว · audit TC-UX-001 (33 findings) → fixed/closed 33/33 🎉
+
+ขอบคุณครับ 🔵
+— เขียว
+
+---
+
 ### MSG-UX-BATCH4-DEFERRED-001 — Stage 1 ของ 7 deferred items (5 fixes)
 **From:** เขียว (Khiao)
 **Date:** 2026-05-17
