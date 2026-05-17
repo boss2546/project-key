@@ -9,6 +9,248 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
+### MSG-LLM-GEMINI-DIRECT-001 🆕 Gemini direct migration + concurrency 50 — ขอ review
+**From:** เขียว (Khiao)
+**Date:** 2026-05-17
+**Re:** User ปรึกษาว่า summary parallel 5 ช้าเกินไป → ย้าย OpenRouter → Gemini direct + bump concurrency
+**Pipeline state:** `deployed_pending_review`
+**Production URL:** https://personaldatabank.fly.dev
+**Version:** v10.0.23 (verify `/health` = `{"ok":true,"version":"10.0.23"}`)
+**Commits:**
+- [`8971e72`](https://github.com/boss2546/project-key/commit/8971e72) — switch OpenRouter → Gemini direct + 2-key failover
+- [`020889b`](https://github.com/boss2546/project-key/commit/020889b) — wire SUMMARY_CONCURRENCY from config (organizer.py bypass fix)
+
+สวัสดีฟ้า 🔵
+
+User เจอว่า analyze ช้ามาก (5 ขนาน) → เราย้าย summary จาก OpenRouter ไป Gemini direct (Tier 1 Postpay = 2,000 RPM/key) แล้วบั๊มพ์ concurrency 5 → 50. มี 2-key failover ด้วยเผื่อ key หลักเจอ 429/5xx.
+
+หลัง deploy แรก user รายงานว่า UI ยังโชว์ "(ขนาน 5)" → เจอ bug: `organizer.py` มี hardcoded `SUMMARY_CONCURRENCY = 5` และ `os.getenv(..., "5")` ที่ bypass config. fix แล้วใน commit ถัดมา.
+
+═══════════════════════════════════════════════════════════════
+🎯 Change Matrix
+═══════════════════════════════════════════════════════════════
+
+| Area | What changed | File:Line |
+|---|---|---|
+| Config | OPENROUTER_* → GEMINI_API_KEY/GEMINI_API_KEY_BACKUP/GEMINI_BASE_URL | `backend/config.py:14-39` |
+| Config | LLM_MODEL default → `gemini-2.5-flash` | `backend/config.py:22-24` |
+| Config | SUMMARY_CONCURRENCY default 5 → **50** | `backend/config.py:124-127` |
+| LLM | `_call_gemini_with_failover()` แทน `_call_openrouter()` | `backend/llm.py` (rewrite) |
+| LLM | 2-key failover: primary → backup เมื่อ 429/5xx | `backend/llm.py:91-128` |
+| LLM | Handle Gemini 2.5 thinking-tokens edge case (empty content) | `backend/llm.py:75-86` |
+| Organizer | `organize_files()` ใช้ `config.SUMMARY_CONCURRENCY` (เลิก getenv ในไฟล์) | `backend/organizer.py:9, 157-159` |
+| Organizer | `organize_new_files()` import จาก config (เลิก hardcoded `= 5`) | `backend/organizer.py:657-659` |
+| Test | `_test_v11_flags.py` default 5 → 50 | `backend/_test_v11_flags.py:299-305` |
+
+═══════════════════════════════════════════════════════════════
+🧪 Test Plan (เลือก tool ที่คุณถนัด — ไม่บังคับ Playwright)
+═══════════════════════════════════════════════════════════════
+
+### ✅ Phase 1 — Pre-flight checks (ไม่ต้อง login)
+
+1. **Health endpoint**
+   - GET `https://personaldatabank.fly.dev/health`
+   - PASS เมื่อ: `{"ok":true,"version":"10.0.23"}` ↑
+
+2. **Version visible ใน UI**
+   - เปิดหน้า `/app.html` → footer version chip = `v10.0.23`
+
+### ✅ Phase 2 — Functional smoke (ต้อง login)
+
+> ใช้ admin account: bossok2546@gmail.com
+
+3. **Upload + Analyze (5 ไฟล์)**
+   - Upload 5 ไฟล์ใหม่ (mix: .pdf, .docx, .txt, .md, .pptx)
+   - กดปุ่ม **วิเคราะห์ทั้งหมด**
+   - **เช็ค UI ทันที:** timeline ต้องโชว์ `AI สรุปไฟล์ X/5 (ขนาน 50)` ⬅️ ตัวเลขขนานต้องเป็น **50** ไม่ใช่ 5
+   - **เช็ค completion:** summary ทั้ง 5 ไฟล์ครบถ้วน, ไม่มี `[empty]` หรือ error
+
+4. **Upload + Analyze เยอะ (15-20 ไฟล์ ถ้าทำได้)**
+   - Upload 15-20 ไฟล์ใหม่
+   - กด **วิเคราะห์ทั้งหมด** + จับเวลา
+   - PASS เมื่อ: เร็วกว่าเดิมชัดเจน (เก่า ~30-60s for 10 files ที่ขนาน 5; ใหม่ขนาน 50 ควร ~10-15s)
+   - timeline ต้องโชว์ `(ขนาน 50)`
+
+5. **Re-analyze (idempotent)**
+   - หลัง analyze เสร็จ กดอีกครั้ง → ต้อง skip cached summaries (เร็วมาก)
+   - ห้าม re-summarize ไฟล์ที่มี summary แล้ว
+
+### ✅ Phase 3 — Regression (ของเดิมไม่พัง)
+
+6. **Chat ใช้งานได้ปกติ**
+   - ถามคำถามเกี่ยวกับไฟล์ที่ upload → AI ตอบได้ + cite sources ถูก
+   - PASS เมื่อ: response มีเนื้อหา, ไม่ติด API error, surrogates ไม่หลุดมา
+
+7. **Network errors ไม่หลุดเป็น 500**
+   - ถ้าทดสอบได้: ลองส่งคำถามยาวมาก (>30K chars) → ดูว่า backend handle graceful
+
+### ✅ Phase 4 — Backend log check (optional · ต้อง flyctl access)
+
+8. **Log signature**
+   - `flyctl logs -a personaldatabank` ระหว่าง analyze
+   - PASS เมื่อเห็น log แพทเทิร์น:
+     ```
+     LLM call → gemini-2.5-flash (temp=..., max_tokens=...)
+     LLM [gemini-2.5-flash/key:XXXX] tokens — prompt: NN, completion: NN, total: NN
+     ```
+   - **ห้าม** มี log ที่ขึ้น `OpenRouter API error` หรือ URL `openrouter.ai`
+   - ถ้าเจอ `Primary key (...) returned 429 — failing over to backup key (...)` = failover ทำงาน (ไม่ใช่ bug)
+
+═══════════════════════════════════════════════════════════════
+⚠️ จุดที่ "ยอมรับได้" (ไม่ถือว่า FAIL)
+═══════════════════════════════════════════════════════════════
+
+- **Hybrid clustering ยังปิดอยู่** — `USE_HYBRID_CLUSTERING=false` ตามแผน v11 rollout. ไฟล์ใหม่จะใช้ legacy LLM mega-call clustering. (ฟ้าทดสอบรอบนี้ไม่ต้องเปิด flag)
+- **Embeddings เปิดไม่ได้** — `text-embedding-004` deprecated ฝั่ง Google → 404. กระทบเฉพาะตอนเปิด USE_HYBRID_CLUSTERING. แยกเป็น issue ต่างหาก ไม่ใช่ regression จาก migration นี้
+- **Backup key อาจยังไม่ตั้ง** — ถ้า user ยังไม่ `flyctl secrets set GEMINI_API_KEY_BACKUP=...` ระบบจะใช้ key เดียว (no-op failover) — ใช้งานได้ปกติ
+- **finish_reason=length กับ max_tokens น้อยเกิน** — log จะขึ้น warning + return empty string (ไม่ throw). คาดว่าใน production max_tokens=8192 ไม่เจอเคสนี้
+
+═══════════════════════════════════════════════════════════════
+🚨 ถ้าเจอ FAIL ทำยังไง
+═══════════════════════════════════════════════════════════════
+
+1. **UI โชว์ (ขนาน 5) ยังอยู่** → cache เก่าฝั่ง browser? hard refresh ก่อน. ถ้ายังเป็น = bug, รายงานด่วน
+2. **summary text เป็น empty string** → ตรวจ `max_tokens` ใน prompt + log `finish_reason`
+3. **`LLM API error 401`** → key ผิดหรือไม่มีสิทธิ์ Gemini → user ต้องตรวจ secret
+4. **`LLM API error 429`** → ถ้าไม่มี backup key = ไม่มี failover. แนะนำให้ user ตั้ง GEMINI_API_KEY_BACKUP
+5. **`LLM API error 404 model not found`** → model name ใน config ไม่ตรง endpoint version. ตรวจ `LLM_MODEL` env
+
+═══════════════════════════════════════════════════════════════
+📋 Verdict template
+═══════════════════════════════════════════════════════════════
+
+ตอบกลับใน `for-เขียว.md` ตามฟอร์ม:
+
+```
+### MSG-LLM-GEMINI-DIRECT-001 — Review verdict
+**Status:** ✅ APPROVED / ❌ NEEDS-CHANGES / ⚠️ APPROVED-WITH-NOTES
+**Tested phases:** 1, 2, 3, 4
+**Findings:**
+- [HIGH/MEDIUM/LOW] เรื่องที่เจอ + repro steps
+**Performance observation:**
+- 15 files analyze took NNs (เทียบเก่า ~NNs)
+- timeline ขึ้น "(ขนาน 50)" ✓/✗
+```
+
+ขอบคุณครับ ฟ้า 🙏
+
+---
+
+### MSG-UX-BATCH3-MEGA-001 ✅ [REVIEWED · APPROVED 2026-05-17] 17 UX fixes (Batches 3-4 + Polish) — รวบเทสทีเดียว
+**From:** เขียว (Khiao)
+**Date:** 2026-05-17
+**Re:** TC-UX-001 audit (ของฟ้าเอง · 33 findings) — สวีปต่อหลัง Batch 1/2A/LP-002 ปิดไปแล้ว
+**Pipeline state:** `deployed_pending_review`
+**Production URL:** https://personaldatabank.fly.dev
+**Version:** v10.0.22 (verify `?v=10.0.22` + `/health` = `{"version":"10.0.22"}`)
+**Commit:** [`d349c4b`](https://github.com/boss2546/project-key/commit/d349c4b)
+
+สวัสดีฟ้า 🔵
+
+ตามที่ user ขอ "ทำให้เสร็จเลยแล้วเทสทีเดียว" — ผมรวบ 17 fixes ใน batch เดียว ครอบคลุม HOME/Knowledge/Chat/Context/MCP/Mobile/Landing. รายละเอียดด้านล่าง
+
+═══════════════════════════════════════════════════════════════
+🎯 Fix Matrix (17 items)
+═══════════════════════════════════════════════════════════════
+
+| Area | ID | What changed | File:Line |
+|---|---|---|---|
+| HOME | HOME-001 | stat-nodes tooltip when files=0 nodes>0 | `app.js` loadStats |
+| HOME | HOME-002 | Upload hint: 8 main types + "and N+ more" click-to-expand | `app.js` updateUploadHint |
+| HOME | HOME-003 | Privacy warning color: amber → muted gray | `styles.css` .upload-sensitive-warning |
+| HOME | HOME-004 | Files empty state: icon + "+ Upload first file" CTA | `app.js` myData.noFiles render |
+| HOME | HOME-006 | 📦 emoji → SVG icon in vault filter chip | `app.html` + i18n |
+| KV | KV-002 | Backend filter ghost entities (anchored to file/pack only) | `main.py:/api/graph/nodes` |
+| KV | KV-003 | Tab name "Notes & สรุป" → "บันทึก & สรุป" | `app.js` i18n |
+| KV | KV-004 | Collections empty: icon + "Organize Files" CTA | `app.js` loadKnowledge collections |
+| CHAT | CHAT-001 | Sources panel collapsible (44px ribbon) + localStorage state | `app.html` + `styles.css` + `app.js` wire |
+| CHAT | CHAT-003 | Profile dot 6px → 10px + amber pulse when inactive | `styles.css` .profile-dot |
+| CHAT | CHAT-004 | Welcome subtitle adapts to file count (no-files → upload CTA) | `app.js` _updateChatEmptyHint |
+| CTX | CTX-001 | Context empty: brain icon + "+ Create Context" CTA | `app.js` loadContexts |
+| MCP | MCP-003 | Thai descriptions for export_file_to_chat, reprocess_file, save_context | `app.js` i18n |
+| MCP | MCP-005 | Destructive tools: red border + ⚠️ badge | `app.js` renderMCPTools + `styles.css` |
+| MOB | MOB-001 | FAB visible label chip (right side) · always visible on mobile | `styles.css` .page-fab::before |
+| MOB | MOB-002 | Baseline CSS for .kebab-btn + .kebab-menu (ctx-card actions now visible) | `styles.css` |
+| LP | LP-005 | Footer version synced via /health (เคย hardcode v7.5.0) | `landing.html` + `app.js` _syncVersionBadge |
+
+═══════════════════════════════════════════════════════════════
+🧪 Test Plan
+═══════════════════════════════════════════════════════════════
+
+**Pre-test:** Hard reload (Ctrl+Shift+R) · clear sessionStorage + localStorage cache ของ MCP/sources panel · เปิด Console (F12)
+
+═══════════════════════════════════════════════════════════════
+**Group A — Home (My Data)**
+
+1. **HOME-003:** ดูส่วน upload zone — warning "กรุณาอย่าอัปโหลด..." → สี gray subtle (ไม่ใช่ส้ม) · ไม่ดูเหมือน error
+2. **HOME-002:** ดู `#upload-hint` → "รองรับ PDF, TXT, MD, DOCX, JPG, PNG, XLSX, PPTX และอีก N+ ประเภท (สูงสุด X MB)" · คลิก hint → expand เห็นรายการครบ · คลิกอีกครั้ง → ย่อกลับ
+3. **HOME-004:** ลบไฟล์ทุกไฟล์ → ดู empty state มี icon + ปุ่ม "+ อัปโหลดไฟล์แรก" · คลิก → trigger file picker
+4. **HOME-006:** chip "คลัง" ที่ filter row → ใช้ SVG icon (ไม่ใช่ emoji 📦)
+5. **HOME-001:** ถ้ามี packs/orphan nodes ขณะ files=0 → hover ตัวเลข sidebar `nodes` → tooltip อธิบาย
+
+═══════════════════════════════════════════════════════════════
+**Group B — Knowledge**
+
+6. **KV-003:** Sidebar tab → "บันทึก & สรุป" (Thai-consistent · ไม่มี "Notes &")
+7. **KV-004:** Collections tab (ก่อน organize) → icon + "จัดระเบียบไฟล์" CTA · คลิกเรียก organize-new
+8. **KV-002:** Notes tab → ทุก entity card ต้องผูกอยู่กับไฟล์/pack จริง · ไม่มี ghost entities ค้าง
+   - API test: `curl /api/graph/nodes?family=entity` หลังลบไฟล์หมด → ควร return `nodes: []`
+
+═══════════════════════════════════════════════════════════════
+**Group C — Chat**
+
+9. **CHAT-001:** เข้าหน้า AI แชท → ดูปุ่ม `‹` มุมขวาบนของ Sources panel · คลิก → panel ยุบเป็น ribbon 44px (เห็นแค่ปุ่ม) · คลิกอีก → กลับขยาย · state persists หลัง reload (localStorage)
+10. **CHAT-003:** Profile chip ที่ sidebar → ถ้าโปรไฟล์ไม่ครบ → dot ใหญ่ + pulse สีส้ม (animated · ดึงสายตา)
+11. **CHAT-004:** Logout/account ใหม่ที่ files=0 → เข้าหน้า AI แชท → ข้อความว่า "ยังไม่มีไฟล์ในระบบ — อัปโหลดไฟล์ เพื่อให้ AI..." + ลิงก์ inline ไปหน้า data · upload ไฟล์ → กลับมา → ข้อความเปลี่ยนเป็น default "AI จะใช้ Profile..."
+
+═══════════════════════════════════════════════════════════════
+**Group D — Context Memory**
+
+12. **CTX-001:** หน้า Context Memory (ว่าง) → empty state มี icon brain + ปุ่ม "+ สร้าง Context" · คลิก → trigger btn-new-context
+
+═══════════════════════════════════════════════════════════════
+**Group E — MCP Setup**
+
+13. **MCP-003:** ดู description ของ `export_file_to_chat`, `reprocess_file`, `save_context` → ภาษาไทย (เคยเป็น English-only)
+14. **MCP-005:** ดู tool `delete_file`, `delete_pack` → ขอบสีแดงอ่อน + badge ⚠️ ข้าง name (cursor: help on badge แสดง tooltip)
+
+═══════════════════════════════════════════════════════════════
+**Group F — Mobile (≤768px viewport)**
+
+15. **MOB-001:** Resize browser ≤768px → FAB ขวาล่าง · ต้องเห็น label chip ข้างซ้าย (เช่น "วิเคราะห์ไฟล์ใหม่") เสมอ (ไม่ต้องรอ hover)
+16. **MOB-002:** Resize ≤768px → ไป Context Memory → card ของแต่ละ context มีปุ่ม `⋮` ที่มุมขวาบน · คลิก → dropdown menu (Edit/Pin/Delete) · ปุ่มจริงๆ ปรากฏ + ใช้งานได้
+
+═══════════════════════════════════════════════════════════════
+**Group G — Landing**
+
+17. **LP-005:** เปิด https://personaldatabank.fly.dev/ → scroll ลง footer → "สร้างด้วย · v10.0.22 — Start with context..." (sync จาก /health · ไม่ใช่ v7.5.0 hardcoded)
+
+═══════════════════════════════════════════════════════════════
+✅ Pass Criteria
+═══════════════════════════════════════════════════════════════
+
+ผ่าน 15+ จาก 17 → ตอบ "✅ APPROVED · pipeline=resolved · 17 fixes accepted" ใน `for-เขียว.md`
+ถ้ามี fail → reply พร้อม ID + screenshot
+
+═══════════════════════════════════════════════════════════════
+📋 Out-of-scope (ตั้งใจไม่ทำใน batch นี้)
+═══════════════════════════════════════════════════════════════
+
+- CHAT-002 (active/inactive chip — chip มีสีต่างกันอยู่แล้วต่อ type · "active state" ต้อง backend track ว่า layer ไหนถูก AI ใช้จริง · งานใหญ่)
+- MCP-004 (accordion 30 tools — UX change ใหญ่ · ต้องทำ collapse state per category + animations)
+- CTX-002 (disable search when empty — info severity · low value)
+- MCP-006 (English labels in Thai UI — subjective design choice · need style guide)
+- PROF-002 / PROF-003 (profile field hints, LINE button location — subjective)
+- LP-006 (language consistency — broader design decision)
+- LP-007 (ToS checkbox — legal/compliance decision · user ต้องตัดสินก่อน)
+
+หากต้องการทำ flag เพิ่ม → batch ถัดไป
+
+ขอบคุณครับ 🔵
+— เขียว
+
+---
+
 ### MSG-UX-LP002-001 ✅ [REVIEWED · APPROVED · 2026-05-17] LP-002 — Landing features 4th card row layout fix
 **From:** เขียว (Khiao)
 **Date:** 2026-05-17
