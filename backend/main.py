@@ -212,6 +212,9 @@ class RegisterRequest(BaseModel):
     email: str
     password: str
     name: str = "User"
+    # v10.0.26 — LP-007: ToS acceptance (PDPA compliance)
+    # Required for new registrations · server validates against CURRENT_TOS_VERSION
+    tos_version: str | None = None
 
 class LoginRequest(BaseModel):
     email: str
@@ -224,10 +227,28 @@ class ResetPasswordModel(BaseModel):
     token: str
     new_password: str
 
+CURRENT_TOS_VERSION = "1.0"  # v10.0.26 — LP-007 · bump when ToS changes
+
 @app.post("/api/auth/register")
 async def api_register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
-    """Register a new user account."""
-    return await register_user(db, req.email, req.password, req.name)
+    """Register a new user account.
+
+    v10.0.26 — LP-007: enforces ToS acceptance.
+    UI sends tos_version="1.0" with the register payload; missing/mismatched
+    versions are rejected with 400 so frontend can show the checkbox error.
+    """
+    if not req.tos_version:
+        raise HTTPException(
+            status_code=400,
+            detail="TOS_REQUIRED: กรุณายอมรับเงื่อนไขการใช้บริการก่อนสมัคร",
+        )
+    if req.tos_version != CURRENT_TOS_VERSION:
+        # Future-proof: when ToS bumps to 1.1+, stale frontend cache rejects gracefully
+        raise HTTPException(
+            status_code=400,
+            detail=f"TOS_VERSION_MISMATCH: expected {CURRENT_TOS_VERSION}, got {req.tos_version}",
+        )
+    return await register_user(db, req.email, req.password, req.name, tos_version=req.tos_version)
 
 # v10.0.14 — In-memory login rate limiter (5 fails / 15 min per IP).
 # Prevents brute-force. Sliding window via timestamp list. Single-machine only;
@@ -5501,6 +5522,18 @@ async def serve_reset_password_page():
 async def serve_legacy():
     """Alias — same as root (backward compatibility)."""
     return _serve_html("landing.html")
+
+
+@app.get("/legal/tos")
+async def serve_tos():
+    """v10.0.26 — LP-007: Terms of Service (Thai, draft v1.0)."""
+    return _serve_html("tos.html")
+
+
+@app.get("/legal/privacy")
+async def serve_privacy():
+    """v10.0.26 — LP-007: Privacy Policy (Thai, PDPA-aware, draft v1.0)."""
+    return _serve_html("privacy.html")
 
 
 @app.get("/legacy/{filename}")

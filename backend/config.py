@@ -9,7 +9,7 @@ load_dotenv()
 # ─── App Version (single source of truth) ───
 # Bump this when releasing. All version strings exposed to clients
 # (Swagger /docs, /api/mcp/info, MCP serverInfo) read from here.
-APP_VERSION = "10.0.25"
+APP_VERSION = "10.0.26"
 
 # ─── LLM API (v10.0.23 — Gemini Direct, no OpenRouter) ───
 # ย้ายมาเรียก Gemini ตรง (OpenAI-compatible endpoint) — ตัด OpenRouter middleman

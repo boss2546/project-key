@@ -9,9 +9,9 @@
  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
  <script src="https://d3js.org/d3.v7.min.js"></script>
- <link rel="stylesheet" href="/legacy/shared.css?v=10.0.25">
- <link rel="stylesheet" href="/legacy/styles.css?v=10.0.25">
- <link rel="stylesheet" href="/legacy/landing.css?v=10.0.25">
+ <link rel="stylesheet" href="/legacy/shared.css?v=10.0.26">
+ <link rel="stylesheet" href="/legacy/styles.css?v=10.0.26">
+ <link rel="stylesheet" href="/legacy/landing.css?v=10.0.26">
 </head>
 <body>
  <!-- ┌────────────────────────────────────────────────────────────┐
@@ -254,7 +254,12 @@
  <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.9"/><rect x="14" y="3" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/><rect x="3" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.6"/><rect x="14" y="14" width="7" height="7" rx="2" fill="currentColor" opacity="0.3"/></svg>
  <span>Personal Data Bank</span>
  </div>
- <p>สร้างด้วย · <span id="footer-version">v10.0.25</span> — เริ่มจากบริบท เติบโตสู่ Digital Twin</p>
+ <p>สร้างด้วย · <span id="footer-version">v10.0.26</span> — เริ่มจากบริบท เติบโตสู่ Digital Twin</p>
+ <p class="footer-legal-links">
+ <a href="/legal/tos">เงื่อนไขการใช้บริการ</a>
+ <span aria-hidden="true">·</span>
+ <a href="/legal/privacy">นโยบายความเป็นส่วนตัว</a>
+ </p>
  </footer>
  </div>
 
@@ -312,8 +317,15 @@
  </button>
  </div>
  </div>
+ <!-- v10.0.26 — LP-007: ToS + Privacy acceptance checkbox (PDPA compliance) -->
+ <div class="form-group tos-checkbox-group">
+ <label class="tos-checkbox-label">
+ <input type="checkbox" id="register-tos" class="tos-checkbox">
+ <span class="tos-checkbox-text">ฉันยอมรับ <a href="/legal/tos" target="_blank" rel="noopener">เงื่อนไขการใช้บริการ</a> และ <a href="/legal/privacy" target="_blank" rel="noopener">นโยบายความเป็นส่วนตัว</a></span>
+ </label>
+ </div>
  <div id="register-error" class="auth-error hidden" role="alert" aria-live="assertive"></div>
- <button class="btn btn-primary btn-block" id="btn-register">สมัครสมาชิก</button>
+ <button class="btn btn-primary btn-block" id="btn-register" disabled>สมัครสมาชิก</button>
  <p class="auth-switch">มีบัญชีอยู่แล้ว? <a href="#" id="switch-to-login">เข้าสู่ระบบ</a></p>
  </div>
  <!-- Forgot Password Form (v5.1) -->
@@ -368,9 +380,9 @@
  </div>
  </div>
 
-  <script src="/legacy/dev-logger.js?v=10.0.25"></script>
-  <script src="/legacy/storage_mode.js?v=10.0.25"></script>
- <script src="/legacy/app.js?v=10.0.25"></script>
- <script src="/legacy/landing.js?v=10.0.25"></script>
+  <script src="/legacy/dev-logger.js?v=10.0.26"></script>
+  <script src="/legacy/storage_mode.js?v=10.0.26"></script>
+ <script src="/legacy/app.js?v=10.0.26"></script>
+ <script src="/legacy/landing.js?v=10.0.26"></script>
 </body>
 </html>

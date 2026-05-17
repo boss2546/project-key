@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+ <title>เงื่อนไขการใช้บริการ — Personal Data Bank</title>
+ <meta name="description" content="เงื่อนไขการใช้บริการ Personal Data Bank (PDB) ฉบับร่าง">
+ <link rel="preconnect" href="https://fonts.googleapis.com">
+ <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+ <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+ <link rel="stylesheet" href="/legacy/shared.css?v=10.0.26">
+ <link rel="stylesheet" href="/legacy/styles.css?v=10.0.26">
+ <link rel="stylesheet" href="/legacy/landing.css?v=10.0.26">
+ <style>
+  /* Legal page minimal styling — uses tokens from shared.css */
+  .legal-page { max-width: 760px; margin: 0 auto; padding: 32px 24px 80px; line-height: 1.7; color: var(--text-primary); }
+  .legal-draft-banner {
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    color: #f59e0b;
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 24px;
+    font-size: 13px;
+    text-align: center;
+  }
+  .legal-page h1 { font-size: 28px; margin: 16px 0 4px; font-weight: 700; }
+  .legal-meta { font-size: 13px; color: var(--text-muted, rgba(255,255,255,0.55)); margin-bottom: 28px; }
+  .legal-page h2 { font-size: 18px; margin: 28px 0 10px; font-weight: 600; color: var(--text-secondary, rgba(255,255,255,0.85)); }
+  .legal-page h3 { font-size: 15px; margin: 16px 0 6px; font-weight: 600; }
+  .legal-page p, .legal-page li { font-size: 14px; }
+  .legal-page ul, .legal-page ol { padding-left: 22px; margin: 8px 0 12px; }
+  .legal-page li { margin-bottom: 4px; }
+  .legal-page table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  .legal-page th, .legal-page td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; vertical-align: top; }
+  .legal-page th { background: rgba(255,255,255,0.04); font-weight: 600; }
+  .legal-back {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--accent); text-decoration: none; font-size: 13px; margin-bottom: 16px;
+  }
+  .legal-back:hover { text-decoration: underline; }
+  .legal-foot { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-muted, rgba(255,255,255,0.5)); text-align: center; }
+ </style>
+</head>
+<body>
+ <main class="legal-page">
+  <a href="/" class="legal-back">← กลับหน้าหลัก</a>
+  <div class="legal-draft-banner">
+    เอกสารฉบับร่าง · ยังไม่ผ่านการตรวจสอบโดยทนายความ · อยู่ระหว่างปรับปรุง
+  </div>
+  <h1>เงื่อนไขการใช้บริการ</h1>
+  <div class="legal-meta">Terms of Service · เวอร์ชัน 1.0 · ปรับปรุง 17 พฤษภาคม 2569</div>
+
+  <h2>1. บริการของเรา</h2>
+  <p>Personal Data Bank (PDB) เป็นบริการบนระบบคลาวด์ที่ช่วยให้ผู้ใช้เก็บข้อมูลส่วนตัว เอกสาร และความรู้ ในรูปแบบที่ AI เข้าถึงและประมวลผลได้ ให้บริการในสถานะ <strong>เบต้า (beta)</strong> หมายความว่ายังอยู่ในช่วงพัฒนาและทดสอบ ฟีเจอร์อาจเปลี่ยนแปลงโดยไม่แจ้งล่วงหน้า</p>
+
+  <h2>2. คุณสมบัติผู้ใช้</h2>
+  <ul>
+    <li>ผู้ใช้ต้องมีอายุไม่ต่ำกว่า 13 ปี · ผู้เยาว์ต้องได้รับความยินยอมจากผู้ปกครอง</li>
+    <li>ข้อมูลที่ให้ในการสมัคร (อีเมล ชื่อ) ต้องเป็นข้อมูลจริง</li>
+    <li>1 อีเมล = 1 บัญชี · ห้ามสร้างบัญชีซ้ำเพื่อหลีกเลี่ยง quota</li>
+  </ul>
+
+  <h2>3. การใช้งานที่อนุญาต</h2>
+  <p>ผู้ใช้สามารถ:</p>
+  <ul>
+    <li>อัปโหลดเอกสาร บันทึก หรือข้อมูลส่วนตัวที่เป็นของตนเอง</li>
+    <li>ใช้ AI ช่วยสรุป จัดระเบียบ และค้นคว้าข้อมูลของตนเอง</li>
+    <li>เชื่อมต่อ PDB กับ AI client อื่นผ่าน MCP</li>
+    <li>ส่งออก (export) ข้อมูลของตนเองในรูปแบบ JSON ได้ทุกเมื่อ</li>
+  </ul>
+
+  <h2>4. การใช้งานที่ห้าม</h2>
+  <p>ห้ามใช้ PDB เพื่อ:</p>
+  <ul>
+    <li>อัปโหลดเนื้อหาผิดกฎหมาย ละเมิดลิขสิทธิ์ หรือคุกคามผู้อื่น</li>
+    <li>อัปโหลดข้อมูลส่วนบุคคลของผู้อื่นโดยไม่ได้รับอนุญาต</li>
+    <li>พยายามเจาะระบบ scrape ข้อมูล หรือ reverse engineer</li>
+    <li>ใช้ระบบในทางที่ทำให้ระบบเสียหายหรือเกิน quota โดยเจตนา</li>
+    <li>ขายต่อ / ให้เช่า / sublicense บริการให้บุคคลที่สาม</li>
+  </ul>
+
+  <h2>5. ทรัพย์สินทางปัญญา</h2>
+  <h3>เนื้อหาที่ผู้ใช้อัปโหลด</h3>
+  <p>ผู้ใช้เป็นเจ้าของลิขสิทธิ์ของเนื้อหาที่อัปโหลดเอง ผู้ใช้ให้สิทธิ์ PDB ในการเก็บ ประมวลผล และส่งผ่านข้อมูลเหล่านั้น <strong>เพื่อให้บริการเท่านั้น</strong> ไม่ใช้ในการฝึก AI โดยไม่ได้รับความยินยอม</p>
+  <h3>ระบบ PDB</h3>
+  <p>PDB เป็นเจ้าของระบบ source code UI brand และ trademark ทั้งหมด ผู้ใช้ไม่ได้รับสิทธิ์ใดในทรัพย์สินทางปัญญาของ PDB</p>
+
+  <h2>6. การยกเลิกบริการ</h2>
+  <ul>
+    <li>ผู้ใช้สามารถลบบัญชีได้ทุกเมื่อในหน้าโปรไฟล์ · ข้อมูลทั้งหมดจะถูกลบภายใน 30 วัน</li>
+    <li>PDB อาจระงับหรือปิดบัญชีหากผู้ใช้ละเมิดเงื่อนไข · จะแจ้งเตือนล่วงหน้าเมื่อทำได้</li>
+    <li>หาก PDB ปิดบริการ จะแจ้งล่วงหน้าอย่างน้อย 30 วันและเปิดให้ export ข้อมูล</li>
+  </ul>
+
+  <h2>7. ข้อจำกัดความรับผิด</h2>
+  <p>บริการ PDB ให้ในสถานะ <strong>AS-IS</strong> ไม่รับประกัน:</p>
+  <ul>
+    <li>ความถูกต้องของผลลัพธ์ AI (AI อาจตอบผิด — ผู้ใช้ต้องตรวจสอบเอง)</li>
+    <li>ความพร้อมใช้งาน 100% (เซิร์ฟเวอร์อาจล่ม · downtime · maintenance)</li>
+    <li>ความเข้ากันได้กับ third-party AI clients ที่อาจเปลี่ยน API</li>
+  </ul>
+  <p>ความรับผิดสูงสุดของ PDB จำกัดไม่เกิน <strong>ค่าบริการที่ผู้ใช้จ่ายในช่วง 12 เดือนล่าสุด</strong> หรือ 1,000 บาท แล้วแต่จำนวนใดสูงกว่า · PDB ไม่รับผิดในความเสียหายทางอ้อม การสูญเสียโอกาสทางธุรกิจ หรือการสูญเสียกำไร</p>
+
+  <h2>8. การแก้ไขเงื่อนไข</h2>
+  <p>PDB อาจแก้ไขเงื่อนไขนี้เมื่อจำเป็น โดย:</p>
+  <ul>
+    <li>แจ้งให้ผู้ใช้ทราบล่วงหน้าผ่านอีเมลและในแอป <strong>อย่างน้อย 30 วัน</strong></li>
+    <li>หาก user ไม่ยอมรับเงื่อนไขใหม่ สามารถลบบัญชีและ export ข้อมูลได้ก่อนวันที่มีผล</li>
+  </ul>
+
+  <h2>9. กฎหมายที่ใช้บังคับ</h2>
+  <ul>
+    <li>เงื่อนไขนี้อยู่ภายใต้ <strong>กฎหมายไทย</strong></li>
+    <li>ข้อพิพาทใด ๆ จะระงับโดยศาลที่มีเขตอำนาจในประเทศไทย</li>
+    <li>ผู้ใช้ต้องปฏิบัติตาม PDPA (พ.ร.บ. คุ้มครองข้อมูลส่วนบุคคล 2562)</li>
+  </ul>
+
+  <h2>10. การติดต่อ</h2>
+  <p>สอบถามเกี่ยวกับเงื่อนไขนี้: <strong>axis.solutions.team@gmail.com</strong></p>
+
+  <div class="legal-foot">
+    Personal Data Bank · เงื่อนไขการใช้บริการ ฉบับร่าง v1.0 · 2569
+  </div>
+ </main>
+</body>
+</html>

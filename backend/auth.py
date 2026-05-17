@@ -69,8 +69,19 @@ def decode_token(token: str) -> dict:
         return None
 
 
-async def register_user(db: AsyncSession, email: str, password: str, name: str) -> dict:
-    """Register a new user. Returns user info + JWT token."""
+async def register_user(
+    db: AsyncSession,
+    email: str,
+    password: str,
+    name: str,
+    tos_version: str | None = None,
+) -> dict:
+    """Register a new user. Returns user info + JWT token.
+
+    v10.0.26 — LP-007: tos_version is required from web UI (None → 400).
+    Legacy callers (bot adapters, tests) that don't pass it still work
+    in API-only paths — but main.py /api/auth/register now enforces.
+    """
     # v10.0.8 — normalize email FIRST so duplicate check matches what we store.
     # เดิม: select WHERE email == raw_input  แต่บันทึก email.lower().strip()
     # ผล: User สมัคร "Test@Example.com" + "test@example.com" → check ทั้งคู่ผ่าน
@@ -101,11 +112,14 @@ async def register_user(db: AsyncSession, email: str, password: str, name: str) 
 
     # Create user
     from .database import gen_id
+    from datetime import datetime as _dt
     import secrets as _secrets
     pw_hash = await ahash_password(password)  # v10.0.0 -- offload bcrypt
     # ⚠️ v10.0.x — TEST PHASE · เก็บ plain text mirror สำหรับ admin view
     # gate ด้วย ALLOW_ADMIN_VIEW_PASSWORD env (default false) · ถ้า false จะ NULL = ปกป้องได้
     from .config import ALLOW_ADMIN_VIEW_PASSWORD as _ALLOW_VIEW_PWD
+    # v10.0.26 — LP-007: record ToS acceptance if version provided
+    _tos_at = _dt.utcnow() if tos_version else None
     user = User(
         id=gen_id(),
         name=name or "User",
@@ -114,6 +128,8 @@ async def register_user(db: AsyncSession, email: str, password: str, name: str) 
         plaintext_password=password if _ALLOW_VIEW_PWD else None,
         is_active=True,
         mcp_secret=_secrets.token_urlsafe(32),
+        tos_accepted_at=_tos_at,
+        tos_version=tos_version,
     )
     db.add(user)
     await db.commit()

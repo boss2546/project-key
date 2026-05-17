@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+ <title>นโยบายความเป็นส่วนตัว — Personal Data Bank</title>
+ <meta name="description" content="นโยบายความเป็นส่วนตัว Personal Data Bank (PDB) สอดคล้อง PDPA ฉบับร่าง">
+ <link rel="preconnect" href="https://fonts.googleapis.com">
+ <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+ <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+ <link rel="stylesheet" href="/legacy/shared.css?v=10.0.26">
+ <link rel="stylesheet" href="/legacy/styles.css?v=10.0.26">
+ <link rel="stylesheet" href="/legacy/landing.css?v=10.0.26">
+ <style>
+  .legal-page { max-width: 760px; margin: 0 auto; padding: 32px 24px 80px; line-height: 1.7; color: var(--text-primary); }
+  .legal-draft-banner {
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    color: #f59e0b;
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 24px;
+    font-size: 13px;
+    text-align: center;
+  }
+  .legal-page h1 { font-size: 28px; margin: 16px 0 4px; font-weight: 700; }
+  .legal-meta { font-size: 13px; color: var(--text-muted, rgba(255,255,255,0.55)); margin-bottom: 28px; }
+  .legal-page h2 { font-size: 18px; margin: 28px 0 10px; font-weight: 600; color: var(--text-secondary, rgba(255,255,255,0.85)); }
+  .legal-page h3 { font-size: 15px; margin: 16px 0 6px; font-weight: 600; }
+  .legal-page p, .legal-page li { font-size: 14px; }
+  .legal-page ul, .legal-page ol { padding-left: 22px; margin: 8px 0 12px; }
+  .legal-page li { margin-bottom: 4px; }
+  .legal-page table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  .legal-page th, .legal-page td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; vertical-align: top; }
+  .legal-page th { background: rgba(255,255,255,0.04); font-weight: 600; }
+  .legal-back { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); text-decoration: none; font-size: 13px; margin-bottom: 16px; }
+  .legal-back:hover { text-decoration: underline; }
+  .legal-foot { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-muted, rgba(255,255,255,0.5)); text-align: center; }
+ </style>
+</head>
+<body>
+ <main class="legal-page">
+  <a href="/" class="legal-back">← กลับหน้าหลัก</a>
+  <div class="legal-draft-banner">
+    เอกสารฉบับร่าง · ยังไม่ผ่านการตรวจสอบโดยทนายความ · อยู่ระหว่างปรับปรุง
+  </div>
+  <h1>นโยบายความเป็นส่วนตัว</h1>
+  <div class="legal-meta">Privacy Policy · เวอร์ชัน 1.0 · ปรับปรุง 17 พฤษภาคม 2569 · สอดคล้อง พ.ร.บ. คุ้มครองข้อมูลส่วนบุคคล 2562 (PDPA)</div>
+
+  <h2>1. ผู้ควบคุมข้อมูลส่วนบุคคล</h2>
+  <p><strong>Personal Data Bank (PDB)</strong><br>
+  อีเมลติดต่อ: axis.solutions.team@gmail.com</p>
+
+  <h2>2. ข้อมูลที่เราเก็บ</h2>
+  <h3>ข้อมูลที่คุณให้</h3>
+  <ul>
+    <li><strong>บัญชี:</strong> อีเมล รหัสผ่าน (เข้ารหัส bcrypt) ชื่อ</li>
+    <li><strong>โปรไฟล์:</strong> ข้อมูลส่วนตัวที่คุณกรอกในหน้าโปรไฟล์ (5 ช่อง free-text + บุคลิกภาพ ไม่บังคับ)</li>
+    <li><strong>เนื้อหาที่อัปโหลด:</strong> ไฟล์ เอกสาร บันทึก พร้อมข้อมูลสรุปและกราฟความรู้ที่ระบบสร้าง</li>
+    <li><strong>OAuth tokens:</strong> เมื่อเชื่อมต่อ Google Drive — token เข้ารหัส (Fernet) เก็บใน DB</li>
+    <li><strong>LINE:</strong> หากเชื่อม LINE bot — บันทึก line_user_id (display name ถ้า LINE คืนมา)</li>
+  </ul>
+  <h3>ข้อมูลที่ระบบเก็บอัตโนมัติ</h3>
+  <ul>
+    <li><strong>ประวัติการแชท AI:</strong> คำถาม คำตอบ เพื่อต่อบริบทในการสนทนา</li>
+    <li><strong>Log การใช้งาน:</strong> IP, user-agent, เวลาเข้าใช้ (เก็บ 30 วัน เพื่อ troubleshoot และ security)</li>
+  </ul>
+
+  <h2>3. วัตถุประสงค์ในการใช้ข้อมูล</h2>
+  <table>
+    <thead><tr><th>ข้อมูล</th><th>ใช้เพื่อ</th></tr></thead>
+    <tbody>
+      <tr><td>อีเมล + รหัสผ่าน</td><td>การยืนยันตัวตน (auth)</td></tr>
+      <tr><td>ไฟล์ + บันทึก</td><td>ให้บริการตาม core feature (เก็บ ค้น สรุป)</td></tr>
+      <tr><td>โปรไฟล์</td><td>ให้ AI ตอบตรงกับบริบทคุณ</td></tr>
+      <tr><td>OAuth tokens</td><td>เชื่อมต่อ Drive ตามที่คุณอนุญาต</td></tr>
+      <tr><td>ประวัติแชท</td><td>ต่อบริบทในการสนทนา + พัฒนาคุณภาพการตอบ</td></tr>
+      <tr><td>Log</td><td>troubleshoot · security · prevent abuse</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4. ฐานทางกฎหมาย (PDPA §24)</h2>
+  <ul>
+    <li><strong>ความยินยอม (Consent):</strong> คุณให้ความยินยอมเมื่อกดยอมรับเงื่อนไขตอนสมัคร</li>
+    <li><strong>ความจำเป็นเพื่อปฏิบัติตามสัญญา:</strong> เก็บข้อมูลเพื่อให้บริการตามที่คุณสมัคร</li>
+    <li><strong>ประโยชน์โดยชอบด้วยกฎหมาย:</strong> Log สำหรับ security และ prevent abuse</li>
+  </ul>
+
+  <h2>5. ผู้รับข้อมูล (Third Parties)</h2>
+  <p>เราแชร์ข้อมูลกับผู้ให้บริการเท่าที่จำเป็น:</p>
+  <ul>
+    <li><strong>Google (Gemini API):</strong> ข้อมูลที่ AI ต้องอ่านเพื่อตอบคำถาม · ภายใต้ Google API Terms</li>
+    <li><strong>Google (Drive API):</strong> หากคุณเลือกเชื่อม Drive · ภายใต้ OAuth scope ที่คุณอนุญาต</li>
+    <li><strong>Fly.io:</strong> ผู้ให้บริการ hosting (Singapore region) · ข้อมูลทั้งหมดเก็บใน infrastructure ของ Fly</li>
+    <li><strong>LINE Corp.:</strong> หากคุณเชื่อม LINE bot · ภายใต้ Privacy Policy ของ LINE</li>
+  </ul>
+  <p><strong>เราไม่ขายข้อมูลให้บุคคลที่สาม · ไม่ใช้ข้อมูลคุณในการฝึก AI ของเราโดยไม่ได้รับความยินยอม</strong></p>
+
+  <h2>6. การโอนข้อมูลไปต่างประเทศ</h2>
+  <ul>
+    <li><strong>Singapore (Fly.io):</strong> ข้อมูลหลักเก็บที่นี่ · มี standard data protection agreement</li>
+    <li><strong>United States (Google):</strong> ข้อมูลที่ส่งไป Gemini API · Google มี GDPR + APEC CBPR compliance</li>
+  </ul>
+
+  <h2>7. ระยะเวลาเก็บข้อมูล</h2>
+  <ul>
+    <li><strong>บัญชี + เนื้อหา:</strong> เก็บจนกว่าคุณลบบัญชี · จากนั้นลบภายใน 30 วัน</li>
+    <li><strong>Log:</strong> เก็บ 30 วัน</li>
+    <li><strong>Backup:</strong> เก็บไม่เกิน 90 วันหลังลบ</li>
+  </ul>
+
+  <h2>8. สิทธิของคุณ (PDPA §30-37)</h2>
+  <p>คุณมีสิทธิ:</p>
+  <ol>
+    <li><strong>เข้าถึง</strong> — ดูข้อมูลที่เราเก็บ (export JSON ในแอปได้)</li>
+    <li><strong>แก้ไข</strong> — แก้ไขโปรไฟล์และเนื้อหาในแอปได้ทุกเมื่อ</li>
+    <li><strong>ลบ</strong> — ลบข้อมูลเฉพาะส่วน หรือลบบัญชีทั้งหมด</li>
+    <li><strong>ระงับการใช้</strong> — disconnect Drive · MCP · LINE ได้</li>
+    <li><strong>คัดค้าน / ถอนความยินยอม</strong> — ถอน consent ได้ทุกเมื่อ ระบบจะหยุดประมวลผลข้อมูลใหม่</li>
+    <li><strong>Portability</strong> — ดาวน์โหลดข้อมูลในรูปแบบ JSON</li>
+    <li><strong>ร้องเรียน</strong> — ต่อ PDPC (สำนักงานคณะกรรมการคุ้มครองข้อมูลส่วนบุคคล)</li>
+  </ol>
+  <p><strong>วิธีใช้สิทธิ:</strong> ใน Settings ของแอป หรืออีเมล axis.solutions.team@gmail.com (ตอบกลับภายใน 30 วัน)</p>
+
+  <h2>9. Cookies และ Tracking</h2>
+  <ul>
+    <li><strong>JWT token:</strong> เก็บใน localStorage เพื่อการยืนยันตัวตน</li>
+    <li><strong>Session ID:</strong> เก็บใน sessionStorage เพื่อ UI state ระหว่างหน้า</li>
+    <li><strong>ไม่ใช้:</strong> Google Analytics · Facebook Pixel · third-party ad trackers</li>
+  </ul>
+
+  <h2>10. ความปลอดภัย</h2>
+  <ul>
+    <li>รหัสผ่านเข้ารหัส bcrypt (cost 12)</li>
+    <li>OAuth tokens เข้ารหัส Fernet (AES-128-CBC)</li>
+    <li>HTTPS ทุก request</li>
+    <li>JWT signed</li>
+    <li>Audit log สำหรับ admin operations</li>
+    <li>เซิร์ฟเวอร์ใน secured Fly.io infrastructure</li>
+  </ul>
+
+  <h2>11. การละเมิดข้อมูล (Data Breach)</h2>
+  <p>หากเกิดการละเมิดที่อาจกระทบความเสียหายสูง:</p>
+  <ul>
+    <li>แจ้ง user ที่ได้รับผลกระทบภายใน <strong>72 ชั่วโมง</strong></li>
+    <li>แจ้ง PDPC ตามที่กฎหมายกำหนด</li>
+  </ul>
+
+  <h2>12. การเปลี่ยนแปลงนโยบาย</h2>
+  <p>หากนโยบายเปลี่ยน เราจะแจ้งคุณผ่านอีเมลและในแอป <strong>อย่างน้อย 30 วัน</strong> ก่อนมีผล</p>
+
+  <h2>13. การติดต่อ DPO</h2>
+  <p><strong>Email:</strong> axis.solutions.team@gmail.com<br>
+  <strong>Response time:</strong> ภายใน 30 วันตามกฎหมาย</p>
+
+  <div class="legal-foot">
+    Personal Data Bank · นโยบายความเป็นส่วนตัว ฉบับร่าง v1.0 · 2569
+  </div>
+ </main>
+</body>
+</html>

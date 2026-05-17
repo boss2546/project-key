@@ -267,6 +267,7 @@ async function doRegister() {
  const name = document.getElementById('register-name').value.trim();
  const email = document.getElementById('register-email').value.trim();
  const password = document.getElementById('register-password').value;
+ const tosAccepted = document.getElementById('register-tos')?.checked;
  const errorEl = document.getElementById('register-error');
  const btn = document.getElementById('btn-register');
  _resetAuthError(errorEl);
@@ -278,6 +279,13 @@ async function doRegister() {
    return;
  }
 
+ // v10.0.26 — LP-007: enforce ToS acceptance client-side
+ if (!tosAccepted) {
+   errorEl.textContent = 'กรุณายอมรับเงื่อนไขการใช้บริการและนโยบายความเป็นส่วนตัวก่อนสมัคร';
+   errorEl.classList.remove('hidden');
+   return;
+ }
+
  // UX-01 · disable button + แสดง loading
  _setBtnLoading(btn, true, 'กำลังสมัครสมาชิก...');
 
@@ -285,7 +293,8 @@ async function doRegister() {
  const res = await fetch('/api/auth/register', {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
- body: JSON.stringify({ email, password, name }),
+ // v10.0.26 — LP-007: send tos_version (server validates + persists)
+ body: JSON.stringify({ email, password, name, tos_version: '1.0' }),
  });
  const data = await res.json();
  if (!res.ok) {
@@ -486,6 +495,15 @@ function initAuth() {
  document.getElementById('btn-register')?.addEventListener('click', doRegister);
  document.getElementById('btn-forgot-submit')?.addEventListener('click', doForgotPassword);
  document.getElementById('btn-reset-submit')?.addEventListener('click', doResetPassword);
+
+ // v10.0.26 — LP-007: toggle btn-register enabled state by ToS checkbox
+ const _tosCb = document.getElementById('register-tos');
+ const _regBtn = document.getElementById('btn-register');
+ if (_tosCb && _regBtn) {
+   const _sync = () => { _regBtn.disabled = !_tosCb.checked; };
+   _tosCb.addEventListener('change', _sync);
+   _sync();
+ }
 
  // UX-02 · กด Enter ใน email field ก็ submit ฟอร์มได้ · เดิมรองรับแค่ password field
  const _enterPairs = [

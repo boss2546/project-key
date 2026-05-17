@@ -56,6 +56,11 @@ class User(Base):
     # Gate: env ALLOW_ADMIN_VIEW_PASSWORD=true (default false ใน production)
     # populate ตอน register + reset_password เท่านั้น · existing users (pre-v10.0.x) จะเป็น NULL
     plaintext_password = Column(String, nullable=True)
+    # v10.0.26 — LP-007: ToS acceptance tracking (PDPA compliance)
+    # NULL = grandfathered (legacy users before v10.0.26 · ไม่บังคับ accept ย้อนหลัง)
+    # tos_version รองรับ force re-accept เมื่อ ToS เปลี่ยน (เก็บ "1.0", "1.1", ...)
+    tos_accepted_at = Column(DateTime, nullable=True)
+    tos_version = Column(String, nullable=True)
     files = relationship("File", back_populates="owner")
     profile = relationship("UserProfile", uselist=False, back_populates="user", cascade="all, delete-orphan")
     drive_connection = relationship(
@@ -1048,6 +1053,24 @@ async def init_db():
                 )
                 migrated = True
                 print("  → Added: users.plaintext_password (v10.0.x · TEST PHASE ONLY · remove before launch)")
+
+            # v10.0.26 Migration — LP-007 ToS acceptance tracking (PDPA compliance)
+            # ⚠️ Additive · existing users = NULL = grandfathered (ไม่บังคับ accept ย้อนหลัง)
+            # tos_version field รองรับ future force re-accept เมื่อ ToS เปลี่ยน (เก็บ "1.0", "1.1", ...)
+            cursor = await db.execute("PRAGMA table_info(users)")
+            user_cols_v1026 = [row[1] for row in await cursor.fetchall()]
+            if "tos_accepted_at" not in user_cols_v1026:
+                await db.execute(
+                    "ALTER TABLE users ADD COLUMN tos_accepted_at TEXT"
+                )
+                migrated = True
+                print("  → Added: users.tos_accepted_at (v10.0.26 · ToS acceptance timestamp)")
+            if "tos_version" not in user_cols_v1026:
+                await db.execute(
+                    "ALTER TABLE users ADD COLUMN tos_version TEXT"
+                )
+                migrated = True
+                print("  → Added: users.tos_version (v10.0.26 · ToS version accepted)")
 
             # v8.2.0 Bootstrap — seed is_admin=1 จาก ADMIN_EMAILS env (idempotent — safe re-run)
             # Why: ครั้งแรกใช้งานต้องมี admin login เข้า /admin ได้จาก env เพราะ DB ยังไม่มีใครเป็น admin
