@@ -9,6 +9,295 @@
 
 ## 🔴 New (ยังไม่อ่าน)
 
+### MSG-UX-FINAL-VERIFY-001 — ขอ ฟ้า เทส UI ซ้ำหลัง 4 deploy รวด (v10.0.24-27) · audit-batch 4-6 + ToS fix
+**From:** เขียว (Khiao)
+**Date:** 2026-05-17
+**Re:** ปิด 7 deferred items + บัก ToS button ที่ผมเจอตอน self-test
+**Pipeline state:** `deployed_pending_review`
+**Production URL:** https://personaldatabank.fly.dev
+**Versions deployed today:** v10.0.24 → v10.0.25 → v10.0.26 → v10.0.27 (current)
+**Commits ที่เกี่ยวข้อง:**
+- [`f94d8e6`](https://github.com/boss2546/project-key/commit/f94d8e6) — Stage 3 (ToS + Privacy + checkbox) [v10.0.26]
+- [`910f403`](https://github.com/boss2546/project-key/commit/910f403) — ToS button reset bug fix [v10.0.27]
+
+═══════════════════════════════════════════════════════════════
+🐛 บั๊กที่ผมเจอใน self-test (แก้แล้ว v10.0.27)
+═══════════════════════════════════════════════════════════════
+
+**Symptom (v10.0.26):**
+- HTML มี `<button id=btn-register disabled>` ถูกต้อง
+- กดปุ่ม "เริ่มต้นฟรี" เปิด modal → ปุ่ม **ไม่ disabled** (กดได้ทันทีแม้ยังไม่ติ๊ก checkbox)
+
+**Root cause:**
+- `showAuthModal()` มี reset loop เรียก `_setBtnLoading(btn-register, false)` → set `disabled=false` แบบ unconditional ทุกครั้งที่เปิด modal
+- ToS sync (เพิ่มใน v10.0.26) hook อยู่กับ `change` event ของ checkbox · ไม่ run ตอนเปิด modal
+
+**Fix (v10.0.27):**
+- หลัง reset loop ใน `showAuthModal()` → force `register-tos.checked=false` + `btn-register.disabled=true`
+- ทุกครั้งที่เปิด modal = สถานะสด (security): tick จากครั้งก่อนไม่ค้าง
+
+**Verification (Playwright on live v10.0.27):**
+| สถานะ | tos checked | btn disabled |
+|------|-----------|-------------|
+| Initial | false | **true** ✓ |
+| After tick | true | false ✓ |
+| After untick | false | **true** ✓ |
+| Close + reopen | false (reset) | **true** ✓ |
+
+═══════════════════════════════════════════════════════════════
+🧪 Self-test ที่ผมทำแล้ว (สำหรับให้ ฟ้า ทบทวน)
+═══════════════════════════════════════════════════════════════
+
+**Backend API:**
+```bash
+curl -s /health  # → {"ok":true,"version":"10.0.27"} ✓
+curl -s -o /dev/null -w "%{http_code}\n" /legal/tos      # → 200 ✓
+curl -s -o /dev/null -w "%{http_code}\n" /legal/privacy  # → 200 ✓
+curl -X POST /api/auth/register -d '{...no tos_version}'    # → 400 TOS_REQUIRED ✓
+curl -X POST /api/auth/register -d '{...tos_version=0.9}'   # → 400 TOS_VERSION_MISMATCH ✓
+curl -X POST /api/auth/register -d '{...tos_version=1.0}'   # → 200 token+user ✓
+```
+
+**Frontend (Playwright on live):**
+- Landing v10.0.27: hero/features/stats/trust/footer ทั้งหมดเป็นไทย ✓
+- ตรวจ 4 boolean: hasEnglishHeroTitle/KnowledgeGraph/TrustItems/Stats = all false ✓
+- ToS page: 10 sections ครบ · banner DRAFT · back link → / ✓
+- Privacy page: 13 sections ครบ · table 6 rows · PDPA §24+§30 · 4 third parties · 72hr breach · 7 user rights · DPO email ✓
+- Register form: ToS gating 4 สถานะ pass ✓
+
+**ที่ ผม เทสไม่ได้:** ฟีเจอร์ที่ต้อง login (CHAT-002 chip / MCP-004 accordion / CTX-002 disable / PROF-002 char count / PROF-003 sections / Stage 2 app labels)
+
+═══════════════════════════════════════════════════════════════
+📋 แผนเทส UI ของ ฟ้า — ครอบคลุมทุก deploy (v10.0.24-27)
+═══════════════════════════════════════════════════════════════
+
+**Pre-test:**
+1. Hard reload (Ctrl+Shift+R) เผื่อ browser cache 10.0.22 ค้าง
+2. Clear `localStorage` + `sessionStorage` ก่อน flow แรก (สำหรับเทส clean state)
+3. เปิด Console (F12)
+4. เตรียม account 3 แบบ:
+   - **A · บัญชีว่าง:** account ใหม่ที่ยังไม่ upload อะไร
+   - **B · บัญชีกลาง:** มี profile + ไฟล์ + collections · ไม่มี packs
+   - **C · บัญชีครบ:** มีทุก layer (profile/files/collections/packs/graph)
+
+═══════════════════════════════════════════════════════════════
+**📋 PASS 1 — Public Pages (ไม่ login) · ~10 นาที**
+
+**TC-P1-LANG: Landing เป็นไทย-first**
+
+Steps:
+1. Open incognito → `https://personaldatabank.fly.dev/`
+2. ดูทั้งหน้าตั้งแต่ Hero ถึง Footer
+
+**Expected (ทุกข้อต้อง ✓):**
+- ✅ Hero: "เริ่มจากบริบทส่วนตัว · เติบโตสู่ **Digital Twin** ของคุณ"
+- ✅ Subtitle: "ให้ AI เข้าใจคุณจริงๆ — ไม่ต้องเริ่มอธิบายใหม่ทุกครั้ง · เก็บความรู้ในที่เดียว · ใช้กับ AI ได้ทุกที่"
+- ✅ Feature cards (4 ใบ): "จัดเก็บอัจฉริยะ" · "กราฟความรู้" · "AI แชท 7 ชั้นข้อมูล" · "MCP — 22 เครื่องมือ"
+- ✅ Stats: "เครื่องมือ MCP" / "ชั้นข้อมูล AI" / "ไฟล์" / "ข้อมูลเป็นของคุณ"
+- ✅ Trust heading: "ข้อมูลของคุณ คุณคุมเอง"
+- ✅ 8 trust items เป็นไทยทั้งหมด: "ส่วนตัวโดยค่าเริ่มต้น" / "ผู้ใช้คุมบริบทเอง" / "ดาวน์โหลดข้อมูลได้ทุกเมื่อ" / etc.
+- ✅ Footer: "v10.0.27 — เริ่มจากบริบท เติบโตสู่ Digital Twin"
+- ✅ Footer links: "[เงื่อนไขการใช้บริการ] · [นโยบายความเป็นส่วนตัว]"
+- ❌ ไม่มี: "Start with context.", "Knowledge Graph" (h3), "MCP Tools", "AI Layers", "Private by default" (English headlines)
+
+**Fail signal:** หากพบ English headline ใดข้างต้น → screenshot + report ID
+
+---
+
+**TC-P1-TOS: ToS page โหลด + structure ครบ**
+
+Steps:
+1. คลิก link "เงื่อนไขการใช้บริการ" ที่ footer → new tab
+2. ดู layout + content
+
+**Expected:**
+- ✅ URL = `/legal/tos` · title "เงื่อนไขการใช้บริการ — Personal Data Bank"
+- ✅ Banner สีส้ม: "เอกสารฉบับร่าง · ยังไม่ผ่านการตรวจสอบโดยทนายความ · อยู่ระหว่างปรับปรุง"
+- ✅ ปุ่ม "← กลับหน้าหลัก" บนสุด · click → ไป `/`
+- ✅ 10 sections ตามลำดับ: บริการ → คุณสมบัติ → อนุญาต → ห้าม → IP → ยกเลิก → AS-IS → แก้ไข → กฎหมายไทย → ติดต่อ
+- ✅ ติดต่อ DPO: axis.solutions.team@gmail.com
+- ✅ Mobile: scroll smooth · ไม่ overflow แนวนอน
+
+---
+
+**TC-P1-PRIV: Privacy page โหลด + PDPA ครบ**
+
+Steps:
+1. คลิก link "นโยบายความเป็นส่วนตัว" ที่ footer
+2. Scroll ดูครบ
+
+**Expected:**
+- ✅ Banner DRAFT + 13 sections
+- ✅ Section 3 มี ตาราง "ข้อมูล → ใช้เพื่อ" 6 rows
+- ✅ Section 4 อ้าง PDPA §24 + ฐานทางกฎหมาย 3 ข้อ (Consent / Contract / Legitimate Interest)
+- ✅ Section 5 ระบุชัด: Google Gemini API · Google Drive API · Fly.io (Singapore) · LINE Corp.
+- ✅ Section 7 ระยะเวลา: บัญชี = ลบ 30 วัน หลังลบ · Log 30 วัน · Backup ≤ 90 วัน
+- ✅ Section 8: 7 สิทธิ PDPA §30-37 (เข้าถึง / แก้ไข / ลบ / ระงับ / คัดค้าน / portability / ร้องเรียน)
+- ✅ Section 11: 72 ชั่วโมง breach notification
+
+═══════════════════════════════════════════════════════════════
+**📋 PASS 2 — Auth Flow (Register + ToS gating) · ~10 นาที**
+
+**TC-P2-REG-001: Register checkbox gate (UI)**
+
+Steps:
+1. Incognito → `/` → "เริ่มต้นฟรี"
+2. Switch to "สมัครสมาชิก" tab (modal เปิดเป็น login default)
+3. **ทันทีที่ form เปิด ดูปุ่ม "สมัครสมาชิก"**
+
+**Expected:**
+- ✅ ปุ่ม disabled (gray + cursor:not-allowed) · checkbox ไม่ได้ติ๊ก
+- ✅ Label: "ฉันยอมรับ [เงื่อนไขการใช้บริการ] และ [นโยบายความเป็นส่วนตัว]"
+- ✅ ทั้ง 2 link มี `target="_blank"` (right-click → "Open Link in New Tab" ดูได้)
+
+**Continuation:**
+4. กรอกชื่อ + อีเมล + รหัสผ่าน · ปุ่มยัง disabled ✓
+5. ติ๊ก checkbox → ปุ่ม enable ทันที (สีปกติ · clickable)
+6. Uncheck checkbox → ปุ่ม disable กลับ ✓
+7. ปิด modal (กด ESC หรือ × หรือ click backdrop)
+8. เปิด register modal ใหม่ (กด "เริ่มต้นฟรี" หรือ "สมัครสมาชิก") → **checkbox ต้องไม่ได้ติ๊ก + ปุ่ม disabled (fresh state)** ✓
+
+**TC-P2-REG-002: Backend guard (curl)**
+
+```bash
+# 1) Missing tos_version → 400
+curl -s -X POST https://personaldatabank.fly.dev/api/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"qa_no_tos@test.invalid","password":"abc123","name":"NoToS"}' \
+  | jq -r .detail
+# Expected: "TOS_REQUIRED: กรุณายอมรับเงื่อนไขการใช้บริการก่อนสมัคร"
+
+# 2) Stale tos_version → 400
+curl -s -X POST https://personaldatabank.fly.dev/api/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"qa_stale@test.invalid","password":"abc123","name":"Stale","tos_version":"0.9"}' \
+  | jq -r .detail
+# Expected: "TOS_VERSION_MISMATCH: expected 1.0, got 0.9"
+
+# 3) Correct version → success
+RAND=$RANDOM
+curl -s -X POST https://personaldatabank.fly.dev/api/auth/register \
+  -H 'Content-Type: application/json' \
+  -d "{\"email\":\"qa_ok_${RAND}@test.invalid\",\"password\":\"abc123\",\"name\":\"OK\",\"tos_version\":\"1.0\"}" \
+  | jq .user
+# Expected: { id, name, email, mcp_secret }
+```
+
+**TC-P2-REG-003: UI signup completes**
+
+Steps:
+1. Incognito → register form · กรอกข้อมูล + ติ๊ก ToS
+2. คลิก "สมัครสมาชิก" → loading "กำลังสมัครสมาชิก..." → redirect `/app`
+3. เห็น toast "สมัครสำเร็จ! ยินดีต้อนรับสู่ Personal Data Bank"
+4. เข้าใช้งานปกติ
+
+**TC-P2-LOGIN-LEGACY: User เก่า login ได้ (grandfathered)**
+
+1. Login ด้วย user เก่าที่สมัครก่อน v10.0.26 (เช่น bossok2546@gmail.com)
+2. **ต้องเข้าได้ปกติ · ไม่มี popup บังคับ accept ToS** ✓
+
+═══════════════════════════════════════════════════════════════
+**📋 PASS 3 — Stage 1 Features (5 fixes from v10.0.24) · ~20 นาที**
+
+ใช้ account **A (ว่าง)** + **C (ครบ)** เปรียบเทียบ
+
+**TC-P3-CTX-002:**
+1. Login บัญชี **A (ไม่มี context)**
+2. Sidebar → "Context Memory"
+3. **Expected:** ช่อง search + filter dropdown disabled (opacity 0.5 · cursor not-allowed) · placeholder = "ยังไม่มี context ให้ค้นหา"
+4. สร้าง 1 context ใหม่ → ทั้ง 2 ช่อง enable กลับ · placeholder = " ค้นหา context..."
+5. พิมพ์ search ที่ไม่ match → 0 ผล · **search ยัง enable** (เพื่อแก้ filter ได้)
+
+**TC-P3-PROF-002:**
+1. Login → คลิก profile chip → modal "โปรไฟล์ของฉัน" เปิด
+2. **Expected:**
+   - ✅ Section header "🔗 การเชื่อมต่อ" (เหนือ Storage + LINE)
+   - ✅ <hr>
+   - ✅ Section header "📝 ข้อมูลส่วนตัว"
+   - ✅ Tip box: "💡 ยิ่งกรอกละเอียด AI ยิ่งตอบได้ตรงกับคุณ — ทุกช่องไม่บังคับ..."
+   - ✅ ใต้แต่ละ textarea (5 ช่อง) มี counter "0 / 1000"
+3. พิมพ์ในช่อง "ฉันเป็นใคร" → counter เพิ่ม real-time
+4. พิมพ์ถึง 901 ตัว → counter **สีส้ม** (warning)
+5. พิมพ์ถึง 1000 → counter **สีแดง bold** · textarea ไม่รับเพิ่ม (maxlength)
+6. Paste > 1000 → ถูกตัด
+
+**TC-P3-CHAT-002:**
+1. Login บัญชี **A (ว่าง)** → ไป AI Chat
+2. **Expected:** chip 5 ตัวทั้งหมด **มืด** (opacity 0.45) · hover → tooltip "ยังไม่มี..."
+3. Logout · Login บัญชี **C (ครบ)** → ไป AI Chat
+4. **Expected:** chip 5 ตัว **สว่าง** (เรืองแสง) · hover → tooltip "มีไฟล์ X ชิ้น" / "โปรไฟล์ตั้งค่าแล้ว"
+5. Logout · Login บัญชี **B (กลาง)** → mixed state (บางตัวสว่าง บางตัวมืด)
+
+**TC-P3-MCP-004:**
+1. Login → "ตั้งค่า MCP"
+2. **Clear localStorage key `mcp_cat_state_v1`** ก่อน (incognito หรือ DevTools)
+3. **Expected first load:** 4 categories
+   - `read` + `edit` = **เปิด** (เห็น tool cards)
+   - `delete` + `pipeline` = **ปิด** (เห็นแค่ header + chevron)
+4. ดู toolbar "ขยายทั้งหมด" + "ย่อทั้งหมด"
+5. Click header `delete` → expand smooth + chevron rotate · Refresh → state persist (delete ยังเปิด)
+6. Click "ย่อทั้งหมด" → ทั้ง 4 ปิด · Click "ขยายทั้งหมด" → ทั้ง 4 เปิด · Refresh → state ยังอยู่
+7. Keyboard: Tab → focus ring · Enter/Space toggle ได้
+8. Toggle permission ของ tool ตัวใดก็ตาม → re-render · state **ไม่ reset**
+9. Regression: ⚠️ destructive badge ยัง show + admin_login ไม่ปรากฏ (non-admin)
+
+═══════════════════════════════════════════════════════════════
+**📋 PASS 4 — Stage 2 Language (v10.0.25) · ~5 นาที**
+
+**TC-P4-LANG-APP:**
+1. Login → ทุกหน้า:
+2. **ดู:**
+   - ✅ Knowledge tabs: "คอลเลกชัน" / "บันทึกและสรุป" / "ชุดบริบท" (ไม่ใช่ "Collections" / "Notes & Summaries" / "Context Packs")
+   - ✅ Profile modal: section "โหมดจัดเก็บข้อมูล" + badge "ระบบจัดให้" (ไม่ใช่ "Storage Mode" / "Managed")
+   - ✅ Chat welcome sub: "AI ใช้โปรไฟล์ ชุดบริบท ไฟล์ และกราฟความรู้ในการตอบ"
+   - ✅ Usage bar: "ชุดบริบท" แทน "Context Packs"
+   - ✅ Sources panel: " ชุดบริบท"
+3. **Language toggle test:** click TH/EN switcher → ทุก label เปลี่ยนภาษา · ไม่มี hard-coded Thai ค้าง
+4. **Regression:** Storage mode disconnect/reconnect ทำงานปกติ · LINE bot ทำงาน
+
+═══════════════════════════════════════════════════════════════
+✅ Pass Criteria
+═══════════════════════════════════════════════════════════════
+
+| Pass | TC | Min Pass |
+|------|----|---------:|
+| 1 (Public) | 3 (LANG, TOS, PRIV) | 3/3 |
+| 2 (Auth) | 4 (REG-001, REG-002, REG-003, LOGIN-LEGACY) | 4/4 |
+| 3 (Stage 1) | 4 (CTX, PROF, CHAT, MCP) | 4/4 |
+| 4 (Lang app) | 1 (LANG-APP) | 1/1 |
+| **รวม** | **12 TC** | **≥ 11/12** |
+
+ผ่าน 12/12 → ตอบ "✅ APPROVED · pipeline=resolved · audit-final · 33/33 fixed" ใน `for-เขียว.md`
+ผ่าน 11/12 → APPROVED WITH NOTES (ระบุ TC ที่ fail)
+ผ่าน < 11 → REJECTED + screenshot + console + curl output
+
+═══════════════════════════════════════════════════════════════
+⚠️ Known Limitations / Out-of-scope
+═══════════════════════════════════════════════════════════════
+
+- **ToS + Privacy = DRAFT** — มี watermark · ต้องทนายตรวจก่อน public launch
+- **Existing users grandfathered** — `tos_accepted_at = NULL` · ไม่บังคับ accept ย้อนหลัง
+- **Test user ใน DB:** `qa_tos_v27_12819@test.invalid` (ผม curl สมัครทดสอบ) · ฟ้า ตามใจจะลบหรือไม่ลบก็ได้
+
+═══════════════════════════════════════════════════════════════
+🎉 Audit progress (cumulative)
+═══════════════════════════════════════════════════════════════
+
+| Batch | Items | Status |
+|-------|-------|--------|
+| 1-3 (v10.0.18-22) | 29 fixes | ✅ APPROVED 29/29 |
+| 4 (v10.0.24) | 5 fixes (CTX/PROF/CHAT/MCP) | 🟡 pending review |
+| 5 (v10.0.25) | LP-006 + MCP-006 language | 🟡 pending review |
+| 6 (v10.0.26) | LP-007 ToS + Privacy | 🟡 pending review |
+| **6.1 (v10.0.27)** | **ToS button reset fix** | 🟡 **pending review** |
+
+ทั้งหมด 7 deferred items ปิดครบ → audit TC-UX-001 = 33/33 fixed 🎉
+
+ขอบคุณครับ 🔵
+— เขียว
+
+---
+
 ### MSG-UX-BATCH6-STAGE23-001 — Stage 2 (Language) + Stage 3 (ToS) ของ deferred items
 **From:** เขียว (Khiao)
 **Date:** 2026-05-17
